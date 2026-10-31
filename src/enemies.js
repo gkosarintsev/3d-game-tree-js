@@ -1,0 +1,428 @@
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { CONFIG } from './config.js';
+import { beep } from './audio.js';
+
+/** Приводит угол к диапазону (-π, π] — для плавного поворота без «прыжков». */
+function wrapAngle(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a <= -Math.PI) a += Math.PI * 2;
+  return a;
+}
+
+/** Простая человекоподобная фигура: ноги, корпус, плечи, руки, голова, оружие. */
+function buildBodyGeometry() {
+  const box = (w, h, d, x, y, z) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.translate(x, y, z);
+    return g;
+  };
+  return mergeGeometries([
+    box(0.16, 0.85, 0.18, -0.13, 0.42, 0),   // нога
+    box(0.16, 0.85, 0.18, 0.13, 0.42, 0),    // нога
+    box(0.50, 0.72, 0.28, 0, 1.20, 0),       // корпус
+    box(0.62, 0.16, 0.30, 0, 1.50, 0),       // плечи
+    box(0.14, 0.62, 0.16, -0.36, 1.20, 0),   // рука
+    box(0.14, 0.62, 0.16, 0.36, 1.20, 0),    // рука
+    box(0.28, 0.30, 0.28, 0, 1.72, 0),       // голова
+    box(0.10, 0.12, 0.50, 0.34, 1.14, -0.30), // оружие (ствол смотрит в -Z)
+  ], false);
+}
+
+// Общая геометрия на всех врагов: тела различаются только материалом.
+const BODY_GEOMETRY = buildBodyGeometry();
+
+const BODY_HEIGHT = 1.9;
+const BODY_CENTER_Y = 1.0;   // центр сферы попадания над ногами
+const BODY_RADIUS = 0.6;
+
+/**
+ * Враг: патрулирует уровень (в том числе переходя между этажами по лестницам),
+ * замечает игрока, преследует и стреляет. Маршрут строится по графу навигации
+ * карты (см. map.js: findPath), высота берётся из рельефа/полов, а видимость и
+ * преграды — из map.rayHitDistance.
+ */
+export class Enemy {
+  /**
+   * @param {THREE.Scene} scene
+   * @param {import('./map.js').TownMap} map
+   * @param {THREE.Material} material
+   */
+  constructor(scene, map, material, onDeath) {
+    this.scene = scene;
+    this.map = map;
+    this.cfg = CONFIG.enemies;
+    this.onDeath = onDeath;
+
+    this.group = new THREE.Group();
+    this.mesh = new THREE.Mesh(BODY_GEOMETRY, material);
+    this.mesh.castShadow = false; // карта теней заморожена: движущиеся объекты её не пишут
+    this.group.add(this.mesh);
+    this._buildHealthBar();
+    scene.add(this.group);
+
+    this.position = this.group.position;
+    this.feetY = 0;
+    this.verticalVelocity = 0;
+    this.velocity = new THREE.Vector3();
+    this.facing = 0;
+
+    this.health = this.cfg.health;
+    this.state = 'patrol';
+    this.path = null;
+    this.pathIndex = 0;
+    this.wander = null;
+    this.repathTimer = 0;
+    this.fireTimer = 0;
+    this.losTimer = 0;
+    this.hasLos = false;
+    this.distanceToPlayer = Infinity;
+
+    this.dead = true;
+    this.deathTimer = 0;
+    this.respawnTimer = 0;
+    this.hitFlash = 0;
+
+    // рабочие векторы, чтобы не создавать мусор в игровом цикле
+    this._eyeVec = new THREE.Vector3();
+    this._toPlayer = new THREE.Vector3();
+    this._shootDir = new THREE.Vector3();
+    this._muzzle = new THREE.Vector3();
+    this._end = new THREE.Vector3();
+    this._ray = new THREE.Ray();
+    this._sphere = new THREE.Sphere();
+    this._hitPoint = new THREE.Vector3();
+  }
+
+  get alive() { return !this.dead; }
+
+  /**
+   * Полоска здоровья над головой (фон + убывающая заливка). Живёт прямо в
+   * сцене, а не в группе врага: группу мы вращаем по курсу, и тогда полоска
+   * оказалась бы повёрнутой вместе с ним, а не лицом к камере.
+   */
+  _buildHealthBar() {
+    const bar = new THREE.Group();
+    const bg = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.92, 0.13),
+      new THREE.MeshBasicMaterial({ color: 0x11161f }),
+    );
+    this._hpFill = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.86, 0.08),
+      new THREE.MeshBasicMaterial({ color: 0x62d84a }),
+    );
+    this._hpFill.position.z = 0.002;
+    bar.add(bg, this._hpFill);
+    bar.visible = false;
+    this._hpBar = bar;
+    this.scene.add(bar);
+  }
+
+  _updateHealthBar() {
+    const pct = Math.max(0, this.health / this.cfg.health);
+    this._hpFill.scale.x = pct;
+    this._hpFill.position.x = -(1 - pct) * 0.43;
+    const color = pct > 0.5 ? 0x62d84a : pct > 0.25 ? 0xe2b13c : 0xe2503c;
+    this._hpFill.material.color.setHex(color);
+  }
+
+  /** Точка глаз — начало лучей видимости и выстрелов. */
+  _eye() {
+    return this._eyeVec.set(this.position.x, this.feetY + this.cfg.eyeHeight, this.position.z);
+  }
+
+  /** Ставит врага на свободный узел навигации вдали от игрока. */
+  respawn(playerPos) {
+    const nodes = this.map.nav.pos;
+    let node = nodes[Math.floor(Math.random() * nodes.length)];
+    for (let i = 0; i < 120; i++) {
+      const p = nodes[Math.floor(Math.random() * nodes.length)];
+      const d = Math.hypot(p.x - playerPos.x, p.z - playerPos.z);
+      if (d >= this.cfg.spawnDistance && d < 180) { node = p; break; }
+    }
+
+    this.group.position.set(node.x, node.y, node.z);
+    this.group.rotation.set(0, Math.random() * Math.PI * 2, 0);
+    this.group.visible = true;
+    this.feetY = node.y;
+    this.facing = this.group.rotation.y;
+    this.verticalVelocity = 0;
+    this.velocity.set(0, 0, 0);
+
+    this.health = this.cfg.health;
+    this.state = 'patrol';
+    this.path = null;
+    this.pathIndex = 0;
+    this.wander = null;
+    this.repathTimer = 0;
+    this.fireTimer = Math.random() * this.cfg.fireDelay;
+    this.losTimer = 0;
+    this.hasLos = false;
+    this.hitFlash = 0;
+
+    this.dead = false;
+    this.deathTimer = 0;
+    this.respawnTimer = 0;
+    this.mesh.material.emissive.setHex(0x000000); // сброс подсветки попадания
+    this._hpBar.visible = false;
+    this._updateHealthBar();
+  }
+
+  /** Урон от игрока. При смерти запускает анимацию и таймер возрождения. */
+  takeDamage(amount) {
+    if (this.dead) return;
+    this.health -= amount;
+    this.hitFlash = 0.12;
+    this._hpBar.visible = true;
+    this._updateHealthBar();
+    if (this.health <= 0) {
+      this._die();
+    } else {
+      beep(560, 0.035, 'triangle');
+    }
+  }
+
+  _die() {
+    this.dead = true;
+    this.state = 'dead';
+    this.deathTimer = 0.9;
+    this.respawnTimer = this.cfg.respawnDelay;
+    this._hpBar.visible = false;
+    beep(320, 0.12, 'sawtooth');
+    setTimeout(() => beep(180, 0.18, 'sawtooth'), 90);
+    if (this.onDeath) this.onDeath(this);
+  }
+
+  _pickWander() {
+    return this.map.randomNavPoint(this.position.x, this.position.z, 55)
+      || { x: this.position.x, y: this.feetY, z: this.position.z };
+  }
+
+  /**
+   * Обновление за кадр.
+   * @param {number} dt
+   * @param {import('./player.js').Player} player
+   * @param {THREE.Camera} camera
+   * @param {import('./effects.js').Tracers} tracers
+   */
+  update(dt, player, camera, tracers) {
+    // полоска всегда над головой и развёрнута к камере
+    this._hpBar.position.set(this.position.x, this.feetY + 2.05, this.position.z);
+    this._hpBar.quaternion.copy(camera.quaternion);
+
+    if (this.dead) {
+      if (this.deathTimer > 0) {
+        this.deathTimer -= dt;
+        // заваливается на бок и оседает, затем скрывается до возрождения
+        this.group.rotation.x = -(1 - Math.max(0, this.deathTimer) / 0.9) * Math.PI / 2;
+        if (this.deathTimer <= 0) this.group.visible = false;
+      }
+      this.respawnTimer -= dt;
+      if (this.respawnTimer <= 0) this.respawn(player.position);
+      return;
+    }
+
+    if (this.hitFlash > 0) {
+      this.hitFlash = Math.max(0, this.hitFlash - dt);
+      this.mesh.material.emissive.setHex(this.hitFlash > 0 ? 0x551200 : 0x000000);
+    }
+
+    const cfg = this.cfg;
+    const pos = this.position;
+
+    // --- восприятие: расстояние и линия видимости (луч не каждый кадр) ---
+    const eye = this._eye();
+    this._toPlayer.copy(player.position).sub(eye);
+    const dist = Math.max(this._toPlayer.length(), 1e-4);
+    this.distanceToPlayer = dist;
+    this._toPlayer.multiplyScalar(1 / dist);
+
+    this.losTimer -= dt;
+    if (this.losTimer <= 0) {
+      this.losTimer = 0.12;
+      this.hasLos = dist <= cfg.visionRange &&
+        this.map.rayHitDistance(eye.x, eye.y, eye.z,
+          this._toPlayer.x, this._toPlayer.y, this._toPlayer.z, dist) >= dist - 1.2;
+    }
+
+    const engaged = this.hasLos;
+    this.state = !engaged ? 'patrol' : (dist <= cfg.advanceRange ? 'attack' : 'chase');
+
+    // --- маршрут: к игроку в бою, к случайной точке в патруле ---
+    this.repathTimer -= dt;
+    if (this.repathTimer <= 0 || !this.path) {
+      this.repathTimer = cfg.repathDelay * (0.6 + Math.random() * 0.8);
+      if (engaged) {
+        this.path = this.map.findPath(
+          { x: pos.x, y: this.feetY, z: pos.z },
+          { x: player.position.x, y: player.feetY, z: player.position.z },
+        );
+      } else {
+        if (!this.wander || Math.random() < 0.4) this.wander = this._pickWander();
+        this.path = this.map.findPath({ x: pos.x, y: this.feetY, z: pos.z }, this.wander);
+      }
+      this.pathIndex = 1; // нулевой узел — там, где враг стоит сейчас
+    }
+
+    // --- движение по маршруту ---
+    let wishX = 0, wishZ = 0;
+    if (this.state !== 'attack' && this.path && this.pathIndex < this.path.length) {
+      const node = this.path[this.pathIndex];
+      const dx = node.x - pos.x, dz = node.z - pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.9) {
+        this.pathIndex++;
+      } else {
+        const speed = engaged ? cfg.speed.run : cfg.speed.walk;
+        wishX = dx / d * speed;
+        wishZ = dz / d * speed;
+      }
+    }
+
+    const k = 1 - Math.exp(-10 * dt);
+    this.velocity.x += (wishX - this.velocity.x) * k;
+    this.velocity.z += (wishZ - this.velocity.z) * k;
+
+    // раздельное разрешение коллизий по осям, как у игрока
+    const nx = pos.x + this.velocity.x * dt;
+    if (!this.map.isBlocked(nx, pos.z, cfg.radius, this.feetY, BODY_HEIGHT)) pos.x = nx;
+    else this.velocity.x = 0;
+    const nz = pos.z + this.velocity.z * dt;
+    if (!this.map.isBlocked(pos.x, nz, cfg.radius, this.feetY, BODY_HEIGHT)) pos.z = nz;
+    else this.velocity.z = 0;
+
+    // гравитация и ходьба по полу этажа/ступеням лестницы
+    const ground = this.map.groundHeightAt(pos.x, pos.z, this.feetY);
+    this.verticalVelocity -= CONFIG.gravity * dt;
+    this.feetY += this.verticalVelocity * dt;
+    if (this.feetY <= ground) { this.feetY = ground; this.verticalVelocity = 0; }
+    pos.y = this.feetY;
+
+    // --- поворот: в бою смотрит на игрока, иначе по направлению движения ---
+    const speed2d = Math.hypot(this.velocity.x, this.velocity.z);
+    let targetYaw;
+    if (this.state === 'attack' || speed2d < 0.3) {
+      targetYaw = Math.atan2(-(player.position.x - pos.x), -(player.position.z - pos.z));
+    } else {
+      targetYaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+    }
+    this.facing += wrapAngle(targetYaw - this.facing) * Math.min(1, dt * 8);
+    this.group.rotation.y = this.facing;
+
+    // --- огонь по игроку ---
+    if (this.state === 'attack') {
+      this.fireTimer -= dt;
+      if (this.fireTimer <= 0 && this.hasLos) {
+        this.fireTimer = cfg.fireDelay * (0.75 + Math.random() * 0.5);
+        this._shoot(player, tracers);
+      }
+    }
+  }
+
+  /** Выстрел по игроку: трассер, звук и попадание по корпусу цели. */
+  _shoot(player, tracers) {
+    const cfg = this.cfg;
+    const eye = this._eye();
+    const dir = this._shootDir.copy(player.position).sub(eye);
+    const dist = Math.max(dir.length(), 1e-4);
+    dir.multiplyScalar(1 / dist);
+
+    const s = cfg.spread;
+    dir.x += (Math.random() - 0.5) * s;
+    dir.y += (Math.random() - 0.5) * s;
+    dir.z += (Math.random() - 0.5) * s;
+    dir.normalize();
+
+    const muzzle = this._muzzle.copy(eye).addScaledVector(dir, 0.45);
+    const end = this._end.copy(muzzle).addScaledVector(dir, Math.min(dist + 2, cfg.attackRange + 8));
+    tracers.spawn(muzzle, end, 0xff7a52, 0.08);
+    beep(140 + Math.random() * 50, 0.06, 'square');
+
+    // попадание — если трассер проходит вплотную к корпусу игрока
+    this._ray.set(muzzle, dir);
+    this._sphere.center.copy(player.position);
+    this._sphere.center.y -= 0.25;
+    this._sphere.radius = BODY_RADIUS;
+    const hit = this._ray.intersectSphere(this._sphere, this._hitPoint);
+    if (hit && Math.random() < cfg.accuracy) player.takeDamage(cfg.damage);
+  }
+}
+
+/**
+ * Менеджер врагов: создаёт их, обновляет за кадр и умеет искать ближайшего к
+ * лучу (для попаданий выстрелов игрока).
+ */
+export class Enemies {
+  /**
+   * @param {THREE.Scene} scene
+   * @param {import('./map.js').TownMap} map
+   * @param {import('./player.js').Player} player
+   * @param {THREE.Camera} camera
+   * @param {import('./effects.js').Tracers} tracers
+   */
+  constructor(scene, map, player, camera, tracers) {
+    this.map = map;
+    this.player = player;
+    this.camera = camera;
+    this.tracers = tracers;
+    this.kills = 0;
+    this.items = [];
+
+    const palette = [0xc0392b, 0x8e44ad, 0x2c3e50, 0x1e824c, 0xb9770e, 0x943126, 0x2e86c1];
+    for (let i = 0; i < CONFIG.enemies.count; i++) {
+      const material = new THREE.MeshStandardMaterial({
+        color: palette[i % palette.length], emissive: 0x000000, roughness: .8, metalness: .1,
+      });
+      const enemy = new Enemy(scene, map, material, () => { this.kills++; });
+      enemy.respawn(player.position);
+      this.items.push(enemy);
+    }
+
+    this._ray = new THREE.Ray();
+    this._sphere = new THREE.Sphere();
+    this._center = new THREE.Vector3();
+    this._point = new THREE.Vector3();
+  }
+
+  get aliveCount() {
+    let n = 0;
+    for (const e of this.items) if (!e.dead) n++;
+    return n;
+  }
+
+  update(dt) {
+    for (const enemy of this.items) {
+      enemy.update(dt, this.player, this.camera, this.tracers);
+    }
+  }
+
+  /**
+   * Ближайший живой враг, которого задевает луч.
+   * @returns {{enemy:Enemy, distance:number, point:THREE.Vector3}|null}
+   */
+  raycast(origin, direction, maxDist) {
+    this._ray.origin.copy(origin);
+    this._ray.direction.copy(direction);
+    let best = null;
+
+    for (const enemy of this.items) {
+      if (enemy.dead) continue;
+      this._center.set(enemy.position.x, enemy.position.y + BODY_CENTER_Y, enemy.position.z);
+      this._sphere.center.copy(this._center);
+      this._sphere.radius = BODY_RADIUS;
+      const point = this._ray.intersectSphere(this._sphere, this._point);
+      if (!point) continue;
+      const distance = origin.distanceTo(point);
+      if (distance > maxDist) continue;
+      if (!best || distance < best.distance) {
+        best = { enemy, distance, point: point.clone() };
+      }
+    }
+    return best;
+  }
+
+  /** Живые враги для миникарты. */
+  forEachVisible(fn) {
+    for (const enemy of this.items) if (!enemy.dead) fn(enemy.position);
+  }
+}
