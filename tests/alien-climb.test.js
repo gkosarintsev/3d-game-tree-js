@@ -23,12 +23,14 @@
  *   7. Чужой обходит наружный угол дома по стене: с южной стены перебирается на
  *      смежную восточную через угол и не падает вниз;
  *   8. Скачок вплотную к стене останавливается и прилипает, не пробивая фасад;
- *   9. Скачок сквозь врага убивает его;
+ *   9. Скачок сквозь врага ранит его постепенно (как выстрел), а не убивает сразу;
  *  10. Падение с большой высоты на крышу не пробивает перекрытие (подшаги);
  *  11. Урон, регенерация и смерть: хп не уходит ниже нуля, мёртвого не ранят;
  *  12. Сквозной проход по НАСТОЯЩЕМУ лазу (лестничная шахта 2×5 клеток) вдоль
  *      длинной оси: с потолка верхнего этажа на крышу;
- *  13. То же обратно: с крыши через шахту на потолок.
+ *  13. То же обратно: с крыши через шахту на потолок;
+ *  14. «Огонь» по взгляду на стену: со земли прыжок доводит до стены и прилипает;
+ *  15. Прыжок на «пробел» поднимает Чужого выше человеческого роста.
  */
 import * as THREE from 'three';
 import { Alien } from '../src/alien.js';
@@ -314,26 +316,45 @@ function testLeapSticksToWall() {
   };
 }
 
-/** 9. Скачок сквозь врага убивает его (касание в полёте). */
-function testLeapKillsEnemy() {
+/**
+ * 9. Скачок сквозь врага ранит его «как при стрельбе»: с одного раза враг не
+ * погибает, здоровье снимается ровно на урон выстрела (и только один раз за
+ * скачок), а с нескольких провалов враг умирает.
+ */
+function testLeapHurtsEnemy() {
   const { map } = buildTestWorld();
   const enemy = {
     dead: false,
+    health: CONFIG.enemies.health,
     position: new THREE.Vector3(0, 0.9, WALL_Z + 6),
-    takeDamage(n) { this.damage = n; this.dead = true; },
+    takeDamage(n) { this.health -= n; if (this.health <= 0) this.dead = true; },
   };
   const alien = makeAlien(map, () => ({ items: [enemy] }));
-  placeAlien(alien, {
-    x: 0, y: RADIUS, z: WALL_Z + 10, up: [0, 1, 0], fwd: [0, 0, -1], pitch: 0, keys: [],
-  });
-  alien._leap();
-  simulate(alien, 40);
 
-  const passed = enemy.dead;
+  // один скачок в сторону врага
+  const leapAtEnemy = () => {
+    placeAlien(alien, {
+      x: 0, y: RADIUS, z: WALL_Z + 10, up: [0, 1, 0], fwd: [0, 0, -1], pitch: 0, keys: [],
+    });
+    alien._leap();
+    simulate(alien, 40);
+  };
+
+  leapAtEnemy();
+  const hurtOnce = !enemy.dead && enemy.health === CONFIG.enemies.health - CONFIG.weapon.damage;
+  leapAtEnemy();
+  const hurtTwice = !enemy.dead && enemy.health === CONFIG.enemies.health - 2 * CONFIG.weapon.damage;
+  leapAtEnemy();
+  const deadAfter = enemy.dead;
+
+  const passed = hurtOnce && hurtTwice && deadAfter;
   return {
-    name: 'Скачок сквозь врага убивает его',
+    name: 'Скачок ранит врага постепенно, а не убивает сразу',
     passed,
-    info: passed ? `враг поражён (урон ${enemy.damage})` : 'враг не был задет в полёте',
+    info: passed
+      ? `после 1 скачка хп=${CONFIG.enemies.health - CONFIG.weapon.damage}, после 3 — мёртв`
+      : `1 скачок: хп=${enemy.health}, жив=${!enemy.dead}; ` +
+        `урон ровно за один раз=${hurtOnce}`,
   };
 }
 
@@ -471,6 +492,64 @@ function testShaftHoleToCeiling() {
 }
 
 /**
+ * 14. «Огонь» по взгляду на стену: Чужой стоит на земле и смотрит прямо на
+ * стену дома, по нажатию огня скачет вперёд и прилипает к стене, оставаясь на
+ * ней (не сползает обратно на землю).
+ */
+function testLeapOntoWallFromGround() {
+  const { map } = buildTestWorld();
+  const alien = makeAlien(map);
+  placeAlien(alien, {
+    x: 0, y: RADIUS, z: WALL_Z + 5, up: [0, 1, 0], fwd: [0, 0, -1], pitch: 0, keys: [],
+  });
+
+  alien._leap(); // «огонь» — прыжок в сторону взгляда
+  const trace = simulate(alien, 90);
+
+  const stickIdx = trace.findIndex(s => onWall(s) && s.upZ > 0.7); // прилип к южной стене
+  const last = trace[trace.length - 1];
+  const stayedOnWall = onWall(last) && last.upZ > 0.7 && last.y > RADIUS + 1;
+  const passed = stickIdx >= 0 && trace[stickIdx].y > RADIUS + 1 && stayedOnWall;
+  return {
+    name: 'Прыжок на стену по «огню»: прилипает и остаётся на ней',
+    passed,
+    info: passed
+      ? `прилип к стене на кадре ${stickIdx} (y=${trace[stickIdx].y.toFixed(2)}), ` +
+        `остался на ней (y=${last.y.toFixed(2)}, up=${upStr(last)})`
+      : `не прилип; итог z=${last.z.toFixed(2)}, y=${last.y.toFixed(2)}, up=${upStr(last)}`,
+  };
+}
+
+/**
+ * 15. Прыжок на «пробел» выше человеческого: с земли Чужой поднимается не
+ * меньше 2.2 юнита (у человека при той же гравитации — около 1 юнита).
+ */
+function testSpaceJumpHeight() {
+  const { map } = buildTestWorld();
+  const alien = makeAlien(map);
+  placeAlien(alien, {
+    x: 0, y: RADIUS, z: 25, up: [0, 1, 0], fwd: [0, 0, 1], pitch: 0, keys: ['Space'],
+  });
+
+  let maxY = -Infinity;
+  for (let i = 0; i < 120; i++) {
+    alien.update(DT);
+    if (i === 1) alien.keys.delete('Space'); // один прыжок, без повторного отрыва
+    maxY = Math.max(maxY, alien.pos.y);
+  }
+
+  const rise = maxY - RADIUS;
+  const passed = rise >= 2.2;
+  return {
+    name: 'Прыжок на «пробел» достаточно высокий',
+    passed,
+    info: passed
+      ? `поднялся на ${rise.toFixed(2)} юнита`
+      : `слишком низко: всего ${rise.toFixed(2)} юнита`,
+  };
+}
+
+/**
  * Прогоняет все тесты лазания и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
@@ -478,8 +557,9 @@ export function runAlienClimbTests() {
   const tests = [
     testClimbWall, testClimbRoof, testRoofToWall, testWallToGround,
     testCeilToRoof, testRoofToCeil, testWallCornerWrap,
-    testLeapSticksToWall, testLeapKillsEnemy, testRoofStopsFall, testDamageAndRegen,
+    testLeapSticksToWall, testLeapHurtsEnemy, testRoofStopsFall, testDamageAndRegen,
     testShaftHoleToRoof, testShaftHoleToCeiling,
+    testLeapOntoWallFromGround, testSpaceJumpHeight,
   ];
   const results = tests.map(fn => {
     try { return fn(); }

@@ -602,7 +602,7 @@ export class TownMap {
     // геометрия всех домов сливается по материалам → постоянное число мешей.
     // Попутно собираем твёрдые объёмы (AABB) для 3D-физики Чужого.
     this.solids = [];
-    const parts = { walls: [], slabs: [], stairs: [], glass: [] };
+    const parts = { walls: [], slabs: [], stairs: [] };
     for (const b of this.buildings) {
       const g = buildBuildingGeometry(b, this.solids);
       for (const key of Object.keys(parts)) if (g[key]) parts[key].push(g[key]);
@@ -613,19 +613,12 @@ export class TownMap {
       walls: new THREE.MeshStandardMaterial({ color: 0xd6dae0, roughness: .85, metalness: .05 }),
       slabs: new THREE.MeshStandardMaterial({ color: 0xb9bec6, roughness: .9, metalness: .05 }),
       stairs: new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: .9, metalness: .05 }),
-      glass: new THREE.MeshStandardMaterial({
-        color: 0x9fc7e0, emissive: 0x1b3a52, emissiveIntensity: .2,
-        roughness: .08, metalness: .1,
-        transparent: true,   // стекло пропускает свет
-        opacity: 0.25,       // видно сквозь окно
-        depthWrite: false,   // не перекрывать то, что за стеклом
-      }),
     };
 
     for (const key of Object.keys(parts)) {
       if (!parts[key].length) continue;
       const mesh = new THREE.Mesh(mergeGeometries(parts[key], false), mats[key]);
-      mesh.castShadow = key !== 'glass'; // стекло свет не задерживает
+      mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
     }

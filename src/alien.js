@@ -80,6 +80,7 @@ export class Alien {
 
     this.grounded = true;
     this.leapTimer = 0;
+    this._leapHits = new Set(); // враги, уже раненые текущим скачком
 
     // здоровье и состояние боя (интерфейс тот же, что у человека)
     this.maxHealth = CONFIG.health.max;
@@ -551,6 +552,7 @@ export class Alien {
     this.vel.copy(dir).multiplyScalar(l.speed);
     this.grounded = false;
     this.leapTimer = l.maxTime;
+    this._leapHits.clear(); // новый скачок — каждый враг снова может быть ранен
     beep(90, 0.18, 'sawtooth');
     setTimeout(() => beep(60, 0.22, 'sawtooth'), 70);
   }
@@ -581,16 +583,21 @@ export class Alien {
     this._target.set(0, 1, 0);
     this._alignUpLook(this._target, dt);
 
-    // касание врага в полёте — враг погибает
+    // касание врага в полёте — урон «как при стрельбе». За один скачок каждый
+    // враг ранится не более раза: без этого контакт держался бы несколько кадров
+    // и урон начислялся многократно.
     const enemies = this.getEnemies();
     if (enemies) {
       const kr = cfg.leap.killRadius;
       for (const e of enemies.items) {
-        if (e.dead) continue;
+        if (e.dead || this._leapHits.has(e)) continue;
         const dx = pos.x - e.position.x;
         const dy = pos.y - (e.position.y + 1.0); // центр корпуса врага
         const dz = pos.z - e.position.z;
-        if (dx * dx + dy * dy + dz * dz <= kr * kr) e.takeDamage(1000);
+        if (dx * dx + dy * dy + dz * dz <= kr * kr) {
+          e.takeDamage(CONFIG.weapon.damage);
+          this._leapHits.add(e);
+        }
       }
     }
 
