@@ -3,6 +3,7 @@ import { CONFIG } from './config.js';
 import { createTownMap } from './map.js';
 import { Coins } from './coins.js';
 import { Player } from './player.js';
+import { Alien } from './alien.js';
 import { Hud } from './hud.js';
 import { Enemies } from './enemies.js';
 import { Weapon } from './weapon.js';
@@ -14,6 +15,8 @@ import { winTune } from './audio.js';
  * состоянием и игровым циклом.
  *
  * Состояния: 'menu' | 'playing' | 'paused' | 'won' | 'dead'.
+ * На старте показывается экран выбора персонажа: человек (стрельба) или
+ * Чужой (лазание по поверхностям и далёкий скачок).
  */
 export class Game {
   constructor() {
@@ -23,33 +26,34 @@ export class Game {
     this._initScene();
     this.map.build(this.scene);
 
-    this.player = new Player(this.camera, this.renderer.domElement, this.map);
-    this.player.spawnAt(this.map.spawn);
-    // развернуть игрока лицом к домам
-    this.camera.lookAt(this.map.spawn.x, this.camera.position.y, 0);
-
     this.coins = new Coins(this.scene, this.map, CONFIG.totalCoins, CONFIG.minCoinDistance);
     this.hud = new Hud();
-
-    // боевая часть: пул трассеров, враги и оружие игрока
     this.tracers = new Tracers(this.scene);
-    this.enemies = new Enemies(this.scene, this.map, this.player, this.camera, this.tracers);
-    this.weapon = new Weapon(
-      this.camera, this.map, this.player, this.enemies, this.tracers,
-      () => this.hud.hitMarker(),
-    );
+
+    // активный персонаж создаётся после выбора роли (см. _startRole)
+    this.player = null;
+    this.enemies = null;
+    this.weapon = null;
+    this.role = null;
 
     this.state = 'menu';
     this.startTime = 0;
     this.elapsed = 0;
     this.clock = new THREE.Clock();
 
-    this.hud.requestLock(() => this.player.lock());
-    this.player.controls.addEventListener('lock', () => this._onLock());
-    this.player.controls.addEventListener('unlock', () => this._onUnlock());
+    // клик по оверлею возвращает управление только из паузы
+    this.hud.requestLock(() => {
+      if (this.state === 'paused' && this.player) this.player.lock();
+    });
     addEventListener('resize', () => this._onResize());
 
     this._tick = this._tick.bind(this);
+
+    // обзорный вид улицы за экраном выбора
+    this.camera.position.set(this.map.spawn.x, 7, this.map.bounds.minZ - 6);
+    this.camera.lookAt(this.map.spawn.x, 9, 0);
+
+    this.hud.showCharacterSelect(role => this._startRole(role));
   }
 
   /**
@@ -59,6 +63,35 @@ export class Game {
    */
   createMap() {
     return createTownMap();
+  }
+
+  /** Выбор роли: создаёт персонажа, врагов и оружие, затем захватывает курсор. */
+  _startRole(role) {
+    this.role = role;
+    this.hud.setRole(role);
+
+    if (role === 'alien') {
+      this.player = new Alien(this.camera, this.renderer.domElement, this.map, () => this.enemies);
+    } else {
+      this.player = new Player(this.camera, this.renderer.domElement, this.map);
+    }
+    this.player.spawnAt(this.map.spawn);
+    // человек разворачивается лицом к домам (Чужой задаёт ориентацию сам)
+    if (role !== 'alien') this.camera.lookAt(this.map.spawn.x, this.camera.position.y, 0);
+
+    this.enemies = new Enemies(this.scene, this.map, this.player, this.camera, this.tracers);
+    this.weapon = role === 'alien' ? null : new Weapon(
+      this.camera, this.map, this.player, this.enemies, this.tracers,
+      () => this.hud.hitMarker(),
+    );
+
+    this.hud.setCoins(0, this.coins.total);
+    this.hud.setKills(0);
+    this.hud.setHealth(this.player.health, this.player.maxHealth);
+
+    this.player.controls.addEventListener('lock', () => this._onLock());
+    this.player.controls.addEventListener('unlock', () => this._onUnlock());
+    this.player.lock();
   }
 
   _initRenderer() {
@@ -135,9 +168,9 @@ export class Game {
     requestAnimationFrame(this._tick);
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
-    if (this.state === 'playing' && this.player.isLocked) {
+    if (this.state === 'playing' && this.player && this.player.isLocked) {
       this.player.update(dt);
-      this.weapon.update(dt);
+      if (this.weapon) this.weapon.update(dt);
       this.enemies.update(dt);
 
       this.elapsed = (performance.now() - this.startTime) / 1000;
@@ -156,7 +189,9 @@ export class Game {
     }
 
     this.tracers.update(dt);
-    this.hud.drawMinimap(this.map, this.coins, this.player.position, this.player.direction, this.enemies);
+    if (this.player) {
+      this.hud.drawMinimap(this.map, this.coins, this.player.position, this.player.direction, this.enemies);
+    }
     this.renderer.render(this.scene, this.camera);
   }
 

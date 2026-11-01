@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>3D Бродилка</title>
+<title>3D Шутер</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #05080d; }
@@ -74,12 +74,25 @@
   .card h1 { font-size: 30px; letter-spacing: .5px; margin-bottom: 6px; }
   .card h1 span { color: #7fb6ff; }
   .card p { opacity: .78; font-size: 14px; line-height: 1.8; }
+  .card .lead { opacity: .7; font-size: 14px; margin-bottom: 4px; }
   .btn {
     display: inline-block; margin-top: 22px; padding: 12px 28px; border-radius: 9px;
     background: linear-gradient(180deg, #3d7fe0, #275ba8); color: #fff; font-size: 15px; font-weight: 600;
     box-shadow: 0 8px 24px rgba(40, 100, 200, .35);
   }
   .keys { margin-top: 20px; font-size: 12.5px; opacity: .65; }
+
+  .roles { display: flex; gap: 16px; margin-top: 22px; }
+  .role {
+    flex: 1; padding: 18px 18px 16px; border-radius: 12px; cursor: pointer;
+    background: rgba(20, 32, 52, .72); border: 1px solid rgba(120, 170, 255, .22);
+    transition: transform .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .role:hover { transform: translateY(-3px); border-color: #7fb6ff; background: rgba(34, 56, 92, .85); }
+  .role h2 { font-size: 19px; margin-bottom: 8px; }
+  .role[data-role="alien"] h2 { color: #8ef0a6; }
+  .role[data-role="human"] h2 { color: #7fb6ff; }
+  .role p { opacity: .72; font-size: 12.5px; line-height: 1.7; }
 </style>
 </head>
 <body>
@@ -113,9 +126,7 @@
 <div id="overlay">
   <div class="card">
     <h1>3D <span>Шутер</span></h1>
-    <p id="subtitle">Вокруг дома бегают вооружённые враги — они стреляют и преследуют вас на всех этажах. Огонь — левой кнопкой мыши, укрывайтесь за стенами.</p>
-    <div class="btn" id="btn">Начать</div>
-    <div class="keys">ЛКМ — огонь · W A S D — идти · мышь — смотреть · Shift — бежать · Space — прыгать</div>
+    <p class="lead">Загрузка…</p>
   </div>
 </div>
 

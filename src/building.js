@@ -60,7 +60,10 @@ export function outerSides(grid, cols, rows, i, j) {
  *   levels:string[][][], ramps:object[], stair:object, doorX:number}}
  */
 export function generateBuilding(cfg) {
-  const { cols, rows, cell, floors, floorHeight, stepUp, wallThickness = 0.5, offsetX = 0, offsetZ = 0 } = cfg;
+  const {
+    cols, rows, cell, floors, floorHeight, stepUp, wallThickness = 0.5,
+    offsetX = 0, offsetZ = 0, roofHole = null,
+  } = cfg;
   const cx = (cols - 1) / 2;
   const cy = (rows - 1) / 2;
   const originX = -(cols * cell) / 2 + offsetX;
@@ -140,6 +143,18 @@ export function generateBuilding(cfg) {
     levels.push(grid);
   }
 
+  // Лаз в крыше: прямоугольный участок верхнего перекрытия становится проёмом
+  // (HOLE). Крыша строится по клеткам последнего этажа, поэтому в этом месте
+  // плита не кладётся — образуется сквозное отверстие с пола этажа на крышу.
+  if (roofHole) {
+    const grid = levels[floors - 1];
+    for (let j = roofHole.j0; j <= roofHole.j1; j++) {
+      for (let i = roofHole.i0; i <= roofHole.i1; i++) {
+        if (grid[j] && i >= 0 && i < cols) grid[j][i] = HOLE;
+      }
+    }
+  }
+
   // марши: по одному на этаж, во всю длину шахты
   const X = i => originX + i * cell;
   const Z = j => originZ + j * cell;
@@ -207,19 +222,18 @@ export function buildingSurfaces(b) {
   return surfaces;
 }
 
-/** Вспомогательный параллелепипед со сдвигом в мировые координаты. */
-function box(w, h, d, x, y, z) {
-  const g = new THREE.BoxGeometry(w, h, d);
-  g.translate(x, y, z);
-  return g;
-}
-
 /**
  * Собирает геометрию здания (стены, перекрытия, лестницы, стёкла окон).
+ *
+ * @param {object} b данные здания
+ * @param {Array} [solids] если передан, в него добавляются мировые AABB всех
+ *   твёрдых элементов (стен, перекрытий, ступеней, крыши). По этим объёмам
+ *   работает физика Чужого: рейкасты к поверхностям и выталкивание тела.
+ *   Стёкла окон в солиды не попадают — сквозь них можно пролезть.
  * @returns {{walls:THREE.BufferGeometry, slabs:THREE.BufferGeometry,
  *   stairs:THREE.BufferGeometry, glass:THREE.BufferGeometry}}
  */
-export function buildBuildingGeometry(b) {
+export function buildBuildingGeometry(b, solids) {
   const {
     cols, rows, cell, floors, floorHeight, originX, originZ, levels, ramps,
     wallThickness = 0.5,
@@ -228,6 +242,41 @@ export function buildBuildingGeometry(b) {
   const slabGeos = [];
   const stairGeos = [];
   const glassGeos = [];
+
+  /** Параллелепипед со сдвигом в мировые координаты; попадает в солиды. */
+  const box = (w, h, d, x, y, z) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.translate(x, y, z);
+    if (solids) {
+      solids.push({
+        minX: x - w / 2, maxX: x + w / 2,
+        minY: y - h / 2, maxY: y + h / 2,
+        minZ: z - d / 2, maxZ: z + d / 2,
+      });
+    }
+    return g;
+  };
+  /**
+   * Параллелепипед стекла. В рендере — тонкая прозрачная панель, но в физику
+   * (solids) попадает объём во всю толщину стены: окно должно быть преградой,
+   * как для человека (клетка WINDOW в isBlocked), иначе Чужой пролетает сквозь
+   * оконный проём насквозь.
+   */
+  const glassBox = (w, h, d, x, y, z) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.translate(x, y, z);
+    if (solids) {
+      const alongX = w < d; // панель тонкая по нормали стены
+      const pw = alongX ? Math.max(w, thick) : w;
+      const pd = alongX ? d : Math.max(d, thick);
+      solids.push({
+        minX: x - pw / 2, maxX: x + pw / 2,
+        minY: y - h / 2, maxY: y + h / 2,
+        minZ: z - pd / 2, maxZ: z + pd / 2,
+      });
+    }
+    return g;
+  };
 
   // толщина стены: примерно вдвое тоньше клетки
   const thick = cell * wallThickness;
@@ -290,7 +339,7 @@ export function buildBuildingGeometry(b) {
           wallGeos.push(box(thick, lintel, cell, posX, y0 + sill + winH + lintel / 2, wz));
           wallGeos.push(box(thick, winH, jamb, posX, cyWin, wz - (winW + jamb) / 2));
           wallGeos.push(box(thick, winH, jamb, posX, cyWin, wz + (winW + jamb) / 2));
-          glassGeos.push(box(0.12, winH, winW, posX, cyWin, wz));
+          glassGeos.push(glassBox(0.12, winH, winW, posX, cyWin, wz));
         };
         // грань стены по Z (север/юг)
         const segZ = (posZ, win) => {
@@ -299,7 +348,7 @@ export function buildBuildingGeometry(b) {
           wallGeos.push(box(cell, lintel, thick, wx, y0 + sill + winH + lintel / 2, posZ));
           wallGeos.push(box(jamb, winH, thick, wx - (winW + jamb) / 2, cyWin, posZ));
           wallGeos.push(box(jamb, winH, thick, wx + (winW + jamb) / 2, cyWin, posZ));
-          glassGeos.push(box(winW, winH, 0.12, wx, cyWin, posZ));
+          glassGeos.push(glassBox(winW, winH, 0.12, wx, cyWin, posZ));
         };
         if (!open) { // запасной случай: окно без наружной грани
           wallGeos.push(box(cell, floorHeight, cell, wx, cy, wz));

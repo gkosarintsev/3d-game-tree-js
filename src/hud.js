@@ -5,8 +5,7 @@ export class Hud {
   constructor() {
     this.overlay = document.getElementById('overlay');
     this.card = this.overlay.querySelector('.card');
-    this.btn = document.getElementById('btn');
-    this.subtitle = document.getElementById('subtitle');
+    this.helpEl = document.getElementById('help');
     this.coinsEl = document.getElementById('coins');
     this.timeEl = document.getElementById('time');
     this.hpEl = document.getElementById('hp');
@@ -17,20 +16,68 @@ export class Hud {
     this.minimap = document.getElementById('minimap');
     this.ctx = this.minimap.getContext('2d');
     this._hitTimer = 0;
+    this._lockHandler = null;
   }
 
-  /** Клик по оверлею или кнопке запрашивает захват курсора. */
+  /** Клик по оверлею запрашивает захват курсора (обработчик задаёт игра). */
   requestLock(handler) {
-    this.btn.addEventListener('click', e => { e.stopPropagation(); handler(); });
+    this._lockHandler = handler;
     this.overlay.addEventListener('click', () => handler());
+  }
+
+  /** Экран выбора персонажа: две карточки с ролями. */
+  showCharacterSelect(onPick) {
+    this.overlay.classList.remove('hidden');
+    this.card.innerHTML = `
+      <h1>3D <span>Шутер</span></h1>
+      <p class="lead">Выберите, за кого играть</p>
+      <div class="roles">
+        <div class="role" data-role="human">
+          <h2>Человек</h2>
+          <p>Автомат, огонь по <kbd>ЛКМ</kbd>. Ходит по полу и лестницам, укрывается за стенами.</p>
+        </div>
+        <div class="role" data-role="alien">
+          <h2>Чужой</h2>
+          <p>Быстрее человека, лазает по стенам и потолку. <kbd>ЛКМ</kbd> — далёкий скачок: попадёт во врага — тот погибает.</p>
+        </div>
+      </div>`;
+    this.card.querySelectorAll('.role').forEach(el => {
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        onPick(el.dataset.role);
+      });
+    });
+  }
+
+  /** Подсказки управления под выбранную роль. */
+  setRole(role) {
+    if (role === 'alien') {
+      this.helpEl.innerHTML = `
+        <b>Чужой</b><br>
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — движение<br>
+        <kbd>Мышь</kbd> — обзор, <kbd>Shift</kbd> — бег<br>
+        <kbd>ЛКМ</kbd> — скачок, <kbd>Space</kbd> — отрыв, <kbd>Esc</kbd> — пауза`;
+    } else {
+      this.helpEl.innerHTML = `
+        <b>Управление</b><br>
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — движение<br>
+        <kbd>Мышь</kbd> — обзор, <kbd>Shift</kbd> — бег<br>
+        <kbd>ЛКМ</kbd> — огонь, <kbd>Space</kbd> — прыжок, <kbd>Esc</kbd> — пауза`;
+    }
   }
 
   hide() { this.overlay.classList.add('hidden'); }
 
   showPause() {
     this.overlay.classList.remove('hidden');
-    this.btn.textContent = 'Продолжить';
-    this.subtitle.textContent = 'Пауза. Клик — вернуться в дом.';
+    this.card.innerHTML = `
+      <h1>Пауза</h1>
+      <p>Кликните, чтобы вернуться в игру.</p>
+      <div class="btn" id="btn">Продолжить</div>`;
+    document.getElementById('btn').addEventListener('click', e => {
+      e.stopPropagation();
+      if (this._lockHandler) this._lockHandler();
+    });
   }
 
   showWin(timeText) {
