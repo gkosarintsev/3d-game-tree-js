@@ -73,10 +73,18 @@ export class Hud {
     this.card.innerHTML = `
       <h1>Пауза</h1>
       <p>Кликните, чтобы вернуться в игру.</p>
-      <div class="btn" id="btn">Продолжить</div>`;
+      <div class="actions">
+        <div class="btn" id="btn">Продолжить</div>
+        <div class="btn ghost" id="restart">Играть снова</div>
+      </div>`;
     document.getElementById('btn').addEventListener('click', e => {
       e.stopPropagation();
       if (this._lockHandler) this._lockHandler();
+    });
+    // «Играть снова» — с начала: возврат к выбору персонажа
+    document.getElementById('restart').addEventListener('click', e => {
+      e.stopPropagation();
+      location.reload();
     });
   }
 
