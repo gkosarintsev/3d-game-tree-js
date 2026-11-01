@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { beep } from './audio.js';
+import { AlienBody } from './alien.js';
 
 /** Приводит угол к диапазону (-π, π] — для плавного поворота без «прыжков». */
 function wrapAngle(a) {
@@ -35,6 +36,27 @@ const BODY_GEOMETRY = buildBodyGeometry();
 const BODY_HEIGHT = 1.9;
 const BODY_CENTER_Y = 1.0;   // центр сферы попадания над ногами
 const BODY_RADIUS = 0.6;
+
+/** Хищная фигура Чужого-врага: корпус, вытянутый череп, лапы и хвост. */
+function buildAlienBodyGeometry() {
+  const box = (w, h, d, x, y, z) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.translate(x, y, z);
+    return g;
+  };
+  return mergeGeometries([
+    box(0.36, 1.05, 0.36, 0, 0.62, 0),          // корпус
+    box(0.24, 0.28, 0.62, 0, 1.32, -0.18),       // вытянутый череп (смотрит в -Z)
+    box(0.12, 0.50, 0.12, -0.24, 0.30, 0.06),    // задняя лапа
+    box(0.12, 0.50, 0.12, 0.24, 0.30, 0.06),     // задняя лапа
+    box(0.10, 0.44, 0.10, -0.22, 0.72, -0.12),   // передняя лапа
+    box(0.10, 0.44, 0.10, 0.22, 0.72, -0.12),    // передняя лапа
+    box(0.07, 0.07, 0.55, 0, 0.45, 0.34),        // хвост
+  ], false);
+}
+
+// Общая геометрия на всех Чужих-врагов: тела различаются только материалом.
+const ALIEN_BODY_GEOMETRY = buildAlienBodyGeometry();
 
 /**
  * Враг: патрулирует уровень (в том числе переходя между этажами по лестницам),
@@ -349,6 +371,214 @@ export class Enemy {
 }
 
 /**
+ * Враг-Чужой: использует ту же 3D-физику прилипания к поверхностям, что и
+ * играбельный Чужой (см. AlienBody), но управляется ИИ. Идёт к игроку по любой
+ * поверхности — пол, стены, потолки, крыши — и атакует прыжком в упор.
+ *
+ * Интерфейс совместим с человеческим Enemy: position, dead, health, takeDamage,
+ * group (для сцены), а также hitOffsetY/hitRadius для попаданий скачком.
+ */
+export class AlienEnemy extends AlienBody {
+  /**
+   * @param {THREE.Scene} scene
+   * @param {import('./map.js').TownMap} map
+   * @param {THREE.Material} material
+   * @param {object} player живой игрок (цель восприятия и прыжка)
+   * @param {Function} [onDeath] вызывается при смерти врага
+   */
+  constructor(scene, map, material, player, onDeath) {
+    super(map);
+
+    this.scene = scene;
+    this.material = material;
+    this.onDeath = onDeath;
+    this.cfgEnemy = CONFIG.alienEnemies;
+
+    // здоровье своё (тело AlienBody по умолчанию берёт общее)
+    this.maxHealth = this.cfgEnemy.health;
+    this.health = this.maxHealth;
+
+    // габариты попадания: позиция тела — уже его центр, поэтому смещение 0
+    this.hitOffsetY = this.cfgEnemy.hitOffsetY;
+    this.hitRadius = this.cfgEnemy.hitRadius;
+
+    this.player = player || null;
+    this.respawnTimer = 0;
+    this._leapCd = 0;
+
+    this.group = new THREE.Group();
+    this.mesh = new THREE.Mesh(ALIEN_BODY_GEOMETRY, material);
+    this.mesh.castShadow = false; // карта теней заморожена: движущиеся объекты её не пишут
+    this.mesh.position.y = -this.cfg.radius; // низ модели — на поверхности опоры
+    this.group.add(this.mesh);
+    scene.add(this.group);
+
+    // рабочие буферы (отдельно от физических буферов AlienBody)
+    this._toTarget = new THREE.Vector3();
+    this._xAxis = new THREE.Vector3();
+    this._zAxis = new THREE.Vector3();
+    this._basis = new THREE.Matrix4();
+
+    // цель прыжка — сам игрок: при контакте в полёте он получает урон.
+    // (имя _leapTarget, а не _target: _target в AlienBody занят буфером нормали)
+    this._leapTarget = {
+      position: new THREE.Vector3(),
+      hitOffsetY: 0,
+      hitRadius: this.cfgEnemy.hitRadius,
+      dead: false,
+      takeDamage: n => { if (this.player) this.player.takeDamage(n); },
+    };
+    this._leapTargets = () =>
+      (this.player && !this.player.dead ? { items: [this._leapTarget] } : null);
+
+    this._syncMesh();
+  }
+
+  /** Урон игроку при контакте в прыжке (постепенный, как у человека). */
+  _leapDamage() {
+    return this.cfgEnemy.damage;
+  }
+
+  /**
+   * Обновление за кадр (единый интерфейс менеджера врагов).
+   * @param {number} dt
+   * @param {object} player
+   * @param {THREE.Camera} camera
+   * @param {import('./effects.js').Tracers} tracers
+   */
+  update(dt, player, camera, tracers) {
+    if (player) this.player = player;
+
+    if (this.dead) {
+      this.respawnTimer -= dt;
+      if (this.respawnTimer <= 0 && this.player) this.respawn(this.player.position);
+      return;
+    }
+    super.update(dt);
+  }
+
+  /** ИИ: идёт к игроку по любой поверхности, вблизи прыгает на него в упор. */
+  _control(dt) {
+    const p = this.player;
+    const ae = this.cfgEnemy;
+    this._leapCd = Math.max(0, this._leapCd - dt);
+
+    if (!p) { this._moving = false; return; }
+
+    this._leapTarget.position.copy(p.position);
+    this._leapTarget.dead = !!p.dead;
+
+    const to = this._toTarget.copy(p.position).sub(this.pos);
+    const dist = to.length();
+
+    // «вперёд» тела — на цель (в плоскости текущей опоры)
+    if (to.lengthSq() > 1e-6) {
+      this.fwd.copy(to).normalize();
+      this._replanar();
+    }
+
+    // прыжок в упор
+    if (this.grounded && this.leapTimer <= 0 && this._leapCd <= 0 &&
+        !p.dead && dist <= ae.leapRange) {
+      this._pounce(this._leapTarget.position);
+      return;
+    }
+
+    // бег к цели строго по касательной к опоре
+    this._wish.copy(to).addScaledVector(this.up, -to.dot(this.up));
+    this._moving = this._wish.lengthSq() > 1e-6;
+    if (this._moving) this._wish.normalize();
+    this._speed = ae.speed.run;
+    this._jump = false;
+    // цель выше — смотрим вверх, чтобы прилипнуть к стене и залезть по ней
+    this.pitch = to.dot(this.up) > 0.4 ? ae.climbPitch : 0;
+  }
+
+  /**
+   * Прыжок в упор: подбирает начальную скорость так, чтобы тело долетело до
+   * цели (а не «мимо»): время полёта — из дистанции, вертикальная добавка
+   * компенсирует падение под гравитацией за это время.
+   */
+  _pounce(targetPos) {
+    const ae = this.cfgEnemy;
+    const delta = this._tmp.copy(targetPos).sub(this.pos);
+    const dist = Math.max(delta.length(), 1e-3);
+    const t = Math.max(0.12, Math.min(1.4, dist / ae.leapSpeed));
+
+    this.vel.copy(delta).multiplyScalar(1 / t);
+    this.vel.y += 0.5 * CONFIG.gravity * t;
+
+    this.grounded = false;
+    this.leapTimer = ae.leapMaxTime;
+    this._leapHits.clear();
+    this._leapCd = ae.leapCooldown;
+    beep(90, 0.16, 'sawtooth');
+  }
+
+  /** Урон: при смерти запускается таймер возрождения и засчитывается фраг. */
+  takeDamage(amount) {
+    if (this.dead) return;
+    super.takeDamage(amount);
+    if (this.health <= 0) this._die();
+  }
+
+  _die() {
+    this.respawnTimer = this.cfgEnemy.respawnDelay;
+    this.group.visible = false;
+    beep(320, 0.12, 'sawtooth');
+    if (this.onDeath) this.onDeath(this);
+  }
+
+  /** Возрождение на свободном узле навигации вдали от игрока. */
+  respawn(playerPos) {
+    const cfg = this.cfgEnemy;
+    const nodes = this.map.nav.pos;
+    let node = nodes[Math.floor(Math.random() * nodes.length)];
+    for (let i = 0; i < 120; i++) {
+      const p = nodes[Math.floor(Math.random() * nodes.length)];
+      const d = Math.hypot(p.x - playerPos.x, p.z - playerPos.z);
+      if (d >= cfg.spawnDistance && d < 180) { node = p; break; }
+    }
+
+    this.pos.set(node.x, node.y + this.cfg.radius, node.z);
+    this.up.set(0, 1, 0);
+    this.fwd.set(0, 0, 1);
+    this.pitch = 0;
+    this.vel.set(0, 0, 0);
+    this.grounded = true;
+    this.leapTimer = 0;
+    this._leapHits.clear();
+    this._leapCd = 0;
+    this._tween = null;
+
+    this.health = this.maxHealth;
+    this.hurt = 0;
+    this._lastDamage = -1e9;
+    this.respawnTimer = 0;
+    this.group.visible = true;
+    this._syncMesh();
+  }
+
+  _postUpdate(dt) {
+    this._syncMesh();
+    if (this.material && this.material.emissive) {
+      this.material.emissive.setHex(this.hurt > 0.01 ? 0x551200 : 0x000000);
+    }
+  }
+
+  /** Привязывает модель к телу: позиция — центр, ориентация — по нормали и курсу. */
+  _syncMesh() {
+    this.group.position.copy(this.pos);
+    this._zAxis.copy(this.fwd).negate();            // локальный -Z смотрит вперёд
+    this._xAxis.copy(this.up).cross(this._zAxis);
+    if (this._xAxis.lengthSq() < 1e-6) this._xAxis.set(1, 0, 0);
+    this._xAxis.normalize();
+    this._basis.makeBasis(this._xAxis, this.up, this._zAxis);
+    this.group.quaternion.setFromRotationMatrix(this._basis);
+  }
+}
+
+/**
  * Менеджер врагов: создаёт их, обновляет за кадр и умеет искать ближайшего к
  * лучу (для попаданий выстрелов игрока).
  */
@@ -376,6 +606,17 @@ export class Enemies {
       const enemy = new Enemy(scene, map, material, () => { this.kills++; });
       enemy.respawn(player.position);
       this.items.push(enemy);
+    }
+
+    // Чужие-враги — рядом с людьми: те же правила попаданий, но 3D-лазание
+    const alienPalette = [0x3f5d2b, 0x2f4a33, 0x4a3a24];
+    for (let i = 0; i < CONFIG.alienEnemies.count; i++) {
+      const material = new THREE.MeshStandardMaterial({
+        color: alienPalette[i % alienPalette.length], emissive: 0x000000, roughness: .75, metalness: .2,
+      });
+      const alien = new AlienEnemy(scene, map, material, player, () => { this.kills++; });
+      alien.respawn(player.position);
+      this.items.push(alien);
     }
 
     this._ray = new THREE.Ray();
@@ -407,9 +648,12 @@ export class Enemies {
 
     for (const enemy of this.items) {
       if (enemy.dead) continue;
-      this._center.set(enemy.position.x, enemy.position.y + BODY_CENTER_Y, enemy.position.z);
+      // габариты попадания у людей и Чужих разные (см. hitOffsetY/hitRadius)
+      const cy = enemy.hitOffsetY !== undefined ? enemy.hitOffsetY : BODY_CENTER_Y;
+      const cr = enemy.hitRadius !== undefined ? enemy.hitRadius : BODY_RADIUS;
+      this._center.set(enemy.position.x, enemy.position.y + cy, enemy.position.z);
       this._sphere.center.copy(this._center);
-      this._sphere.radius = BODY_RADIUS;
+      this._sphere.radius = cr;
       const point = this._ray.intersectSphere(this._sphere, this._point);
       if (!point) continue;
       const distance = origin.distanceTo(point);

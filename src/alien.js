@@ -14,64 +14,22 @@ const NORMAL_ALIGN = 0.86;
 const SLAB = CONFIG.building.slabThickness;
 
 /**
- * Минимальный контроллер захвата курсора: только блокировка/события, без
- * вращения камеры (ориентацию Чужого считает сам Alien под нормаль опоры).
+ * Тело Чужого: физика прилипания к поверхностям, ориентация по нормали опоры и
+ * скачок. Не знает ни о вводе, ни о камере — подклассы задают намерение
+ * (см. _control) и, при необходимости, рисуют модель.
+ *
+ * Тело не привязано к «гравитационной» сетке этажей, а прилипает к любой
+ * поверхности. Нормаль поверхности (то, что для тела является «низом»)
+ * находится рейкастом к твёрдым объёмам карты (map.raySolid), тело
+ * удерживается сферой столкновений (map.resolveSphere).
  */
-class PointerLock {
-  /** @param {HTMLElement} domElement */
-  constructor(domElement) {
-    this.dom = domElement;
-    this.isLocked = false;
-    this._lock = [];
-    this._unlock = [];
-    this._onChange = () => {
-      const locked = document.pointerLockElement === this.dom;
-      if (locked === this.isLocked) return;
-      this.isLocked = locked;
-      for (const fn of locked ? this._lock : this._unlock) fn();
-    };
-    document.addEventListener('pointerlockchange', this._onChange);
-  }
-
-  lock() { if (this.dom.requestPointerLock) this.dom.requestPointerLock(); }
-  unlock() { if (document.pointerLockElement) document.exitPointerLock(); }
-
-  addEventListener(type, fn) {
-    if (type === 'lock') this._lock.push(fn);
-    else if (type === 'unlock') this._unlock.push(fn);
-  }
-}
-
-/**
- * Играбельный Чужой.
- *
- * Физика отличается от человека: тело не привязано к «гравитационной» сетке
- * этажей, а прилипает к любой поверхности. Нормаль поверхности (то, что для
- * тела является «низом») находится рейкастом к твёрдым объёмам карты
- * (map.raySolid), тело удерживается сферой столкновений (map.resolveSphere).
- *
- * Ориентация камеры — планарная: взгляд поворачивается вокруг текущей нормали,
- * а сама нормаль плавно доворачивается под новую поверхность, поэтому при
- * переходе «пол → стена → потолок» картинку не переворачивает.
- *
- * Вместо стрельбы — далёкий скачок по ЛКМ (см. config.alien.leap): попадёт во
- * врага в полёте — враг погибает.
- */
-export class Alien {
-  /**
-   * @param {THREE.Camera} camera
-   * @param {HTMLElement} domElement
-   * @param {import('./map.js').TownMap} map
-   * @param {Function} getEnemies ленивый доступ к менеджеру врагов (для скачка)
-   */
-  constructor(camera, domElement, map, getEnemies) {
-    this.camera = camera;
+export class AlienBody {
+  /** @param {import('./map.js').TownMap} map */
+  constructor(map) {
     this.map = map;
-    this.getEnemies = getEnemies || (() => null);
     this.cfg = CONFIG.alien;
-    this.controls = new PointerLock(domElement);
 
-    // тело: центр сферы, скорость, «низ» (нормаль опоры) и «вперёд» камеры
+    // тело: центр сферы, скорость, «низ» (нормаль опоры) и «вперёд» тела
     this.pos = new THREE.Vector3();
     this.vel = new THREE.Vector3();
     this.up = new THREE.Vector3(0, 1, 0);
@@ -80,7 +38,7 @@ export class Alien {
 
     this.grounded = true;
     this.leapTimer = 0;
-    this._leapHits = new Set(); // враги, уже раненые текущим скачком
+    this._leapHits = new Set(); // цели, уже раненые текущим скачком
 
     // здоровье и состояние боя (интерфейс тот же, что у человека)
     this.maxHealth = CONFIG.health.max;
@@ -88,20 +46,25 @@ export class Alien {
     this.hurt = 0;
     this._lastDamage = -1e9;
 
-    this.keys = new Set();
+    // намерение текущего кадра — заполняется в _control подкласса
+    this._wish = new THREE.Vector3();
+    this._moving = false;
+    this._speed = this.cfg.speed.walk;
+    this._jump = false;
+
+    // параметры скачка: подкласс может подменить (например, у врага — прицельный пружинный прыжок)
+    this.leapParams = null;
+    // ленивый доступ к целям скачка: () => ({ items: [...] }) | null
+    this._leapTargets = () => null;
 
     // рабочие векторы — чтобы не создавать мусор в игровом цикле
-    this._wish = new THREE.Vector3();
     this._right = new THREE.Vector3();
-    this._look = new THREE.Vector3();
     this._tmp = new THREE.Vector3();
     this._down = new THREE.Vector3();
     this._target = new THREE.Vector3();
     this._mantle = new THREE.Vector3();
     this._probe = new THREE.Vector3();
-    this._camTarget = new THREE.Vector3();
     this._lookKeep = new THREE.Vector3();
-    this._q = new THREE.Quaternion();
 
     // плавный переход между поверхностями (перевал на крышу, проход сквозь лаз):
     // откуда и куда едем телом + сохранённый мировой взгляд на время переворота
@@ -114,18 +77,12 @@ export class Alien {
     this._twBuf = new THREE.Vector3();
     this._twQ = new THREE.Quaternion();
     this._twQ2 = new THREE.Quaternion();
-
-    this._bindInput();
   }
 
-  get position() { return this.camera.position; }
+  get position() { return this.pos; }
   get direction() { return this.fwd; }
   get feetY() { return this.pos.y - this.cfg.radius; }
-  get isLocked() { return this.controls.isLocked; }
   get dead() { return this.health <= 0; }
-
-  lock() { this.controls.lock(); }
-  unlock() { this.controls.unlock(); }
 
   /** Урон от врага: снимает здоровье и запускает вспышку/регенерацию. */
   takeDamage(amount) {
@@ -133,30 +90,6 @@ export class Alien {
     this.health = Math.max(0, this.health - amount);
     this.hurt = 1;
     this._lastDamage = performance.now() / 1000;
-  }
-
-  _bindInput() {
-    addEventListener('keydown', e => {
-      this.keys.add(e.code);
-      if (e.code === 'Space') e.preventDefault();
-    });
-    addEventListener('keyup', e => this.keys.delete(e.code));
-    addEventListener('blur', () => this.keys.clear());
-    addEventListener('mousemove', e => this._onMouseMove(e));
-    addEventListener('mousedown', e => {
-      if (e.button !== 0 || !this.isLocked) return;
-      this._leap();
-    });
-  }
-
-  /** Обзор: поворот «вперёд» вокруг текущей опоры + наклон взгляда. */
-  _onMouseMove(e) {
-    if (!this.isLocked) return;
-    const s = this.cfg.lookSensitivity;
-    this._q.setFromAxisAngle(this.up, -e.movementX * s);
-    this.fwd.applyQuaternion(this._q);
-    this._replanar();
-    this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - e.movementY * s));
   }
 
   /** Удерживает «вперёд» в плоскости опоры (перпендикулярно нормали). */
@@ -225,36 +158,32 @@ export class Alien {
     this.vel.set(0, 0, 0);
     this.grounded = true;
     this.leapTimer = 0;
-    this._updateCamera();
+    this._leapHits.clear();
   }
 
+  /**
+   * Обновление физики за кадр. Подкласс в _control задаёт намерение движения
+   * (_wish/_moving/_speed/_jump) и ориентацию, а в _postUpdate делает своё
+   * (например, обновляет камеру игрока).
+   */
   update(dt) {
-    const cfg = this.cfg;
-    const keys = this.keys;
-
-    // желаемое направление — в плоскости опоры
-    this._right.copy(this.fwd).cross(this.up).normalize();
-    const f = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
-    const s = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
-    this._wish.set(0, 0, 0).addScaledVector(this.fwd, f).addScaledVector(this._right, s);
-    const moving = this._wish.lengthSq() > 1e-6;
-    if (moving) {
-      this._wish.normalize();
-      this._wish.addScaledVector(this.up, -this._wish.dot(this.up));
-      if (this._wish.lengthSq() < 1e-6) this._wish.set(0, 0, 0);
-      else this._wish.normalize();
-    }
-    const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? cfg.speed.run : cfg.speed.walk;
+    this._control(dt);
 
     if (this._tween) this._updateTransition(dt);
     else if (this.leapTimer > 0) this._updateLeap(dt);
-    else if (this.grounded) this._updateGrounded(dt, moving, speed);
-    else this._updateAirborne(dt, moving, speed);
+    else if (this.grounded) this._updateGrounded(dt, this._moving, this._speed);
+    else this._updateAirborne(dt, this._moving, this._speed);
 
     this._clampWorld();
-    this._updateCamera();
+    this._postUpdate(dt);
     this._regen(dt);
   }
+
+  /** Намерение движения текущего кадра — переопределяется подклассом. */
+  _control(dt) {}
+
+  /** Завершение кадра — переопределяется подклассом (например, камера игрока). */
+  _postUpdate(dt) {}
 
   /** Движение по поверхности, поиск опоры и переход на стены/потолок. */
   _updateGrounded(dt, moving, speed) {
@@ -323,7 +252,7 @@ export class Alien {
     pos.z += (hit.z + this.up.z * cfg.radius - pos.z) * a;
 
     // отрыв от поверхности обычным прыжком
-    if (this.keys.has('Space')) {
+    if (this._jump) {
       this.vel.copy(this.up).multiplyScalar(cfg.jump);
       this.grounded = false;
       beep(200, 0.07, 'triangle');
@@ -532,32 +461,36 @@ export class Alien {
     this._tryLandBelow();
   }
 
-  /** Далёкий скачок по ЛКМ: стартовая скорость в сторону взгляда. */
-  _leap() {
+  /** Далёкий скачок: стартовая скорость в заданном направлении. */
+  _leap(dir) {
     if (!this.grounded || this.leapTimer > 0) return;
-    const l = this.cfg.leap;
+    const l = this.leapParams || this.cfg.leap;
 
-    this.camera.getWorldDirection(this._look);
-    const dir = this._tmp.copy(this._look);
+    const d = this._tmp.copy(dir);
 
     // ограничиваем угол возвышения, иначе скачок не долетит до соседней крыши
     const minE = l.minElevation * Math.PI / 180;
     const maxE = l.maxElevation * Math.PI / 180;
-    const e = Math.asin(Math.max(-1, Math.min(1, dir.dot(this.up))));
+    const e = Math.asin(Math.max(-1, Math.min(1, d.dot(this.up))));
     if (e < minE || e > maxE) {
       const a = Math.max(minE, Math.min(maxE, e));
-      dir.copy(this.fwd).multiplyScalar(Math.cos(a)).addScaledVector(this.up, Math.sin(a)).normalize();
+      d.copy(this.fwd).multiplyScalar(Math.cos(a)).addScaledVector(this.up, Math.sin(a)).normalize();
     }
 
-    this.vel.copy(dir).multiplyScalar(l.speed);
+    this.vel.copy(d).multiplyScalar(l.speed);
     this.grounded = false;
     this.leapTimer = l.maxTime;
-    this._leapHits.clear(); // новый скачок — каждый враг снова может быть ранен
+    this._leapHits.clear(); // новый скачок — каждая цель снова может быть ранена
     beep(90, 0.18, 'sawtooth');
     setTimeout(() => beep(60, 0.22, 'sawtooth'), 70);
   }
 
-  /** Обновление скачка: баллистика, поражение врагов и посадка. */
+  /** Урон, который скачок наносит цели (у врага-Чужего он свой). */
+  _leapDamage() {
+    return CONFIG.weapon.damage;
+  }
+
+  /** Обновление скачка: баллистика, поражение целей и посадка. */
   _updateLeap(dt) {
     const cfg = this.cfg;
     const pos = this.pos;
@@ -583,19 +516,21 @@ export class Alien {
     this._target.set(0, 1, 0);
     this._alignUpLook(this._target, dt);
 
-    // касание врага в полёте — урон «как при стрельбе». За один скачок каждый
-    // враг ранится не более раза: без этого контакт держался бы несколько кадров
+    // касание цели в полёте — урон «как при стрельбе». За один скачок каждая
+    // цель ранится не более раза: без этого контакт держался бы несколько кадров
     // и урон начислялся многократно.
-    const enemies = this.getEnemies();
-    if (enemies) {
+    const targets = this._leapTargets();
+    if (targets) {
       const kr = cfg.leap.killRadius;
-      for (const e of enemies.items) {
+      for (const e of targets.items) {
         if (e.dead || this._leapHits.has(e)) continue;
+        const cy = e.hitOffsetY !== undefined ? e.hitOffsetY : 1.0; // центр корпуса
+        const cr = e.hitRadius !== undefined ? e.hitRadius : kr;
         const dx = pos.x - e.position.x;
-        const dy = pos.y - (e.position.y + 1.0); // центр корпуса врага
+        const dy = pos.y - (e.position.y + cy);
         const dz = pos.z - e.position.z;
-        if (dx * dx + dy * dy + dz * dz <= kr * kr) {
-          e.takeDamage(CONFIG.weapon.damage);
+        if (dx * dx + dy * dy + dz * dz <= cr * cr) {
+          e.takeDamage(this._leapDamage());
           this._leapHits.add(e);
         }
       }
@@ -710,6 +645,140 @@ export class Alien {
     }
   }
 
+  /** Заживление после затишья и затухание вспышки урона. */
+  _regen(dt) {
+    const now = performance.now() / 1000;
+    if (this.health > 0 && this.health < this.maxHealth &&
+        now - this._lastDamage > CONFIG.health.regenDelay) {
+      this.health = Math.min(this.maxHealth, this.health + CONFIG.health.regenRate * dt);
+    }
+    this.hurt = Math.max(0, this.hurt - dt * 2.5);
+  }
+}
+
+/**
+ * Минимальный контроллер захвата курсора: только блокировка/события, без
+ * вращения камеры (ориентацию Чужого считает сам Alien под нормаль опоры).
+ */
+class PointerLock {
+  /** @param {HTMLElement} domElement */
+  constructor(domElement) {
+    this.dom = domElement;
+    this.isLocked = false;
+    this._lock = [];
+    this._unlock = [];
+    this._onChange = () => {
+      const locked = document.pointerLockElement === this.dom;
+      if (locked === this.isLocked) return;
+      this.isLocked = locked;
+      for (const fn of locked ? this._lock : this._unlock) fn();
+    };
+    document.addEventListener('pointerlockchange', this._onChange);
+  }
+
+  lock() { if (this.dom.requestPointerLock) this.dom.requestPointerLock(); }
+  unlock() { if (document.pointerLockElement) document.exitPointerLock(); }
+
+  addEventListener(type, fn) {
+    if (type === 'lock') this._lock.push(fn);
+    else if (type === 'unlock') this._unlock.push(fn);
+  }
+}
+
+/**
+ * Играбельный Чужой. Надстраивает над AlienBody управление с клавиатуры/мыши и
+ * камеру: взгляд поворачивается вокруг текущей нормали, а сама нормаль плавно
+ * доворачивается под новую поверхность, поэтому при переходе «пол → стена →
+ * потолок» картинку не переворачивает.
+ *
+ * Вместо стрельбы — далёкий скачок по ЛКМ (см. config.alien.leap): попадёт по
+ * врагу в полёте — враг получает урон.
+ */
+export class Alien extends AlienBody {
+  /**
+   * @param {THREE.Camera} camera
+   * @param {HTMLElement} domElement
+   * @param {import('./map.js').TownMap} map
+   * @param {Function} getEnemies ленивый доступ к менеджеру врагов (для скачка)
+   */
+  constructor(camera, domElement, map, getEnemies) {
+    super(map);
+    this.camera = camera;
+    this.controls = new PointerLock(domElement);
+    this._leapTargets = getEnemies || (() => null);
+
+    this.keys = new Set();
+
+    this._look = new THREE.Vector3();
+    this._camTarget = new THREE.Vector3();
+    this._q = new THREE.Quaternion();
+
+    this._bindInput();
+  }
+
+  get position() { return this.camera.position; }
+  get isLocked() { return this.controls.isLocked; }
+
+  lock() { this.controls.lock(); }
+  unlock() { this.controls.unlock(); }
+
+  _bindInput() {
+    addEventListener('keydown', e => {
+      this.keys.add(e.code);
+      if (e.code === 'Space') e.preventDefault();
+    });
+    addEventListener('keyup', e => this.keys.delete(e.code));
+    addEventListener('blur', () => this.keys.clear());
+    addEventListener('mousemove', e => this._onMouseMove(e));
+    addEventListener('mousedown', e => {
+      if (e.button !== 0 || !this.isLocked) return;
+      this._leap();
+    });
+  }
+
+  /** Обзор: поворот «вперёд» вокруг текущей опоры + наклон взгляда. */
+  _onMouseMove(e) {
+    if (!this.isLocked) return;
+    const s = this.cfg.lookSensitivity;
+    this._q.setFromAxisAngle(this.up, -e.movementX * s);
+    this.fwd.applyQuaternion(this._q);
+    this._replanar();
+    this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - e.movementY * s));
+  }
+
+  spawnAt(point) {
+    super.spawnAt(point);
+    this._updateCamera();
+  }
+
+  /** Желаемое движение из клавиш WASD (в плоскости опоры) + прыжок. */
+  _control(dt) {
+    const cfg = this.cfg;
+    const keys = this.keys;
+
+    this._right.copy(this.fwd).cross(this.up).normalize();
+    const f = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
+    const s = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+    this._wish.set(0, 0, 0).addScaledVector(this.fwd, f).addScaledVector(this._right, s);
+    this._moving = this._wish.lengthSq() > 1e-6;
+    if (this._moving) {
+      this._wish.normalize();
+      this._wish.addScaledVector(this.up, -this._wish.dot(this.up));
+      if (this._wish.lengthSq() < 1e-6) this._wish.set(0, 0, 0);
+      else this._wish.normalize();
+    }
+    this._speed = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? cfg.speed.run : cfg.speed.walk;
+    this._jump = keys.has('Space');
+  }
+
+  _postUpdate(dt) { this._updateCamera(); }
+
+  /** Скачок по ЛКМ — в сторону взгляда камеры. */
+  _leap() {
+    this.camera.getWorldDirection(this._look);
+    super._leap(this._look);
+  }
+
   /** Собирает камеру: позиция — вдоль нормали от центра тела, взгляд — по fwd/pitch. */
   _updateCamera() {
     const cfg = this.cfg;
@@ -720,15 +789,5 @@ export class Alien {
     this.camera.up.copy(this.up);
     this._camTarget.copy(this.camera.position).add(this._look);
     this.camera.lookAt(this._camTarget);
-  }
-
-  /** Заживление после затишья и затухание вспышки урона. */
-  _regen(dt) {
-    const now = performance.now() / 1000;
-    if (this.health > 0 && this.health < this.maxHealth &&
-        now - this._lastDamage > CONFIG.health.regenDelay) {
-      this.health = Math.min(this.maxHealth, this.health + CONFIG.health.regenRate * dt);
-    }
-    this.hurt = Math.max(0, this.hurt - dt * 2.5);
   }
 }
