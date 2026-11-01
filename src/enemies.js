@@ -656,8 +656,10 @@ export class Enemies {
    * @param {import('./player.js').Player} player
    * @param {THREE.Camera} camera
    * @param {import('./effects.js').Tracers} tracers
+   * @param {{count?:number, alienCount?:number}} [opts] числа врагов уровня
+   *   (см. gameplay-секцию определения уровня); по умолчанию — CONFIG
    */
-  constructor(scene, map, player, camera, tracers) {
+  constructor(scene, map, player, camera, tracers, opts = {}) {
     this.map = map;
     this.player = player;
     this.camera = camera;
@@ -665,8 +667,11 @@ export class Enemies {
     this.kills = 0;
     this.items = [];
 
+    const count = opts.count ?? CONFIG.enemies.count;
+    const alienCount = opts.alienCount ?? CONFIG.alienEnemies.count;
+
     const palette = [0xc0392b, 0x8e44ad, 0x2c3e50, 0x1e824c, 0xb9770e, 0x943126, 0x2e86c1];
-    for (let i = 0; i < CONFIG.enemies.count; i++) {
+    for (let i = 0; i < count; i++) {
       const material = new THREE.MeshStandardMaterial({
         color: palette[i % palette.length], emissive: 0x000000, roughness: .8, metalness: .1,
       });
@@ -677,7 +682,7 @@ export class Enemies {
 
     // Чужие-враги — рядом с людьми: те же правила попаданий, но 3D-лазание
     const alienPalette = [0x3f5d2b, 0x2f4a33, 0x4a3a24];
-    for (let i = 0; i < CONFIG.alienEnemies.count; i++) {
+    for (let i = 0; i < alienCount; i++) {
       const material = new THREE.MeshStandardMaterial({
         color: alienPalette[i % alienPalette.length], emissive: 0x000000, roughness: .75, metalness: .2,
       });

@@ -52,12 +52,23 @@ export class Player {
   }
 
   _bindInput() {
-    addEventListener('keydown', e => {
+    this._onKeyDown = e => {
       this.keys.add(e.code);
       if (e.code === 'Space') e.preventDefault();
-    });
-    addEventListener('keyup', e => this.keys.delete(e.code));
-    addEventListener('blur', () => this.keys.clear());
+    };
+    this._onKeyUp = e => this.keys.delete(e.code);
+    this._onBlur = () => this.keys.clear();
+    addEventListener('keydown', this._onKeyDown);
+    addEventListener('keyup', this._onKeyUp);
+    addEventListener('blur', this._onBlur);
+  }
+
+  /** Снимает слушатели при выгрузке уровня (см. AGENTS.md, жизненный цикл). */
+  dispose() {
+    removeEventListener('keydown', this._onKeyDown);
+    removeEventListener('keyup', this._onKeyUp);
+    removeEventListener('blur', this._onBlur);
+    this.controls.dispose();
   }
 
   /** Ставит игрока в указанную точку карты (ноги — на опорную поверхность). */

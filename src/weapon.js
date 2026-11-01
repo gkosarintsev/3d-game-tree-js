@@ -78,15 +78,26 @@ export class Weapon {
   }
 
   _bindInput() {
-    addEventListener('mousedown', e => {
+    this._onMouseDown = e => {
       if (e.button !== 0 || !this.player.isLocked) return;
       this.firing = true;
       this._tryFire();
-    });
-    addEventListener('mouseup', e => {
+    };
+    this._onMouseUp = e => {
       if (e.button === 0) this.firing = false;
-    });
-    addEventListener('blur', () => { this.firing = false; });
+    };
+    this._onBlur = () => { this.firing = false; };
+    addEventListener('mousedown', this._onMouseDown);
+    addEventListener('mouseup', this._onMouseUp);
+    addEventListener('blur', this._onBlur);
+  }
+
+  /** Снимает слушатели и модель с камеры при выгрузке уровня. */
+  dispose() {
+    removeEventListener('mousedown', this._onMouseDown);
+    removeEventListener('mouseup', this._onMouseUp);
+    removeEventListener('blur', this._onBlur);
+    this.camera.remove(this.group);
   }
 
   /** Выстрел, если пауза между выстрелами истекла. */

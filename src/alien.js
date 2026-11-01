@@ -683,6 +683,10 @@ class PointerLock {
     if (type === 'lock') this._lock.push(fn);
     else if (type === 'unlock') this._unlock.push(fn);
   }
+
+  dispose() {
+    document.removeEventListener('pointerlockchange', this._onChange);
+  }
 }
 
 /**
@@ -723,17 +727,32 @@ export class Alien extends AlienBody {
   unlock() { this.controls.unlock(); }
 
   _bindInput() {
-    addEventListener('keydown', e => {
+    this._onKeyDown = e => {
       this.keys.add(e.code);
       if (e.code === 'Space') e.preventDefault();
-    });
-    addEventListener('keyup', e => this.keys.delete(e.code));
-    addEventListener('blur', () => this.keys.clear());
-    addEventListener('mousemove', e => this._onMouseMove(e));
-    addEventListener('mousedown', e => {
+    };
+    this._onKeyUp = e => this.keys.delete(e.code);
+    this._onBlur = () => this.keys.clear();
+    this._onMouseMoveBind = e => this._onMouseMove(e);
+    this._onMouseDown = e => {
       if (e.button !== 0 || !this.isLocked) return;
       this._leap();
-    });
+    };
+    addEventListener('keydown', this._onKeyDown);
+    addEventListener('keyup', this._onKeyUp);
+    addEventListener('blur', this._onBlur);
+    addEventListener('mousemove', this._onMouseMoveBind);
+    addEventListener('mousedown', this._onMouseDown);
+  }
+
+  /** Снимает слушатели при выгрузке уровня (см. AGENTS.md, жизненный цикл). */
+  dispose() {
+    removeEventListener('keydown', this._onKeyDown);
+    removeEventListener('keyup', this._onKeyUp);
+    removeEventListener('blur', this._onBlur);
+    removeEventListener('mousemove', this._onMouseMoveBind);
+    removeEventListener('mousedown', this._onMouseDown);
+    this.controls.dispose();
   }
 
   /** Обзор: поворот «вперёд» вокруг текущей опоры + наклон взгляда. */

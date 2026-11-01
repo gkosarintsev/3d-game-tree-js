@@ -5,6 +5,7 @@ import {
   WALL, FLOOR, VOID, HOLE, WINDOW,
   generateBuilding, buildBuildingGeometry, buildingSurfaces, outerSides,
 } from './building.js';
+import { buildDecor } from './decor.js';
 
 /** Пересекаются ли круг игрока (x,z,radius) и прямоугольник. */
 function circleHitsRect(x, z, minX, maxX, minZ, maxZ, radius) {
@@ -41,10 +42,17 @@ function circleHitsRect(x, z, minX, maxX, minZ, maxZ, radius) {
  * сетку — поиск высоты пола под ногами не зависит от их числа.
  */
 export class TownMap {
-  constructor(buildings) {
+  /**
+   * @param {object[]} buildings дома уровня (данные generateBuilding)
+   * @param {{size?:number, color?:number}} [ground] земля уровня (по умолчанию — CONFIG)
+   * @param {object} [decor] параметры декора уровня (по умолчанию — CONFIG.decor)
+   */
+  constructor(buildings, ground = {}, decor = {}) {
     this.buildings = buildings;
-    this.width = CONFIG.ground.size;
-    this.depth = CONFIG.ground.size;
+    this.width = ground.size ?? CONFIG.ground.size;
+    this.groundColor = ground.color ?? CONFIG.ground.color;
+    this.decor = { ...CONFIG.decor, ...decor };
+    this.depth = this.width;
     this.stepUp = CONFIG.building.stepUp;
 
     // габариты каждого дома — для быстрой отбраковки в проверке коллизий
@@ -593,7 +601,7 @@ export class TownMap {
     const size = this.width;
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(size, size),
-      new THREE.MeshStandardMaterial({ color: CONFIG.ground.color, roughness: 1, metalness: 0 })
+      new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -622,6 +630,8 @@ export class TownMap {
       mesh.receiveShadow = true;
       scene.add(mesh);
     }
+
+    buildDecor(scene, this);
   }
 
   /** План текущего этажа всех домов. */
@@ -664,9 +674,14 @@ export class TownMap {
   }
 }
 
-/** Создаёт карту-улицу по списку домов из CONFIG. */
-export function createTownMap() {
+/**
+ * Создаёт карту-улицу по определению уровня (см. src/levels/).
+ * @param {{houses?:object[], ground?:{size?:number, color?:number}, decor?:object}} [spec]
+ *   всё необязательно: недостающее берётся из CONFIG (дома — базовая улица).
+ */
+export function createTownMap(spec = {}) {
   const base = CONFIG.building;
-  const buildings = base.houses.map(h => generateBuilding({ ...base, ...h }));
-  return new TownMap(buildings);
+  const houses = spec.houses ?? base.houses;
+  const buildings = houses.map(h => generateBuilding({ ...base, ...h }));
+  return new TownMap(buildings, spec.ground ?? {}, spec.decor ?? {});
 }

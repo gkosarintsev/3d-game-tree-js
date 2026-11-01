@@ -1,6 +1,4 @@
-import { CONFIG } from './config.js';
-
-/** Слой интерфейса: статистика, здоровье, миникарта, оверлеи старта/паузы/победы. */
+/** Слой интерфейса: статистика, здоровье, миникарта, оверлеи всех экранов игры. */
 export class Hud {
   constructor() {
     this.overlay = document.getElementById('overlay');
@@ -17,6 +15,14 @@ export class Hud {
     this.ctx = this.minimap.getContext('2d');
     this._hitTimer = 0;
     this._lockHandler = null;
+
+    // постоянная метка текущей главы над игровым экраном
+    this.chapterEl = document.createElement('div');
+    this.chapterEl.style.cssText =
+      'position:absolute;top:8px;left:50%;transform:translateX(-50%);' +
+      'color:#e8f1ff;font:600 15px "Segoe UI",sans-serif;' +
+      'text-shadow:0 1px 4px rgba(0,0,0,.65);pointer-events:none;';
+    document.body.appendChild(this.chapterEl);
   }
 
   /** Клик по оверлею запрашивает захват курсора (обработчик задаёт игра). */
@@ -66,6 +72,37 @@ export class Hud {
     }
   }
 
+  /** Метка текущей главы в углу игрового экрана. */
+  setChapter(name) {
+    this.chapterEl.textContent = name ?? '';
+  }
+
+  /** Интертитр главы перед стартом: название, подсказка, кнопка начала. */
+  showChapter(level, onGo) {
+    this.overlay.classList.remove('hidden');
+    this.card.innerHTML = `
+      <h1>${level.name}</h1>
+      <p class="lead">${level.hint ?? 'Кликните, чтобы начать.'}</p>
+      <div class="btn" id="go">Начать главу</div>`;
+    document.getElementById('go').addEventListener('click', e => {
+      e.stopPropagation();
+      onGo();
+    });
+  }
+
+  /** Глава пройдена: время главы и переход к следующей. */
+  showLevelComplete(level, timeText, nextLevel, onNext) {
+    this.overlay.classList.remove('hidden');
+    this.card.innerHTML = `
+      <h1>Глава пройдена</h1>
+      <p>${level.name} — время ${timeText}. Впереди: ${nextLevel.name}.</p>
+      <div class="btn" id="next">Далее</div>`;
+    document.getElementById('next').addEventListener('click', e => {
+      e.stopPropagation();
+      onNext();
+    });
+  }
+
   hide() { this.overlay.classList.add('hidden'); }
 
   showPause() {
@@ -91,19 +128,24 @@ export class Hud {
   showWin(timeText) {
     this.overlay.classList.remove('hidden');
     this.card.innerHTML = `
-      <h1>Победа!</h1>
-      <p>Все ${CONFIG.totalCoins} монет собраны за ${timeText}.</p>
+      <h1>Все главы пройдены!</h1>
+      <p>Общее время забега — ${timeText}.</p>
       <div class="btn" id="again">Играть снова</div>`;
     document.getElementById('again').addEventListener('click', e => { e.stopPropagation(); location.reload(); });
   }
 
-  showDeath() {
+  /** Смерть: «Заново» перезапускает текущую главу (onRetry), без onRetry — весь забег. */
+  showDeath(onRetry) {
     this.overlay.classList.remove('hidden');
     this.card.innerHTML = `
       <h1>Вы <span>погибли</span></h1>
       <p>Враги оказались быстрее. Попробуйте ещё раз.</p>
       <div class="btn" id="again">Заново</div>`;
-    document.getElementById('again').addEventListener('click', e => { e.stopPropagation(); location.reload(); });
+    document.getElementById('again').addEventListener('click', e => {
+      e.stopPropagation();
+      if (onRetry) onRetry();
+      else location.reload();
+    });
   }
 
   setCoins(collected, total) {
