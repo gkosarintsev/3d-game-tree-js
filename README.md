@@ -66,9 +66,9 @@ climb.runAlienClimbTests();
 const enemy = await import('/tests/alien-enemy.test.js');
 enemy.runAlienEnemyTests();
 
-// карта-рельеф первой главы (11 тестов)
+// карта-рельеф первой главы (18 тестов)
 const terrain = await import('/tests/terrain-traverse.test.js');
-terrain.runTerrainTests();
+await terrain.runTerrainTests();
 ```
 
 Каждый модуль печатает отчёт `PASS/FAIL` и итог `N/M` в консоль, а также возвращает
