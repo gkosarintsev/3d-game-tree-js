@@ -135,7 +135,8 @@ export class Game {
   /** Создаёт персонажа выбранной роли и подписывает захват/отпуск курсора. */
   _createPlayer() {
     const player = this.role === 'alien'
-      ? new Alien(this.camera, this.renderer.domElement, this.map, () => this.enemies)
+      ? new Alien(this.camera, this.renderer.domElement, this.map, () => this.enemies,
+        () => this.hud.hitMarker())
       : new Player(this.camera, this.renderer.domElement, this.map);
     player.controls.addEventListener('lock', () => this._onLock());
     player.controls.addEventListener('unlock', () => this._onUnlock());

@@ -556,7 +556,6 @@ export class AlienEnemy extends AlienBody {
     this._moving = this._wish.lengthSq() > 1e-6;
     if (this._moving) this._wish.normalize();
     this._speed = ae.speed.run;
-    this._jump = false;
     // цель выше — смотрим вверх, чтобы прилипнуть к стене и залезть по ней
     this.pitch = to.dot(this.up) > 0.4 ? ae.climbPitch : 0;
   }

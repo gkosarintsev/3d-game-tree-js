@@ -44,6 +44,13 @@ const FIELDS = [
   { path: 'enemies.damage', label: 'Урон врага', step: 1 },
   { path: 'enemies.fireDelay', label: 'Пауза огня врага, с', step: 0.05 },
 
+  { group: 'Чужой' },
+  { path: 'alien.strike.damage', label: 'Удар рукой: урон', step: 5 },
+  { path: 'alien.strike.reach', label: 'Удар рукой: длина', step: 0.2 },
+  { path: 'alien.strike.cooldown', label: 'Удар рукой: пауза, с', step: 0.05 },
+  { path: 'alien.leap.damage', label: 'Прыжок: урон при касании', step: 1 },
+  { path: 'alien.leap.speed', label: 'Прыжок: скорость', step: 1 },
+
   { group: 'Мир' },
   { path: 'sun.intensity', label: 'Солнце', step: 0.1, world: true },
   { path: 'hemi.intensity', label: 'Полусфера', step: 0.05, world: true },

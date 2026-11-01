@@ -21,7 +21,7 @@
  *   2. Враг-Чужой сам залезает по стене дома (полное 3D-лазание);
  *   3. Враг-Чужой прыгает в упор на игрока и наносит ему урон;
  *   4. Враг-Чужой получает урон, умирает и возрождается;
- *   5. Скачок играбельного Чужого ранит врага-Чужого (тот же интерфейс).
+ *   5. Прыжок (Space) играбельного Чужого ранит врага-Чужого (тот же интерфейс).
  */
 import * as THREE from 'three';
 import { Enemy, Enemies, AlienEnemy } from '../src/enemies.js';
@@ -221,7 +221,7 @@ function testAlienEnemyDamageAndDeath() {
 }
 
 /**
- * 5. Совместимость интерфейса: скачок играбельного Чужого ранит врага-Чужего
+ * 5. Совместимость интерфейса: прыжок (Space) играбельного Чужого ранит врага-Чужего
  * (как и любого врага из менеджера), а не убивает сразу.
  */
 function testPlayerLeapHurtsAlienEnemy() {
@@ -242,17 +242,18 @@ function testPlayerLeapHurtsAlienEnemy() {
   alien._replanar();
   alien._updateCamera();
 
-  alien._leap(); // «огонь» в сторону врага
+  alien._leap(); // прыжок в сторону врага (тот же жест, что «пробел» в игре)
   for (let i = 0; i < 60; i++) alien.update(DT);
 
-  const damaged = !enemy.dead && enemy.health === CONFIG.alienEnemies.health - CONFIG.weapon.damage;
-  const passed = damaged;
+  const expected = CONFIG.alienEnemies.health - CONFIG.alien.leap.damage;
+  const damaged = !enemy.dead && enemy.health === expected;
+  const passed = damaged && CONFIG.alien.leap.damage < CONFIG.weapon.damage;
   return {
-    name: 'Скачок играбельного Чужого ранит врага-Чужего',
+    name: 'Прыжок играбельного Чужого ранит врага-Чужего',
     passed,
     info: passed
-      ? `хп врага ${enemy.health} (−${CONFIG.weapon.damage}), жив`
-      : `хп=${enemy.health}, жив=${!enemy.dead} (ожидалось ${CONFIG.alienEnemies.health - CONFIG.weapon.damage})`,
+      ? `хп врага ${enemy.health} (${CONFIG.alien.leap.damage} урона, выстрел человека — ${CONFIG.weapon.damage}), жив`
+      : `хп=${enemy.health}, жив=${!enemy.dead} (ожидалось ${expected})`,
   };
 }
 

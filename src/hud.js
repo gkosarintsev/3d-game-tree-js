@@ -46,7 +46,7 @@ export class Hud {
         </div>
         <div class="role" data-role="alien">
           <h2>Чужой</h2>
-          <p>Быстрее человека, лазает по стенам и потолку. <kbd>ЛКМ</kbd> — прыжок-скачок (~20 юнитов): попадёт во врага — тот получит урон.</p>
+          <p>Быстрее человека, лазает по стенам и потолку. <kbd>ЛКМ</kbd> — удар рукой (основной урон), <kbd>Space</kbd> — прыжок вперёд: заденет врага — ранит его слегка.</p>
         </div>
       </div>`;
     this.card.querySelectorAll('.role').forEach(el => {
@@ -64,7 +64,7 @@ export class Hud {
         <b>Чужой</b><br>
         <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — движение<br>
         <kbd>Мышь</kbd> — обзор, <kbd>Shift</kbd> — бег<br>
-        <kbd>ЛКМ</kbd> — скачок, <kbd>Space</kbd> — отрыв, <kbd>Esc</kbd> — пауза`;
+        <kbd>ЛКМ</kbd> — удар рукой, <kbd>Space</kbd> — прыжок вперёд, <kbd>Esc</kbd> — пауза`;
     } else {
       this.helpEl.innerHTML = `
         <b>Управление</b><br>

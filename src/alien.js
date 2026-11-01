@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { beep } from './audio.js';
 
@@ -50,7 +51,6 @@ export class AlienBody {
     this._wish = new THREE.Vector3();
     this._moving = false;
     this._speed = this.cfg.speed.walk;
-    this._jump = false;
 
     // параметры скачка: подкласс может подменить (например, у врага — прицельный пружинный прыжок)
     this.leapParams = null;
@@ -163,7 +163,7 @@ export class AlienBody {
 
   /**
    * Обновление физики за кадр. Подкласс в _control задаёт намерение движения
-   * (_wish/_moving/_speed/_jump) и ориентацию, а в _postUpdate делает своё
+   * (_wish/_moving/_speed) и ориентацию, а в _postUpdate делает своё
    * (например, обновляет камеру игрока).
    */
   update(dt) {
@@ -250,13 +250,6 @@ export class AlienBody {
     pos.x += (hit.x + this.up.x * cfg.radius - pos.x) * a;
     pos.y += (hit.y + this.up.y * cfg.radius - pos.y) * a;
     pos.z += (hit.z + this.up.z * cfg.radius - pos.z) * a;
-
-    // отрыв от поверхности обычным прыжком
-    if (this._jump) {
-      this.vel.copy(this.up).multiplyScalar(cfg.jump);
-      this.grounded = false;
-      beep(200, 0.07, 'triangle');
-    }
   }
 
   /**
@@ -461,12 +454,19 @@ export class AlienBody {
     this._tryLandBelow();
   }
 
-  /** Прыжок-скачок: стартовая скорость в заданном направлении. */
+  /**
+   * Прыжок вперёд (Space): стартовая скорость в заданном направлении.
+   * Направления может не быть — тогда прыгаем вдоль взгляда (fwd с учётом
+   * наклона), как это видит игрок.
+   */
   _leap(dir) {
     if (!this.grounded || this.leapTimer > 0) return;
     const l = this.leapParams || this.cfg.leap;
 
-    const d = this._tmp.copy(dir);
+    const d = this._tmp;
+    if (dir) d.copy(dir);
+    else d.copy(this.fwd).multiplyScalar(Math.cos(this.pitch))
+      .addScaledVector(this.up, Math.sin(this.pitch)).normalize();
 
     // ограничиваем угол возвышения: слишком пологий не долетит до цели,
     // слишком крутой уведёт тело почти вертикально
@@ -486,9 +486,13 @@ export class AlienBody {
     setTimeout(() => beep(60, 0.22, 'sawtooth'), 70);
   }
 
-  /** Урон, который скачок наносит цели (у врага-Чужего он свой). */
+  /**
+   * Урон, которым касание цели в полёте ранит её. Маленький (config.alien.leap):
+   * прыжок — средство передвижения, а не оружие; бьёт рука (см. Alien._strike).
+   * У врага-Чужего он свой.
+   */
   _leapDamage() {
-    return CONFIG.weapon.damage;
+    return this.cfg.leap.damage;
   }
 
   /** Обновление скачка: баллистика, поражение целей и посадка. */
@@ -517,9 +521,9 @@ export class AlienBody {
     this._target.set(0, 1, 0);
     this._alignUpLook(this._target, dt);
 
-    // касание цели в полёте — урон «как при стрельбе». За один скачок каждая
-    // цель ранится не более раза: без этого контакт держался бы несколько кадров
-    // и урон начислялся многократно.
+    // касание цели в полёте ранит её слегка (leap.damage). За один прыжок каждая
+    // цель получает удар не более раза: без этого контакт держался бы несколько
+    // кадров и урон начислялся многократно.
     const targets = this._leapTargets();
     if (targets) {
       const kr = cfg.leap.killRadius;
@@ -696,27 +700,38 @@ class PointerLock {
  * доворачивается под новую поверхность, поэтому при переходе «пол → стена →
  * потолок» картинку не переворачивает.
  *
- * Вместо стрельбы — прыжок-скачок по ЛКМ (см. config.alien.leap): попадёт по
- * врагу в полёте — враг получает урон.
+ * ЛКМ — удар рукой в сторону взгляда (config.alien.strike): короткий, но основной
+ * урон Чужого. Space — прыжок вперёд (config.alien.leap): долетит до врага —
+ * заденет его слегка (leap.damage), но прыжок нужен для движения и лазания, а не
+ * для боя.
  */
 export class Alien extends AlienBody {
   /**
    * @param {THREE.Camera} camera
    * @param {HTMLElement} domElement
    * @param {import('./map.js').TownMap} map
-   * @param {Function} getEnemies ленивый доступ к менеджеру врагов (для скачка)
+   * @param {Function} getEnemies ленивый доступ к менеджеру врагов (для удара и прыжка)
+   * @param {Function} [onHit] вызывается при попадании рукой (отметка на HUD)
    */
-  constructor(camera, domElement, map, getEnemies) {
+  constructor(camera, domElement, map, getEnemies, onHit) {
     super(map);
     this.camera = camera;
     this.controls = new PointerLock(domElement);
-    this._leapTargets = getEnemies || (() => null);
+    this.getEnemies = getEnemies || (() => null);
+    this._leapTargets = this.getEnemies;
+    this.onHit = onHit || null;
 
     this.keys = new Set();
 
     this._look = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
     this._q = new THREE.Quaternion();
+
+    // удар рукой: пауза между замахами и сам замах (0 — рука в покое)
+    this.strikeCd = 0;
+    this.strikeAnim = 0;
+    this._spaceHeld = false;
+    this._buildClaw();
 
     this._bindInput();
   }
@@ -737,7 +752,7 @@ export class Alien extends AlienBody {
     this._onMouseMoveBind = e => this._onMouseMove(e);
     this._onMouseDown = e => {
       if (e.button !== 0 || !this.isLocked) return;
-      this._leap();
+      this._strike();
     };
     addEventListener('keydown', this._onKeyDown);
     addEventListener('keyup', this._onKeyUp);
@@ -746,7 +761,7 @@ export class Alien extends AlienBody {
     addEventListener('mousedown', this._onMouseDown);
   }
 
-  /** Снимает слушатели при выгрузке уровня (см. AGENTS.md, жизненный цикл). */
+  /** Снимает слушатели и модель руки с камеры при выгрузке уровня. */
   dispose() {
     removeEventListener('keydown', this._onKeyDown);
     removeEventListener('keyup', this._onKeyUp);
@@ -754,6 +769,7 @@ export class Alien extends AlienBody {
     removeEventListener('mousemove', this._onMouseMoveBind);
     removeEventListener('mousedown', this._onMouseDown);
     this.controls.dispose();
+    this.camera.remove(this.claw);
   }
 
   /** Обзор: поворот «вперёд» вокруг текущей опоры + наклон взгляда. */
@@ -788,15 +804,87 @@ export class Alien extends AlienBody {
       else this._wish.normalize();
     }
     this._speed = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? cfg.speed.run : cfg.speed.walk;
-    this._jump = keys.has('Space');
+
+    // прыжок вперёд по краю нажатия Space: удержание не должно превращать
+    // приземление в новый прыжок каждую секунду
+    const space = keys.has('Space');
+    if (space && !this._spaceHeld) this._leap();
+    this._spaceHeld = space;
   }
 
-  _postUpdate(dt) { this._updateCamera(); }
+  _postUpdate(dt) {
+    if (this.strikeCd > 0) this.strikeCd = Math.max(0, this.strikeCd - dt);
+    this._updateClaw(dt);
+    this._updateCamera();
+  }
 
-  /** Скачок по ЛКМ — в сторону взгляда камеры. */
-  _leap() {
+  /**
+   * Удар рукой по ЛКМ: короткий луч вдоль взгляда — до стены и до врага, поражаем
+   * ближайший. Урон основной (config.alien.strike), после попадания — отметка на
+   * HUD; замах показывается когтистой рукой в углу вида.
+   * @returns {boolean} был ли удар (false — ещё не истекла пауза)
+   */
+  _strike() {
+    if (this.strikeCd > 0) return false;
+    const s = this.cfg.strike;
+    this.strikeCd = s.cooldown;
+    this.strikeAnim = s.animTime;
+    beep(150, 0.05, 'sawtooth');
+
     this.camera.getWorldDirection(this._look);
-    super._leap(this._look);
+    const cam = this.camera.position;
+    const wall = this.map.rayHitDistance(cam.x, cam.y, cam.z, this._look.x, this._look.y, this._look.z, s.reach);
+    const enemies = this.getEnemies();
+    const hit = enemies?.raycast
+      ? enemies.raycast(cam, this._look, Math.min(wall, s.reach))
+      : null;
+    if (hit) {
+      hit.enemy.takeDamage(s.damage);
+      if (this.onHit) this.onHit();
+      setTimeout(() => beep(70, 0.1, 'square'), 40);
+    }
+    return true;
+  }
+
+  /** Когтистая рука в правом нижнем углу вида — показывает замах по ЛКМ. */
+  _buildClaw() {
+    const box = (w, h, d, x, y, z) => {
+      const g = new THREE.BoxGeometry(w, h, d);
+      g.translate(x, y, z);
+      return g;
+    };
+    const mesh = new THREE.Mesh(
+      mergeGeometries([
+        box(0.09, 0.10, 0.42, 0, 0, 0.18),     // предплечье
+        box(0.13, 0.12, 0.20, 0, 0, -0.08),    // ладонь
+        box(0.03, 0.03, 0.24, -0.04, -0.02, -0.28), // когти
+        box(0.03, 0.03, 0.26, 0, -0.03, -0.30),
+        box(0.03, 0.03, 0.24, 0.04, -0.02, -0.28),
+      ], false),
+      new THREE.MeshStandardMaterial({ color: 0x241d28, roughness: 0.55 }),
+    );
+    mesh.castShadow = false;
+
+    this.claw = new THREE.Group();
+    this.claw.add(mesh);
+    this._clawHome = new THREE.Vector3(0.28, -0.26, -0.44);
+    this._clawPitch = 0.22;
+    this.claw.position.copy(this._clawHome);
+    this.claw.rotation.x = this._clawPitch;
+    this.camera.add(this.claw);
+  }
+
+  /** Замах: рука вылетает вперёд и возвращается за config.alien.strike.animTime. */
+  _updateClaw(dt) {
+    if (this.strikeAnim > 0) this.strikeAnim = Math.max(0, this.strikeAnim - dt);
+    const T = this.cfg.strike.animTime;
+    const k = Math.sin((1 - this.strikeAnim / T) * Math.PI);
+    this.claw.position.set(
+      this._clawHome.x,
+      this._clawHome.y + k * 0.06,
+      this._clawHome.z + k * 0.34,
+    );
+    this.claw.rotation.x = this._clawPitch - k * 1.15;
   }
 
   /** Собирает камеру: позиция — вдоль нормали от центра тела, взгляд — по fwd/pitch. */
