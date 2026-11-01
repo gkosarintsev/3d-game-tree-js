@@ -1,38 +1,34 @@
 /**
- * Глава 2 — «Окраина»: пять домов в ряд, дневной свет, знакомая улица.
- *
- * Уровень — чистые данные (см. AGENTS.md): поле map идёт в createTownMap,
- * sky — в освещение сцены, gameplay — в монеты и число врагов. Любое поле
- * необязательно: недостающее берётся из config.js.
+ * Глава 2 — «Пустошь»: заготовка главы-перехода A → B.
+ * Пока уровень пустой: один крохотный дом и одна монета — её сбор проходит
+ * главу. Начинка (рельеф переходов) появится вместе с механикой выхода.
  */
 export const LEVEL_02 = {
-  name: 'Глава 2. Окраина',
-  hint: 'Соберите все монеты, чтобы пройти главу.',
+  name: 'Глава 2. Пустошь',
+  hint: 'Заготовка главы-перехода. Пока что достаточно собрать одну монету.',
   map: {
     houses: [
-      { cols: 18, rows: 16, floors: 5, offsetX: -150, offsetZ: 0 },
-      { cols: 16, rows: 14, floors: 4, offsetX: -72, offsetZ: 0 },
-      { cols: 22, rows: 18, floors: 6, offsetX: 0, offsetZ: 0 },
-      { cols: 16, rows: 14, floors: 4, offsetX: 72, offsetZ: 0 },
-      { cols: 18, rows: 15, floors: 5, offsetX: 150, offsetZ: 0 },
+      { cols: 12, rows: 10, floors: 1, offsetX: 0, offsetZ: 0 },
     ],
-    ground: { size: 400, color: 0x6f9f4a },
+    ground: { size: 120, color: 0x8a9b6b },
   },
   decor: {
-    palms: 22,
-    lampSpacing: 28,
-    roofPropsPerBuilding: 4,
-    seed: 0xc0ffee,
+    palms: 0,
+    lampSpacing: 900,
+    roofPropsPerBuilding: 0,
+    seed: 0x000002,
   },
   sky: {
-    sky: 0xa9d4f5,
-    fog: { color: 0xd6e9ff, near: 120, far: 460 },
-    sun: { color: 0xfff4e0, intensity: 2.4, position: [150, 200, -110] },
-    hemi: { sky: 0xbfe3ff, ground: 0x4a6b33, intensity: 1.0 },
+    sky: 0xc6dff2,
+    fog: { color: 0xdce9f4, near: 70, far: 320 },
+    sun: { color: 0xfff4e0, intensity: 2.2, position: [80, 130, -60] },
+    hemi: { sky: 0xcfe3f7, ground: 0x55663d, intensity: 0.95 },
   },
   gameplay: {
-    totalCoins: 10,
-    enemies: { count: 5 },
-    alienEnemies: { count: 2 },
+    goal: 'coins',
+    totalCoins: 1,
+    minCoinDistance: 0,
+    enemies: { count: 0 },
+    alienEnemies: { count: 0 },
   },
 };

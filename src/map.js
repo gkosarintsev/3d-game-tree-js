@@ -6,9 +6,10 @@ import {
   generateBuilding, buildBuildingGeometry, buildingSurfaces, outerSides,
 } from './building.js';
 import { buildDecor } from './decor.js';
+import { SolidField } from './solids.js';
 
 /** Пересекаются ли круг игрока (x,z,radius) и прямоугольник. */
-function circleHitsRect(x, z, minX, maxX, minZ, maxZ, radius) {
+export function circleHitsRect(x, z, minX, maxX, minZ, maxZ, radius) {
   const px = Math.min(Math.max(x, minX), maxX);
   const pz = Math.min(Math.max(z, minZ), maxZ);
   const dx = x - px, dz = z - pz;
@@ -41,13 +42,14 @@ function circleHitsRect(x, z, minX, maxX, minZ, maxZ, radius) {
  * количества домов. Опорные поверхности индексируются в пространственную
  * сетку — поиск высоты пола под ногами не зависит от их числа.
  */
-export class TownMap {
+export class TownMap extends SolidField {
   /**
    * @param {object[]} buildings дома уровня (данные generateBuilding)
    * @param {{size?:number, color?:number}} [ground] земля уровня (по умолчанию — CONFIG)
    * @param {object} [decor] параметры декора уровня (по умолчанию — CONFIG.decor)
    */
   constructor(buildings, ground = {}, decor = {}) {
+    super(CONFIG.building.cell);
     this.buildings = buildings;
     this.width = ground.size ?? CONFIG.ground.size;
     this.groundColor = ground.color ?? CONFIG.ground.color;
@@ -70,12 +72,9 @@ export class TownMap {
     this.index = new Map();
     this._indexSurfaces();
 
-    // твёрдые объёмы (AABB) для 3D-физики Чужого: заполняются в build()
-    this.solids = [];
-    this.solidBucket = CONFIG.building.cell;
-    this.solidIndex = new Map();
-    this._rayStamp = new Int32Array(0);
-    this._mark = 0;
+    // твёрдые объёмы (AABB) для 3D-физики Чужого: заполняются в build();
+    // плоская земля улицы — рейкаст по ней опускается до y = 0
+    this.groundPlane = { y: 0, half: this.width / 2 };
 
     this.bounds = this._worldBounds();
     this.viewHalf = Math.max(
@@ -112,188 +111,8 @@ export class TownMap {
   }
 
   // ---------------------------------------------------- твёрдые тела (солиды)
-
-  /** Ключ ячейки трёхмерной сетки солидов. */
-  _key3(i, j, k) {
-    return ((i + 2048) * 4096 + (j + 2048)) * 4096 + (k + 2048);
-  }
-
-  /** Раскладывает AABB солидов по трёхмерным ячейкам (быстрый поиск). */
-  _indexSolids() {
-    const b = this.solidBucket;
-    this.solidIndex.clear();
-    this.solids.forEach((s, idx) => {
-      const i0 = Math.floor(s.minX / b), i1 = Math.floor(s.maxX / b);
-      const j0 = Math.floor(s.minY / b), j1 = Math.floor(s.maxY / b);
-      const k0 = Math.floor(s.minZ / b), k1 = Math.floor(s.maxZ / b);
-      for (let k = k0; k <= k1; k++) {
-        for (let j = j0; j <= j1; j++) {
-          for (let i = i0; i <= i1; i++) {
-            const key = this._key3(i, j, k);
-            let list = this.solidIndex.get(key);
-            if (!list) this.solidIndex.set(key, list = []);
-            list.push(idx);
-          }
-        }
-      }
-    });
-    this._rayStamp = new Int32Array(this.solids.length);
-  }
-
-  /**
-   * Пересечение луча с параллелепипедом (метод слэбов).
-   * @returns {{t:number, axis:number, sign:number}|null} ближайшая точка входа
-   *   (t — расстояние, axis — ось грани, sign — знак нормали вдоль оси)
-   */
-  _rayAabb(ox, oy, oz, dx, dy, dz, s) {
-    let tmin = -Infinity, tmax = Infinity, axis = 0, t1, t2;
-    if (Math.abs(dx) < 1e-9) {
-      if (ox < s.minX || ox > s.maxX) return null;
-    } else {
-      t1 = (s.minX - ox) / dx; t2 = (s.maxX - ox) / dx;
-      if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
-      if (t1 > tmin) { tmin = t1; axis = 0; }
-      if (t2 < tmax) tmax = t2;
-    }
-    if (Math.abs(dy) < 1e-9) {
-      if (oy < s.minY || oy > s.maxY) return null;
-    } else {
-      t1 = (s.minY - oy) / dy; t2 = (s.maxY - oy) / dy;
-      if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
-      if (t1 > tmin) { tmin = t1; axis = 1; }
-      if (t2 < tmax) tmax = t2;
-    }
-    if (Math.abs(dz) < 1e-9) {
-      if (oz < s.minZ || oz > s.maxZ) return null;
-    } else {
-      t1 = (s.minZ - oz) / dz; t2 = (s.maxZ - oz) / dz;
-      if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
-      if (t1 > tmin) { tmin = t1; axis = 2; }
-      if (t2 < tmax) tmax = t2;
-    }
-    if (tmax < tmin || tmax < 0) return null;
-    const comp = axis === 0 ? dx : axis === 1 ? dy : dz;
-    return { t: tmin >= 0 ? tmin : 0, axis, sign: comp > 0 ? -1 : 1 };
-  }
-
-  /**
-   * Рейкаст к первой твёрдой поверхности. Пол мира — бесконечная плоскость
-   * y = 0 в пределах габаритов карты.
-   * @returns {{x,y,z,nx,ny,nz,dist:number}|null} точка удара и нормаль поверхности
-   */
-  raySolid(ox, oy, oz, dx, dy, dz, maxDist) {
-    const len = Math.hypot(dx, dy, dz);
-    if (len < 1e-9) return null;
-    dx /= len; dy /= len; dz /= len;
-
-    let bestT = Infinity, bestAxis = 0, bestSign = 1, found = false;
-
-    if (this.solidIndex.size) {
-      const b = this.solidBucket;
-      const mark = ++this._mark;
-      const stamp = this._rayStamp;
-      const steps = Math.ceil(maxDist / b) + 1;
-      for (let s = 0; s <= steps; s++) {
-        const t = s * b;
-        if (t > maxDist) break;
-        const ci = Math.floor((ox + dx * t) / b);
-        const cj = Math.floor((oy + dy * t) / b);
-        const ck = Math.floor((oz + dz * t) / b);
-        for (let k = ck - 1; k <= ck + 1; k++) {
-          for (let j = cj - 1; j <= cj + 1; j++) {
-            for (let i = ci - 1; i <= ci + 1; i++) {
-              const list = this.solidIndex.get(this._key3(i, j, k));
-              if (!list) continue;
-              for (const idx of list) {
-                if (stamp[idx] === mark) continue;
-                stamp[idx] = mark;
-                const r = this._rayAabb(ox, oy, oz, dx, dy, dz, this.solids[idx]);
-                if (r && r.t <= maxDist && r.t < bestT) {
-                  bestT = r.t; bestAxis = r.axis; bestSign = r.sign; found = true;
-                }
-              }
-            }
-          }
-        }
-        if (found && bestT <= t) break; // ближайшая преграда уже пройдена
-      }
-    }
-
-    // земля: плоскость y = 0
-    if (dy < -1e-9) {
-      const tg = (0 - oy) / dy;
-      if (tg >= 0 && tg <= maxDist && tg < bestT) {
-        const gx = ox + dx * tg, gz = oz + dz * tg;
-        const half = this.width / 2;
-        if (gx >= -half && gx <= half && gz >= -half && gz <= half) {
-          return { x: gx, y: 0, z: gz, nx: 0, ny: 1, nz: 0, dist: tg };
-        }
-      }
-    }
-
-    if (!found) return null;
-    return {
-      x: ox + dx * bestT, y: oy + dy * bestT, z: oz + dz * bestT,
-      nx: bestAxis === 0 ? bestSign : 0,
-      ny: bestAxis === 1 ? bestSign : 0,
-      nz: bestAxis === 2 ? bestSign : 0,
-      dist: bestT,
-    };
-  }
-
-  /** Выталкивает точку из параллелепипеда по кратчайшему направлению. */
-  _pushOut(c, r, s) {
-    const px = Math.min(Math.max(c.x, s.minX), s.maxX);
-    const py = Math.min(Math.max(c.y, s.minY), s.maxY);
-    const pz = Math.min(Math.max(c.z, s.minZ), s.maxZ);
-    const dx = c.x - px, dy = c.y - py, dz = c.z - pz;
-    const d2 = dx * dx + dy * dy + dz * dz;
-    if (d2 >= r * r) return false;
-    if (d2 > 1e-10) {
-      const d = Math.sqrt(d2);
-      const push = (r - d) / d;
-      c.x += dx * push; c.y += dy * push; c.z += dz * push;
-    } else { // центр внутри объёма — выходим через ближайшую грань
-      const dxl = c.x - s.minX, dxr = s.maxX - c.x;
-      const dyl = c.y - s.minY, dyr = s.maxY - c.y;
-      const dzl = c.z - s.minZ, dzr = s.maxZ - c.z;
-      const m = Math.min(dxl, dxr, dyl, dyr, dzl, dzr);
-      if (m === dxl) c.x = s.minX - r;
-      else if (m === dxr) c.x = s.maxX + r;
-      else if (m === dyl) c.y = s.minY - r;
-      else if (m === dyr) c.y = s.maxY + r;
-      else if (m === dzl) c.z = s.minZ - r;
-      else c.z = s.maxZ + r;
-    }
-    return true;
-  }
-
-  /**
-   * Выталкивает сферу (центр + радиус) из всех пересекаемых солидов.
-   * Используется физикой Чужого вместо сеточных коллизий человека.
-   */
-  resolveSphere(c, r) {
-    if (!this.solidIndex.size) return false;
-    const b = this.solidBucket;
-    const mark = ++this._mark;
-    const stamp = this._rayStamp;
-    const ci = Math.floor(c.x / b), cj = Math.floor(c.y / b), ck = Math.floor(c.z / b);
-    let moved = false;
-    for (let k = ck - 1; k <= ck + 1; k++) {
-      for (let j = cj - 1; j <= cj + 1; j++) {
-        for (let i = ci - 1; i <= ci + 1; i++) {
-          const list = this.solidIndex.get(this._key3(i, j, k));
-          if (!list) continue;
-          for (const idx of list) {
-            if (stamp[idx] === mark) continue;
-            stamp[idx] = mark;
-            if (this._pushOut(c, r, this.solids[idx])) moved = true;
-          }
-        }
-      }
-    }
-    return moved;
-  }
+  // Механизм AABB-солидов (рейкаст, выталкивание сферы, маршевый луч) —
+  // в базовом классе SolidField (см. solids.js), общий с картой-рельефом.
 
   /** Общий габарит всех домов (по земле). */
   _worldBounds() {
@@ -581,20 +400,7 @@ export class TownMap {
   }
 
   // ---------------------------------------------------------------- стрельба
-
-  /**
-   * Дистанция до первой преграды вдоль луча (стены, перекрытия, земля).
-   * Считается по той же сетке, что и коллизии, — без обхода мешей.
-   */
-  rayHitDistance(ox, oy, oz, dx, dy, dz, maxDist) {
-    const step = 0.6;
-    for (let t = step; t <= maxDist; t += step) {
-      const x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
-      if (this.isBlocked(x, z, 0.18, y - 0.15, 0.3)) return t;
-      if (this.groundHeightAt(x, z, y) > y + 0.02) return t;
-    }
-    return maxDist;
-  }
+  // rayHitDistance — в SolidField: маршевый луч по isBlocked/groundHeightAt.
 
   /** Плоская земля и слитая геометрия всех домов. */
   build(scene) {
@@ -615,7 +421,7 @@ export class TownMap {
       const g = buildBuildingGeometry(b, this.solids);
       for (const key of Object.keys(parts)) if (g[key]) parts[key].push(g[key]);
     }
-    this._indexSolids();
+    this.indexSolids();
 
     const mats = {
       walls: new THREE.MeshStandardMaterial({ color: 0xd6dae0, roughness: .85, metalness: .05 }),

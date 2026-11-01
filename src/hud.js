@@ -13,6 +13,8 @@ export class Hud {
     this.hitEl = document.getElementById('hitmark');
     this.minimap = document.getElementById('minimap');
     this.ctx = this.minimap.getContext('2d');
+    this.coinsLbl = this.coinsEl.parentElement.querySelector('.lbl');
+    this._exitMode = false;
     this._hitTimer = 0;
     this._lockHandler = null;
 
@@ -44,7 +46,7 @@ export class Hud {
         </div>
         <div class="role" data-role="alien">
           <h2>Чужой</h2>
-          <p>Быстрее человека, лазает по стенам и потолку. <kbd>ЛКМ</kbd> — далёкий скачок: попадёт во врага — тот погибает.</p>
+          <p>Быстрее человека, лазает по стенам и потолку. <kbd>ЛКМ</kbd> — прыжок-скачок (~20 юнитов): попадёт во врага — тот получит урон.</p>
         </div>
       </div>`;
     this.card.querySelectorAll('.role').forEach(el => {
@@ -148,7 +150,23 @@ export class Hud {
     });
   }
 
+  /**
+   * Режим цели главы: 'exit' — строка статистики показывает расстояние до
+   * точки B вместо монет.
+   */
+  setGoalMode(isExit) {
+    this._exitMode = isExit;
+    this.coinsLbl.textContent = isExit ? 'До точки B' : 'Монеты';
+    this.coinsEl.textContent = isExit ? '—' : '0 / 0';
+  }
+
+  setExitDistance(meters) {
+    if (!this._exitMode) return;
+    this.coinsEl.textContent = `${Math.max(0, Math.round(meters))} м`;
+  }
+
   setCoins(collected, total) {
+    if (this._exitMode) return;
     this.coinsEl.textContent = `${collected} / ${total}`;
   }
 
@@ -182,8 +200,8 @@ export class Hud {
     this._hitTimer = setTimeout(() => { this.hitEl.style.opacity = '0'; }, 100);
   }
 
-  /** Рисует миникарту: план текущего этажа, монеты, врагов и маркер игрока. */
-  drawMinimap(map, coins, playerPos, forward, enemies) {
+  /** Рисует миникарту: план текущего этажа, монеты, врагов, точку B и маркер игрока. */
+  drawMinimap(map, coins, playerPos, forward, enemies, exit = null) {
     const size = this.minimap.width;
     const ctx = this.ctx;
 
@@ -208,6 +226,15 @@ export class Hud {
         ctx.arc(u * size, v * size, size * 0.014, 0, Math.PI * 2);
         ctx.fill();
       });
+    }
+
+    if (exit) {
+      const [eu, ev] = map.worldToNormalized(exit.x, exit.z);
+      ctx.strokeStyle = 'rgba(111,232,221,.95)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(eu * size, ev * size, size * 0.03, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     const [pu, pv] = map.worldToNormalized(playerPos.x, playerPos.z);

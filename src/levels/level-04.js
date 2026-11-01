@@ -1,34 +1,32 @@
 /**
- * Глава 4 — «Высотки»: три башни, пасмурное небо, много Чужих-врагов.
- * Крыш много, вертикальные обходы — основной маршрут скачков Чужого.
+ * Глава 4 — «Первый дом»: один дом посреди улицы, мало врагов и монет.
+ * Первая «уличная» глава после трёх глав-переходов по рельефу.
  */
 export const LEVEL_04 = {
-  name: 'Глава 4. Высотки',
-  hint: 'Финальная глава: соберите монеты на этажах и крышах башен.',
+  name: 'Глава 4. Первый дом',
+  hint: 'Один дом, четыре монеты. Разберитесь с управлением на улице.',
   map: {
     houses: [
-      { cols: 20, rows: 18, floors: 8, offsetX: -95, offsetZ: 0 },
-      { cols: 24, rows: 20, floors: 10, offsetX: 15, offsetZ: 10 },
-      { cols: 18, rows: 16, floors: 7, offsetX: 120, offsetZ: -15 },
+      { cols: 14, rows: 12, floors: 3, offsetX: 0, offsetZ: 0 },
     ],
-    ground: { size: 440, color: 0x5f7457 },
+    ground: { size: 160, color: 0x74a04e },
   },
   decor: {
-    palms: 10,
+    palms: 8,
     lampSpacing: 18,
-    roofPropsPerBuilding: 6,
-    seed: 0xd1ce55,
+    roofPropsPerBuilding: 3,
+    seed: 0x000001,
   },
   sky: {
-    sky: 0x6a7688,
-    fog: { color: 0x8894a6, near: 70, far: 380 },
-    sun: { color: 0xdfe8ff, intensity: 1.3, position: [90, 180, 130] },
-    hemi: { sky: 0x9fb0c8, ground: 0x2f3a44, intensity: 0.75 },
+    sky: 0xb8dcf7,
+    fog: { color: 0xdff0ff, near: 60, far: 300 },
+    sun: { color: 0xfff4e0, intensity: 2.4, position: [90, 140, -70] },
+    hemi: { sky: 0xbfe3ff, ground: 0x4a6b33, intensity: 1.0 },
   },
   gameplay: {
-    totalCoins: 16,
-    minCoinDistance: 18,
-    enemies: { count: 8 },
-    alienEnemies: { count: 5 },
+    totalCoins: 4,
+    minCoinDistance: 8,
+    enemies: { count: 2 },
+    alienEnemies: { count: 1 },
   },
 };

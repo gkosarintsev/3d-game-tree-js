@@ -1,35 +1,34 @@
 /**
- * Глава 3 — «Квартал на закате»: дома вразнобой, низкое солнце, пальм больше.
- * Врагов заметно больше, чем в предыдущей главе.
+ * Глава 3 — «Предгорье»: вторая заготовка главы-перехода A → B.
+ * Пустой уровень с одной монетой: сбор проходит главу. Содержимое появится
+ * вместе с маршрутами переходов.
  */
 export const LEVEL_03 = {
-  name: 'Глава 3. Квартал на закате',
-  hint: 'Солнце садится — монеты всё так же решают.',
+  name: 'Глава 3. Предгорье',
+  hint: 'Заготовка главы-перехода. Пока что достаточно собрать одну монету.',
   map: {
     houses: [
-      { cols: 20, rows: 18, floors: 5, offsetX: -105, offsetZ: -20 },
-      { cols: 18, rows: 16, floors: 7, offsetX: -30, offsetZ: 25 },
-      { cols: 16, rows: 14, floors: 4, offsetX: 50, offsetZ: -25 },
-      { cols: 22, rows: 16, floors: 6, offsetX: 135, offsetZ: 15 },
+      { cols: 12, rows: 10, floors: 1, offsetX: 12, offsetZ: -8 },
     ],
-    ground: { size: 480, color: 0x7c8b4f },
+    ground: { size: 140, color: 0x7f9462 },
   },
   decor: {
-    palms: 30,
-    lampSpacing: 22,
-    roofPropsPerBuilding: 5,
-    seed: 0xbeef01,
+    palms: 0,
+    lampSpacing: 900,
+    roofPropsPerBuilding: 0,
+    seed: 0x000003,
   },
   sky: {
-    sky: 0xf2b98a,
-    fog: { color: 0xf7cda0, near: 90, far: 420 },
-    sun: { color: 0xffc185, intensity: 2.0, position: [-160, 90, 140] },
-    hemi: { sky: 0xffd9b0, ground: 0x4f3b28, intensity: 0.9 },
+    sky: 0xc0d9ea,
+    fog: { color: 0xd6e4ee, near: 70, far: 340 },
+    sun: { color: 0xfff0d8, intensity: 2.1, position: [-70, 150, 60] },
+    hemi: { sky: 0xd0e2f2, ground: 0x5a6a44, intensity: 0.95 },
   },
   gameplay: {
-    totalCoins: 14,
-    minCoinDistance: 16,
-    enemies: { count: 7 },
-    alienEnemies: { count: 3 },
+    goal: 'coins',
+    totalCoins: 1,
+    minCoinDistance: 0,
+    enemies: { count: 0 },
+    alienEnemies: { count: 0 },
   },
 };

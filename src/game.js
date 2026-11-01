@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { createTownMap } from './map.js';
+import { createTerrainMap } from './terrain-map.js';
+import { ExitGoal } from './exit.js';
 import { LEVELS } from './levels/index.js';
 import { Coins } from './coins.js';
 import { Player } from './player.js';
@@ -62,11 +64,11 @@ export class Game {
   }
 
   /**
-   * Точка замены типа уровня: чтобы вернуть другую реализацию контракта карты,
-   * достаточно подменить её здесь (см. src/map.js и AGENTS.md).
+   * Точка замены типа уровня: kind из map-секции определения главы выбирает
+   * реализацию контракта карты (см. src/map.js и AGENTS.md).
    */
-  createMap(spec) {
-    return createTownMap(spec);
+  createMap(spec = {}) {
+    return spec.kind === 'terrain' ? createTerrainMap(spec) : createTownMap(spec);
   }
 
   /** Загружает главу: карта, сцена, монеты, враги, персонаж, интертитр. */
@@ -91,10 +93,20 @@ export class Game {
     // карта теней заморожена — пересчитать под новую сцену
     this.renderer.shadowMap.needsUpdate = true;
 
+    // цель главы: 'exit' — дойти до точки B (главы-переходы), 'coins' — сбор
+    this.exit = null;
+    const isExit = gp.goal === 'exit';
+    if (isExit) {
+      this.exit = new ExitGoal(
+        this.scene, this.map, gp.exit, gp.exitRadius ?? CONFIG.terrain.exitRadius,
+      );
+    }
+    this.hud.setGoalMode(isExit);
+
     this.tracers = new Tracers(this.scene);
     this.coins = new Coins(
       this.scene, this.map,
-      gp.totalCoins ?? CONFIG.totalCoins,
+      isExit ? 0 : (gp.totalCoins ?? CONFIG.totalCoins),
       gp.minCoinDistance ?? CONFIG.minCoinDistance,
     );
     this.player = this._createPlayer();
@@ -246,6 +258,12 @@ export class Game {
       this.hud.flashDamage(this.player.hurt);
 
       const time = performance.now() / 1000;
+      if (this.exit) {
+        this.exit.update(time);
+        const p = this.player.position;
+        this.hud.setExitDistance(Math.hypot(p.x - this.exit.x, p.z - this.exit.z));
+        if (this.exit.reached(p)) { this._levelComplete(); }
+      }
       if (this.coins.update(dt, this.player.position, time)) {
         this.hud.setCoins(this.coins.collected, this.coins.total);
         if (this.coins.collected === this.coins.total) this._levelComplete();
@@ -257,7 +275,7 @@ export class Game {
     // до начала главы сущностей нет — рендерим только обзор карты
     if (this.tracers) this.tracers.update(dt);
     if (this.player) {
-      this.hud.drawMinimap(this.map, this.coins, this.player.position, this.player.direction, this.enemies);
+      this.hud.drawMinimap(this.map, this.coins, this.player.position, this.player.direction, this.enemies, this.exit);
     }
     this.renderer.render(this.scene, this.camera);
   }
