@@ -21,7 +21,14 @@
  *   5. Чужой вылезает с потолка верхнего этажа через лаз в крыше на крышу;
  *   6. Чужой спускается с крыши через тот же лаз обратно на потолок;
  *   7. Чужой обходит наружный угол дома по стене: с южной стены перебирается на
- *      смежную восточную через угол и не падает вниз.
+ *      смежную восточную через угол и не падает вниз;
+ *   8. Скачок вплотную к стене останавливается и прилипает, не пробивая фасад;
+ *   9. Скачок сквозь врага убивает его;
+ *  10. Падение с большой высоты на крышу не пробивает перекрытие (подшаги);
+ *  11. Урон, регенерация и смерть: хп не уходит ниже нуля, мёртвого не ранят;
+ *  12. Сквозной проход по НАСТОЯЩЕМУ лазу (лестничная шахта 2×5 клеток) вдоль
+ *      длинной оси: с потолка верхнего этажа на крышу;
+ *  13. То же обратно: с крыши через шахту на потолок.
  */
 import * as THREE from 'three';
 import { Alien } from '../src/alien.js';
@@ -71,10 +78,10 @@ function buildHoleWorld() {
   return { building, map };
 }
 
-function makeAlien(map) {
+function makeAlien(map, getEnemies) {
   const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
   const dom = document.createElement('canvas');
-  return new Alien(camera, dom, map, () => null);
+  return new Alien(camera, dom, map, getEnemies || (() => null));
 }
 
 /** Ставит Чужого в заданное состояние и нажимает клавиши. */
@@ -282,6 +289,188 @@ function testWallCornerWrap() {
 }
 
 /**
+ * 8. Скачок вплотную к стене: удар в преграду должен останавливать полёт и
+ * прилипать к стене, а не проносить тело сквозь фасад.
+ */
+function testLeapSticksToWall() {
+  const { map } = buildTestWorld();
+  const alien = makeAlien(map);
+  placeAlien(alien, {
+    x: 0, y: RADIUS, z: WALL_Z + 3, up: [0, 1, 0], fwd: [0, 0, -1], pitch: 0, keys: [],
+  });
+  alien._leap(); // скачок в сторону стены
+  const trace = simulate(alien, 90);
+
+  const stuck = trace.some(s => onWall(s) && s.upZ > 0.7);   // прилип к южной стене
+  const noTunnel = trace.every(s => s.z > WALL_Z);           // сквозь дом не пролетел
+  const passed = stuck && noTunnel;
+  const last = trace[trace.length - 1];
+  return {
+    name: 'Скачок в стену останавливается и прилипает',
+    passed,
+    info: passed
+      ? `прилип к стене (итог z=${last.z.toFixed(2)}, up=${upStr(last)})`
+      : `не прилип или пробил стену; итог z=${last.z.toFixed(2)}, up=${upStr(last)}`,
+  };
+}
+
+/** 9. Скачок сквозь врага убивает его (касание в полёте). */
+function testLeapKillsEnemy() {
+  const { map } = buildTestWorld();
+  const enemy = {
+    dead: false,
+    position: new THREE.Vector3(0, 0.9, WALL_Z + 6),
+    takeDamage(n) { this.damage = n; this.dead = true; },
+  };
+  const alien = makeAlien(map, () => ({ items: [enemy] }));
+  placeAlien(alien, {
+    x: 0, y: RADIUS, z: WALL_Z + 10, up: [0, 1, 0], fwd: [0, 0, -1], pitch: 0, keys: [],
+  });
+  alien._leap();
+  simulate(alien, 40);
+
+  const passed = enemy.dead;
+  return {
+    name: 'Скачок сквозь врага убивает его',
+    passed,
+    info: passed ? `враг поражён (урон ${enemy.damage})` : 'враг не был задет в полёте',
+  };
+}
+
+/**
+ * 10. Падение с большой высоты на крышу. Скорость к моменту удара ~38 ед/с,
+ * перекрытие толщиной 0.3 — без подшагов тело пробило бы плиту насквозь.
+ */
+function testRoofStopsFall() {
+  const { map } = buildTestWorld();
+  const alien = makeAlien(map);
+  placeAlien(alien, { x: 0, y: 40, z: 0, up: [0, 1, 0], fwd: [0, 0, 1], pitch: 0, keys: [] });
+  alien.grounded = false; // падаем с высоты
+  const trace = simulate(alien, 120);
+
+  const minY = trace.reduce((m, s) => Math.min(m, s.y), Infinity);
+  const landed = trace.some(s => onFlat(s) && Math.abs(s.y - ROOF_BODY_Y) <= 0.3);
+  const passed = landed && minY > ROOF_Y - 0.1; // сквозь крышу не пролетел
+  const last = trace[trace.length - 1];
+  return {
+    name: 'Падение с высоты останавливает крыша (подшаги)',
+    passed,
+    info: passed
+      ? `приземлился на крышу (y=${last.y.toFixed(2)}), минимум y=${minY.toFixed(2)}`
+      : `не остановился на крыше; итог y=${last.y.toFixed(2)}, минимум y=${minY.toFixed(2)}`,
+  };
+}
+
+/** 11. Урон, регенерация и смерть: хп не уходит ниже нуля, мёртвого не ранят. */
+function testDamageAndRegen() {
+  const { map } = buildTestWorld();
+  const alien = makeAlien(map);
+
+  alien.takeDamage(30);
+  const hurtApplied = Math.abs(alien.health - (alien.maxHealth - 30)) < 1e-6;
+
+  alien.health = 10;
+  alien._lastDamage = -1e9;   // затишье заведомо прошло
+  alien._regen(1);            // dt = 1 c
+  const regenerated = Math.abs(alien.health - (10 + CONFIG.health.regenRate)) < 1e-6;
+  const hurtDecayed = alien.hurt === 0;
+
+  alien.takeDamage(1000);
+  const dead = alien.dead && alien.health === 0;
+  alien.takeDamage(50);       // по мёртвому урон не проходит
+  const ignoreAfterDeath = alien.health === 0 && alien.dead;
+
+  const passed = hurtApplied && regenerated && hurtDecayed && dead && ignoreAfterDeath;
+  return {
+    name: 'Урон, регенерация и смерть Чужого',
+    passed,
+    info: passed
+      ? 'урон снят, регенерация сработала, смерть необратима'
+      : `урон=${hurtApplied}, регенерация=${regenerated}, затухание=${hurtDecayed}, ` +
+        `смерть=${dead}, игнор после смерти=${ignoreAfterDeath}`,
+  };
+}
+
+/**
+ * Дом в два этажа: в перекрытии верхнего этажа остаётся НАСТОЯЩИЙ сквозной лаз —
+ * лестничная шахта (2 клетки в ширину, 5 в длину), а не искусственная дырка 1×1.
+ * Возвращает её координаты: длинная ось лаза идёт по Z и равна 15 юнитам.
+ */
+function buildShaftWorld() {
+  const building = generateBuilding({ ...TEST_BUILDING, floors: 2 });
+  const map = new TownMap([building]);
+  map.build(new THREE.Scene());
+  const cell = building.cell;
+  const s = building.stair;
+  return {
+    map,
+    holeX: building.originX + (s.i0 + 0.5) * cell,   // центр клетки шахты по X
+    holeZIn: building.originZ + s.j0 * cell,         // ближний край лаза по Z
+    roofY: 2 * FLOOR_HEIGHT,                         // верх крыши = 12
+  };
+}
+
+/**
+ * 12. С потолка верхнего этажа через настоящую шахту на крышу, двигаясь вдоль
+ * её длинной оси (15 юнитов). Именно этот случай ломался: поиск дальнего края
+ * проёма ограничивался 7 юнитами, до края не доставал и Чужой падал в шахту.
+ */
+function testShaftHoleToRoof() {
+  const w = buildShaftWorld();
+  const alien = makeAlien(w.map);
+  const ceilY = w.roofY - SLAB - RADIUS;
+  const roofBodyY = w.roofY + RADIUS;
+  placeAlien(alien, {
+    x: w.holeX, y: ceilY, z: w.holeZIn - 2, up: [0, -1, 0], fwd: [0, 0, 1],
+  });
+
+  // Идём, пока не окажемся на крыше (дальше Чужой просто уйдёт с её края).
+  let minY = Infinity;
+  let reachedRoof = false;
+  for (let i = 0; i < 150 && !reachedRoof; i++) {
+    alien.update(DT);
+    minY = Math.min(minY, alien.pos.y);
+    if (alien.up.y >= 0.9 && Math.abs(alien.pos.y - roofBodyY) <= 0.4) reachedRoof = true;
+  }
+  const noFall = minY > ceilY - 0.3; // не провалился в шахту
+  const passed = reachedRoof && noFall;
+  return {
+    name: 'С потолка через настоящую шахту на крышу (длинная ось)',
+    passed,
+    info: passed
+      ? `вылез на крышу (y=${roofBodyY.toFixed(2)})`
+      : `не вылез: минимум y=${minY.toFixed(2)}, итог y=${alien.pos.y.toFixed(2)}`,
+  };
+}
+
+/** 13. Обратно: с крыши через ту же шахту на потолок верхнего этажа. */
+function testShaftHoleToCeiling() {
+  const w = buildShaftWorld();
+  const alien = makeAlien(w.map);
+  const ceilY = w.roofY - SLAB - RADIUS;
+  placeAlien(alien, {
+    x: w.holeX, y: w.roofY + RADIUS, z: w.holeZIn - 2, up: [0, 1, 0], fwd: [0, 0, 1],
+  });
+
+  let minY = Infinity;
+  let reachedCeiling = false;
+  for (let i = 0; i < 150 && !reachedCeiling; i++) {
+    alien.update(DT);
+    minY = Math.min(minY, alien.pos.y);
+    if (alien.up.y <= -0.9 && Math.abs(alien.pos.y - ceilY) <= 0.4) reachedCeiling = true;
+  }
+  const noFall = minY > ceilY - 0.3; // не провалился на нижние этажи
+  const passed = reachedCeiling && noFall;
+  return {
+    name: 'С крыши через настоящую шахту на потолок (длинная ось)',
+    passed,
+    info: passed
+      ? `спустился на потолок (y=${ceilY.toFixed(2)})`
+      : `не спустился: минимум y=${minY.toFixed(2)}, итог y=${alien.pos.y.toFixed(2)}`,
+  };
+}
+
+/**
  * Прогоняет все тесты лазания и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
@@ -289,6 +478,8 @@ export function runAlienClimbTests() {
   const tests = [
     testClimbWall, testClimbRoof, testRoofToWall, testWallToGround,
     testCeilToRoof, testRoofToCeil, testWallCornerWrap,
+    testLeapSticksToWall, testLeapKillsEnemy, testRoofStopsFall, testDamageAndRegen,
+    testShaftHoleToRoof, testShaftHoleToCeiling,
   ];
   const results = tests.map(fn => {
     try { return fn(); }

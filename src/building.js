@@ -62,6 +62,7 @@ export function outerSides(grid, cols, rows, i, j) {
 export function generateBuilding(cfg) {
   const {
     cols, rows, cell, floors, floorHeight, stepUp, wallThickness = 0.5,
+    slabThickness = 0.3,
     offsetX = 0, offsetZ = 0, roofHole = null,
   } = cfg;
   const cx = (cols - 1) / 2;
@@ -170,7 +171,7 @@ export function generateBuilding(cfg) {
   }
 
   return {
-    cols, rows, cell, floors, floorHeight, stepUp, wallThickness,
+    cols, rows, cell, floors, floorHeight, stepUp, wallThickness, slabThickness,
     originX, originZ, levels, ramps, stair,
     doorX: X(ci) + cell, // центр южного входа (между клетками ci и ci+1)
   };
@@ -236,7 +237,7 @@ export function buildingSurfaces(b) {
 export function buildBuildingGeometry(b, solids) {
   const {
     cols, rows, cell, floors, floorHeight, originX, originZ, levels, ramps,
-    wallThickness = 0.5,
+    wallThickness = 0.5, slabThickness = 0.3,
   } = b;
   const wallGeos = [];
   const slabGeos = [];
@@ -285,7 +286,7 @@ export function buildBuildingGeometry(b, solids) {
   // этажа ровно на эту величину, чтобы стена нижнего этажа заканчивалась там,
   // где начинается перекрытие верхнего: иначе оба объёма перекрываются по
   // высоте и их совпадающие наружные грани мерцают (z-fighting).
-  const SLAB = 0.3;
+  const SLAB = slabThickness;
   const wallH = floorHeight - SLAB;
 
   // параметры окна: проём в тонкой стене (подоконник / перемычка / простенки)

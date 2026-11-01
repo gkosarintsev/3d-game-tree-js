@@ -2,6 +2,17 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { beep } from './audio.js';
 
+// Порог «горизонтальности» опоры: |up.y| больше — пол/потолок/крыша, меньше —
+// почти вертикальная стена. Один порог на все переходы, чтобы «пол ↔ стена» и
+// «стена ↔ крыша» были согласованы.
+const WALL_NORMAL_Y = 0.7;
+// Предел наклона взгляда относительно тела (±66°): камера не запрокидывается.
+const PITCH_LIMIT = 1.15;
+// Косинус между нормалями, при котором поверхность считается продолжением опоры.
+const NORMAL_ALIGN = 0.86;
+// Толщина перекрытия — та же величина, что у геометрии дома (см. config.building).
+const SLAB = CONFIG.building.slabThickness;
+
 /**
  * Минимальный контроллер захвата курсора: только блокировка/события, без
  * вращения камеры (ориентацию Чужого считает сам Alien под нормаль опоры).
@@ -91,6 +102,18 @@ export class Alien {
     this._lookKeep = new THREE.Vector3();
     this._q = new THREE.Quaternion();
 
+    // плавный переход между поверхностями (перевал на крышу, проход сквозь лаз):
+    // откуда и куда едем телом + сохранённый мировой взгляд на время переворота
+    this._tween = null;
+    this._twFromUp = new THREE.Vector3();
+    this._twToUp = new THREE.Vector3();
+    this._twFromPos = new THREE.Vector3();
+    this._twToPos = new THREE.Vector3();
+    this._twLook = new THREE.Vector3();
+    this._twBuf = new THREE.Vector3();
+    this._twQ = new THREE.Quaternion();
+    this._twQ2 = new THREE.Quaternion();
+
     this._bindInput();
   }
 
@@ -132,7 +155,7 @@ export class Alien {
     this._q.setFromAxisAngle(this.up, -e.movementX * s);
     this.fwd.applyQuaternion(this._q);
     this._replanar();
-    this.pitch = Math.max(-1.15, Math.min(1.15, this.pitch - e.movementY * s));
+    this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - e.movementY * s));
   }
 
   /** Удерживает «вперёд» в плоскости опоры (перпендикулярно нормали). */
@@ -155,6 +178,27 @@ export class Alien {
     this._replanar();
   }
 
+  /** Мировая линия взгляда: «вперёд» тела, наклонённое на pitch вокруг нормали. */
+  _lookVector(out) {
+    return out.copy(this.fwd).multiplyScalar(Math.cos(this.pitch))
+      .addScaledVector(this.up, Math.sin(this.pitch));
+  }
+
+  /**
+   * Восстанавливает «вперёд» и наклон из сохранённой мировой линии взгляда при
+   * текущей нормали тела. Возвращает false, если взгляд совпал с нормалью —
+   * тогда направление по линии не восстановить, и вызывающий делает _replanar().
+   */
+  _restoreLook(look) {
+    const along = look.dot(this.up);
+    look.addScaledVector(this.up, -along);
+    if (look.lengthSq() < 1e-4) return false;
+    this.fwd.copy(look).normalize();
+    const c = Math.max(-1, Math.min(1, along));
+    this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, Math.asin(c)));
+    return true;
+  }
+
   /**
    * То же, но сохраняет направление взгляда в мире. В полёте корпус плавно
    * встаёт «на ноги» (нормаль доворачивается к вертикали), а наклон взгляда при
@@ -164,14 +208,9 @@ export class Alien {
    * поэтому камера остаётся на той же линии, а опора просто переворачивается.
    */
   _alignUpLook(target, dt) {
-    const look = this._lookKeep.copy(this.fwd).multiplyScalar(Math.cos(this.pitch))
-      .addScaledVector(this.up, Math.sin(this.pitch));
+    this._lookVector(this._lookKeep);
     this._alignUp(target, dt);
-    const along = look.dot(this.up);
-    look.addScaledVector(this.up, -along);
-    if (look.lengthSq() < 1e-4) return; // взгляд вдоль нормали — так не восстановить
-    this.fwd.copy(look).normalize();
-    this.pitch = Math.max(-1.15, Math.min(1.15, Math.asin(Math.max(-1, Math.min(1, along)))));
+    this._restoreLook(this._lookKeep);
   }
 
   /** Ставит Чужого на поверхность под точкой появления. */
@@ -206,7 +245,8 @@ export class Alien {
     }
     const speed = (keys.has('ShiftLeft') || keys.has('ShiftRight')) ? cfg.speed.run : cfg.speed.walk;
 
-    if (this.leapTimer > 0) this._updateLeap(dt);
+    if (this._tween) this._updateTransition(dt);
+    else if (this.leapTimer > 0) this._updateLeap(dt);
     else if (this.grounded) this._updateGrounded(dt, moving, speed);
     else this._updateAirborne(dt, moving, speed);
 
@@ -240,10 +280,10 @@ export class Alien {
     // обратно сам. На самих стенах переходы (углы) остаются автоматическими.
     let hit = null;
     const canClimb = this.pitch > cfg.climbPitch * Math.PI / 180;
-    if (moving && (canClimb || Math.abs(this.up.y) <= 0.7)) {
+    if (moving && (canClimb || Math.abs(this.up.y) <= WALL_NORMAL_Y)) {
       const fh = this.map.raySolid(pos.x, pos.y, pos.z, this._wish.x, this._wish.y, this._wish.z,
         cfg.radius + cfg.stepUp);
-      if (fh && (fh.nx * this.up.x + fh.ny * this.up.y + fh.nz * this.up.z) < 0.86) hit = fh;
+      if (fh && (fh.nx * this.up.x + fh.ny * this.up.y + fh.nz * this.up.z) < NORMAL_ALIGN) hit = fh;
     }
     if (!hit) {
       const down = this._down.copy(this.up).negate();
@@ -257,7 +297,7 @@ export class Alien {
     // Тело идёт по горизонтали (крыша/пол) к краю: если впереди опоры уже нет,
     // а ниже кромки проходит стена — принимаем стену за опору и сползаем по
     // ней, а не падаем вниз (обратный случай к перевалу _tryMantle).
-    if (moving && Math.abs(this.up.y) > 0.7) {
+    if (moving && Math.abs(this.up.y) > WALL_NORMAL_Y) {
       const wall = this._edgeWall();
       if (wall) hit = wall;
     }
@@ -316,7 +356,7 @@ export class Alien {
    */
   _tryMantle() {
     const cfg = this.cfg;
-    if (Math.abs(this.up.y) > 0.7) return false; // перевал нужен только со стен
+    if (Math.abs(this.up.y) > WALL_NORMAL_Y) return false; // перевал нужен только со стен
 
     const step = cfg.radius + cfg.stepUp;
     this._mantle.set(
@@ -331,7 +371,7 @@ export class Alien {
     );
     if (!hit || hit.ny < 0.5) return false;
 
-    this._land(hit);
+    this._beginTransition(hit); // плавный перевал на крышу, без рывка камеры
     return true;
   }
 
@@ -347,10 +387,9 @@ export class Alien {
   _tryThroughHole() {
     const cfg = this.cfg;
     const r = cfg.radius;
-    const SLAB = 0.3; // толщина перекрытия (как в building.js)
 
     // переход возможен только с горизонтальной опоры (пол / потолок / крыша)
-    if (Math.abs(this.up.y) <= 0.7) return false;
+    if (Math.abs(this.up.y) <= WALL_NORMAL_Y) return false;
 
     const into = this._probe.copy(this.up).negate(); // ось «внутрь плиты»
 
@@ -380,7 +419,7 @@ export class Alien {
     // Опора обратной стороны лежит в направлении старой нормали, а её собственная
     // нормаль направлена к нам (новая опора — «антипод» прежней).
     const step = Math.max(r * 0.5, 0.2);
-    const maxScan = CONFIG.building.cell * 2 + 1;
+    const maxScan = cfg.holeScan;
     for (let t = 0; t <= maxScan; t += step) {
       const hit = this.map.raySolid(
         p.x + dir.x * t, p.y + dir.y * t, p.z + dir.z * t,
@@ -388,7 +427,7 @@ export class Alien {
       );
       if (!hit) continue;
       if (-(hit.nx * this.up.x + hit.ny * this.up.y + hit.nz * this.up.z) < 0.5) continue;
-      this._land(hit);
+      this._beginTransition(hit); // плавный проход сквозь лаз, без телепорта
       return true;
     }
     return false;
@@ -438,7 +477,7 @@ export class Alien {
    */
   _tryCornerWrap() {
     const cfg = this.cfg;
-    if (Math.abs(this.up.y) > 0.7) return false; // только со стен
+    if (Math.abs(this.up.y) > WALL_NORMAL_Y) return false; // только со стен
 
     // направление движения по стене (горизонтальная касательная)
     const d = this._tmp.copy(this._wish);
@@ -460,7 +499,7 @@ export class Alien {
     // бьём назад вдоль −n2 в соседнюю стену и требуем её внешнюю грань
     const hit = this.map.raySolid(px, py, pz, -n2.x, 0, -n2.z, push + side + 0.5);
     if (!hit) return false;
-    if (hit.nx * n2.x + hit.ny * n2.y + hit.nz * n2.z < 0.86) return false;
+    if (hit.nx * n2.x + hit.ny * n2.y + hit.nz * n2.z < NORMAL_ALIGN) return false;
 
     // встаём на соседнюю стену и разворачиваем тело вдоль неё
     const f2 = this._probe.copy(n1).negate(); // «вперёд» новой стены = −прежняя нормаль
@@ -475,7 +514,6 @@ export class Alien {
   /** Полёт под гравитацией: прыжок, падение с края, посадка на поверхность. */
   _updateAirborne(dt, moving, speed) {
     const cfg = this.cfg;
-    const pos = this.pos;
 
     if (moving) { // ослабленное управление в воздухе
       const target = this._tmp.copy(this._wish).multiplyScalar(speed * cfg.airControl);
@@ -490,8 +528,7 @@ export class Alien {
     this._target.set(0, 1, 0);
     this._alignUpLook(this._target, dt);
 
-    const hit = this.map.raySolid(pos.x, pos.y, pos.z, 0, -1, 0, cfg.radius + 0.35);
-    if (hit && this.vel.y <= 0.01) this._land(hit);
+    this._tryLandBelow();
   }
 
   /** Далёкий скачок по ЛКМ: стартовая скорость в сторону взгляда. */
@@ -557,9 +594,67 @@ export class Alien {
       }
     }
 
-    const hit = this.map.raySolid(pos.x, pos.y, pos.z, 0, -1, 0, cfg.radius + 0.35);
-    if (hit && this.vel.y <= 0.01) this._land(hit);
-    else if (this.leapTimer <= 0) { this.vel.set(0, 0, 0); this.grounded = true; this.leapTimer = 0; }
+    if (this._tryLandBelow()) return;
+    if (this.leapTimer <= 0) { this.vel.set(0, 0, 0); this.grounded = true; this.leapTimer = 0; }
+  }
+
+  /**
+   * Ищет опору прямо под телом и, если она есть и тело не поднимается,
+   * приземляется на неё. Общий шаг полёта и скачка.
+   * @returns {boolean} приземлились ли
+   */
+  _tryLandBelow() {
+    const hit = this.map.raySolid(
+      this.pos.x, this.pos.y, this.pos.z, 0, -1, 0, this.cfg.radius + 0.35,
+    );
+    if (!hit || this.vel.y > 0.01) return false;
+    this._land(hit);
+    return true;
+  }
+
+  /**
+   * Начинает плавный переход тела на другую поверхность (перевал со стены на
+   * крышу, проход сквозь лаз). В отличие от мгновенного `_land`, позиция и
+   * нормаль доводятся за несколько кадров, поэтому камера не «перекидывается»
+   * рывком. Мировая линия взгляда сохраняется — меняется только ориентация тела.
+   */
+  _beginTransition(hit) {
+    const cfg = this.cfg;
+    this._lookVector(this._twLook);
+    this._twFromUp.copy(this.up);
+    this._twToUp.set(hit.nx, hit.ny, hit.nz).normalize();
+    this._twFromPos.copy(this.pos);
+    this._twToPos.set(
+      hit.x + hit.nx * cfg.radius,
+      hit.y + hit.ny * cfg.radius,
+      hit.z + hit.nz * cfg.radius,
+    );
+
+    const tr = cfg.transition;
+    const dist = this._twFromPos.distanceTo(this._twToPos);
+    const dur = Math.max(tr.minTime, Math.min(tr.maxTime, dist / tr.speed));
+    this._twQ.setFromUnitVectors(this._twFromUp, this._twToUp);
+
+    this._tween = { t: 0, dur };
+    this.vel.set(0, 0, 0);
+    this.grounded = true;
+    this.leapTimer = 0;
+    beep(160, 0.05, 'triangle');
+  }
+
+  /** Кадр плавного перехода: доводим позицию и нормаль тела с easing. */
+  _updateTransition(dt) {
+    const tw = this._tween;
+    tw.t += dt;
+    const a = Math.min(1, tw.t / tw.dur);
+    const e = a * a * (3 - 2 * a); // smoothstep: мягкий разгон и торможение
+
+    this.pos.copy(this._twFromPos).lerp(this._twToPos, e);
+    this._twQ2.set(0, 0, 0, 1).slerp(this._twQ, e);
+    this.up.copy(this._twFromUp).applyQuaternion(this._twQ2).normalize();
+    if (!this._restoreLook(this._twBuf.copy(this._twLook))) this._replanar();
+
+    if (a >= 1) this._tween = null;
   }
 
   /** Ставит тело на поверхность и «прилипает» к ней. */
@@ -571,11 +666,8 @@ export class Alien {
     // обратно по стене на потолок. Запоминаем линию взгляда в мире и восстановим
     // её после смены опоры. Переходы со стен (перевал на крышу, сползание) не
     // трогаем — там камера должна следовать за доворотом корпуса.
-    const keepLook = Math.abs(this.up.y) > 0.7;
-    if (keepLook) {
-      this._lookKeep.copy(this.fwd).multiplyScalar(Math.cos(this.pitch))
-        .addScaledVector(this.up, Math.sin(this.pitch));
-    }
+    const keepLook = Math.abs(this.up.y) > WALL_NORMAL_Y;
+    if (keepLook) this._lookVector(this._lookKeep);
 
     this.pos.set(
       hit.x + hit.nx * cfg.radius,
@@ -583,15 +675,7 @@ export class Alien {
       hit.z + hit.nz * cfg.radius,
     );
     this.up.set(hit.nx, hit.ny, hit.nz).normalize();
-    if (keepLook) {
-      const along = this._lookKeep.dot(this.up);
-      this.fwd.copy(this._lookKeep).addScaledVector(this.up, -along);
-      if (this.fwd.lengthSq() < 1e-4) this._replanar();
-      else this.fwd.normalize();
-      this.pitch = Math.max(-1.15, Math.min(1.15, Math.asin(Math.max(-1, Math.min(1, along)))));
-    } else {
-      this._replanar();
-    }
+    if (!keepLook || !this._restoreLook(this._lookKeep)) this._replanar();
     this.vel.set(0, 0, 0);
     this.grounded = true;
     this.leapTimer = 0;
