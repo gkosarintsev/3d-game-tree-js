@@ -461,14 +461,15 @@ export class AlienBody {
     this._tryLandBelow();
   }
 
-  /** Далёкий скачок: стартовая скорость в заданном направлении. */
+  /** Прыжок-скачок: стартовая скорость в заданном направлении. */
   _leap(dir) {
     if (!this.grounded || this.leapTimer > 0) return;
     const l = this.leapParams || this.cfg.leap;
 
     const d = this._tmp.copy(dir);
 
-    // ограничиваем угол возвышения, иначе скачок не долетит до соседней крыши
+    // ограничиваем угол возвышения: слишком пологий не долетит до цели,
+    // слишком крутой уведёт тело почти вертикально
     const minE = l.minElevation * Math.PI / 180;
     const maxE = l.maxElevation * Math.PI / 180;
     const e = Math.asin(Math.max(-1, Math.min(1, d.dot(this.up))));
@@ -695,7 +696,7 @@ class PointerLock {
  * доворачивается под новую поверхность, поэтому при переходе «пол → стена →
  * потолок» картинку не переворачивает.
  *
- * Вместо стрельбы — далёкий скачок по ЛКМ (см. config.alien.leap): попадёт по
+ * Вместо стрельбы — прыжок-скачок по ЛКМ (см. config.alien.leap): попадёт по
  * врагу в полёте — враг получает урон.
  */
 export class Alien extends AlienBody {
