@@ -31,16 +31,27 @@
  *      ниже кровли, а её коллизия достаёт до кровли;
  *  15. Насыпь держит габарит своим грунтом, а её откос — проходимый склон без
  *      невидимой коробки;
- *  16. Меш собирается без NaN-вершин, свет глав — из данных и в пределах пула;
- *  17. Миникарта рисует план без исключений;
- *  18. Свободные точки для объектов действительно свободны и опираются;
- *  19. Метки id для `?debug=1` покрывают все объекты данных и стоят над своими
+ *  16. Русло прорезает грунт: дно ниже «нуля пола мира» отдаёт свою отметку, берег
+ *      держит землю, вода — отдельный меш, а плита земли не один квад;
+ *  17. Луч над каналом идёт к дну сквозь плиту земли, настил моста и карниз
+ *      береговой стенки (его верх ровно на отметке земли) остаются твёрдью;
+ *  18. Сфера тела сходится вниз и поднимается вверх по каждому склону берега и
+ *      каждому пандусу схода — без застреваний и с перепадом больше метра;
+ *  19. Граф ведёт вброд через канал (русло держат узлы ниже земли) и не ведёт
+ *      через реку без брода; всё, что добавлено, достижимо из точки A;
+ *  20. Опоры моста над руслом опускаются пяткой на дно, метки id и миникарта
+ *      русло видят;
+ *  21. Меш собирается без NaN-вершин, свет глав — из данных и в пределах пула;
+ *  22. Миникарта рисует план без исключений;
+ *  23. Свободные точки для объектов действительно свободны и опираются;
+ *  24. Метки id для `?debug=1` покрывают все объекты данных и стоят над своими
  *      планами;
- *  20. Детерминизм: два сбора дают побитово равные отметки узлов.
+ *  25. Детерминизм: два сбора дают побитово равные отметки узлов.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
 import { LEVEL_09 } from '../src/levels/level-09.js';
+import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { CONFIG } from '../src/config.js';
 
 const J = CONFIG.jsonMap;
@@ -549,6 +560,255 @@ function testEmbankment() {
   };
 }
 
+// ---------------------------------------------------------------- вода: полигон русла
+//
+// Глав с руслом в реестре ещё нет, а клиентскую механику — дно ниже «нуля пола
+// мира», луч сквозь плиту земли, брод и блокировка незаброженной реки — проверять
+// иначе как не на чем. Поэтому глава-полигон живёт здесь: те же данные, что
+// прогоняет Node-проверка парсера, но собранные в карту и прочитанные ногами.
+
+const WATER_RAW = {
+  metadata: { levelName: 'water', name: 'Полигон воды', hint: '—', units: 'meters' },
+  ground: { size: 160 },
+  waterways: [
+    {
+      id: 'canal', width: 20, bedY: -3, surfaceY: -1, bank: 'quay', wade: true,
+      ramps: [{ at: { x: -12, z: 24 } }, { at: { x: -12, z: 56 }, width: 6 }],
+      points: [{ x: -60, z: 40 }, { x: 60, z: 40 }],
+    },
+    {
+      id: 'river', width: 16, bedY: -2.5, surfaceY: -0.7, bank: 'slope', bankRun: 10, wade: false,
+      // русло до самих краёв земли: иначе у главы остаётся полоса грунта,
+      // обойти реку по которой — маршрут, и проверка «не ведёт» становится ложью
+      points: [{ x: -80, z: -50 }, { x: 80, z: -50 }],
+    },
+  ],
+  roads: [
+    { id: 'bank_rd', type: 'ground', width: 8, points: [{ x: -60, y: 0, z: 0 }, { x: 60, y: 0, z: 0 }] },
+    {
+      id: 'bridge_rd', type: 'bridge', width: 6,
+      points: [{ x: 0, y: 0, z: 16 }, { x: 0, y: 4.8, z: 33 }, { x: 0, y: 4.8, z: 47 }, { x: 0, y: 0, z: 64 }],
+    },
+  ],
+  buildings: [],
+  landscapeObjects: [],
+  lights: [],
+  gameplay: { goal: 'exit', spawn: { x: -30, z: 8 }, exit: { x: 30, z: 8 } },
+};
+
+let waterBuilt = null;
+
+/** Карта русла с построенной геометрией: призмы, блокеры и граф собраны. */
+function waterMap() {
+  if (!waterBuilt) {
+    waterBuilt = createJsonMap(normalizeLevel(WATER_RAW).map);
+    waterBuilt.build(new THREE.Scene());
+  }
+  return waterBuilt;
+}
+
+const inRect$ = (x, z, r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
+
+function testWaterFrame() {
+  const map = waterMap();
+  const canal = map.channels.find(c => c.id === 'canal');
+  const river = map.channels.find(c => c.id === 'river');
+  const bad = [];
+  if (map.channels.length !== 2) bad.push(`каналов ${map.channels.length}`);
+  // дно обязано отдавать СВОЮ отметку: «пол мира — ноль» над каналом был бы
+  // невидимым настилом, по котором шли бы вместо воды
+  const bedY = map.groundHeightAt(-30, canal.segments[0].cross, map.groundY);
+  if (Math.abs(bedY - canal.bedY) > 1e-3) bad.push(`опора над дном канала ${bedY} вместо ${canal.bedY}`);
+  if (map.isBlocked(-30, canal.segments[0].cross, CONFIG.radius, bedY, CONFIG.eyeHeight)) {
+    bad.push('вброд проходимое дно задерживает габарит');
+  }
+  const riverBed = map.groundHeightAt(-30, river.segments[0].cross, map.groundY);
+  if (Math.abs(riverBed - river.bedY) > 1e-3) bad.push(`опора над дном реки ${riverBed} вместо ${river.bedY}`);
+  if (!map.isBlocked(-30, river.segments[0].cross, CONFIG.radius, riverBed, CONFIG.eyeHeight)) {
+    bad.push('река без брода проходима по дну');
+  }
+  // берег остаётся берегом: нулём земли
+  if (Math.abs(map.groundHeightAt(-30, 20, map.groundY) - map.groundY) > 1e-6) bad.push('берег потерял опору земли');
+  // грунт прорезан: плоскость земли больше одного квада, а вода — отдельный меш
+  const ground = map.sceneObjects[0];
+  if (ground.geometry.attributes.position.count <= 4) bad.push('плита земли не прорезана руслом');
+  if (!map.waterRects.length) bad.push('пластин воды нет');
+  return {
+    name: 'Русло прорезает грунт: дно ниже нуля своё, берег держит землю, вода — меш',
+    passed: bad.length === 0 && map.holes.length >= 7,
+    info: bad.length ? `${bad.length}: ${bad.slice(0, 3).join('; ')}`
+      : `${map.holes.length} прорезей, дно канала ${bedY} проходимо, дно реки ${riverBed} забраковано блокером, `
+      + `вода — ${map.waterRects.length} пластин`,
+  };
+}
+
+function testWaterRay() {
+  const map = waterMap();
+  const canal = map.channels.find(c => c.id === 'canal');
+  const bad = [];
+  // нисходящий луч над каналом обязан пройти отметку земли и упереться в дно:
+  // плита мира, лежащая выше воды, была бы фантомным настилом для стрельбы
+  const hit = map.raySolid(20, 6, canal.segments[0].cross, 0, -1, 0, 20);
+  if (!hit || Math.abs(hit.y - canal.bedY) > 0.05) bad.push(`луч над каналом дал ${hit ? hit.y.toFixed(2) : 'ничего'} вместо дна ${canal.bedY}`);
+  // ...а луч, вошедший в русло под углом, тоже обязан давать дно, а не землю
+  const slant = map.raySolid(20, 6, canal.segments[0].cross - 20, 0, -0.6, 0.8, 40);
+  if (slant && Math.abs(slant.y) < 0.01 && inRect$(slant.x, slant.z, canal.segments[0].bed)) {
+    bad.push('косой луч остановился на плите земли внутри русла');
+  }
+  // верх береговой стенки лежит ровно на отметке земли — его отбрасывать нельзя
+  const wallZ = canal.segments[0].cross - canal.segments[0].halfW - J.wallThickness / 2;
+  const onWall = map.raySolid(20, 6, wallZ, 0, -1, 0, 20);
+  if (!onWall || Math.abs(onWall.y - map.groundY) > 0.05) bad.push('луч сквозь карниз стенки ушёл в землю');
+  // настил моста над руслом остаётся ближайшей твердью
+  const deck = map.roads.find(r => r.id === 'bridge_rd').decks.find(d => !d.ramp);
+  const over = map.raySolid(0, 12, (deck.minZ + deck.maxZ) / 2, 0, -1, 0, 20);
+  if (!over || Math.abs(over.y - deck.topY) > 0.05) bad.push(`луч над мостом дал ${over ? over.y.toFixed(2) : 'ничего'} вместо настила ${deck.topY}`);
+  return {
+    name: 'Луч над руслом идёт к дну, а настил и береговая стенка остаются твёрдью',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `дно ${hit.y.toFixed(2)}, карниз стенки ${onWall.y.toFixed(2)}, настил ${over.y.toFixed(2)} — луч бьёт в своё`,
+  };
+}
+
+function testWaterSlopes() {
+  const map = waterMap();
+  const r = CONFIG.radius;
+  const step = 0.05;
+  const bad = [];
+  let done = 0;
+  for (const d of map.descents) {
+    if (!map.prisms.some(p => p.descentId === d.id)) { bad.push(`${d.id}: схода нет в призмах`); continue; }
+    // у любого уклона `u0` — у воды (y0 = дно), `u1` — на берегу (y1 = земля)
+    const along = d.axis;                       // ось, вдоль которой отложен профиль
+    const vMid = (d.v0 + d.v1) / 2;
+    const at = u => ({ x: along === 'x' ? u : vMid, z: along === 'x' ? vMid : u });
+    const s = Math.sign(d.u1 - d.u0);
+    // прогон начинается и кончается в метре от концов: у носика схода и у кромки
+    // дна опору держит соседняя призма, и тело цеплялось бы за стык, а не за склон
+    const water = d.u0 + s * 1.0;
+    const shore = d.u1 - s * 1.0;
+    for (const [label, from, to] of [['спуск', shore, water], ['подъём', water, shore]]) {
+      const dir = Math.sign(to - from);
+      const c = at(from);
+      c.y = map.groundHeightAt(c.x, c.z, dir > 0 ? map.groundY : 500) + r;
+      const firstY = c.y;
+      const uOf = () => (along === 'x' ? c.x : c.z);
+      const guard = Math.ceil(Math.abs(to - from) / step) * 4 + 40;
+      let iter = 0;
+      while (Math.abs(to - uOf()) > 0.02 && iter < guard) {
+        if (along === 'x') c.x += dir * step; else c.z += dir * step;
+        c.y -= step;
+        map.resolveSphere(c, r);
+        const g = map.groundHeightAt(c.x, c.z, c.y);
+        if (g !== null && c.y - r < g) c.y = g + r;
+        iter++;
+      }
+      if (Math.abs(to - uOf()) > 0.02) {
+        bad.push(`${d.id} ${label}: тело встало на u=${uOf().toFixed(2)} (нужно ${to.toFixed(2)})`);
+        continue;
+      }
+      const travel = Math.abs(c.y - firstY);
+      if (travel < 1) bad.push(`${d.id} ${label}: перепад всего ${travel.toFixed(2)} м`);
+      else done++;
+    }
+  }
+  return {
+    name: 'Тело на сфере сходится по каждому склону и сходу вниз и вверх',
+    passed: map.descents.length >= 4 && bad.length === 0 && done === map.descents.length * 2,
+    info: bad.length ? `${bad.length}: ${bad.slice(0, 3).join('; ')}`
+      : `${map.descents.length} уклонов × 2 прогона, перепад > 1 м, застреваний нет`,
+  };
+}
+
+function testWaterNav() {
+  const map = waterMap();
+  const canal = map.channels.find(c => c.id === 'canal');
+  const river = map.channels.find(c => c.id === 'river');
+  const riverBed = river.segments[0].bed;
+  const bad = [];
+  const nodeAt = (x, z, y) => nodeNear(map, { x, y, z }, 2.5);
+  // брод: с берега на берег через дно — маршрут обязан существовать и идти по воде
+  const from = { x: -12, y: map.groundHeightAt(-12, 20, map.groundY), z: 20 };
+  const to = { x: -12, y: map.groundHeightAt(-12, 62, map.groundY), z: 62 };
+  const path = map.findPath(from, to);
+  if (!Array.isArray(path) || path.length < 3) bad.push('маршрута через брод нет');
+  else {
+    const wet = path.filter(p => inRect$(p.x, p.z, canal.segments[0].bed) && p.y < map.groundY - 0.5).length;
+    if (!wet) bad.push('маршрут через брод не зашёл в русло');
+    for (let i = 0; i + 1 < path.length; i++) {
+      const f = walkEdge(map, i === 0 ? from : path[i], path[i + 1]);
+      if (f) { bad.push(`ребро ${i}: ${f.reason} в ${f.x.toFixed(1)}, ${f.z.toFixed(1)}`); break; }
+    }
+  }
+  if (nodeAt(-12, canal.segments[0].cross, canal.bedY) < 0) bad.push('дна канала нет в графе — брод не куда положить');
+  // река без брода: дно забраковано, за дальний берег граф не выходит и маршрут
+  // туда не доходит. Проверять надо не «маршрута нет»: `findPath` прибивает цель
+  // к ближайшему узлу, поэтому путь вернётся до самого уреза воды — важна сама
+  // координата, пересёк ли путь русло
+  // (ниже `riverBed.minZ` — то есть за дальним берегом — узлов быть не должно)
+  if (map.nav.pos.some(p => inRect$(p.x, p.z, riverBed))) bad.push('узел стоит на дне незаброженной реки');
+  const beyond = map.nav.pos.filter(p => p.z < riverBed.minZ).length;
+  if (beyond) bad.push(`${beyond} узлов за рекой — её перешли или обошли`);
+  const across = map.findPath({ x: 0, y: map.groundY, z: -20 }, { x: 0, y: map.groundY, z: -74 });
+  if (Array.isArray(across) && Math.min(...across.map(p => p.z)) < riverBed.minZ) {
+    bad.push('маршрут перешёл реку без брода');
+  }
+  // одна связная сеть: всё, что добавлено, достижимо из точки A
+  const start = map.nav.nearestNode(map.spawn.x, map.spawn.y, map.spawn.z);
+  const seen = new Uint8Array(map.nav.pos.length);
+  const q = [start];
+  seen[start] = 1;
+  for (let h = 0; h < q.length; h++) for (const nb of map.nav.adj[q[h]]) if (!seen[nb]) { seen[nb] = 1; q.push(nb); }
+  if (q.length !== map.nav.pos.length) bad.push(`узлов вне сети из точки A: ${map.nav.pos.length - q.length}`);
+  return {
+    name: 'Граф ведёт вброд через канал и не ведёт через реку без брода',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${path.length} узлов через брод (русло держат ${map.nav.pos.filter(p => p.y < map.groundY - 0.5).length} подводных), `
+      + `${map.nav.pos.length} узлов достижимы из точки A, за рекой без брода — ${beyond}`,
+  };
+}
+
+function testWaterPillarsAndIds() {
+  const map = waterMap();
+  const canal = map.channels.find(c => c.id === 'canal');
+  const bed = canal.segments[0].bed;
+  const bad = [];
+  const pillars = map.props.filter(p => p.source === 'bridge_pillar');
+  const inBed = pillars.filter(p => p.position.y < map.groundY - 0.5);
+  // опора над руслом обязана встать на дно, а не кончаться на «нуле пола мира»:
+  // иначе колонна висела бы над водой, не держа настил
+  if (inBed.length === 0) bad.push('ни одна опора моста не опустилась к дну');
+  for (const p of inBed) {
+    if (!inRect$(p.position.x, p.position.z, bed)) bad.push(`${p.id}: опора ниже земли вне русла`);
+    if (Math.abs(p.position.y - canal.bedY) > 1e-3) bad.push(`${p.id}: пятка ${p.position.y} вместо дна ${canal.bedY}`);
+  }
+  for (const p of pillars.filter(x => x.position.y > map.groundY - 0.5)) {
+    if (Math.abs(p.position.y - map.groundY) > 1e-3) bad.push(`${p.id}: пятка ${p.position.y} не на земле`);
+  }
+  // метки id: у каждого русла, стенки и схода своя метка под своей отметкой
+  const ids = map.debugIds();
+  const texts = new Set(ids.map(l => l.text.split(' · ')[0]));
+  for (const id of [canal.id, 'river']) if (!texts.has(id)) bad.push(`метки русла «${id}» нет`);
+  const bedLabel = ids.find(l => l.text.startsWith('canal · русло'));
+  if (!bedLabel || Math.abs(bedLabel.y - (canal.surfaceY + 1.2)) > 0.01) bad.push('метка дна не над водой');
+  const wallLabel = ids.find(l => l.text.includes('береговая стенка'));
+  if (!wallLabel) bad.push('метки береговой стенки нет');
+  // миникарта обязана нарисовать план с руслом без исключений
+  const canvas = document.createElement('canvas');
+  canvas.width = 336;
+  canvas.height = 336;
+  try { map.drawMinimap(canvas.getContext('2d'), { x: 0, z: 0 }, 336, 336); } catch (e) { bad.push(`миникарта: ${e.message}`); }
+  return {
+    name: 'Опоры моста опускаются на дно, метки id и миникарта русло видят',
+    passed: bad.length === 0 && inBed.length >= 2,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${inBed.length} опор на дне (пятка ${inBed[0].position.y}), ${pillars.length - inBed.length} на земле, `
+      + `${ids.length} меток, миникарта ${336} px без исключений`,
+  };
+}
+
 function testMeshAndLights() {
   const map = builtMap();
   const scene = new THREE.Scene();
@@ -659,10 +919,13 @@ function testDebugIds() {
   for (const id of want) if (!texts.has(id)) bad.push(`метки нет для id «${id}»`);
 
   const bb = map.bounds;
+  // нижняя граница — дно самого глубокого русла: метка дна или береговой стенки
+  // лежит ниже «пола мира» по определению, и прежний допуск в 1 м браковал бы её
+  const low = map.channels.reduce((y, c) => Math.min(y, c.bedY), map.groundY - 1);
   for (const l of ids) {
     if (!l.text || !Number.isFinite(l.x + l.y + l.z)) bad.push(`метка «${l.text}» без текста или с негодными координатами`);
     if (l.x < bb.minX || l.x > bb.maxX || l.z < bb.minZ || l.z > bb.maxZ) bad.push(`«${l.text}» вне границ уровня`);
-    if (l.y < map.groundY - 1 || l.y > 40) bad.push(`«${l.text}» на отметке ${l.y.toFixed(1)} м`);
+    if (l.y < low || l.y > 40) bad.push(`«${l.text}» на отметке ${l.y.toFixed(1)} м`);
   }
   // метка здания обязана стоять над его же планом, а не над соседним домом
   for (const b of map.buildings) {
@@ -704,6 +967,11 @@ export async function runJsonTests() {
     testSphereClimbsPrisms,
     testSeams,
     testEmbankment,
+    testWaterFrame,
+    testWaterRay,
+    testWaterSlopes,
+    testWaterNav,
+    testWaterPillarsAndIds,
     testMeshAndLights,
     testMinimap,
     testOpenPositions,

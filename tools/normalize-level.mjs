@@ -15,7 +15,7 @@
 import { CONFIG } from '../src/config.js';
 import {
   normalizePolygon, pointInPoly, polyBounds, polyEdges, polyRects, r3, rectsIntersect,
-  unionBounds,
+  subtractRect, unionBounds,
 } from '../src/geo2d.js';
 
 const J = CONFIG.jsonMap;
@@ -35,19 +35,27 @@ export function normalizeLevel(raw) {
 
   const buildings = (raw.buildings ?? []).map(b => normalizeBuilding(b, ground, warnings));
   const roads = (raw.roads ?? []).map(r => normalizeRoad(r, ground));
+  const channels = (raw.waterways ?? []).map(w => normalizeWaterway(w, ground));
 
-  // препятствия для автогенерации: план наземных улиц и габариты зданий —
-  // опора или фонарь, выросшие посреди асфальта или внутри дома, не объект уровня
+  // препятствия для автогенерации: план наземных улиц, габариты зданий и планы
+  // береговых стенок со сходами — опора или фонарь, выросшие посреди асфальта,
+  // в стенке или сквозь пандус, не объект уровня
   const obstacles = [
     ...roads.filter(r => r.type === 'ground').flatMap(r => r.decks.map(d => ({ id: r.id, kind: 'road', rect: d }))),
     ...buildings.map(b => ({ id: b.id, kind: 'building', rect: b.bounds })),
+    ...channels.flatMap(c => [
+      ...c.walls.map(w => ({ id: `${c.id}:берег`, kind: 'waterway', rect: w.rect })),
+      ...c.descents.filter(d => d.kind === 'ramp')
+        .map(d => ({ id: `${c.id}:сход`, kind: 'waterway', rect: d.plan })),
+    ]),
   ];
+  const water = waterwayFoot(channels);
   for (const road of roads) {
-    road.pillars.push(...bridgePillars(road, ground, obstacles, warnings));
-    if (road.withLamps) road.lamps.push(...roadLamps(road, obstacles, warnings));
+    road.pillars.push(...bridgePillars(road, ground, obstacles, warnings, water));
+    if (road.withLamps) road.lamps.push(...roadLamps(road, obstacles, warnings, water));
   }
 
-  const support = makeSupport(ground, roads, buildings);
+  const support = makeSupport(ground, roads, buildings, water);
   const props = [
     ...(raw.landscapeObjects ?? []).map(o => authoredProp(o, support, obstacles, warnings)),
     ...roads.flatMap(r => r.pillars),
@@ -81,7 +89,7 @@ export function normalizeLevel(raw) {
   }
 
   const gp = raw.gameplay ?? {};
-  checkPoints(gp, buildings, roads, warnings);
+  checkPoints(gp, buildings, roads, channels, warnings);
 
   return {
     name: raw.metadata.name,
@@ -98,12 +106,15 @@ export function normalizeLevel(raw) {
       kind: 'json',
       units: 'meters',
       ground,
-      bounds: worldBounds(buildings, roads, ground),
+      bounds: worldBounds(buildings, roads, channels, ground),
       // точка A живёт в карте: движок передаёт createMap только map-секцию, а
       // spawn нужен карте, чтобы найти опору под ногами до построения графа
       spawn: { x: r3(gp.spawn.x), z: r3(gp.spawn.z) },
       buildings,
       roads,
+      // секция появляется только если русла заданы: глава 9 без воды обязана
+      // остаться побайтово той же
+      ...(channels.length ? { channels } : {}),
       props,
       lights,
     },
@@ -480,15 +491,18 @@ function normalizeRoad(road, ground) {
 
 /**
  * Опоры эстакады: два ряда ПОД настилом с шагом J.pillarSpacing, сечением
- * J.pillarSection, от земли до низа настила. Наружная грань опоры отступлена от
+ * J.pillarSection, от грунта до низа настила. Наружная грань опоры отступлена от
  * края плиты на J.pillarEdge — стойка обязана держать полотно, а не стоять в
  * метре рядом с ним. Если настил уже, чем два ряда с таким отступом, ряд один
  * по оси полотна. Пластина, стоящая на грунте (`grounded` — насыпь уже отсыпана
- * под ней), опор не имеет вовсе. Позиция в плане наземной улицы или внутри
- * здания — опора пропускается с предупреждением: её не видно, а правила о
- * декоре не дают ей стать стеной.
+ * под ней), опор не имеет вовсе. Позиция в плане наземной улицы, внутри здания
+ * или в береговой стенке — опора пропускается с предупреждением: её не видно, а
+ * правила о декоре не дают ей стать стеной.
+ *
+ * `water` — отметка дна там, где пролёт идёт над руслом: пятка обязана встать на
+ * него, иначе колонна кончалась бы на «нуле пола мира» и висела бы над водой.
  */
-function bridgePillars(road, ground, obstacles, warnings) {
+function bridgePillars(road, ground, obstacles, warnings, water) {
   const out = [];
   for (const d of road.decks) {
     if (d.ramp || d.grounded || d.bottomY - ground.y <= 1.0) continue;
@@ -512,9 +526,10 @@ function bridgePillars(road, ground, obstacles, warnings) {
           warnings.push(`${road.id}: опора в ${r3(p.x)}, ${r3(p.z)} попала в ${hit.id} — пропущена`);
           continue;
         }
+        const footY = water ? (water(p.x, p.z) ?? ground.y) : ground.y;
         out.push(makeProp(`pillar_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'concrete_pillar',
-          p.x, ground.y, p.z,
-          { x: J.pillarSection, y: r3(d.bottomY - ground.y), z: J.pillarSection }, 'bridge_pillar'));
+          p.x, footY, p.z,
+          { x: J.pillarSection, y: r3(d.bottomY - footY), z: J.pillarSection }, 'bridge_pillar'));
       }
     }
   }
@@ -522,7 +537,7 @@ function bridgePillars(road, ground, obstacles, warnings) {
 }
 
 /** Фонари вдоль настила: шаг J.lampSpacing, по обе стороны на J.lampOffset за краем. */
-function roadLamps(road, obstacles, warnings) {
+function roadLamps(road, obstacles, warnings, water) {
   const out = [];
   for (const d of road.decks) {
     if (d.ramp) continue;
@@ -538,6 +553,10 @@ function roadLamps(road, obstacles, warnings) {
           warnings.push(`${road.id}: фонарь в ${r3(p.x)}, ${r3(p.z)} попал в ${hit.id} — пропущен`);
           continue;
         }
+        if (water && water(p.x, p.z) !== null) {
+          warnings.push(`${road.id}: фонарь в ${r3(p.x)}, ${r3(p.z)} встал в русло — пропущен`);
+          continue;
+        }
         out.push(makeProp(`lamp_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'lamp_post', p.x, d.topY, p.z,
           { x: 1, y: 1, z: 1 }, 'road_lamp'));
       }
@@ -548,22 +567,190 @@ function roadLamps(road, obstacles, warnings) {
 
 const pointRect = p => ({ minX: p.x - 0.1, maxX: p.x + 0.1, minZ: p.z - 0.1, maxZ: p.z + 0.1 });
 
+// ------------------------------------------------------------------- вода
+
+/**
+ * Русло → сегменты осевой ломаной (plan: docs/level10-city-plan.md, этап 2).
+ *
+ * Считается один раз здесь, валидатор импортирует этот же экспорт: проверка
+ * «сход попадает в своё русло» и нормализация не имеют права разойтись в
+ * арифметике, иначе парсер поставил бы пандус там, где схема его не ждала.
+ *
+ * `depth` — насколько берег отходит от русла: толщина стенки у карниза (`quay`)
+ * и заложение склона у откоса (`slope`). `rampRun` — длина схода в русло: крутизну
+ * держит тот же `J.maxSlope`, что и у настилов дорог, иначе ни ноги, ни сфера
+ * Чужого подъём не перешагнут.
+ */
+export function waterwaySegments(w, groundY) {
+  const halfW = w.width / 2;
+  const isSlope = w.bank === 'slope';
+  const run = isSlope ? r3(w.bankRun ?? (groundY - w.bedY) / J.maxSlope) : 0;
+  const depth = isSlope ? run : J.wallThickness;
+  const out = [];
+  for (let i = 0; i + 1 < w.points.length; i++) {
+    const a = w.points[i], b = w.points[i + 1];
+    const axis = Math.abs(a.x - b.x) >= Math.abs(a.z - b.z) ? 'x' : 'z';
+    const aAlong = axis === 'x' ? a.x : a.z;
+    const bAlong = axis === 'x' ? b.x : b.z;
+    const from = Math.min(aAlong, bAlong), to = Math.max(aAlong, bAlong);
+    const cross = axis === 'x' ? a.z : a.x;
+    out.push({
+      axis, cross: r3(cross), halfW: r3(halfW), run: r3(run), depth: r3(depth),
+      // русло по длине продлено на полширины: на повороте два соседних русла
+      // закрывают угол квадрата, а не оставляют в нём сухую клетку
+      lo: r3(from - halfW), hi: r3(to + halfW),
+      rampRun: r3(Math.max((groundY - w.bedY) / J.maxSlope, depth + 1)),
+      bed: axis === 'x'
+        ? { minX: r3(from - halfW), maxX: r3(to + halfW), minZ: r3(cross - halfW), maxZ: r3(cross + halfW) }
+        : { minX: r3(cross - halfW), maxX: r3(cross + halfW), minZ: r3(from - halfW), maxZ: r3(to + halfW) },
+    });
+  }
+  return out;
+}
+
+/**
+ * Русло: дно, берега и сходы в плане.
+ *
+ * Дно и берег — не коробки, а призма профиля: у дна верх — горизонталь на
+ * `bedY`, у откоса — наклонная от кромки дна до земли, у схода — наклонная
+ * от дна до земли поперёк берега. Коробка по низу русла стала бы невидимой
+ * стеной там, где глаз видит склон (правило AGENTS «твёрдость обязана совпадать
+ * с картинкой»), а «пол мира — ноль» не дал бы ноге встать ниже нуля.
+ *
+ * Сходы считаются раньше берегов: план пандуса вырезает дыру в стенке карниза,
+ * иначе сход упирался бы в неё носом, а не проходил сквозь проём.
+ */
+function normalizeWaterway(w, ground) {
+  const segs = waterwaySegments(w, ground.y);
+  const channel = {
+    id: w.id,
+    bank: w.bank,
+    wade: w.wade !== false,
+    width: r3(w.width),
+    bedY: r3(w.bedY),
+    surfaceY: r3(w.surfaceY),
+    segments: segs,
+    walls: [],
+    descents: [],
+    holes: [],
+  };
+  const t = J.wallThickness;
+
+  for (const r of (w.ramps ?? [])) {
+    const seg = nearestSegment(segs, r.at);
+    const descAxis = seg.axis === 'x' ? 'z' : 'x';
+    const atCross = seg.axis === 'x' ? r.at.z : r.at.x;
+    const atAlong = seg.axis === 'x' ? r.at.x : r.at.z;
+    const side = atCross >= seg.cross ? 1 : -1;
+    const width = r3(r.width ?? J.rampWidth);
+    const v0 = r3(atAlong - width / 2), v1 = r3(atAlong + width / 2);
+    const u0 = r3(seg.cross + side * (seg.halfW - J.rampNose));
+    const u1 = r3(u0 + side * seg.rampRun);
+    const plan = seg.axis === 'x'
+      ? { minX: v0, maxX: v1, minZ: Math.min(u0, u1), maxZ: Math.max(u0, u1) }
+      : { minX: Math.min(u0, u1), maxX: Math.max(u0, u1), minZ: v0, maxZ: v1 };
+    channel.descents.push({
+      id: `${w.id}:сход${channel.descents.length + 1}`, kind: 'ramp', seg: segs.indexOf(seg),
+      axis: descAxis, u0, u1, v0, v1, y0: channel.bedY, y1: r3(ground.y), plan,
+    });
+  }
+
+  for (const [i, s] of segs.entries()) {
+    const descAxis = s.axis === 'x' ? 'z' : 'x';
+    if (channel.bank === 'quay') {
+      for (const side of [-1, 1]) {
+        const inner = s.cross + side * s.halfW;
+        const outer = s.cross + side * (s.halfW + t);
+        const along = [s.lo - t, s.hi + t];
+        const rect = s.axis === 'x'
+          ? { minX: r3(along[0]), maxX: r3(along[1]), minZ: Math.min(inner, outer), maxZ: Math.max(inner, outer) }
+          : { minX: Math.min(inner, outer), maxX: Math.max(inner, outer), minZ: r3(along[0]), maxZ: r3(along[1]) };
+        // стенка прорезается в каждом месте, где к ней примыкает сход
+        const pieces = channel.descents
+          .filter(d => d.kind === 'ramp' && d.seg === i)
+          .reduce((list, d) => list.flatMap(p => subtractRect(p, d.plan)), [rect]);
+        for (const p of pieces) channel.walls.push({ rect: rectOut(p) });
+      }
+    } else {
+      for (const side of [-1, 1]) {
+        const u0 = r3(s.cross + side * s.halfW);
+        const u1 = r3(u0 + side * s.run);
+        channel.descents.push({
+          id: `${w.id}:берег${channel.descents.length + 1}`, kind: 'bank', seg: i,
+          axis: descAxis, u0, u1, v0: s.lo, v1: s.hi, y0: channel.bedY, y1: r3(ground.y),
+          plan: s.axis === 'x'
+            ? { minX: s.bed.minX, maxX: s.bed.maxX, minZ: Math.min(u0, u1), maxZ: Math.max(u0, u1) }
+            : { minX: Math.min(u0, u1), maxX: Math.max(u0, u1), minZ: s.bed.minZ, maxZ: s.bed.maxZ },
+        });
+      }
+    }
+  }
+
+  for (const s of segs) channel.holes.push(s.bed);
+  for (const d of channel.descents) channel.holes.push(d.plan);
+  for (const w2 of channel.walls) channel.holes.push(w2.rect);
+  return channel;
+}
+
+/** Сегмент, чей план ближе всего к точке поперёк русла; бросает, если русла нет вовсе. */
+function nearestSegment(segs, at) {
+  const alongOf = s => (s.axis === 'x' ? at.x : at.z);
+  const crossOf = s => (s.axis === 'x' ? at.z : at.x);
+  let best = null, bestD = Infinity;
+  for (const s of segs) {
+    const a = alongOf(s);
+    if (a < s.lo || a > s.hi) continue;
+    const d = Math.abs(crossOf(s) - s.cross);
+    if (d < bestD) { bestD = d; best = s; }
+  }
+  if (!best) {
+    throw new Error(`сход ${at.x}, ${at.z}: вне длины русла — пандус не на что опереть`);
+  }
+  return best;
+}
+
+/**
+ * Отметка грунта под точкой плана там, где уровень прорезан руслом: дно, склон
+ * берега или сход; null — точку касаются обычные опоры. Нужна обоим берегам
+ * пайплайна: парсер опускает на неё пятки опор моста, иначе колонна кончалась бы
+ * на «нуле пола мира» и висела бы над водой.
+ */
+export function waterwayFoot(channels) {
+  return (x, z) => {
+    let best = null;
+    const take = y => { if (best === null || y > best) best = y; };
+    for (const ch of channels) {
+      for (const s of ch.segments) if (inRect(x, z, s.bed)) take(ch.bedY);
+      for (const d of ch.descents) {
+        const u = d.axis === 'x' ? x : z;
+        if (u < Math.min(d.u0, d.u1) || u > Math.max(d.u0, d.u1)) continue;
+        const v = d.axis === 'x' ? z : x;
+        if (v < d.v0 || v > d.v1) continue;
+        const t = d.u1 === d.u0 ? 0 : (u - d.u0) / (d.u1 - d.u0);
+        take(d.y0 + (d.y1 - d.y0) * t);
+      }
+    }
+    return best === null ? null : r3(best);
+  };
+}
+
+
 // ------------------------------------------------------------------- предметы и опоры
 
 /**
  * Функция опоры по плану: верх настила дороги, если точка в его прямоугольнике
  * (у наклонного пролёта — отметка наклонной плоскости под этой точкой), иначе низ
- * перекрытия первого этажа здания (baseY), иначе земля. Предмет, поставленный на
- * отметку ниже своей опоры, утонул бы в асфальте, а выше — висел.
+ * перекрытия первого этажа здания (baseY), иначе дно русла, иначе земля. Предмет,
+ * поставленный на отметку ниже своей опоры, утонул бы в асфальте, а выше — висел.
  */
-function makeSupport(ground, roads, buildings) {
+function makeSupport(ground, roads, buildings, water) {
   const plates = roads.flatMap(r => r.decks.map(d => ({
     rect: d, axis: d.axis, lo: d.axis === 'x' ? d.minX : d.minZ,
     hi: d.axis === 'x' ? d.maxX : d.maxZ, y: d.topAtMin, y1: d.topAtMax,
   })));
   const plots = buildings.map(b => ({ rect: b.bounds, y: b.baseY }));
   return (x, z) => {
-    let y = ground.y;
+    let y = water ? (water(x, z) ?? ground.y) : ground.y;
     for (const p of plates) {
       if (!inRect(x, z, p.rect)) continue;
       const u = p.axis === 'x' ? x : z;
@@ -598,23 +785,33 @@ function makeProp(id, model, x, y, z, scale, source, rotationY = 0) {
 }
 
 /** Проверка точек главы: спавн не в стене, точка B на чём-то стоит. */
-function checkPoints(gp, buildings, roads, warnings) {
+function checkPoints(gp, buildings, roads, channels, warnings) {
   const insideWall = (x, z) => buildings.some(b => b.walls.some(w => inRect(x, z, w)));
   const onSomething = (x, z) => buildings.some(b => inRect(x, z, b.bounds)) ||
     roads.some(r => r.decks.some(d => inRect(x, z, d)));
+  // русло режет грунт, поэтому точка над ним стоит только если её держит
+  // настил моста или здание: иначе маяк или игрок повиснут над водой
+  const inWater = (x, z) => channels.some(c => c.holes.some(h => inRect(x, z, h)));
   if (gp.spawn && insideWall(gp.spawn.x, gp.spawn.z)) {
     warnings.push(`gameplay.spawn ${gp.spawn.x}, ${gp.spawn.z}: внутри стены — игрок родится запертым`);
+  }
+  for (const [key, p] of [['gameplay.spawn', gp.spawn], ['gameplay.exit', gp.exit]]) {
+    if (!p || onSomething(p.x, p.z)) continue;
+    if (inWater(p.x, p.z)) {
+      warnings.push(`${key} ${p.x}, ${p.z}: в русле, вне настила и здания — точка встанет на дно`);
+    }
   }
   if (gp.exit && !onSomething(gp.exit.x, gp.exit.z)) {
     warnings.push(`gameplay.exit ${gp.exit.x}, ${gp.exit.z}: не над зданием и не над настилом — маяк повиснет`);
   }
 }
 
-function worldBounds(buildings, roads, ground) {
+function worldBounds(buildings, roads, channels, ground) {
   let out = { minX: -ground.size / 2, maxX: ground.size / 2, minZ: -ground.size / 2, maxZ: ground.size / 2 };
   for (const b of buildings) out = unionBounds(out, b.bounds);
   for (const r of roads) for (const d of r.decks) out = unionBounds(out, d);
+  for (const c of channels) for (const h of c.holes) out = unionBounds(out, h);
   return rectOut(out);
 }
 
-export { normalizeBuilding, normalizeRoad, normalizeStair, toWorld, edgeRect, inRect };
+export { normalizeBuilding, normalizeRoad, normalizeStair, normalizeWaterway, toWorld, edgeRect, inRect };

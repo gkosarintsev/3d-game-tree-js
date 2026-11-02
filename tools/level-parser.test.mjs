@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validateLevel } from './level-schema.mjs';
-import { normalizeLevel } from './normalize-level.mjs';
+import { normalizeLevel, waterwayFoot } from './normalize-level.mjs';
 import { generateModule } from './build-level.mjs';
 import { CONFIG } from '../src/config.js';
 
@@ -423,6 +423,184 @@ t('габарит мира покрывает землю, здания и нас
   }
 });
 
+// ---------------------------------------------------------------- вода: схема, русло, опоры
+
+/**
+ * Полигон воды: канал с набережной и двумя бродами, река с откосами (в неё не
+ * войти), наземная улица и мост над каналом. Глав с руслом ещё нет — проверка
+ * геометрии не может ждать, пока их напишут, поэтому глава-полигон живёт здесь.
+ */
+function waterLevel(mutate) {
+  const raw = {
+    metadata: { levelName: 'water', name: 'Полигон воды', hint: '—', units: 'meters' },
+    ground: { size: 160 },
+    waterways: [
+      {
+        id: 'canal_quay', width: 20, bedY: -3, surfaceY: -1, bank: 'quay', wade: true,
+        ramps: [{ at: { x: -12, z: 24 } }, { at: { x: -12, z: 56 }, width: 6 }],
+        points: [{ x: -80, z: 40 }, { x: 80, z: 40 }],
+      },
+      {
+        id: 'river_slope', width: 16, bedY: -2.5, surfaceY: -0.7, bank: 'slope', bankRun: 10, wade: false,
+        points: [{ x: -80, z: -40 }, { x: 80, z: -40 }],
+      },
+    ],
+    roads: [
+      { id: 'road_bank', type: 'ground', width: 8, points: [{ x: -60, y: 0, z: 0 }, { x: 60, y: 0, z: 0 }] },
+      { id: 'road_bridge', type: 'bridge', width: 6, points: [{ x: 0, y: 5, z: 22 }, { x: 0, y: 5, z: 58 }] },
+    ],
+    buildings: [],
+    landscapeObjects: [],
+    lights: [],
+    gameplay: { goal: 'exit', spawn: { x: -30, z: 10 }, exit: { x: 30, z: 0 } },
+  };
+  if (mutate) mutate(raw);
+  return raw;
+}
+
+function waterErrors(mutate) {
+  return validateLevel(waterLevel(mutate)).errors;
+}
+
+t('полигон воды проходит валидатор и нормализатор без ошибок и предупреждений', () => {
+  const { errors, warnings } = validateLevel(waterLevel());
+  eq(errors.length, 0, `ошибки: ${errors.join(' | ')}`);
+  eq(warnings.length, 0, `предупреждения: ${warnings.join(' | ')}`);
+  const level = normalizeLevel(waterLevel());
+  eq(level.map.channels.length, 2, 'каналов в данных');
+  eq(level.map.channels[0].holes.length, 7, 'планов прорези у канала (дно + 2 схода + 4 куска стенки)');
+});
+
+t('схема бракует косую ось русла, мелкое дно и воду выше земли', () => {
+  hasError(waterErrors(r => { r.waterways[0].points[1] = { x: 78, z: 44 }; }), 'косой');
+  hasError(waterErrors(r => { r.waterways[0].bedY = -0.1; }), 'мельче 0,2');
+  hasError(waterErrors(r => { r.waterways[0].surfaceY = -3.5; }), 'не выше дна');
+  hasError(waterErrors(r => { r.waterways[0].surfaceY = 0.5; }), 'выше земли');
+  hasError(waterErrors(r => { r.waterways[0].points[0] = { x: -120, z: 40 }; }), 'вне земли');
+  hasError(waterErrors(r => { r.waterways[1].bank = 'tunnel'; }), 'bank');
+  hasError(waterErrors(r => { r.waterways[1].id = r.waterways[0].id; }), 'уже занят');
+});
+
+t('крутой откос берега — ошибка: берег обязан перешагиваться', () => {
+  // перепад 2,5 м при bankRun 6 даёт 0,42 м/м против предела 0,3
+  hasError(waterErrors(r => { r.waterways[1].bankRun = 6; }), 'уклон берега');
+});
+
+t('набережная с бродом обязана иметь не меньше двух сходов', () => {
+  hasError(waterErrors(r => { r.waterways[0].ramps = [{ at: { x: -12, z: 24 } }]; }), 'не меньше двух');
+  // то же русло без брода стенкой карниза законно: в него не входят
+  const dry = waterErrors(r => { r.waterways[0].wade = false; r.waterways[0].ramps = []; });
+  assert(!dry.some(e => e.includes('не меньше двух')), `сухое русло забраковано: ${dry.join(' | ')}`);
+});
+
+t('сход в стороне от русла — ошибка', () => {
+  hasError(waterErrors(r => { r.waterways[0].ramps[0].at = { x: -12, z: -70 }; }), 'дальше, чем');
+});
+
+t('дом в русле и наземная улица через русло — ошибки; мост над руслом — норма', () => {
+  hasError(waterErrors(r => {
+    r.buildings = [{
+      id: 'in_canal', floorsCount: 1, floorHeight: 3,
+      footprint: [{ x: 60, z: 28 }, { x: 76, z: 28 }, { x: 76, z: 52 }, { x: 60, z: 52 }],
+      rooms: [{ id: 'r1', floor: 0, type: 'room', polygon: [{ x: 61, z: 29 }, { x: 75, z: 29 }, { x: 75, z: 51 }, { x: 61, z: 51 }] }],
+    }];
+  }), 'дом стоит в воде');
+  hasError(waterErrors(r => { r.roads[0].points = [{ x: -60, y: 0, z: 40 }, { x: 60, y: 0, z: 40 }]; }), 'наземной улицы пересёкся с руслом');
+});
+
+t('карниз: стенка прорезана ровно в местах сходов, по куску на сторону', () => {
+  const canal = normalizeLevel(waterLevel()).map.channels[0];
+  eq(canal.walls.length, 4, 'кусков береговой стенки');
+  eq(canal.descents.filter(d => d.kind === 'ramp').length, 2, 'сходов');
+  for (const w of canal.walls) {
+    for (const d of canal.descents) {
+      assert(!overlap(w.rect, d.plan), `стенка ${fmt(w.rect)} не прорезана сходом ${fmt(d.plan)}`);
+    }
+    assert(Math.abs(w.rect.maxZ - w.rect.minZ - J.wallThickness) < 1e-6, 'стенка не той толщины');
+    // кусок обязан лежать ровно на одной из граней дна: 30 − толщина (юг) или 50 (север)
+    const onFace = [30 - J.wallThickness, 50].some(f => Math.abs(w.rect.minZ - f) < 1e-6);
+    assert(onFace, `кусок стенки ушёл с грани русла: ${fmt(w.rect)}`);
+  }
+});
+
+t('сход в русло: нос на rampNose за грань берега, длина по maxSlope', () => {
+  const canal = normalizeLevel(waterLevel()).map.channels[0];
+  const cross = canal.segments[0].cross;
+  const near = canal.descents.find(d => d.u0 < cross);
+  const far = canal.descents.find(d => d.u0 > cross);
+  eq(near.kind, 'ramp', 'вид схода');
+  eq(near.u0, cross - (canal.segments[0].halfW - J.rampNose), 'нос ближнего схода по оси русла');
+  eq(far.u0, cross + (canal.segments[0].halfW - J.rampNose), 'нос дальнего схода по оси русла');
+  for (const d of [near, far]) {
+    const side = Math.sign(d.u1 - d.u0);
+    const inner = cross + side * canal.segments[0].halfW;
+    const outer = cross + side * (canal.segments[0].halfW + J.wallThickness);
+    eq(Math.abs(d.u1 - d.u0), Math.max(3 / J.maxSlope, J.wallThickness + 1), `длина пандуса ${d.id}`);
+    eq(d.y0, -3, `низ схода ${d.id}`);
+    eq(d.y1, 0, `верх схода ${d.id}`);
+    assert(Math.abs((d.y1 - d.y0) / (d.u1 - d.u0)) <= J.maxSlope + 1e-9, `сход ${d.id} круче предела`);
+    // нос заходит за грань дна в русло, пятка выходит за наружную грань стенки:
+    // между ними пандус перекрывает карниз, иначе сход кончался бы в воздухе
+    assert(side * (d.u0 - inner) < 0, `${d.id}: нос не зашёл за грань дна`);
+    assert(side * (d.u1 - outer) > 0, `${d.id}: пятка не вышла за стенку`);
+  }
+});
+
+t('берег-откос: по склону на каждую сторону, уклон в пределе, план по всей длине русла', () => {
+  const river = normalizeLevel(waterLevel()).map.channels[1];
+  eq(river.walls.length, 0, 'стенок у откоса');
+  eq(river.descents.length, 2, 'склонов');
+  for (const d of river.descents) {
+    eq(d.kind, 'bank', 'вид берега');
+    eq(Math.abs(d.u1 - d.u0), 10, 'заложение склона');
+    assert(Math.abs((d.y1 - d.y0) / (d.u1 - d.u0)) <= J.maxSlope + 1e-9, 'склон круче предела');
+    eq(d.v0, river.segments[0].lo, 'начало склона по длине русла');
+    eq(d.v1, river.segments[0].hi, 'конец склона по длине русла');
+  }
+});
+
+t('опоры моста над руслом опускаются до дна, вне русла — до земли', () => {
+  const level = normalizeLevel(waterLevel());
+  const pillars = level.map.props.filter(p => p.source === 'bridge_pillar');
+  assert(pillars.length >= 3, `опор ${pillars.length}`);
+  const inBed = pillars.filter(p => p.position.y === -3);
+  assert(inBed.length === 2, `опор на дне ${inBed.length}, ожидалось 2 (оба ряда над руслом)`);
+  for (const p of inBed) eq(p.scale.y, 7.4, `высота опоры ${p.id} над дном`);
+  for (const p of pillars.filter(x => x.position.y === 0)) eq(p.scale.y, 4.4, 'высота опоры на земле');
+  // ни одна опора не втиснута в береговую стенку и не висит над сушей ниже настила
+  const canal = level.map.channels[0];
+  for (const p of pillars) {
+    const rect = {
+      minX: p.position.x - p.scale.x / 2, maxX: p.position.x + p.scale.x / 2,
+      minZ: p.position.z - p.scale.z / 2, maxZ: p.position.z + p.scale.z / 2,
+    };
+    for (const w of canal.walls) assert(!overlap(rect, w.rect), `опора ${p.id} в береговой стенке`);
+    for (const d of canal.descents) assert(!overlap(rect, d.plan), `опора ${p.id} в плане схода`);
+  }
+});
+
+t('waterwayFoot: дно, склон и сход отдают свою отметку, вне русла — null', () => {
+  const foot = waterwayFoot(normalizeLevel(waterLevel()).map.channels);
+  eq(foot(0, 40), -3, 'дно канала');
+  eq(foot(0, -40), -2.5, 'дно реки');
+  eq(foot(0, -27), -1.25, 'середина склона берега');
+  eq(foot(-12, 25.6), -1.5, 'середина схода');
+  eq(foot(0, 0), null, 'вне русла');
+});
+
+t('секция channels появляется только у главы с руслом', () => {
+  const withWater = generateModule(waterLevel(), 'src/levels/level-10.json').code;
+  assert(withWater.includes('"channels"'), 'каналов в модуле нет');
+  assert(!generateModule(structuredClone(rawLevel), 'src/levels/level-09.json').code.includes('"channels"'),
+    'у главы 9 появилась секция channels');
+});
+
+t('парсер воды детерминирован: два прогона дают побайтово равный модуль', () => {
+  const a = generateModule(waterLevel(), 'src/levels/level-10.json');
+  const b = generateModule(waterLevel(), 'src/levels/level-10.json');
+  eq(a.code, b.code, 'текст модуля различится');
+});
+
 // ---------------------------------------------------------------- CLI и детерминизм
 
 t('парсер детерминирован: два прогона дают побайтово равный модуль', () => {
@@ -462,6 +640,11 @@ function overlap(a, b) {
 
 function inRect(p, r) {
   return p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ;
+}
+
+/** Прямоугольник в текст проверки — по координатам видно, где именно разошлось. */
+function fmt(r) {
+  return `[${r.minX}…${r.maxX} × ${r.minZ}…${r.maxZ}]`;
 }
 
 // проверки складываются в очередь: ждём все, прежде чем вынести вердикт

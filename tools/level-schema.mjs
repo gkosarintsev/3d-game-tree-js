@@ -13,11 +13,13 @@ import {
   AXIS_EPS, cellKey, normalizePolygon, polyBounds, polyEdges, polyRects,
   r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
 } from '../src/geo2d.js';
+import { normalizeWaterway } from './normalize-level.mjs';
 
 const J = CONFIG.jsonMap;
 const ROOM_TYPES = ['office', 'corridor', 'hall', 'room', 'cafe', 'utility'];
 const ROAD_TYPES = ['ground', 'bridge', 'embankment'];
 const STAIR_TYPES = ['straight', 'l_shape', 'spiral'];
+const BANK_TYPES = ['quay', 'slope'];
 const LIGHT_TYPES = ['point', 'spot', 'directional'];
 const LINK_TYPES = ['main_entrance', 'door', 'back_entrance'];
 
@@ -48,6 +50,22 @@ export const LEVEL_SPEC = obj({
     lamps: bool(),
     points: arr(V3XYZ, { minItems: 2, req: true }),
   }), { req: true }),
+  // река, канал, сточная канава: осевые рёбра в плане, дно ниже уровня земли;
+  // берег — отвесная набережная (quay) или откос (slope), брод — сходы в русло
+  waterways: arr(obj({
+    id: str({ req: true }),
+    width: num({ min: 2, max: 120, req: true }),
+    bedY: num({ req: true }),
+    surfaceY: num({ req: true }),
+    bank: str({ enum: BANK_TYPES, req: true }),
+    bankRun: num({ min: 1 }),
+    wade: bool(),
+    ramps: arr(obj({
+      at: obj({ x: num({ req: true }), z: num({ req: true }) }, { req: true }),
+      width: num({ min: 2, max: 12 }),
+    })),
+    points: arr(V2XZ, { minItems: 2, req: true }),
+  })),
   buildings: arr(obj({
     id: str({ req: true }),
     name: str(),
@@ -236,6 +254,80 @@ export function validateLevel(raw) {
     roadRects.push(...roadRectsOf(road));
   }
 
+  // --- вода: русло, берега, сходы ---
+  // Планы берёт нормализатор: проверять «дом не в русле» по своей копии
+  // арифметики берега значило бы держать её в двух местах и разъезжаться с
+  // парсером при первой же правке.
+  const channelRects = [];
+  for (const [n, w] of (raw.waterways ?? []).entries()) {
+    const label = `waterways[${n}] (${w.id})`;
+    for (let i = 0; i + 1 < w.points.length; i++) {
+      const a = w.points[i], b = w.points[i + 1];
+      const dx = Math.abs(a.x - b.x), dz = Math.abs(a.z - b.z);
+      if (dx > AXIS_EPS && dz > AXIS_EPS) {
+        errors.push(`${label}: отрезок ${i}→${i + 1} косой — ось русла обязана идти по X или Z`);
+        continue;
+      }
+      if (dx < AXIS_EPS && dz < AXIS_EPS) errors.push(`${label}: отрезок ${i}→${i + 1} нулевой длины`);
+    }
+    for (const [i, p] of w.points.entries()) {
+      if (Math.abs(p.x) > half || Math.abs(p.z) > half) {
+        errors.push(`${label}: точка русла ${i} (${p.x}, ${p.z}) вне земли ${size} м`);
+      }
+    }
+    const rise = groundY - w.bedY;
+    if (rise < 0.2) {
+      errors.push(`${label}: дно ${w.bedY} мельче 0,2 м под землёй ${groundY} — русла нет, есть канава в полшага`);
+    }
+    if (w.bedY >= w.surfaceY) errors.push(`${label}: surfaceY ${w.surfaceY} не выше дна ${w.bedY} — воде негде лечь`);
+    if (w.surfaceY > groundY) {
+      errors.push(`${label}: surfaceY ${w.surfaceY} выше земли ${groundY} — вода стояла бы поверх улиц`);
+    }
+
+    let ch = null;
+    try {
+      ch = normalizeWaterway(w, { y: groundY });
+    } catch (e) {
+      errors.push(`${label}: ${e.message}`);
+    }
+    if (!ch) continue;
+
+    const seg0 = ch.segments[0];
+    if (w.bank === 'slope' && rise > 0 && seg0.run > 0 && rise / seg0.run > J.maxSlope + 1e-9) {
+      errors.push(`${label}: bankRun ${seg0.run} при перепаде ${rise} даёт уклон берега `
+        + `${(rise / seg0.run).toFixed(2)} м/м — круче ${J.maxSlope}, нога и сфера Чужого склон не возьмут`);
+    }
+    if (w.bank === 'quay' && ch.wade && (w.ramps ?? []).length < 2) {
+      errors.push(`${label}: набережная с бродом и ${(w.ramps ?? []).length} сходами — в русло войти можно,`
+        + ' а стенка карниза не отпускает обратно: сходов нужно не меньше двух');
+    }
+    for (const [i, r] of (w.ramps ?? []).entries()) {
+      const rlabel = `${label}.ramps[${i}]`;
+      const reach = Math.max(...ch.segments.map(s => s.halfW + s.depth + s.rampRun + 2));
+      const d = Math.min(...ch.segments.map(s => {
+        const along = s.axis === 'x' ? r.at.x : r.at.z;
+        const cross = s.axis === 'x' ? r.at.z : r.at.x;
+        const outAlong = Math.max(s.lo - along, along - s.hi, 0);
+        return Math.hypot(outAlong, Math.abs(cross - s.cross));
+      }));
+      if (d > reach) {
+        errors.push(`${rlabel}: сход ${r.at.x}, ${r.at.z} в ${d.toFixed(1)} м от русла — дальше, чем `
+          + `${reach.toFixed(1)} м (полширины + берег + длина пандуса); пандус ушёл бы в никуда`);
+      }
+    }
+    for (const h of ch.holes) channelRects.push({ id: w.id, rect: h });
+  }
+  // наземная улица в русле — асфальт лег бы на воду: опоры у настила нет, и
+  // ни ноги, ни маршруты через такое место не проходят
+  for (const rr of roadRects) {
+    if (!rr.ground) continue;
+    for (const c of channelRects) {
+      if (rectsIntersect(rr.rect, c.rect, 0.05)) {
+        errors.push(`roads (${rr.id}): план наземной улицы пересёкся с руслом ${c.id} — дорогу через воду делает мост`);
+      }
+    }
+  }
+
   // --- здания: footprint, комнаты, лестницы, двери ---
   const roadIds = new Set((raw.roads ?? []).map(r => r.id));
   // наземная улица под домом — дом посреди проезжей части: маршруты идут по
@@ -252,6 +344,13 @@ export function validateLevel(raw) {
       for (const rr of groundRects) {
         if (rectsIntersect(rect, rr.rect, 0.05)) {
           errors.push(`${label}: часть footprint ${fmtRect(rect)} легла на план наземной дороги ${rr.id} — дом стоит в улице`);
+        }
+      }
+      // план русла включает дно, берега, сходы и стенки: дом, вставший в него,
+      // отнял бы у воды суши, а игрок — дорогу вброд
+      for (const c of channelRects) {
+        if (rectsIntersect(rect, c.rect, 0.05)) {
+          errors.push(`${label}: часть footprint ${fmtRect(rect)} легла в русло ${c.id} — дом стоит в воде`);
         }
       }
     }
@@ -342,6 +441,7 @@ export function validateLevel(raw) {
     ids.add(v);
   };
   for (const r of raw.roads ?? []) addId(r.id, 'roads');
+  for (const w of raw.waterways ?? []) addId(w.id, 'waterways');
   for (const b of raw.buildings ?? []) {
     addId(b.id, 'buildings');
     for (const r of b.rooms ?? []) addId(r.id, `buildings/${b.id}/rooms`);

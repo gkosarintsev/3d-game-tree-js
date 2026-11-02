@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { SolidField, circleHitsRect } from './solids.js';
 import { NavGraph } from './nav-graph.js';
-import { subtractRect } from './geo2d.js';
+import { r3, subtractRect } from './geo2d.js';
 import { buildProps } from './props.js';
 
 const J = CONFIG.jsonMap;
@@ -53,10 +53,11 @@ export class JsonMap extends SolidField {
 
     this.buildings = spec.buildings ?? [];
     this.roads = spec.roads ?? [];
+    this.channels = spec.channels ?? [];
     this.props = spec.props ?? [];
     this.lightSpecs = spec.lights ?? [];
 
-    /** @type {{minX,maxX,minZ,maxZ,y0,y1}[]} стены, насыпь и откосы */
+    /** @type {{minX,maxX,minZ,maxZ,y0,y1}[]} стены, насыпь, откосы и дно там, где в него нельзя */
     this.blockers = [];
     this.geo = { walls: [], slabs: [], stairs: [], decks: [], earth: [] };
     /** план марша с этажами, между которыми он стоит: клетки пола внутри него не ставятся */
@@ -66,11 +67,18 @@ export class JsonMap extends SolidField {
     this.deckPlates = [];
     /** наклонные твёрдости: пролёты настилов и откосы насыпи — призмы профиля (u, y) */
     this.prisms = [];
+    /** планы, где грунт уровня прорезан руслом: в них нет «пола мира — ноль» */
+    this.holes = [];
+    /** сходы в русло и берега-склоны: узлы графа вдоль уклона */
+    this.descents = [];
+    /** зеркала воды: меш без коллизий на отметке surfaceY */
+    this.waterRects = [];
     this._blockIndex = new Map();
     this._blockBucket = J.navStep;
 
     this._collectBuildings();
     this._collectRoads();
+    this._collectWater();
     this._indexPlans();
     this.indexSolids();
     this._indexSurfaces();
@@ -343,6 +351,65 @@ export class JsonMap extends SolidField {
     this.geo.earth.push(this._prismGeo(w));
   }
 
+  /**
+   * Русло из данных брифа: дно, берега, сходы и береговые стенки.
+   *
+   * Дно, откос берега и пандус схода — призма профиля (та же абстракция, что у
+   * наклонного настила и откоса насыпи): их верх — наклонная плоскость, и коробка
+   * по низу спрятала бы под гладкой картинкой невидимую стену. Береговая стенка
+   * карниза — солид с верхом ровно на уровне земли: пуля в неё упирается, идущему
+   * по берегу она не препятствие (порог `isBlocked` не видит тела ниже отметки
+   * ног), а из русла она и есть стена, обратно через которую не выйти — поэтому
+   * сходы в русло схема требует там, где в него можно идти.
+   *
+   * Там, где `wade: false`, дно получает блокер от дна до уровня земли: вброд
+   * такое русло не перейти, и узлы графа в нём не ставятся — остаётся только
+   * мост. Вода — меш без коллизий: и луч, и тело идут сквозь неё к дну.
+   */
+  _collectWater() {
+    for (const ch of this.channels) {
+      for (const s of ch.segments) {
+        const axis = s.axis === 'x' ? 'z' : 'x';   // профиль отложен поперёк русла
+        const bed = makePrism(axis, s.lo, s.hi, [
+          [s.cross - s.halfW, ch.bedY], [s.cross + s.halfW, ch.bedY],
+          [s.cross + s.halfW, r3(ch.bedY - J.bedThickness)], [s.cross - s.halfW, r3(ch.bedY - J.bedThickness)],
+        ]);
+        this.prisms.push(bed);
+        this.geo.earth.push(this._prismGeo(bed));
+        this.holes.push(s.bed);
+        this.waterRects.push({ ...s.bed, y: ch.surfaceY });
+        if (!ch.wade) {
+          this.blockers.push({ ...s.bed, y0: r3(ch.bedY - 0.05), y1: r3(this.groundY + 1) });
+        }
+      }
+      for (const d of ch.descents) {
+        // у схода плита с толщиной (по ней ходят и она же держит картинку
+        // пандуса), у берега — клин под склоном: его верхняя грань ровно на
+        // уклоне, а на отметке дна он сходится с руслом в ноль. Треугольник с
+        // вертикальной гранью у дна дал бы там опору на уровне земли: `topAt`
+        // берёт максимум рёбер профиля, и невидимая стена встала бы у кромки
+        // русла там, где глаз видит начало склона
+        const w = d.kind === 'ramp'
+          ? makePrism(d.axis, d.v0, d.v1, [
+            [d.u0, d.y0], [d.u1, d.y1],
+            [d.u1, r3(d.y1 - J.bedThickness)], [d.u0, r3(d.y0 - J.bedThickness)],
+          ])
+          : makePrism(d.axis, d.v0, d.v1, [[d.u0, d.y0], [d.u1, d.y1], [d.u1, d.y0]]);
+        this.prisms.push(w);
+        // отметка, какой сход призму держит: автотесту нужно пройти сферой по
+        // каждому уклону, а русlo и берега лежат в одном списке призм
+        w.descentId = d.id;
+        this.geo[d.kind === 'ramp' ? 'decks' : 'earth'].push(this._prismGeo(w));
+        this.holes.push(d.plan);
+        this.descents.push(d);
+      }
+      for (const wall of ch.walls) {
+        this._box(wall.rect, ch.bedY, this.groundY, 'walls', { collide: true });
+        this.holes.push(wall.rect);
+      }
+    }
+  }
+
   // ------------------------------------------------ твёрдость наклонных призм
 
   /**
@@ -370,8 +437,12 @@ export class JsonMap extends SolidField {
   groundHeightAt(x, z, fromY = 0) {
     const base = super.groundHeightAt(x, z, fromY);
     const top = this._prismTopAt(x, z);
-    if (top === null || top <= base || top > fromY + this.stepUp) return base;
-    return top;
+    if (top === null || top > fromY + this.stepUp) return base;
+    // в русле «пол мира — ноль» ноги не держит: дно и склон лежат ниже нуля, и
+    // опора там ровно та, что отдаёт призма. Над водой настил моста остаётся
+    // опорой — его отметка приходит в `base` и она выше дна
+    if (this._inChannel(x, z)) return base > 0 ? Math.max(base, top) : top;
+    return top > base ? top : base;
   }
 
   /**
@@ -380,9 +451,21 @@ export class JsonMap extends SolidField {
    * гладкой картинкой лестницу невидимых ступеней, а коробка откоса — невидимую
    * стену там, где глаз видит склон: пуля и сфера тела Чужого опирались бы на
    * них, а не на наклон.
+   *
+   * Земля-плоскость при этом отменяется для луча, вошедшего в русло: пол мира
+   * лежит выше дна, и луч, уходящий в канал, обязан идти дальше — к стенке, дну
+   * или настилу моста. Отвергать уже готовое попадание нельзя: верх береговой
+   * стенки лежит ровно на отметке земли, и под тем же углом отбрасывался бы удар
+   * в стенку, а не только в воду.
    */
   raySolid(ox, oy, oz, dx, dy, dz, maxDist) {
+    const len = Math.hypot(dx, dy, dz);
+    const groundIsPhantom = this.holes.length > 0 && len > 1e-9 && dy / len < -1e-9
+      && this._downwardHitInChannel(ox, oy, oz, dx / len, dy / len, dz / len, maxDist);
+    const gp = this.groundPlane;
+    if (groundIsPhantom) this.groundPlane = null;
     const base = super.raySolid(ox, oy, oz, dx, dy, dz, maxDist);
+    this.groundPlane = gp;
     const limit = base ? base.dist : maxDist;
     let best = null;
     for (const w of this.prisms) {
@@ -391,6 +474,13 @@ export class JsonMap extends SolidField {
     }
     if (!best) return base;
     return { x: best.x, y: best.y, z: best.z, nx: best.nx, ny: best.ny, nz: best.nz, dist: best.t };
+  }
+
+  /** Пересекает ли луч плоскость земли там, где грунт прорезан руслом. */
+  _downwardHitInChannel(ox, oy, oz, dx, dy, dz, maxDist) {
+    const tg = (this.groundY - oy) / dy;
+    if (tg < 0 || tg > maxDist) return false;
+    return this._inChannel(ox + dx * tg, oz + dz * tg);
   }
 
   /**
@@ -462,7 +552,9 @@ export class JsonMap extends SolidField {
     const step = J.navStep * 2;
     for (let z = -this.half + step / 2; z < this.half; z += step) {
       for (let x = -this.half + step / 2; x < this.half; x += step) {
-        if (this._inBuilding(x, z)) continue;
+        // опорная точка над руслом не нужна ни пулу огней, ни монетам: фонарь
+        // посреди воды освещал бы дно, а предмет там некуда поставить
+        if (this._inBuilding(x, z) || this._inChannel(x, z)) continue;
         const y = this.groundHeightAt(x, z, this.groundY);
         if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) continue;
         push(x, y, z);
@@ -518,6 +610,18 @@ export class JsonMap extends SolidField {
           a.axis === 'x' ? (a.cross + toe) / 2 : cz(a));
       });
     }
+    for (const ch of this.channels) {
+      ch.segments.forEach((s, i) => put(`${ch.id} · русло ${i + 1}`, cx(s.bed), ch.surfaceY + 1.2, cz(s.bed)));
+      ch.walls.forEach((w, i) => put(`${ch.id} · береговая стенка ${i + 1}`,
+        cx(w.rect), ch.bedY + (this.groundY - ch.bedY) / 2, cz(w.rect)));
+      ch.descents.forEach((d, i) => {
+        const u = (d.u0 + d.u1) / 2;
+        put(`${ch.id} · ${d.kind === 'ramp' ? 'сход' : 'берег'} ${i + 1}`,
+          d.axis === 'x' ? u : (d.v0 + d.v1) / 2,
+          (d.y0 + d.y1) / 2 + 0.8,
+          d.axis === 'x' ? (d.v0 + d.v1) / 2 : u);
+      });
+    }
     for (const p of this.props) put(`${p.id} · ${p.model}`, p.position.x, p.position.y + 1.5, p.position.z);
     for (const l of this.lightSpecs) put(`${l.id} · ${l.type}`, l.position.x, l.position.y + 1, l.position.z);
 
@@ -549,8 +653,10 @@ export class JsonMap extends SolidField {
     };
     this._buildingCells = new Map();
     this._prismCells = new Map();
+    this._holeCells = new Map();
     this.buildings.forEach((b, idx) => put(this._buildingCells, b.bounds, idx));
     this.prisms.forEach((w, idx) => put(this._prismCells, w, idx));
+    this.holes.forEach((r, idx) => put(this._holeCells, r, idx));
     this._planGrid = g;
   }
 
@@ -573,6 +679,21 @@ export class JsonMap extends SolidField {
       const b = this.buildings[idx];
       if (x > b.bounds.minX - margin && x < b.bounds.maxX + margin
         && z > b.bounds.minZ - margin && z < b.bounds.maxZ + margin) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Лежит ли точка в прорезанном русле. Клетка индекса (`J.planGrid` = 24 м)
+   * гораздо шире плана русла, поэтому после клетки обязана идти точная проверка
+   * прямоугольника: иначе отмена «пола мира — ноль» распространялась бы на сушу
+   * в десятках метров от воды.
+   */
+  _inChannel(x, z) {
+    if (!this.holes.length) return false;
+    for (const idx of this._planAt(this._holeCells, x, z, 0)) {
+      const r = this.holes[idx];
+      if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
     }
     return false;
   }
@@ -602,6 +723,7 @@ export class JsonMap extends SolidField {
     this._navRooms(nav, rstep);
     this._navStairs(nav, rstep);
     this._navDecks(nav);
+    this._navWater(nav);
     this._navDoors(nav, rstep);
     return this._pruneToSpawn(nav);
   }
@@ -796,6 +918,40 @@ export class JsonMap extends SolidField {
     }
   }
 
+  /**
+   * Сход в русло и берег-склон: цепочка узлов вдоль уклона. Решётка земли их не
+   * связывает: шаг решётки 6 м при предельном уклоне 0,3 даёт перепад 1,8 м, а
+   * `_link` берёт только перешагиваемый, и дно осталось бы недостижимым, хотя
+   * нога по склону идёт. Шаг вдоль подбирают так, чтобы перепад соседних узлов
+   * не превысил шага ноги — как у наклонных настилов дорог.
+   *
+   * Концы цепочки связывает `_linkClosest`: низ — с решёткой дна (перепад нулевой,
+   * ребро обычное), верх — с решёткой берега. Там, где `wade: false`, рёбра
+   * отбраковывает блокер дна, и русло остаётся сухой границей между берегами.
+   */
+  _navWater(nav) {
+    const step = J.navStep;
+    for (const d of this.descents) {
+      const span = Math.abs(d.u1 - d.u0);
+      const rise = Math.abs(d.y1 - d.y0);
+      if (span <= 0.01 || rise <= 0.01) continue;
+      const v = (d.v0 + d.v1) / 2;
+      const count = Math.max(1, Math.ceil(span / Math.min(step, this.stepUp * 0.8 * span / rise)));
+      let first, prev;
+      for (let k = 0; k <= count; k++) {
+        const t = k / count;
+        const u = d.u0 + (d.u1 - d.u0) * t;
+        const x = d.axis === 'x' ? u : v;
+        const z = d.axis === 'x' ? v : u;
+        const id = nav.add(x, d.y0 + (d.y1 - d.y0) * t, z, `f:${d.id}:${k}`);
+        if (first === undefined) first = id;
+        else this._link(nav, prev, id);
+        prev = id;
+      }
+      for (const id of [first, prev]) this._linkClosest(nav, id, step * 1.8, 2);
+    }
+  }
+
   /** Пара узлов в проёме двери + связи с полом комнаты снаружи и с решёткой улицы. */
   _navDoors(nav, rstep) {
     for (const b of this.buildings) {
@@ -896,9 +1052,13 @@ export class JsonMap extends SolidField {
       }
     }
     const out = new NavGraph();
+    // keep обязан быть индексным сопоставлением (keep[i] — новый узел узла i), а не
+    // dense-списком: с `push` после первого отбракованного узла все индексы
+    // сдвигаются, и рёбра связывают не те пары — граф покрывается фейковыми
+    // скачками через русло и «одна связная сеть» перестаёт быть связной
     const keep = [];
     nav.pos.forEach((p, i) => {
-      if (seen[i]) keep.push(out.add(p.x, p.y, p.z));
+      if (seen[i]) keep[i] = out.add(p.x, p.y, p.z);
     });
     nav.pos.forEach((p, i) => {
       const a = keep[i];
@@ -920,10 +1080,46 @@ export class JsonMap extends SolidField {
 
   // ---------------------------------------------------------------- сборка сцены
 
+  /**
+   * Картинка грунта: плоскость минус планы русел, где каждый оставшийся
+   * прямоугольник — своя пластина. Единая PlaneGeometry не годится: под ней
+   * осталась бы сухая клетка там, где глаз видит воду, и нога встала бы на
+   * «пол мира — ноль» посреди русла.
+   *
+   * Плоскость лежит в XY и смотрит вдоль +Z, а меш поворачивается на −90° вокруг
+   * X: мировая ось Z выходит из локальной −Y, мировая высота — из локальной Z.
+   */
+  _groundGeo() {
+    let rects = [{ minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
+    for (const h of this.holes) rects = rects.flatMap(r => subtractRect(r, h));
+    return mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
+      r.maxX - r.minX, r.maxZ - r.minZ,
+    ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0)), false);
+  }
+
+  /**
+   * Вода: один меш полупрозрачных пластин на отметках `surfaceY`. Коллизий у него
+   * нет ни для луча, ни для тела — решение о том, где русло проходимо вброд,
+   * принимает геометрия дна и блокер, а не картинка.
+   */
+  _buildWater(scene) {
+    if (!this.waterRects.length) return;
+    const geo = mergeGeometries(this.waterRects.map(r => new THREE.PlaneGeometry(
+      r.maxX - r.minX, r.maxZ - r.minZ,
+    ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, r.y)), false);
+    const water = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      color: J.waterColor, roughness: 0.3, metalness: 0.1,
+      transparent: true, opacity: J.waterOpacity,
+    }));
+    water.rotation.x = -Math.PI / 2;
+    scene.add(water);
+    this.sceneObjects.push(water);
+  }
+
   build(scene) {
     this.sceneObjects = [];
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(this.width, this.depth),
+      this.holes.length ? this._groundGeo() : new THREE.PlaneGeometry(this.width, this.depth),
       new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }),
     );
     ground.rotation.x = -Math.PI / 2;
@@ -931,6 +1127,7 @@ export class JsonMap extends SolidField {
     ground.receiveShadow = true;
     scene.add(ground);
     this.sceneObjects.push(ground);
+    this._buildWater(scene);
 
     const mats = {
       walls: new THREE.MeshStandardMaterial({ color: J.walls, roughness: 0.85, metalness: 0.05 }),
@@ -1058,6 +1255,9 @@ export class JsonMap extends SolidField {
       if (d < best) { best = d; level = p.y; levelFloor = p.floor; }
     }
 
+    // вода — под всем остальным: план русла виден и с уровня дна, и с моста
+    ctx.fillStyle = 'rgba(30,86,120,.9)';
+    fill(this.waterRects);
     ctx.fillStyle = 'rgba(90,100,116,.5)';
     fill(this.deckPlates, d => !d.ramp && Math.abs(d.topY - y) <= 1);
     ctx.fillStyle = 'rgba(196,212,232,.5)';
