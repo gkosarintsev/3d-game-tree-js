@@ -71,6 +71,7 @@ export class JsonMap extends SolidField {
 
     this._collectBuildings();
     this._collectRoads();
+    this._indexPlans();
     this.indexSolids();
     this._indexSurfaces();
     this._indexBlockers();
@@ -350,7 +351,11 @@ export class JsonMap extends SolidField {
    */
   _prismTopAt(x, z) {
     let best = null;
-    for (const w of this.prisms) {
+    for (const idx of this._planAt(this._prismCells, x, z, 0)) {
+      const w = this.prisms[idx];
+      // клетка индекса (24 м) гораздо шире плана призмы: без проверки
+      // попадания в сам прямоугольник верх настила протекал бы на точки
+      // в десятках метров поперёк дороги
       if (x < w.minX || x > w.maxX || z < w.minZ || z > w.maxZ) continue;
       const t = w.topAt(w.axis === 'x' ? x : z);
       if (t !== null && (best === null || t > best)) best = t;
@@ -521,9 +526,55 @@ export class JsonMap extends SolidField {
     return out;
   }
 
+  /**
+   * Индекс планов: габариты зданий и призм по клеткам `J.planGrid`. Нужен потому,
+   * что `groundHeightAt` зовётся на каждую пробу ребра графа (12 проб на 6 м в обе
+   * стороны), а `_inBuilding` — на каждую клетку решётки: на районе 600 × 600 м с
+   * сотнями зданий и маршей линейный перебор списков стоит миллионов проверок,
+   * индекс — десятки.
+   */
+  _indexPlans() {
+    const g = J.planGrid;
+    const put = (map, rect, idx) => {
+      const i0 = Math.floor(rect.minX / g), i1 = Math.floor(rect.maxX / g);
+      const j0 = Math.floor(rect.minZ / g), j1 = Math.floor(rect.maxZ / g);
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          const key = this._key(i, j);
+          let list = map.get(key);
+          if (!list) map.set(key, list = []);
+          list.push(idx);
+        }
+      }
+    };
+    this._buildingCells = new Map();
+    this._prismCells = new Map();
+    this.buildings.forEach((b, idx) => put(this._buildingCells, b.bounds, idx));
+    this.prisms.forEach((w, idx) => put(this._prismCells, w, idx));
+    this._planGrid = g;
+  }
+
+  /** Индексы объектов, чья клетка плана попала в окрестность точки (3×3 клетки). */
+  _planAt(map, x, z, ring = 1) {
+    const g = this._planGrid;
+    const ci = Math.floor(x / g), ck = Math.floor(z / g);
+    const out = [];
+    for (let j = ck - ring; j <= ck + ring; j++) {
+      for (let i = ci - ring; i <= ci + ring; i++) {
+        const list = map.get(this._key(i, j));
+        if (list) for (const idx of list) out.push(idx);
+      }
+    }
+    return out;
+  }
+
   _inBuilding(x, z, margin = 0.2) {
-    return this.buildings.some(b => x > b.bounds.minX - margin && x < b.bounds.maxX + margin
-      && z > b.bounds.minZ - margin && z < b.bounds.maxZ + margin);
+    for (const idx of this._planAt(this._buildingCells, x, z)) {
+      const b = this.buildings[idx];
+      if (x > b.bounds.minX - margin && x < b.bounds.maxX + margin
+        && z > b.bounds.minZ - margin && z < b.bounds.maxZ + margin) return true;
+    }
+    return false;
   }
 
   worldToNormalized(x, z) {
@@ -803,14 +854,20 @@ export class JsonMap extends SolidField {
   _linkClosest(nav, id, radius, count) {
     const from = nav.pos[id];
     const near = [];
-    for (let i = 0; i < nav.pos.length; i++) {
+    // кандидатов берём из пространственной сетки узлов, а не из всего списка:
+    // на районе 600 м узлов 10 тыс., а `_linkClosest` зовётся на каждую дверь,
+    // посадку марша и конец настила — полный перебор стоил бы миллионы проверок
+    for (const i of nav.nearby(from.x, from.z, radius)) {
       if (i === id) continue;
       const p = nav.pos[i];
       const d = Math.hypot(p.x - from.x, p.z - from.z);
       if (d > radius || d < 0.01) continue;
       near.push({ i, d });
     }
-    near.sort((a, b) => a.d - b.d);
+    // порядок с прежним полным перебором: при равных расстояниях раньше шел
+    // узел с меньшим индексом — sort стабилен, а nearby обходит клетки, а не
+    // индексы, поэтому равенство дистанций разрешаем явно
+    near.sort((a, b) => a.d - b.d || a.i - b.i);
     let linked = 0;
     for (const cand of near) {
       if (linked >= count) break;
@@ -864,6 +921,7 @@ export class JsonMap extends SolidField {
   // ---------------------------------------------------------------- сборка сцены
 
   build(scene) {
+    this.sceneObjects = [];
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(this.width, this.depth),
       new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }),
@@ -872,6 +930,7 @@ export class JsonMap extends SolidField {
     ground.position.y = this.groundY;
     ground.receiveShadow = true;
     scene.add(ground);
+    this.sceneObjects.push(ground);
 
     const mats = {
       walls: new THREE.MeshStandardMaterial({ color: J.walls, roughness: 0.85, metalness: 0.05 }),
@@ -887,10 +946,35 @@ export class JsonMap extends SolidField {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
+      this.sceneObjects.push(mesh);
     }
 
-    buildProps(scene, this.props);
+    this.sceneObjects.push(...buildProps(scene, this.props));
     this._buildLights(scene);
+  }
+
+  /**
+   * Снимает со сцены всё, что поставил `build`: меши с их геометрия и материалами,
+   * настоящие источники и лампы-сферы. Сцена главы пересоздаётся на каждой загрузке
+   * (AGENTS.md о жизненном цикле), а на районе 600 м одна утечка — десятки мегабайт
+   * буферов, которые больше никто не держит.
+   */
+  dispose() {
+    for (const o of this.sceneObjects ?? []) {
+      o.parent?.remove(o);
+      o.geometry?.dispose?.();
+      // материалы пропов (src/props.js) модульные и переиспользуются следующей
+      // главой — их не убираем; все меши `build` держат свои собственные
+      if (o.material && !o.isInstancedMesh) {
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose?.());
+      }
+    }
+    for (const l of this.realLights ?? []) {
+      l.parent?.remove(l);
+      l.target?.parent?.remove(l.target);
+    }
+    this.sceneObjects = [];
+    this.realLights = [];
   }
 
   /**
@@ -926,6 +1010,7 @@ export class JsonMap extends SolidField {
         color: 0xffe6c0,
       }));
       scene.add(mesh);
+      this.sceneObjects.push(mesh);
     }
   }
 
@@ -934,19 +1019,34 @@ export class JsonMap extends SolidField {
   /**
    * План уровня на отметке игрока: плиты полов этого этажа, стены, которые его
    * задевают, проёмы маршей и настилы дорог.
+   *
+   * Окно — локальное: `J.minimapRange` метров вокруг игрока, а не весь город. При стороне
+   * 600 м весь план в 336 px даёт 0,52 м/пиксель — стена 0,35 м исчезает меньше пикселя,
+   * а «план этажа» превращается в серый квадрат. Главы помельще (176 м) окна не
+   * касаются: их разброс меньше окна, и масштаб остаётся прежний.
    */
   drawMinimap(ctx, size, playerPos) {
     ctx.fillStyle = '#1b2128';
     ctx.fillRect(0, 0, size, size);
 
-    const toPx = (wx, wz) => {
-      const [u, v] = this.worldToNormalized(wx, wz);
-      return [u * size, v * size];
-    };
+    const cx = playerPos ? playerPos.x : this.spawn.x;
+    const cz = playerPos ? playerPos.z : this.spawn.z;
+    const range = Math.min(J.minimapRange, Math.max(this.width, this.depth) / 2);
+    const k = size / (2 * range);
+    const toPx = (wx, wz) => [(wx - cx + range) * k, (wz - cz + range) * k];
     const rectPx = r => {
       const [x0, z0] = toPx(r.minX, r.minZ);
       const [x1, z1] = toPx(r.maxX, r.maxZ);
+      if (x1 < 0 || z1 < 0 || x0 > size || z0 > size) return null;
       return [x0, z0, Math.max(x1 - x0, 1), Math.max(z1 - z0, 1)];
+    };
+    const fill = (list, pick) => {
+      for (const it of list) {
+        const p = pick ? pick(it) : true;
+        if (!p) continue;
+        const px = rectPx(it);
+        if (px) ctx.fillRect(...px);
+      }
     };
 
     const y = playerPos ? playerPos.y : this.spawn.y;
@@ -958,27 +1058,14 @@ export class JsonMap extends SolidField {
       if (d < best) { best = d; level = p.y; levelFloor = p.floor; }
     }
 
-    for (const d of this.deckPlates) {
-      if (d.ramp || Math.abs(d.topY - y) > 1) continue;
-      ctx.fillStyle = 'rgba(90,100,116,.5)';
-      ctx.fillRect(...rectPx(d));
-    }
+    ctx.fillStyle = 'rgba(90,100,116,.5)';
+    fill(this.deckPlates, d => !d.ramp && Math.abs(d.topY - y) <= 1);
     ctx.fillStyle = 'rgba(196,212,232,.5)';
-    for (const p of this.floorPlates) {
-      if (p.y !== level) continue;
-      ctx.fillRect(...rectPx(p));
-    }
-
+    fill(this.floorPlates, p => p.y === level);
     ctx.fillStyle = '#262f3d';
-    for (const w of this.blockers) {
-      if (w.y1 <= y + 0.05 || w.y0 >= y + CONFIG.eyeHeight) continue;
-      ctx.fillRect(...rectPx(w));
-    }
+    fill(this.blockers, w => w.y1 > y + 0.05 && w.y0 < y + CONFIG.eyeHeight);
     ctx.fillStyle = '#5b4a2c';
-    for (const s of this.stairCells) {
-      if (s.k0 > levelFloor || s.k1 < levelFloor) continue;
-      ctx.fillRect(...rectPx(s));
-    }
+    fill(this.stairCells, s => s.k0 <= levelFloor && s.k1 >= levelFloor);
 
     ctx.fillStyle = 'rgba(255,255,255,.85)';
     ctx.font = 'bold 22px "Segoe UI", sans-serif';

@@ -129,6 +129,9 @@ export class Game {
     this.levelIndex = index;
     this.level = level;
     const gp = level.gameplay ?? {};
+    // прошлая карта обязана освободить свои меши и свет: сцена пересоздаётся, а
+    // буферы района 600 м без dispose повисли бы в GPU памяти на каждую перезагрузку
+    this.map?.dispose?.();
     this.map = this.createMap(level.map);
     this._initScene(level.sky);
     this.map.build(this.scene);
@@ -185,14 +188,27 @@ export class Game {
     return player;
   }
 
-  /** Обзорный кадр улицы: за интертитром главы и экраном выбора. */
+  /**
+   * Обзорный кадр улицы: за интертитром главы и экраном выбора.
+   * Район крупнее ~240 м с земли не читается — его съедает туман, поэтому для
+   * такой главы камера уходит в воздух и берёт весь квадрат целиком.
+   */
   _setOverviewCamera() {
-    this.camera.position.set(this.map.spawn.x, 7, this.map.bounds.minZ - 6);
-    this.camera.lookAt(this.map.spawn.x, 9, 0);
+    const b = this.map.bounds;
+    const side = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
+    if (side <= 240) {
+      this.camera.position.set(this.map.spawn.x, 7, b.minZ - 6);
+      this.camera.lookAt(this.map.spawn.x, 9, 0);
+      return;
+    }
+    const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    this.camera.position.set(cx, side * 0.4, cz - side * 0.52);
+    this.camera.lookAt(cx, 0, cz);
   }
 
   /** Сцена без сущностей — только для обзора за экраном выбора роли. */
   _previewLevel(index) {
+    this.map?.dispose?.();
     this.map = this.createMap(LEVELS[index].map);
     this._initScene(LEVELS[index].sky);
     this.map.build(this.scene);
@@ -243,7 +259,10 @@ export class Game {
     const cam3 = sun.shadow.camera;
     cam3.left = -extent; cam3.right = extent;
     cam3.top = extent; cam3.bottom = -extent;
-    cam3.near = 1; cam3.far = 800;
+    cam3.near = 1;
+    // дальность ortho-камеры теней — от источника до самого дальнего угла сцены:
+    // на районе 600 м фиксированные 800 м оставляли дальние кварталы без тени
+    cam3.far = Math.hypot(s.position[0], s.position[1], s.position[2]) + 2 * extent;
     cam3.updateProjectionMatrix();
     this.scene.add(sun);
     this.scene.add(sun.target);
