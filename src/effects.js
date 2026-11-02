@@ -42,6 +42,20 @@ export class Tracers {
     this.active.push({ line, life, maxLife: life });
   }
 
+  /**
+   * Перенос активных линий вместе с миром (перестановка активного окна главы 4):
+   * трассер живёт меньше кадра после выстрела, но попадание, совершённое на
+   * границе тайла, иначе на один кадр «отстанет» от улицы на 260 м.
+   */
+  shift(dx, dz) {
+    for (const t of this.active) {
+      const p = t.line.geometry.attributes.position.array;
+      p[0] -= dx; p[3] -= dx;
+      p[2] -= dz; p[5] -= dz;
+      t.line.geometry.attributes.position.needsUpdate = true;
+    }
+  }
+
   /** Плавно гасит линии и освобождает их в пул. */
   update(dt) {
     for (let i = this.active.length - 1; i >= 0; i--) {

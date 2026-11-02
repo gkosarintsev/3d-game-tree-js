@@ -1,34 +1,35 @@
 /**
- * Глава 7 — «Высотки»: три башни, пасмурное небо, много Чужих-врагов.
- * Крыш много, вертикальные обходы — основной маршрут скачков Чужого.
+ * Глава 7 — «Квартал на закате»: дома вразнобой, низкое солнце, пальм больше.
+ * Врагов заметно больше, чем в предыдущей главе.
  */
 export const LEVEL_07 = {
-  name: 'Глава 7. Высотки',
-  hint: 'Финальная глава: соберите монеты на этажах и крышах башен.',
+  name: 'Глава 7. Квартал на закате',
+  hint: 'Солнце садится — монеты всё так же решают.',
   map: {
     houses: [
-      { cols: 20, rows: 18, floors: 8, offsetX: -95, offsetZ: 0 },
-      { cols: 24, rows: 20, floors: 10, offsetX: 15, offsetZ: 10 },
-      { cols: 18, rows: 16, floors: 7, offsetX: 120, offsetZ: -15 },
+      { cols: 20, rows: 18, floors: 5, offsetX: -105, offsetZ: -20 },
+      { cols: 18, rows: 16, floors: 7, offsetX: -30, offsetZ: 25 },
+      { cols: 16, rows: 14, floors: 4, offsetX: 50, offsetZ: -25 },
+      { cols: 22, rows: 16, floors: 6, offsetX: 135, offsetZ: 15 },
     ],
-    ground: { size: 440, color: 0x5f7457 },
+    ground: { size: 480, color: 0x7c8b4f },
   },
   decor: {
-    palms: 10,
-    lampSpacing: 18,
-    roofPropsPerBuilding: 6,
-    seed: 0xd1ce55,
+    palms: 30,
+    lampSpacing: 22,
+    roofPropsPerBuilding: 5,
+    seed: 0xbeef01,
   },
   sky: {
-    sky: 0x6a7688,
-    fog: { color: 0x8894a6, near: 70, far: 380 },
-    sun: { color: 0xdfe8ff, intensity: 1.3, position: [90, 180, 130] },
-    hemi: { sky: 0x9fb0c8, ground: 0x2f3a44, intensity: 0.75 },
+    sky: 0xf2b98a,
+    fog: { color: 0xf7cda0, near: 90, far: 420 },
+    sun: { color: 0xffc185, intensity: 2.0, position: [-160, 90, 140] },
+    hemi: { sky: 0xffd9b0, ground: 0x4f3b28, intensity: 0.9 },
   },
   gameplay: {
-    totalCoins: 16,
-    minCoinDistance: 18,
-    enemies: { count: 8 },
-    alienEnemies: { count: 5 },
+    totalCoins: 14,
+    minCoinDistance: 16,
+    enemies: { count: 7 },
+    alienEnemies: { count: 3 },
   },
 };

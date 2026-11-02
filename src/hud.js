@@ -16,6 +16,7 @@ export class Hud {
     this.coinsLbl = this.coinsEl.parentElement.querySelector('.lbl');
     this._exitMode = false;
     this._hitTimer = 0;
+    this._loadTimer = 0;
     this._lockHandler = null;
 
     // постоянная метка текущей главы над игровым экраном
@@ -81,6 +82,7 @@ export class Hud {
 
   /** Интертитр главы перед стартом: название, подсказка, кнопка начала. */
   showChapter(level, onGo) {
+    this.clearLoading(); // загрузка могла остаться неотменённой — карточка главы важнее
     this.overlay.classList.remove('hidden');
     this.card.innerHTML = `
       <h1>${level.name}</h1>
@@ -89,6 +91,41 @@ export class Hud {
     document.getElementById('go').addEventListener('click', e => {
       e.stopPropagation();
       onGo();
+    });
+  }
+
+  /**
+   * Строка загрузки главы — для глав с внешним ассетом, который читается и
+   * разбирается дольше кадра. Появляется только если это заняло больше 300 мс:
+   * быстрая глава не должна мигать оверлеем.
+   */
+  showLoading(name) {
+    clearTimeout(this._loadTimer);
+    this._loadTimer = setTimeout(() => {
+      this.overlay.classList.remove('hidden');
+      this.card.innerHTML = `
+        <h1>${name}</h1>
+        <p class="lead">Загрузка района…</p>`;
+    }, 300);
+  }
+
+  /** Отменяет отложенный показ загрузки (глава готова — карточка за ней). */
+  clearLoading() {
+    clearTimeout(this._loadTimer);
+    this._loadTimer = 0;
+  }
+
+  /** Сбой загрузки главы: причина и кнопка повтора (глава без карты не играбельна). */
+  showLoadError(name, message, onRetry) {
+    this.clearLoading();
+    this.overlay.classList.remove('hidden');
+    this.card.innerHTML = `
+      <h1>${name}</h1>
+      <p class="lead">${message}</p>
+      <div class="btn" id="retry">Повторить</div>`;
+    document.getElementById('retry').addEventListener('click', e => {
+      e.stopPropagation();
+      onRetry();
     });
   }
 
@@ -228,7 +265,15 @@ export class Hud {
       });
     }
 
-    if (exit) {
+    // Точка B вне активного окна — на миникарте её рисовать нечего:
+    // worldToNormalized прижал бы метку к краю квадрата и показала бы цель
+    // «на стене», хотя та в соседнем районе. Дистанция до неё в HUD
+    // показывается всегда (setExitDistance), поэтому подсказка направления не
+    // теряется. Для обычных глав exit всегда внутри bounds — условие не меняет
+    // ничего.
+    const bb = map.bounds;
+    if (exit && exit.x >= bb.minX && exit.x <= bb.maxX &&
+        exit.z >= bb.minZ && exit.z <= bb.maxZ) {
       const [eu, ev] = map.worldToNormalized(exit.x, exit.z);
       ctx.strokeStyle = 'rgba(111,232,221,.95)';
       ctx.lineWidth = 2;

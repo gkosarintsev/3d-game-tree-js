@@ -51,6 +51,22 @@ export class ExitGoal {
       Math.abs(p.y - this.y) < 3;
   }
 
+  /**
+   * Перенос точки B вместе с миром: при перестановке активного окна главы 4
+   * (src/stream-map.js) начало координат главы уходит на (dx, dz) метров файла,
+   * и маяк обязан остаться над своей площадью, а не отстать от неё на 260 м.
+   * Отметка площадки не пересчитывается: улица главы — одна плита макета, её
+   * высота от окна не зависит.
+   */
+  shift(dx, dz) {
+    this.x -= dx;
+    this.z -= dz;
+    for (const m of [this.pad, this.beam]) {
+      m.position.x -= dx;
+      m.position.z -= dz;
+    }
+  }
+
   dispose(scene) {
     scene.remove(this.group);
     this.pad.geometry.dispose();

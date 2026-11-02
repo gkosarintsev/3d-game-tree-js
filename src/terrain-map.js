@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
-import { SolidField } from './solids.js';
-import { circleHitsRect } from './map.js';
+import { SolidField, circleHitsRect } from './solids.js';
+import { NavGraph } from './nav-graph.js';
 
 /**
  * Реализация контракта карты для уровней со сложным рельефом: холмы, горы с
@@ -142,9 +142,8 @@ export class TerrainMap extends SolidField {
     const sx = t.spawn.x, sz = t.spawn.z;
     this.spawn = { x: sx, z: sz, y: this.groundHeightAt(sx, sz, 500) };
 
+    // граф навигации для врагов (узлы, рёбра и поиск маршрута — в NavGraph)
     this.nav = this._buildNav();
-    this._bfsSeen = new Uint8Array(this.nav.pos.length);
-    this._bfsPrev = new Int32Array(this.nav.pos.length);
   }
 
   /** Решёточный value-noise с гладкой интерполяцией в мировых координатах. */
@@ -565,10 +564,7 @@ export class TerrainMap extends SolidField {
    * соединялся бы с крышей.
    */
   _buildNav() {
-    const pos = [];
-    const adj = [];
-    /** узел стоит на аналитической поверхности (а не на краю колонки) */
-    const surf = [];
+    const nav = new NavGraph();
     const ids = new Array(this.N * this.N);
     for (let j = 0; j < this.N; j++) {
       for (let i = 0; i < this.N; i++) {
@@ -577,15 +573,16 @@ export class TerrainMap extends SolidField {
         const cx = -this.half + (i + 0.5) * this.cell;
         const cz = -this.half + (j + 0.5) * this.cell;
         for (const L of this.layers[idx]) {
-          const isSurf = this._isSurfaceNode(idx, L);
-          ids[idx].push(pos.length);
-          pos.push({ x: cx, y: this._nodeHeight(idx, L, cx, cz), z: cz });
-          surf.push(isSurf);
-          adj.push([]);
+          // meta узла — «стоим на аналитической поверхности», а не на краю колонки
+          const id = nav.add(cx, this._nodeHeight(idx, L, cx, cz), cz, undefined,
+            this._isSurfaceNode(idx, L));
+          ids[idx].push(id);
         }
       }
     }
-    const link = (a, b) => { adj[a].push(b); adj[b].push(a); };
+    const link = (a, b) => nav.link(a, b);
+    const pos = nav.pos;
+    const surf = nav.meta;
     const maxStep = this.cfg.navStep;
     for (let j = 0; j < this.N; j++) {
       for (let i = 0; i < this.N; i++) {
@@ -609,7 +606,7 @@ export class TerrainMap extends SolidField {
         }
       }
     }
-    return { pos, adj };
+    return nav.seal();
   }
 
   /**
@@ -632,54 +629,12 @@ export class TerrainMap extends SolidField {
     return true;
   }
 
-  _nearestNode(x, y, z) {
-    const pos = this.nav.pos;
-    let best = -1, bestD = Infinity;
-    for (let i = 0; i < pos.length; i++) {
-      const p = pos[i];
-      const dy = (p.y - y) * 2;
-      const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) + dy * dy;
-      if (d < bestD) { bestD = d; best = i; }
-    }
-    return best;
-  }
-
-  randomNavPoint(x, z, radius, tries = 60) {
-    const pos = this.nav.pos;
-    for (let i = 0; i < tries; i++) {
-      const p = pos[Math.floor(Math.random() * pos.length)];
-      if (Math.hypot(p.x - x, p.z - z) <= radius) return p;
-    }
-    return null;
+  randomNavPoint(x, z, radius) {
+    return this.nav.randomPoint(x, z, radius);
   }
 
   findPath(from, to) {
-    const a = this._nearestNode(from.x, from.y, from.z);
-    const b = this._nearestNode(to.x, to.y, to.z);
-    if (a < 0 || b < 0) return null;
-    if (a === b) return [this.nav.pos[b]];
-
-    const { pos, adj } = this.nav;
-    const seen = this._bfsSeen, prev = this._bfsPrev;
-    const queue = [a];
-    seen[a] = 1;
-    prev[a] = -1;
-    for (let head = 0; head < queue.length; head++) {
-      const cur = queue[head];
-      if (cur === b) break;
-      for (const nb of adj[cur]) {
-        if (seen[nb]) continue;
-        seen[nb] = 1;
-        prev[nb] = cur;
-        queue.push(nb);
-      }
-    }
-    const found = seen[b] === 1;
-    for (const i of queue) seen[i] = 0;
-    if (!found) return null;
-    const path = [];
-    for (let cur = b; cur !== -1; cur = prev[cur]) path.push(pos[cur]);
-    return path.reverse();
+    return this.nav.findPath(from, to);
   }
 
   // ---------------------------------------------------------------- отрисовка

@@ -1,38 +1,32 @@
 /**
- * Глава 5 — «Окраина»: пять домов в ряд, дневной свет, знакомая улица.
- *
- * Уровень — чистые данные (см. AGENTS.md): поле map идёт в createTownMap,
- * sky — в освещение сцены, gameplay — в монеты и число врагов. Любое поле
- * необязательно: недостающее берётся из config.js.
+ * Глава 5 — «Первый дом»: один дом посреди улицы, мало врагов и монет.
+ * Первая «уличная» глава после трёх глав-переходов по рельефу.
  */
 export const LEVEL_05 = {
-  name: 'Глава 5. Окраина',
-  hint: 'Соберите все монеты, чтобы пройти главу.',
+  name: 'Глава 5. Первый дом',
+  hint: 'Один дом, четыре монеты. Разберитесь с управлением на улице.',
   map: {
     houses: [
-      { cols: 18, rows: 16, floors: 5, offsetX: -150, offsetZ: 0 },
-      { cols: 16, rows: 14, floors: 4, offsetX: -72, offsetZ: 0 },
-      { cols: 22, rows: 18, floors: 6, offsetX: 0, offsetZ: 0 },
-      { cols: 16, rows: 14, floors: 4, offsetX: 72, offsetZ: 0 },
-      { cols: 18, rows: 15, floors: 5, offsetX: 150, offsetZ: 0 },
+      { cols: 14, rows: 12, floors: 3, offsetX: 0, offsetZ: 0 },
     ],
-    ground: { size: 400, color: 0x6f9f4a },
+    ground: { size: 160, color: 0x74a04e },
   },
   decor: {
-    palms: 22,
-    lampSpacing: 28,
-    roofPropsPerBuilding: 4,
-    seed: 0xc0ffee,
+    palms: 8,
+    lampSpacing: 18,
+    roofPropsPerBuilding: 3,
+    seed: 0x000001,
   },
   sky: {
-    sky: 0xa9d4f5,
-    fog: { color: 0xd6e9ff, near: 120, far: 460 },
-    sun: { color: 0xfff4e0, intensity: 2.4, position: [150, 200, -110] },
+    sky: 0xb8dcf7,
+    fog: { color: 0xdff0ff, near: 60, far: 300 },
+    sun: { color: 0xfff4e0, intensity: 2.4, position: [90, 140, -70] },
     hemi: { sky: 0xbfe3ff, ground: 0x4a6b33, intensity: 1.0 },
   },
   gameplay: {
-    totalCoins: 10,
-    enemies: { count: 5 },
-    alienEnemies: { count: 2 },
+    totalCoins: 4,
+    minCoinDistance: 8,
+    enemies: { count: 2 },
+    alienEnemies: { count: 1 },
   },
 };

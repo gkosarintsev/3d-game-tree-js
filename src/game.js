@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { createTownMap } from './map.js';
 import { createTerrainMap } from './terrain-map.js';
+import { createCityMap } from './city-map.js';
+import { createModelMap } from './model-map.js';
+import { createStreamedMap } from './stream-map.js';
+import { preloadMapAsset } from './glb.js';
 import { ExitGoal } from './exit.js';
 import { LEVELS } from './levels/index.js';
 import { Coins } from './coins.js';
@@ -10,13 +14,24 @@ import { Alien } from './alien.js';
 import { Hud } from './hud.js';
 import { Enemies } from './enemies.js';
 import { Weapon } from './weapon.js';
+import { NightLights } from './night-lights.js';
 import { Tracers } from './effects.js';
 import { winTune } from './audio.js';
+
+/** Реализации контракта карты по kind из определения главы (улица — по умолчанию). */
+const MAP_KINDS = {
+  terrain: createTerrainMap,
+  city: createCityMap,
+  model: createModelMap,
+  stream: createStreamedMap,
+  town: createTownMap,
+};
 
 /**
  * Движок: последовательность глав (src/levels — чистые данные) и игровой цикл.
  *
- * Состояния: 'menu' | 'chapter' | 'playing' | 'paused' | 'chapterEnd' | 'won' | 'dead'.
+ * Состояния: 'menu' | 'loading' | 'chapter' | 'playing' | 'paused' |
+ * 'chapterEnd' | 'won' | 'dead'.
  * На старте — выбор персонажа, затем главы идут одна за другой, как в Half-Life:
  * интертитр главы → сбор монет → «Глава пройдена» → следующая глава без
  * перезагрузки страницы. Смерть перезапускает текущую главу.
@@ -33,6 +48,7 @@ export class Game {
     this.role = null;
     this.player = null;
     this.weapon = null;
+    this.nightLights = null;
     this.enemies = null;
     this.levelIndex = 0;
     this.totalTime = 0;
@@ -65,16 +81,20 @@ export class Game {
 
   /**
    * Точка замены типа уровня: kind из map-секции определения главы выбирает
-   * реализацию контракта карты (см. src/map.js и AGENTS.md).
+   * реализацию контракта карты (см. src/map.js и AGENTS.md). Без kind — улица.
    */
   createMap(spec = {}) {
-    return spec.kind === 'terrain' ? createTerrainMap(spec) : createTownMap(spec);
+    return (MAP_KINDS[spec.kind] ?? createTownMap)(spec);
   }
 
-  /** Загружает главу: карта, сцена, монеты, враги, персонаж, интертитр. */
-  _loadLevel(index) {
-    this.levelIndex = index;
-    this.level = LEVELS[index];
+  /**
+   * Загружает главу: сначала внешний ассет (если он у главы есть), затем
+   * синхронная сборка уровня. Единственное await в жизненном цикле — правило
+   * «Внешние ассеты уровня» в AGENTS.md: контракт карты синхронный, поэтому
+   * GLTFLoader отрабатывает до createMap, а не внутри него.
+   */
+  async _loadLevel(index) {
+    const level = LEVELS[index];
 
     // выгрузка сущностей предыдущей главы: снятие слушателей (см. AGENTS.md)
     if (this.player) {
@@ -86,9 +106,29 @@ export class Game {
       this.weapon = null;
     }
 
-    const gp = this.level.gameplay ?? {};
-    this.map = this.createMap(this.level.map);
-    this._initScene(this.level.sky);
+    this.state = 'loading';
+    try {
+      if (level.map?.asset) this.hud.showLoading(level.name);
+      await preloadMapAsset(level.map);
+      // после await собираем именно эту главу, а не «ту, что сейчас в this.level»:
+      // вызовы _loadLevel могли наложиться (меню ?debug=1 зовёт его по клику, а две
+      // главы на GLB стоят подряд) — иначе отложенный preload одной главы строит
+      // карту другой, ассет которой ещё не прочитан
+      this._buildLevel(index, level); // интертитр главы снимает отложенный показ загрузки
+    } catch (e) {
+      // непрогруженный ассет или непроходимая точка спавна: главе нечего показывать
+      console.error(e);
+      this.hud.showLoadError(level.name, String(e?.message ?? e), () => this._loadLevel(index));
+    }
+  }
+
+  /** Синхронная сборка главы: карта, сцена, цель, монеты, враги, персонаж. */
+  _buildLevel(index, level) {
+    this.levelIndex = index;
+    this.level = level;
+    const gp = level.gameplay ?? {};
+    this.map = this.createMap(level.map);
+    this._initScene(level.sky);
     this.map.build(this.scene);
     // карта теней заморожена — пересчитать под новую сцену
     this.renderer.shadowMap.needsUpdate = true;
@@ -124,12 +164,12 @@ export class Game {
     this.hud.setCoins(0, this.coins.total);
     this.hud.setKills(0);
     this.hud.setHealth(this.player.health, this.player.maxHealth);
-    this.hud.setChapter(this.level.name);
+    this.hud.setChapter(level.name);
 
     this.elapsed = 0;
     this._setOverviewCamera();
     this.state = 'chapter';
-    this.hud.showChapter(this.level, () => this.player && this.player.lock());
+    this.hud.showChapter(level, () => this.player && this.player.lock());
   }
 
   /** Создаёт персонажа выбранной роли и подписывает захват/отпуск курсора. */
@@ -178,6 +218,7 @@ export class Game {
       fog: { ...CONFIG.fog, ...sky.fog },
       sun: { ...CONFIG.sun, ...sky.sun },
       hemi: { ...CONFIG.hemi, ...sky.hemi },
+      lights: sky.lights ?? null,
     };
 
     this.scene = new THREE.Scene();
@@ -209,6 +250,15 @@ export class Game {
     const h = cfg.hemi;
     this.hemi = new THREE.HemisphereLight(h.sky, h.ground, h.intensity);
     this.scene.add(this.hemi);
+
+    // Ночной свет главы: `sky.lights` — данные уровня, без них глава живёт на
+    // луне и hemi, как жила до этапа ночного света. Пул держит несколько
+    // настоящих огней рядом с камерой (src/night-lights.js), поэтому числа
+    // lamps вдоль дорог не раздувают число источников на фрагмент.
+    this.nightLights?.dispose();
+    this.nightLights = cfg.lights
+      ? new NightLights(this.scene, this.map.openPositions(), cfg.lights)
+      : null;
   }
 
   start() {
@@ -243,34 +293,76 @@ export class Game {
     this.renderer.setSize(innerWidth, innerHeight);
   }
 
+  /**
+   * Опциональный член контракта карты — `updateStreaming(x, z)` (глава 4,
+   * src/stream-map.js): пока игрок в центральном тайле, возвращает `null` и
+   * ничего не происходит; как только вышел за его границу, карта перестраивает
+   * окно (~0,25 с, sync) и возвращает метры `(dx, dz)`, на которые оно ушло.
+   *
+   * Мир главы привязан к центру окна, поэтому сдвиг окна — это сдвиг начала
+   * координат: всё, что держит мировую точку, переносится на `-(dx, dz)`, и
+   * игрок остаётся там, где стоял. Точка появления (`map.spawn`) переезжает
+   * внутри самой карты — она её член контракта.
+   *
+   * Оверлей загрузки здесь не показываем: карточка `hud.showLoading` появляется
+   * с порогом 300 мс («быстрая глава не должна мигать»), а перестановка окна
+   * укладывается в 132–188 мс (замеры — docs/plan.md, F2), то есть за ней
+   * нечего ждать.
+   *
+   * @returns {boolean} была ли перестройка (тогда кадр симуляцию не ведёт)
+   */
+  _streamWindow() {
+    const map = this.map;
+    if (!map.updateStreaming) return false;
+    const p = this.player.position;
+    const shift = map.updateStreaming(p.x, p.z);
+    if (!shift) return false;
+    const { dx, dz } = shift;
+    this.player.shift(dx, dz);
+    this.enemies.shiftWorld(dx, dz);
+    this.exit?.shift(dx, dz);
+    this.tracers?.shift(dx, dz);
+    // опоры улицы и район в сцене — новые: пул огней ставится на опоры заново
+    // (метод вместо пересоздания, чтобы не терять dispose-контракт), а
+    // замороженная карта теней пересчитывается под перестроенную сцену
+    this.nightLights?.setAnchors(map.openPositions());
+    this.renderer.shadowMap.needsUpdate = true;
+    return true;
+  }
+
   _tick() {
     requestAnimationFrame(this._tick);
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
     if (this.state === 'playing' && this.player && this.player.isLocked) {
-      this.player.update(dt);
-      if (this.weapon) this.weapon.update(dt);
-      this.enemies.update(dt);
+      // стриминг главы 4: перестановка активного окна за игроком. Если она была,
+      // этот кадр симуляцию не ведёт — сборка окна (~0,25 с) и так забрала кадр,
+      // а считать по уже перенесённом мире нет смысла
+      if (!this._streamWindow()) {
+        this.player.update(dt);
+        if (this.weapon) this.weapon.update(dt);
+        this.enemies.update(dt);
 
-      this.elapsed = (performance.now() - this.startTime) / 1000;
-      this.hud.setTime(this.elapsed);
-      this.hud.setHealth(this.player.health, this.player.maxHealth);
-      this.hud.setKills(this.enemies.kills);
-      this.hud.flashDamage(this.player.hurt);
+        this.elapsed = (performance.now() - this.startTime) / 1000;
+        this.hud.setTime(this.elapsed);
+        this.hud.setHealth(this.player.health, this.player.maxHealth);
+        this.hud.setKills(this.enemies.kills);
+        this.hud.flashDamage(this.player.hurt);
 
-      const time = performance.now() / 1000;
-      if (this.exit) {
-        this.exit.update(time);
-        const p = this.player.position;
-        this.hud.setExitDistance(Math.hypot(p.x - this.exit.x, p.z - this.exit.z));
-        if (this.exit.reached(p)) { this._levelComplete(); }
+        const time = performance.now() / 1000;
+        if (this.exit) {
+          this.exit.update(time);
+          const p = this.player.position;
+          this.hud.setExitDistance(Math.hypot(p.x - this.exit.x, p.z - this.exit.z));
+          if (this.exit.reached(p)) { this._levelComplete(); }
+        }
+        if (this.coins.update(dt, this.player.position, time)) {
+          this.hud.setCoins(this.coins.collected, this.coins.total);
+          if (this.coins.collected === this.coins.total) this._levelComplete();
+        }
+
+        if (this.player.dead) this._lose();
       }
-      if (this.coins.update(dt, this.player.position, time)) {
-        this.hud.setCoins(this.coins.collected, this.coins.total);
-        if (this.coins.collected === this.coins.total) this._levelComplete();
-      }
-
-      if (this.player.dead) this._lose();
     }
 
     // до начала главы сущностей нет — рендерим только обзор карты
@@ -278,6 +370,9 @@ export class Game {
     if (this.player) {
       this.hud.drawMinimap(this.map, this.coins, this.player.position, this.player.direction, this.enemies, this.exit);
     }
+    // пул огней следит за камерой: так свет есть и за интертитром главы, где
+    // игрока ещё нет, и на крыше, до которой уличный фонарь не дотягивается
+    this.nightLights?.update(this.camera.position);
     this.renderer.render(this.scene, this.camera);
   }
 

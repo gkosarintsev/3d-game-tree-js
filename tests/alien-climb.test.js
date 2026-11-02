@@ -16,6 +16,8 @@
  * Проверяются сценарии:
  *   1. Чужой залезает на стену (прилипает и лезет вверх);
  *   2. Чужой залезает с земли на крышу;
+ *  2b. Перевал на крышу оставляет тело на крыше и ведёт внутрь дома (взгляд
+ *      переносится поворотом корпуса, а не сохраняется в мире);
  *   3. Чужой спускается с крыши обратно на стену;
  *   4. Чужой спускается со стены на землю;
  *   5. Чужой вылезает с потолка верхнего этажа через лаз в крыше на крышу;
@@ -711,12 +713,41 @@ function testStrikeCooldown() {
 }
 
 /**
+ * 2b. Перевал на крышу разворачивает корпус внутрь строения. Наклон взгляда,
+ * нужный для подъёма (pitch > climbPitch), на стене откинут вдоль нормали стены
+ * — наружу. Если при перевале сохранить эту линию взгляда в мире, на крыше
+ * «вперёд» смотрит ОТ здания, и с зажатой «вперёд» Чужой сходит с только что
+ * взятой кромки и сползает назад по стене: на башнях с уступами подъём обрывается
+ * на каждой полке. Проверяем, что после перевала тело удержало крышу и ушло вглубь
+ * дома.
+ */
+function testMantleKeepsRoof() {
+  const { map } = buildTestWorld();
+  const alien = makeAlien(map);
+  placeAlien(alien, { x: 0, y: RADIUS, z: WALL_Z + 1.5, up: [0, 1, 0], fwd: [0, 0, -1], pitch: 0.9 });
+  const trace = simulate(alien, 240);
+
+  const roofIdx = trace.findIndex(s => onFlat(s) && s.y >= ROOF_Y + RADIUS - 0.4);
+  const last = trace[trace.length - 1];
+  const flatTail = trace.slice(-60).filter(onFlat).length;
+  const inward = last.z < WALL_Z - 1; // ушёл вглубь дома, а не за кромку
+  const passed = roofIdx >= 0 && flatTail >= 55 && Math.abs(last.y - ROOF_BODY_Y) <= 0.3 && inward;
+  return {
+    name: 'Перевал на крышу оставляет тело на крыше и ведёт внутрь дома',
+    passed,
+    info: passed
+      ? `крыша с кадра ${roofIdx}, из последних 60 кадров на крыше ${flatTail}, итог y=${last.y.toFixed(2)}, z=${last.z.toFixed(2)} (фасад на ${WALL_Z})`
+      : `крыша с кадра ${roofIdx}, из последних 60 на крыше ${flatTail}, итог y=${last.y.toFixed(2)}, z=${last.z.toFixed(2)}, up=${upStr(last)}`,
+  };
+}
+
+/**
  * Прогоняет все тесты лазания и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
 export function runAlienClimbTests() {
   const tests = [
-    testClimbWall, testClimbRoof, testRoofToWall, testWallToGround,
+    testClimbWall, testClimbRoof, testMantleKeepsRoof, testRoofToWall, testWallToGround,
     testCeilToRoof, testRoofToCeil, testWallCornerWrap,
     testLeapSticksToWall, testLeapHurtsEnemy, testRoofStopsFall, testDamageAndRegen,
     testShaftHoleToRoof, testShaftHoleToCeiling,

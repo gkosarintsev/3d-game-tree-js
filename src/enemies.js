@@ -170,6 +170,7 @@ export class Enemy {
     this.dead = true;
     this.deathTimer = 0;
     this.respawnTimer = 0;
+    this.offstage = false;
     this.hitFlash = 0;
 
     // рабочие векторы, чтобы не создавать мусор в игровом цикле
@@ -252,9 +253,43 @@ export class Enemy {
     this.dead = false;
     this.deathTimer = 0;
     this.respawnTimer = 0;
+    this.offstage = false;
     this.mesh.material.emissive.setHex(0x000000); // сброс подсветки попадания
     this._hpBar.visible = false;
     this._updateHealthBar();
+  }
+
+  /**
+   * Перенос врага вместе с миром (перестановка активного окна главы 4,
+   * src/stream-map.js): группа встаёт на новые метры главы, а маршрут и цель
+   * блуждания сбрасываются — граф улиц после перестройки другой, и прежние узлы
+   * в нём больше не существуют.
+   */
+  shift(dx, dz) {
+    this.group.position.x -= dx;
+    this.group.position.z -= dz;
+    this.path = null;
+    this.pathIndex = 0;
+    this.wander = null;
+    this.repathTimer = 0;
+  }
+
+  /**
+   * Молчаливое снятие со сцены: враг остался за бортом активного окна главы 4 и
+   * маршрута к игроку через несобранный район у него нет. В отличие от `_die()` —
+   * без анимации падения, звука и засчитанного убийства; дальше работает тот же
+   * очередь возрождения, что и после смерти, и враг появляется на узле нового
+   * окна (respawn берёт точки из `map.nav`).
+   */
+  despawn() {
+    this.offstage = true;
+    this.group.visible = false;
+    this._hpBar.visible = false;
+    this.path = null;
+    this.pathIndex = 0;
+    this.wander = null;
+    this.repathTimer = 0;
+    this.respawnTimer = this.cfg.respawnDelay;
   }
 
   /** Урон от игрока. При смерти запускает анимацию и таймер возрождения. */
@@ -298,6 +333,14 @@ export class Enemy {
     // полоска всегда над головой и развёрнута к камере
     this._hpBar.position.set(this.position.x, this.feetY + 2.05, this.position.z);
     this._hpBar.quaternion.copy(camera.quaternion);
+
+    // за бортом активного окна: ждём очередь возрождения, не стреляем и не идём
+    // через несобранный район (маршрута к игроку в новом графе у такого нет)
+    if (this.offstage) {
+      this.respawnTimer -= dt;
+      if (this.respawnTimer <= 0) this.respawn(player.position);
+      return;
+    }
 
     if (this.dead) {
       if (this.deathTimer > 0) {
@@ -471,6 +514,7 @@ export class AlienEnemy extends AlienBody {
 
     this.player = player || null;
     this.respawnTimer = 0;
+    this.offstage = false;
     this._leapCd = 0;
 
     this.group = new THREE.Group();
@@ -515,6 +559,13 @@ export class AlienEnemy extends AlienBody {
    */
   update(dt, player, camera, tracers) {
     if (player) this.player = player;
+
+    // за бортом активного окна: тело не идёт через несобранный район и не прыгает
+    if (this.offstage) {
+      this.respawnTimer -= dt;
+      if (this.respawnTimer <= 0 && this.player) this.respawn(this.player.position);
+      return;
+    }
 
     if (this.dead) {
       this.respawnTimer -= dt;
@@ -621,8 +672,29 @@ export class AlienEnemy extends AlienBody {
     this.hurt = 0;
     this._lastDamage = -1e9;
     this.respawnTimer = 0;
+    this.offstage = false;
     this.group.visible = true;
     this._syncMesh();
+  }
+
+  /**
+   * Перенос вместе с миром: тело (AlienBody) сдвигает центр, модель — `_syncMesh`,
+   * цель ИИ каждый кадр читается из позиции игрока, поэтому маршрута здесь нет.
+   */
+  shift(dx, dz) {
+    super.shift(dx, dz);
+    this._syncMesh();
+  }
+
+  /**
+   * Молчаливое снятие со сцены (враг остался за бортом активного окна главы 4):
+   * без смерти, звука и засчитанного убийства, дальше — общая очередь
+   * возрождения, и тело встаёт на узел графа нового окна.
+   */
+  despawn() {
+    this.offstage = true;
+    this.group.visible = false;
+    this.respawnTimer = this.cfgEnemy.respawnDelay;
   }
 
   _postUpdate(dt) {
@@ -702,6 +774,25 @@ export class Enemies {
     return n;
   }
 
+  /**
+   * Перестановка активного окна (глава 4): мир главы привязан к центру окна,
+   * поэтому вместе с ним сдвигается и начало координат. Каждый враг переносится
+   * на `-(dx, dz)` — и остаётся там же, где стоял физически. Кто после сдвига
+   * оказался за краем нового окна, тот молча снимается со сцены: граф улиц
+   * собирается только в окне, поэтому маршрута к игроку у такого врага нет, а
+   * стоять невидимым в несобранном районе он не должен. Возрождается он на узле
+   * нового окна общей очередью (`respawn`).
+   */
+  shiftWorld(dx, dz) {
+    const b = this.map.bounds;
+    for (const e of this.items) {
+      e.shift(dx, dz);
+      if (!e.offstage && (Math.abs(e.position.x) > b.maxX || Math.abs(e.position.z) > b.maxZ)) {
+        e.despawn();
+      }
+    }
+  }
+
   update(dt) {
     for (const enemy of this.items) {
       enemy.update(dt, this.player, this.camera, this.tracers);
@@ -718,7 +809,7 @@ export class Enemies {
     let best = null;
 
     for (const enemy of this.items) {
-      if (enemy.dead) continue;
+      if (enemy.dead || enemy.offstage) continue;
       // габариты попадания у людей и Чужих разные (см. hitOffsetY/hitRadius)
       const cy = enemy.hitOffsetY !== undefined ? enemy.hitOffsetY : BODY_CENTER_Y;
       const cr = enemy.hitRadius !== undefined ? enemy.hitRadius : BODY_RADIUS;
@@ -736,8 +827,8 @@ export class Enemies {
     return best;
   }
 
-  /** Живые враги для миникарты. */
+  /** Живые враги в собранном районе — для миникарты. */
   forEachVisible(fn) {
-    for (const enemy of this.items) if (!enemy.dead) fn(enemy.position);
+    for (const enemy of this.items) if (!enemy.dead && !enemy.offstage) fn(enemy.position);
   }
 }

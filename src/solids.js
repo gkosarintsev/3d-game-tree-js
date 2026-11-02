@@ -1,13 +1,25 @@
 import { CONFIG } from './config.js';
 
 /**
+ * Пересекаются ли круг (x, z, radius) и прямоугольник в плане. Общая проверка
+ * для всех карт: габарит игрока против стены, колонки или бордюра.
+ */
+export function circleHitsRect(x, z, minX, maxX, minZ, maxZ, radius) {
+  const px = Math.min(Math.max(x, minX), maxX);
+  const pz = Math.min(Math.max(z, minZ), maxZ);
+  const dx = x - px, dz = z - pz;
+  return dx * dx + dz * dz <= radius * radius;
+}
+
+/**
  * Общий механизм твёрдых объёмов (AABB) уровня: трёхмерная сетка-индекс,
  * рейкаст к первой грани, выталкивание сферы и маршевый луч до препятствия.
  *
- * Наследуют оба типа карты — улицу (TownMap) и рельеф (TerrainMap), — поэтому
- * физика Чужого (raySolid/resolveSphere) и стрельба (rayHitDistance) работают
- * одинаково на любом типе уровня. Улицы добавляет землю-плоскость, рельеф —
- * нет: у него внизу могут быть пропасти глубже нуля.
+ * Наследуют все типы карты — улицу (TownMap), город (CityMap) и рельеф
+ * (TerrainMap), — поэтому физика Чужого (raySolid/resolveSphere) и стрельба
+ * (rayHitDistance) работают одинаково на любом типе уровня. Улица и город
+ * добавляют землю-плоскость и плоские опоры, рельеф — нет: у него внизу могут
+ * быть пропасти глубже нуля, а опора аналитическая.
  */
 export class SolidField {
   constructor(bucket = CONFIG.building.cell) {
@@ -19,11 +31,78 @@ export class SolidField {
     this._mark = 0;
     // плоскость «земли» для рейкаста: {y, half} либо null (рельеф без плоскости)
     this.groundPlane = null;
+    // плоские опоры для ходьбы (полы, тротуары, ступени) — заполняет карта
+    /** @type {{minX,maxX,minZ,maxZ,y:number}[]} */
+    this.surfaces = [];
+    this.bucket = bucket;
+    this.index = new Map();
+    this.stepUp = CONFIG.building.stepUp;
   }
 
   /** Ключ ячейки трёхмерной сетки солидов. */
   _key3(i, j, k) {
     return ((i + 2048) * 4096 + (j + 2048)) * 4096 + (k + 2048);
+  }
+
+  // ------------------------------------------- опорные поверхности (плоский пол)
+  // Пользуются карты с плоскими опорами — улица и город: пол этажа, тротуар,
+  // ступень. У рельефа опора аналитическая, он свои groundHeightAt не переопределяет.
+
+  /** Ключ ячейки плоской сетки поверхностей. */
+  _key(i, j) {
+    return (i + 4096) * 8192 + (j + 4096);
+  }
+
+  /** Раскладывает this.surfaces по ячейкам сетки this.bucket (поиск по точке). */
+  _indexSurfaces() {
+    const b = this.bucket;
+    this.surfaces.forEach((s, idx) => {
+      const i0 = Math.floor(s.minX / b), i1 = Math.floor(s.maxX / b);
+      const j0 = Math.floor(s.minZ / b), j1 = Math.floor(s.maxZ / b);
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          const key = this._key(i, j);
+          let list = this.index.get(key);
+          if (!list) this.index.set(key, list = []);
+          list.push(idx);
+        }
+      }
+    });
+  }
+
+  /**
+   * Ближайшая опорная поверхность не выше fromY + допустимого шага. Пол мира —
+   * ноль: всё, что ниже (яма, подвал), опорой для ходьбы не считается.
+   */
+  groundHeightAt(x, z, fromY = 0) {
+    const list = this.index.get(this._key(Math.floor(x / this.bucket), Math.floor(z / this.bucket)));
+    let best = 0;
+    if (!list) return best;
+    const limit = fromY + this.stepUp;
+    for (const idx of list) {
+      const s = this.surfaces[idx];
+      if (s.y <= best || s.y > limit) continue;
+      if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) best = s.y;
+    }
+    return best;
+  }
+
+  /**
+   * Свободен ли отрезок между точками для тела радиуса radius: пробы габарита
+   * вдоль него шагом CONFIG.nav.bodyProbe. Рёбра графа навигации обязаны
+   * проверять именно это, а не тонкий луч: луч проходит в зазор у угла дома,
+   * а человек с радиусом в него не входит — и маршрут упирается в стену.
+   */
+  bodyClearLine(a, b, radius = CONFIG.radius, height = CONFIG.eyeHeight) {
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const feet = Math.max(a.y, b.y);
+    const probe = CONFIG.nav.bodyProbe;
+    const steps = Math.max(2, Math.ceil(Math.hypot(dx, dz) / probe));
+    for (let s = 1; s < steps; s++) {
+      const t = s / steps;
+      if (this.isBlocked(a.x + dx * t, a.z + dz * t, radius, feet, height)) return false;
+    }
+    return true;
   }
 
   /** Раскладывает AABB солидов по трёхмерным ячейкам (быстрый поиск). */

@@ -12,9 +12,15 @@
  * Фасадные стены верхних этажей размечаются как WINDOW — стена с проёмом
  * (подоконник, перемычка, простенки), проём сквозной и без стекла, поэтому
  * Чужой может влезть в окно снаружи.
+ *
+ * baseY — отметка пола первого этажа: на улице это земля (0), в городе дом
+ * стоит на тротуаре-подиуме, и его пол совпадает с верхом бордюра. Все
+ * высоты — полы, перекрытия, марши, коллизии и опоры — считаются от baseY,
+ * чтобы картинка и физика не расходились.
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { circleHitsRect } from './solids.js';
 
 export const WALL = '#';
 export const FLOOR = '.';
@@ -57,13 +63,13 @@ export function outerSides(grid, cols, rows, i, j) {
 /**
  * Генерирует данные здания.
  * @returns {{cols:number, rows:number, cell:number, floors:number, floorHeight:number,
- *   stepUp:number, wallThickness:number, originX:number, originZ:number,
+ *   stepUp:number, wallThickness:number, baseY:number, originX:number, originZ:number,
  *   levels:string[][][], ramps:object[], stair:object, doorX:number}}
  */
 export function generateBuilding(cfg) {
   const {
     cols, rows, cell, floors, floorHeight, stepUp, wallThickness = 0.5,
-    slabThickness = 0.3,
+    slabThickness = 0.3, baseY = 0,
     offsetX = 0, offsetZ = 0, roofHole = null,
   } = cfg;
   const cx = (cols - 1) / 2;
@@ -167,12 +173,13 @@ export function generateBuilding(cfg) {
     ramps.push({
       minX: X(stair.i0), maxX: X(stair.i1 + 1),
       minZ: z0, maxZ: z1, z0, z1,
-      y0: k * floorHeight, y1: (k + 1) * floorHeight, baseY: k * floorHeight,
+      y0: baseY + k * floorHeight, y1: baseY + (k + 1) * floorHeight,
+      baseY: baseY + k * floorHeight,
     });
   }
 
   return {
-    cols, rows, cell, floors, floorHeight, stepUp, wallThickness, slabThickness,
+    cols, rows, cell, floors, floorHeight, stepUp, wallThickness, slabThickness, baseY,
     originX, originZ, levels, ramps, stair,
     doorX: X(ci) + cell, // центр южного входа (между клетками ci и ci+1)
   };
@@ -196,13 +203,14 @@ export function stairSteps(r) {
 
 /**
  * Горизонтальные опорные поверхности — по ним карта считает высоту пола
- * под ногами игрока. Полы этажей (кроме первого — там земля) и ступени маршей.
+ * под ногами игрока. Полы этажей (кроме первого — там опора самой карты:
+ * земля на улице, тротуар-подиум в городе) и ступени маршей.
  */
 export function buildingSurfaces(b) {
-  const { cols, rows, cell, floors, floorHeight, originX, originZ, levels, ramps } = b;
+  const { cols, rows, cell, floors, floorHeight, baseY = 0, originX, originZ, levels, ramps } = b;
   const surfaces = [];
   for (let k = 1; k < floors; k++) {
-    const y = k * floorHeight;
+    const y = baseY + k * floorHeight;
     for (let j = 0; j < rows; j++) {
       for (let i = 0; i < cols; i++) {
         const c = levels[k][j][i];
@@ -225,6 +233,136 @@ export function buildingSurfaces(b) {
 }
 
 /**
+ * Свободные точки полов всех этажей дома (вне лестничной шахты) — кандидаты,
+ * куда можно поставить объект уровня: монету, врага, предмет.
+ */
+export function buildingFloorPositions(b) {
+  const { cols, rows, cell, floors, floorHeight, baseY = 0, originX, originZ, levels, stair } = b;
+  const out = [];
+  for (let k = 0; k < floors; k++) {
+    for (let j = 1; j < rows - 1; j++) {
+      for (let i = 1; i < cols - 1; i++) {
+        if (levels[k][j][i] !== FLOOR) continue;
+        if (i >= stair.i0 - 1 && i <= stair.i1 + 1 && j >= stair.j0 - 1 && j <= stair.j1 + 1) continue;
+        out.push({
+          x: originX + (i + 0.5) * cell,
+          z: originZ + (j + 0.5) * cell,
+          y: baseY + k * floorHeight,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/** Ключ узла графа навигации: клетка (i, j) этажа k дома n. */
+export const buildingCellKey = (n, k, i, j) => `b${n}:${k}:${i}:${j}`;
+
+/**
+ * Узлы полов дома в графе навигации: по узлу на каждую проходимую клетку пола
+ * каждого этажа, связи с соседями по клеткам и марш — южный торец этажа k
+ * связан с северным торцом этажа k + 1, поэтому граф ведёт между этажами.
+ * Общий для улицы и города: дома там строятся одной функцией.
+ */
+export function navBuildingFloors(nav, n, b) {
+  const { cols, rows, cell, floors, floorHeight, baseY = 0, originX, originZ, levels, stair } = b;
+  const nodeAt = (k, i, j) => nav.add(
+    originX + (i + 0.5) * cell, baseY + k * floorHeight, originZ + (j + 0.5) * cell,
+    buildingCellKey(n, k, i, j),
+  );
+  const walk = (k, i, j) =>
+    i >= 0 && j >= 0 && i < cols && j < rows && levels[k][j][i] === FLOOR;
+
+  for (let k = 0; k < floors; k++) {
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        if (levels[k][j][i] !== FLOOR) continue;
+        const id = nodeAt(k, i, j);
+        if (walk(k, i - 1, j)) nav.link(id, nodeAt(k, i - 1, j));
+        if (walk(k, i + 1, j)) nav.link(id, nodeAt(k, i + 1, j));
+        if (walk(k, i, j - 1)) nav.link(id, nodeAt(k, i, j - 1));
+        if (walk(k, i, j + 1)) nav.link(id, nodeAt(k, i, j + 1));
+      }
+    }
+  }
+  for (let k = 0; k + 1 < floors; k++) {
+    for (const i of [stair.i0, stair.i1]) {
+      nav.link(
+        nav.id(buildingCellKey(n, k, i, stair.j0 - 1)),
+        nav.id(buildingCellKey(n, k + 1, i, stair.j1 + 1)),
+      );
+    }
+  }
+}
+
+/**
+ * Связь входов дома с внешним миром карты: клетка первого этажа, у которой есть
+ * наружная сторона (то есть это порог, а не внутренняя клетка), соединяется с
+ * узлами, которые вернёт candidatesAt для точки порога. Кто именно эти узлы —
+ * решает карта: у улицы это решётка по земле, в городе — решётка улиц и тротуаров.
+ */
+export function navBuildingDoors(nav, n, b, candidatesAt) {
+  const { cols, rows, levels } = b;
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      if (levels[0][j][i] !== FLOOR) continue;
+      const o = outerSides(levels[0], cols, rows, i, j);
+      if (!o.W && !o.E && !o.N && !o.S) continue; // не порог, а внутренняя клетка
+      const id = nav.id(buildingCellKey(n, 0, i, j));
+      if (id === undefined) continue;
+      for (const g of candidatesAt(nav.pos[id])) nav.link(id, g);
+    }
+  }
+}
+
+/**
+ * Коллизия габарита игрока со стенами дома. Проверяются только клетки, чей
+ * прямоугольник в плане пересекает круг игрока, и только те этажи, чья высота
+ * задевает его по вертикали; тонкие наружные стены — по фактической толщине,
+ * внутренние и колонны — как сплошная клетка.
+ *
+ * Общая для улицы (TownMap) и города (CityMap): дома там строятся одной
+ * функцией, поэтому и обаться должны одинаково.
+ */
+export function buildingWallHits(b, x, z, radius, feetY, height) {
+  const { cols, rows, cell, floors, floorHeight, baseY = 0, originX, originZ, levels, wallThickness } = b;
+  if (x + radius < originX || x - radius > originX + cols * cell ||
+      z + radius < originZ || z - radius > originZ + rows * cell) return false;
+
+  const i0 = Math.floor((x - radius - originX) / cell);
+  const i1 = Math.floor((x + radius - originX) / cell);
+  const j0 = Math.floor((z - radius - originZ) / cell);
+  const j1 = Math.floor((z + radius - originZ) / cell);
+  const thick = cell * wallThickness;
+  const y0 = feetY, y1 = feetY + height;
+
+  for (let j = j0; j <= j1; j++) {
+    if (j < 0 || j >= rows) continue;
+    for (let i = i0; i <= i1; i++) {
+      if (i < 0 || i >= cols) continue;
+      const cx = originX + i * cell;
+      const cz = originZ + j * cell;
+      if (!circleHitsRect(x, z, cx, cx + cell, cz, cz + cell, radius)) continue;
+
+      for (let k = 0; k < floors; k++) {
+        const c = levels[k][j][i];
+        if (c !== WALL && c !== WINDOW) continue;
+        const wy0 = baseY + k * floorHeight;
+        if (y0 >= wy0 + floorHeight || y1 <= wy0) continue;
+
+        const o = outerSides(levels[k], cols, rows, i, j);
+        if (!o.W && !o.E && !o.N && !o.S) return true;
+        if (o.W && circleHitsRect(x, z, cx, cx + thick, cz, cz + cell, radius)) return true;
+        if (o.E && circleHitsRect(x, z, cx + cell - thick, cx + cell, cz, cz + cell, radius)) return true;
+        if (o.N && circleHitsRect(x, z, cx, cx + cell, cz, cz + thick, radius)) return true;
+        if (o.S && circleHitsRect(x, z, cx, cx + cell, cz + cell - thick, cz + cell, radius)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Собирает геометрию здания (стены, перекрытия, лестницы).
  *
  * @param {object} b данные здания
@@ -237,7 +375,7 @@ export function buildingSurfaces(b) {
  */
 export function buildBuildingGeometry(b, solids) {
   const {
-    cols, rows, cell, floors, floorHeight, originX, originZ, levels, ramps,
+    cols, rows, cell, floors, floorHeight, baseY = 0, originX, originZ, levels, ramps,
     wallThickness = 0.5, slabThickness = 0.3,
   } = b;
   const wallGeos = [];
@@ -276,7 +414,7 @@ export function buildBuildingGeometry(b, solids) {
   const jamb = (cell - winW) / 2;
 
   for (let k = 0; k < floors; k++) {
-    const y0 = k * floorHeight;
+    const y0 = baseY + k * floorHeight;
     const grid = levels[k];
     const cy = y0 + wallH / 2;
     const cyWin = y0 + sill + winH / 2;
@@ -288,8 +426,8 @@ export function buildBuildingGeometry(b, solids) {
         const wx = originX + (i + 0.5) * cell;
         const wz = originZ + (j + 0.5) * cell;
 
-        // перекрытие (первый этаж — это земля). Кладём и под стенами/окнами,
-        // иначе у тонкой стены останется щель в полу.
+        // перекрытие (пол первого этажа — опора самой карты: земля или тротуар).
+        // Кладём и под стенами/окнами, иначе у тонкой стены останется щель в полу.
         if (k >= 1) slabGeos.push(box(cell, SLAB, cell, wx, y0 - SLAB / 2, wz));
         if (c === FLOOR) continue;
 
@@ -341,7 +479,7 @@ export function buildBuildingGeometry(b, solids) {
   }
 
   // крыша верхнего этажа — над всем контуром, включая тонкие стены
-  const roofY = floors * floorHeight;
+  const roofY = baseY + floors * floorHeight;
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       const c = levels[floors - 1][j][i];

@@ -2,19 +2,13 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import {
-  WALL, FLOOR, VOID, HOLE, WINDOW,
-  generateBuilding, buildBuildingGeometry, buildingSurfaces, outerSides,
+  WALL, VOID, HOLE, WINDOW,
+  generateBuilding, buildBuildingGeometry, buildingSurfaces, buildingWallHits,
+  buildingFloorPositions, navBuildingFloors, navBuildingDoors,
 } from './building.js';
 import { buildDecor } from './decor.js';
 import { SolidField } from './solids.js';
-
-/** Пересекаются ли круг игрока (x,z,radius) и прямоугольник. */
-export function circleHitsRect(x, z, minX, maxX, minZ, maxZ, radius) {
-  const px = Math.min(Math.max(x, minX), maxX);
-  const pz = Math.min(Math.max(z, minZ), maxZ);
-  const dx = x - px, dz = z - pz;
-  return dx * dx + dz * dz <= radius * radius;
-}
+import { NavGraph } from './nav-graph.js';
 
 /**
  * Контракт карты (расширен по вертикали — в мире несколько этажей).
@@ -83,36 +77,13 @@ export class TownMap extends SolidField {
     ) + 24;
     this.spawn = this._findSpawn();
 
-    // граф навигации для врагов и рабочие буферы поиска пути
+    // граф навигации для врагов (узлы, рёбра и поиск маршрута — в NavGraph)
     this.nav = this._buildNav();
-    this._bfsSeen = new Uint8Array(this.nav.pos.length);
-    this._bfsPrev = new Int32Array(this.nav.pos.length);
   }
 
-  /** Раскладывает поверхности по ячейкам сетки (быстрый поиск по точке). */
-  _indexSurfaces() {
-    const b = this.bucket;
-    this.surfaces.forEach((s, idx) => {
-      const i0 = Math.floor(s.minX / b), i1 = Math.floor(s.maxX / b);
-      const j0 = Math.floor(s.minZ / b), j1 = Math.floor(s.maxZ / b);
-      for (let j = j0; j <= j1; j++) {
-        for (let i = i0; i <= i1; i++) {
-          const key = this._key(i, j);
-          let list = this.index.get(key);
-          if (!list) this.index.set(key, list = []);
-          list.push(idx);
-        }
-      }
-    });
-  }
-
-  _key(i, j) {
-    return (i + 4096) * 8192 + (j + 4096);
-  }
-
-  // ---------------------------------------------------- твёрдые тела (солиды)
-  // Механизм AABB-солидов (рейкаст, выталкивание сферы, маршевый луч) —
-  // в базовом классе SolidField (см. solids.js), общий с картой-рельефом.
+  // ------------------------------------------- опоры, солиды и поиск высоты пола
+  // Механизм общий с картой-рельефом и городом: AABB-солиды (рейкаст, сфера,
+  // маршевый луч) и индекс плоских опор — в базовом классе SolidField (solids.js).
 
   /** Общий габарит всех домов (по земле). */
   _worldBounds() {
@@ -129,21 +100,9 @@ export class TownMap extends SolidField {
   /** Точка появления — на улице, перед входом центрального дома. */
   _findSpawn() {
     const b = this.buildings.reduce((a, c) => Math.abs(c.doorX) < Math.abs(a.doorX) ? c : a);
-    return { x: b.doorX, z: this.bounds.minZ - 10 };
-  }
-
-  /** Ближайшая опорная поверхность не выше fromY + допустимого шага. */
-  groundHeightAt(x, z, fromY = 0) {
-    const list = this.index.get(this._key(Math.floor(x / this.bucket), Math.floor(z / this.bucket)));
-    let best = 0; // плоская земля под всем миром
-    if (!list) return best;
-    const limit = fromY + this.stepUp;
-    for (const idx of list) {
-      const s = this.surfaces[idx];
-      if (s.y <= best || s.y > limit) continue;
-      if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) best = s.y;
-    }
-    return best;
+    const z = this.bounds.minZ - 10;
+    // y — как у других типов карты: маршруты ищут от spawn и требуют отметки
+    return { x: b.doorX, y: this.groundHeightAt(b.doorX, z, 0), z };
   }
 
   /** Коллизии габарита игрока: стены (и окна) этажей, пересекающие его по высоте. */
@@ -151,49 +110,8 @@ export class TownMap extends SolidField {
     const half = this.width / 2;
     if (x - radius < -half || x + radius > half || z - radius < -half || z + radius > half) return true;
 
-    const y0 = feetY;
-    const y1 = feetY + height;
-
-    for (let n = 0; n < this.buildings.length; n++) {
-      const box = this.boxes[n];
-      if (x + radius < box.minX || x - radius > box.maxX ||
-          z + radius < box.minZ || z - radius > box.maxZ) continue;
-
-      const { cols, rows, cell, floors, floorHeight, originX, originZ, levels, wallThickness } = this.buildings[n];
-      const i0 = Math.floor((x - radius - originX) / cell);
-      const i1 = Math.floor((x + radius - originX) / cell);
-      const j0 = Math.floor((z - radius - originZ) / cell);
-      const j1 = Math.floor((z + radius - originZ) / cell);
-
-      const thick = cell * wallThickness;
-
-      for (let j = j0; j <= j1; j++) {
-        if (j < 0 || j >= rows) continue;
-        for (let i = i0; i <= i1; i++) {
-          if (i < 0 || i >= cols) continue;
-
-          const cx = originX + i * cell;
-          const cz = originZ + j * cell;
-          // грубая отбраковка: круг игрока не касается клетки
-          if (!circleHitsRect(x, z, cx, cx + cell, cz, cz + cell, radius)) continue;
-
-          for (let k = 0; k < floors; k++) {
-            const c = levels[k][j][i];
-            if (c !== WALL && c !== WINDOW) continue;
-            const wy0 = k * floorHeight;
-            if (y0 >= wy0 + floorHeight || y1 <= wy0) continue;
-
-            // проверяем тонкие стены по их фактической толщине; внутренние
-            // стены и колонны остаются сплошными
-            const o = outerSides(levels[k], cols, rows, i, j);
-            if (!o.W && !o.E && !o.N && !o.S) return true;
-            if (o.W && circleHitsRect(x, z, cx, cx + thick, cz, cz + cell, radius)) return true;
-            if (o.E && circleHitsRect(x, z, cx + cell - thick, cx + cell, cz, cz + cell, radius)) return true;
-            if (o.N && circleHitsRect(x, z, cx, cx + cell, cz, cz + thick, radius)) return true;
-            if (o.S && circleHitsRect(x, z, cx, cx + cell, cz + cell - thick, cz + cell, radius)) return true;
-          }
-        }
-      }
+    for (const b of this.buildings) {
+      if (buildingWallHits(b, x, z, radius, feetY, height)) return true;
     }
     return false;
   }
@@ -201,22 +119,7 @@ export class TownMap extends SolidField {
   /** Свободные точки на полах этажей всех домов (вне лестничных шахт). */
   openPositions() {
     const out = [];
-    for (const b of this.buildings) {
-      const { cols, rows, cell, floors, floorHeight, originX, originZ, levels, stair } = b;
-      for (let k = 0; k < floors; k++) {
-        for (let j = 1; j < rows - 1; j++) {
-          for (let i = 1; i < cols - 1; i++) {
-            if (levels[k][j][i] !== FLOOR) continue;
-            if (i >= stair.i0 - 1 && i <= stair.i1 + 1 && j >= stair.j0 - 1 && j <= stair.j1 + 1) continue;
-            out.push({
-              x: originX + (i + 0.5) * cell,
-              z: originZ + (j + 0.5) * cell,
-              y: k * floorHeight,
-            });
-          }
-        }
-      }
-    }
+    for (const b of this.buildings) out.push(...buildingFloorPositions(b));
     return out;
   }
 
@@ -236,59 +139,11 @@ export class TownMap extends SolidField {
    * этажа k + 1), поэтому по графу можно ходить и между этажами.
    */
   _buildNav() {
-    const pos = [];
-    const adj = [];
-    const byKey = new Map();
+    const nav = new NavGraph();
 
-    const add = (x, y, z, key) => {
-      const known = byKey.get(key);
-      if (known !== undefined) return known;
-      const idx = pos.length;
-      pos.push({ x, y, z });
-      adj.push([]);
-      byKey.set(key, idx);
-      return idx;
-    };
-    const link = (a, b) => {
-      if (a === undefined || b === undefined || a === b) return;
-      adj[a].push(b);
-      adj[b].push(a);
-    };
-    const cellKey = (n, k, i, j) => `b${n}:${k}:${i}:${j}`;
-
-    // 1. полы домов: узел на каждой проходимой клетке, связи с соседями
+    // 1. полы домов: узел на каждой проходимой клетке, связи с соседями и марши
     for (let n = 0; n < this.buildings.length; n++) {
-      const b = this.buildings[n];
-      const { cols, rows, cell, floors, floorHeight, originX, originZ, levels, stair } = b;
-      const nodeAt = (k, i, j) => add(
-        originX + (i + 0.5) * cell, k * floorHeight, originZ + (j + 0.5) * cell,
-        cellKey(n, k, i, j),
-      );
-      const walk = (k, i, j) =>
-        i >= 0 && j >= 0 && i < cols && j < rows && levels[k][j][i] === FLOOR;
-
-      for (let k = 0; k < floors; k++) {
-        for (let j = 0; j < rows; j++) {
-          for (let i = 0; i < cols; i++) {
-            if (levels[k][j][i] !== FLOOR) continue;
-            const id = nodeAt(k, i, j);
-            if (walk(k, i - 1, j)) link(id, nodeAt(k, i - 1, j));
-            if (walk(k, i + 1, j)) link(id, nodeAt(k, i + 1, j));
-            if (walk(k, i, j - 1)) link(id, nodeAt(k, i, j - 1));
-            if (walk(k, i, j + 1)) link(id, nodeAt(k, i, j + 1));
-          }
-        }
-      }
-
-      // марш: со южного торца этажа k поднимается к северному торцу этажа k+1
-      for (let k = 0; k + 1 < floors; k++) {
-        for (const i of [stair.i0, stair.i1]) {
-          link(
-            byKey.get(cellKey(n, k, i, stair.j0 - 1)),
-            byKey.get(cellKey(n, k + 1, i, stair.j1 + 1)),
-          );
-        }
-      }
+      navBuildingFloors(nav, n, this.buildings[n]);
     }
 
     // 2. земля улицы: регулярная сетка вне габаритов домов
@@ -303,100 +158,49 @@ export class TownMap extends SolidField {
       for (let iz = 0; iz <= count; iz++) {
         const x = gx(ix), z = gx(iz);
         if (inBox(x, z)) continue;
-        const id = add(x, 0, z, groundKey(ix, iz));
-        link(id, byKey.get(groundKey(ix - 1, iz)));
-        link(id, byKey.get(groundKey(ix, iz - 1)));
+        const id = nav.add(x, 0, z, groundKey(ix, iz));
+        nav.link(id, nav.id(groundKey(ix - 1, iz)));
+        nav.link(id, nav.id(groundKey(ix, iz - 1)));
       }
     }
 
     // 3. выходы: пороговые клетки первого этажа соединяем с улицей
-    for (let n = 0; n < this.buildings.length; n++) {
-      const b = this.buildings[n];
-      const { cols, rows, originX, originZ, levels } = b;
-      for (let j = 0; j < rows; j++) {
-        for (let i = 0; i < cols; i++) {
-          if (levels[0][j][i] !== FLOOR) continue;
-          const o = outerSides(levels[0], cols, rows, i, j);
-          if (!o.W && !o.E && !o.N && !o.S) continue; // не порог, а внутренняя клетка
-          const id = byKey.get(cellKey(n, 0, i, j));
-          if (id === undefined) continue;
-          const p = pos[id];
-          const ci = Math.round((p.x + half) / step);
-          const cj = Math.round((p.z + half) / step);
-          for (let ix = ci - 2; ix <= ci + 2; ix++) {
-            for (let iz = cj - 2; iz <= cj + 2; iz++) {
-              const g = byKey.get(groundKey(ix, iz));
-              if (g === undefined) continue;
-              const q = pos[g];
-              const d = Math.hypot(q.x - p.x, q.z - p.z);
-              if (d > step * 1.6) continue;
-              if (this.rayHitDistance(p.x, p.y + 0.9, p.z,
-                (q.x - p.x) / d, 0, (q.z - p.z) / d, d) < d - 0.1) continue;
-              link(id, g);
-            }
-          }
+    const nearStreet = p => {
+      const out = [];
+      const ci = Math.round((p.x + half) / step);
+      const cj = Math.round((p.z + half) / step);
+      for (let ix = ci - 2; ix <= ci + 2; ix++) {
+        for (let iz = cj - 2; iz <= cj + 2; iz++) {
+          const g = nav.id(groundKey(ix, iz));
+          if (g === undefined) continue;
+          const q = nav.pos[g];
+          const d = Math.hypot(q.x - p.x, q.z - p.z);
+          if (d > step * 1.6) continue;
+          if (this.rayHitDistance(p.x, p.y + 0.9, p.z,
+            (q.x - p.x) / d, 0, (q.z - p.z) / d, d) < d - 0.1) continue;
+          // вдоль фасада луч не заденет стену, а тело radius в зазор не войдёт:
+          // такое ребро привело бы врага в глухую стену у угла дома
+          if (!this.bodyClearLine(p, q)) continue;
+          out.push(g);
         }
       }
+      return out;
+    };
+    for (let n = 0; n < this.buildings.length; n++) {
+      navBuildingDoors(nav, n, this.buildings[n], nearStreet);
     }
 
-    return { pos, adj };
-  }
-
-  /** Ближайший узел графа к точке (этаж учитывается весом по вертикали). */
-  _nearestNode(x, y, z) {
-    const pos = this.nav.pos;
-    let best = -1, bestD = Infinity;
-    for (let i = 0; i < pos.length; i++) {
-      const p = pos[i];
-      const dy = (p.y - y) * 2;
-      const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) + dy * dy;
-      if (d < bestD) { bestD = d; best = i; }
-    }
-    return best;
+    return nav.seal();
   }
 
   /** Случайная точка графа в радиусе от (x, z); если не нашлось — null. */
-  randomNavPoint(x, z, radius, tries = 60) {
-    const pos = this.nav.pos;
-    for (let i = 0; i < tries; i++) {
-      const p = pos[Math.floor(Math.random() * pos.length)];
-      if (Math.hypot(p.x - x, p.z - z) <= radius) return p;
-    }
-    return null;
+  randomNavPoint(x, z, radius) {
+    return this.nav.randomPoint(x, z, radius);
   }
 
   /** Маршрут по узлам графа (поиск в ширину). null — пути нет. */
   findPath(from, to) {
-    const a = this._nearestNode(from.x, from.y, from.z);
-    const b = this._nearestNode(to.x, to.y, to.z);
-    if (a < 0 || b < 0) return null;
-    if (a === b) return [this.nav.pos[b]];
-
-    const { pos, adj } = this.nav;
-    const seen = this._bfsSeen;
-    const prev = this._bfsPrev;
-    const queue = [a];
-    seen[a] = 1;
-    prev[a] = -1; // источник: возврат по prev должен на нём остановиться
-
-    for (let head = 0; head < queue.length; head++) {
-      const cur = queue[head];
-      if (cur === b) break;
-      for (const nb of adj[cur]) {
-        if (seen[nb]) continue;
-        seen[nb] = 1;
-        prev[nb] = cur;
-        queue.push(nb);
-      }
-    }
-
-    const found = seen[b] === 1;
-    for (const i of queue) seen[i] = 0; // буферы переиспользуются
-    if (!found) return null;
-
-    const path = [];
-    for (let cur = b; cur !== -1; cur = prev[cur]) path.push(pos[cur]);
-    return path.reverse();
+    return this.nav.findPath(from, to);
   }
 
   // ---------------------------------------------------------------- стрельба

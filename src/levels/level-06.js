@@ -1,35 +1,38 @@
 /**
- * Глава 6 — «Квартал на закате»: дома вразнобой, низкое солнце, пальм больше.
- * Врагов заметно больше, чем в предыдущей главе.
+ * Глава 6 — «Окраина»: пять домов в ряд, дневной свет, знакомая улица.
+ *
+ * Уровень — чистые данные (см. AGENTS.md): поле map идёт в createTownMap,
+ * sky — в освещение сцены, gameplay — в монеты и число врагов. Любое поле
+ * необязательно: недостающее берётся из config.js.
  */
 export const LEVEL_06 = {
-  name: 'Глава 6. Квартал на закате',
-  hint: 'Солнце садится — монеты всё так же решают.',
+  name: 'Глава 6. Окраина',
+  hint: 'Соберите все монеты, чтобы пройти главу.',
   map: {
     houses: [
-      { cols: 20, rows: 18, floors: 5, offsetX: -105, offsetZ: -20 },
-      { cols: 18, rows: 16, floors: 7, offsetX: -30, offsetZ: 25 },
-      { cols: 16, rows: 14, floors: 4, offsetX: 50, offsetZ: -25 },
-      { cols: 22, rows: 16, floors: 6, offsetX: 135, offsetZ: 15 },
+      { cols: 18, rows: 16, floors: 5, offsetX: -150, offsetZ: 0 },
+      { cols: 16, rows: 14, floors: 4, offsetX: -72, offsetZ: 0 },
+      { cols: 22, rows: 18, floors: 6, offsetX: 0, offsetZ: 0 },
+      { cols: 16, rows: 14, floors: 4, offsetX: 72, offsetZ: 0 },
+      { cols: 18, rows: 15, floors: 5, offsetX: 150, offsetZ: 0 },
     ],
-    ground: { size: 480, color: 0x7c8b4f },
+    ground: { size: 400, color: 0x6f9f4a },
   },
   decor: {
-    palms: 30,
-    lampSpacing: 22,
-    roofPropsPerBuilding: 5,
-    seed: 0xbeef01,
+    palms: 22,
+    lampSpacing: 28,
+    roofPropsPerBuilding: 4,
+    seed: 0xc0ffee,
   },
   sky: {
-    sky: 0xf2b98a,
-    fog: { color: 0xf7cda0, near: 90, far: 420 },
-    sun: { color: 0xffc185, intensity: 2.0, position: [-160, 90, 140] },
-    hemi: { sky: 0xffd9b0, ground: 0x4f3b28, intensity: 0.9 },
+    sky: 0xa9d4f5,
+    fog: { color: 0xd6e9ff, near: 120, far: 460 },
+    sun: { color: 0xfff4e0, intensity: 2.4, position: [150, 200, -110] },
+    hemi: { sky: 0xbfe3ff, ground: 0x4a6b33, intensity: 1.0 },
   },
   gameplay: {
-    totalCoins: 14,
-    minCoinDistance: 16,
-    enemies: { count: 7 },
-    alienEnemies: { count: 3 },
+    totalCoins: 10,
+    enemies: { count: 5 },
+    alienEnemies: { count: 2 },
   },
 };
