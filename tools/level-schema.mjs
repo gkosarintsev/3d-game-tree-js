@@ -1,0 +1,426 @@
+/**
+ * Схема уровня (JSON, который выдаёт LLM) и её проверка — бэкенд-валидатор
+ * пайплайна из docs/editor-plan.md.
+ *
+ * Ajv в проект не ставится (правило «новых npm-зависимостей» в AGENTS.md),
+ * поэтому поля описаны декларативно и обходятся руками. Проверка делится на
+ * два прохода: структура (типы, обязательность, enum, диапазоны) и геометрия
+ * (осевые рёбра, замкнутость, «комната внутри footprint», пересечения, уклоны
+ * дорог, опоры в плане дороги, лимит настоящих источников света).
+ */
+import { CONFIG } from '../src/config.js';
+import {
+  AXIS_EPS, cellKey, normalizePolygon, polyBounds, polyEdges, polyRects,
+  r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
+} from '../src/geo2d.js';
+
+const J = CONFIG.jsonMap;
+const ROOM_TYPES = ['office', 'corridor', 'hall', 'room', 'cafe', 'utility'];
+const ROAD_TYPES = ['ground', 'bridge', 'embankment'];
+const STAIR_TYPES = ['straight', 'l_shape', 'spiral'];
+const LIGHT_TYPES = ['point', 'spot', 'directional'];
+const LINK_TYPES = ['main_entrance', 'door', 'back_entrance'];
+
+// ------------------------------------------------------------- описание полей
+
+const num = (opts = {}) => ({ kind: 'number', ...opts });
+const str = (opts = {}) => ({ kind: 'string', ...opts });
+const bool = (opts = {}) => ({ kind: 'boolean', ...opts });
+const color = (opts = {}) => ({ kind: 'color', ...opts });
+const obj = (fields, opts = {}) => ({ kind: 'object', fields, ...opts });
+const arr = (items, opts = {}) => ({ kind: 'array', items, ...opts });
+const V2XZ = obj({ x: num({ req: true }), z: num({ req: true }) });
+const V3XYZ = obj({ x: num({ req: true }), y: num({ req: true }), z: num({ req: true }) });
+
+export const LEVEL_SPEC = obj({
+  metadata: obj({
+    levelName: str({ req: true }),
+    name: str({ req: true }),
+    hint: str({ req: true }),
+    engine: str(),
+    units: str({ enum: ['meters'], req: true }),
+  }, { req: true }),
+  ground: obj({ y: num(), size: num({ min: 20, req: true }), color: color() }),
+  roads: arr(obj({
+    id: str({ req: true }),
+    type: str({ enum: ROAD_TYPES, req: true }),
+    width: num({ min: 2, max: 30, req: true }),
+    lamps: bool(),
+    points: arr(V3XYZ, { minItems: 2, req: true }),
+  }), { req: true }),
+  buildings: arr(obj({
+    id: str({ req: true }),
+    name: str(),
+    isEnterable: bool(),
+    floorsCount: num({ min: 1, max: 12, req: true }),
+    floorHeight: num({ min: 2.4, max: 8, req: true }),
+    baseY: num(),
+    facadeMaterial: str(),
+    footprint: arr(V2XZ, { minItems: 4, req: true }),
+    rooms: arr(obj({
+      id: str({ req: true }),
+      floor: num({ min: 0, req: true }),
+      type: str({ enum: ROOM_TYPES, req: true }),
+      polygon: arr(V2XZ, { minItems: 4, req: true }),
+      connections: arr(obj({
+        target: str({ req: true }),
+        portalPosition: V3XYZ,
+        linkType: str({ enum: LINK_TYPES }),
+      })),
+    }), { req: true }),
+    stairs: arr(obj({
+      id: str({ req: true }),
+      connectsFloors: arr(num({ min: 0 }), { minItems: 2, maxItems: 2, req: true }),
+      type: str({ enum: STAIR_TYPES, req: true }),
+      position: V2XZ,
+      rotation: num(),
+      dimensions: obj({ width: num({ min: 1, req: true }), length: num({ min: 1, req: true }), height: num() }),
+    })),
+  })),
+  landscapeObjects: arr(obj({
+    id: str({ req: true }),
+    model: str({ enum: J.models, req: true }),
+    position: V3XYZ,
+    rotation: obj({ x: num(), y: num(), z: num() }),
+    scale: obj({ x: num({ min: 0.05 }), y: num({ min: 0.05 }), z: num({ min: 0.05 }) }),
+  })),
+  lights: arr(obj({
+    id: str({ req: true }),
+    type: str({ enum: LIGHT_TYPES, req: true }),
+    position: V3XYZ,
+    target: V3XYZ,
+    color: color(),
+    intensity: num({ min: 0, max: 400 }),
+    distance: num({ min: 0 }),
+    angle: num({ min: 0, max: 1.57 }),
+  })),
+  sky: obj({
+    sky: color(),
+    fog: obj({ color: color(), near: num({ min: 1 }), far: num({ min: 2 }) }),
+    sun: obj({ color: color(), intensity: num({ min: 0, max: 10 }), position: arr(num({}), { minItems: 3, maxItems: 3 }) }),
+    hemi: obj({ sky: color(), ground: color(), intensity: num({ min: 0, max: 10 }) }),
+    // пул огней, переставляемых на опорные точки рядом с камерой (src/night-lights.js)
+    lights: obj({
+      count: num({ min: 0, max: 8 }), reach: num({ min: 1 }), height: num({ min: 0 }),
+      spacing: num({ min: 1 }), intensity: num({ min: 0, max: 400 }),
+    }),
+  }),
+  gameplay: obj({
+    goal: str({ enum: ['exit'], req: true }),
+    spawn: V2XZ,
+    exit: V2XZ,
+    exitRadius: num({ min: 1, max: 40 }),
+    enemies: obj({ count: num({ min: 0, max: 30 }) }),
+    alienEnemies: obj({ count: num({ min: 0, max: 30 }) }),
+  }, { req: true }),
+});
+
+// ------------------------------------------------------------- обход схемы
+
+function typeOf(v) {
+  if (Array.isArray(v)) return 'array';
+  if (v === null) return 'null';
+  return typeof v;
+}
+
+function checkValue(value, spec, path, errors) {
+  switch (spec.kind) {
+    case 'number':
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        errors.push(`${path}: ожидалось число, получено ${JSON.stringify(value)}`);
+        return;
+      }
+      if (spec.min !== undefined && value < spec.min) errors.push(`${path}: ${value} меньше минимума ${spec.min}`);
+      if (spec.max !== undefined && value > spec.max) errors.push(`${path}: ${value} больше максимума ${spec.max}`);
+      return;
+    case 'string':
+      if (typeof value !== 'string') { errors.push(`${path}: ожидалась строка`); return; }
+      if (spec.enum && !spec.enum.includes(value)) {
+        errors.push(`${path}: '${value}' вне перечисления ${spec.enum.join('|')}`);
+      }
+      return;
+    case 'boolean':
+      if (typeof value !== 'boolean') errors.push(`${path}: ожидалось true|false`);
+      return;
+    case 'color':
+      if (typeof value === 'number') return;
+      if (typeof value !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value)) {
+        errors.push(`${path}: цвет — число 0x… или строка '#rrggbb'`);
+      }
+      return;
+    case 'array': {
+      if (!Array.isArray(value)) { errors.push(`${path}: ожидался массив`); return; }
+      if (spec.minItems !== undefined && value.length < spec.minItems) {
+        errors.push(`${path}: элементов меньше ${spec.minItems}`);
+      }
+      if (spec.maxItems !== undefined && value.length > spec.maxItems) {
+        errors.push(`${path}: элементов больше ${spec.maxItems}`);
+      }
+      value.forEach((v, i) => checkValue(v, spec.items, `${path}[${i}]`, errors));
+      return;
+    }
+    case 'object': {
+      if (typeOf(value) !== 'object') { errors.push(`${path}: ожидался объект`); return; }
+      for (const [key, sub] of Object.entries(spec.fields)) {
+        if (value[key] === undefined) {
+          if (sub.req) errors.push(`${path}.${key}: обязательное поле отсутствует`);
+          continue;
+        }
+        checkValue(value[key], sub, `${path}.${key}`, errors);
+      }
+      for (const key of Object.keys(value)) {
+        if (!(key in spec.fields)) errors.push(`${path}.${key}: поле не описано в схеме`);
+      }
+      return;
+    }
+    default:
+      errors.push(`${path}: спецификация сломана (kind=${spec.kind})`);
+  }
+}
+
+/** Проверка структуры: только типы, обязательность, enum и диапазоны. */
+export function validateSpec(raw, spec = LEVEL_SPEC) {
+  const errors = [];
+  checkValue(raw, spec, '', errors);
+  return errors;
+}
+
+// ------------------------------------------------------------- проверка геометрии
+
+/**
+ * Второй проход — то, что видно только по всей картине: комнаты внутри
+ * footprint, пересечения комнат, лестницы в комнатах, осевые рёбра дорог,
+ * уклоны, опоры под настилом, лимит огней.
+ * @returns {{errors:string[], warnings:string[]}}
+ */
+export function validateLevel(raw) {
+  const errors = validateSpec(raw);
+  const warnings = [];
+  if (errors.length) return { errors, warnings, geometryOnly: false };
+
+  const size = raw.ground?.size ?? 176;
+  const half = size / 2;
+  const groundY = raw.ground?.y ?? 0;
+  const cell = J.probeCell;
+
+  // --- дороги: осевые последовательные точки и разумные уклоны ---
+  const roadRects = [];
+  for (const [n, road] of (raw.roads ?? []).entries()) {
+    const label = `roads[${n}] (${road.id})`;
+    for (let i = 0; i + 1 < road.points.length; i++) {
+      const a = road.points[i], b = road.points[i + 1];
+      const dx = Math.abs(a.x - b.x), dz = Math.abs(a.z - b.z);
+      if (dx > AXIS_EPS && dz > AXIS_EPS) {
+        errors.push(`${label}: отрезок ${i}→${i + 1} косой — настил дороги обязан идти по оси X или Z`);
+        continue;
+      }
+      const run = Math.max(dx, dz);
+      const rise = Math.abs(b.y - a.y);
+      if (run < 0.01) errors.push(`${label}: отрезок ${i}→${i + 1} нулевой длины`);
+      // настил с подъёмом — одна наклонная пластина (не лестница коробок), и её
+      // крутизна ограничена тем, что перешагивает нога и что берёт сфера Чужого
+      if (run > 0.01 && rise / run > J.maxSlope + 1e-9) {
+        errors.push(`${label}: отрезок ${i}→${i + 1} даёт уклон ${(rise / run).toFixed(2)} м/м — `
+          + `круче ${J.maxSlope} (подъём ${rise.toFixed(2)} м на ${run.toFixed(2)} м неперешагиваем)`);
+      }
+      if (road.type !== 'ground' && Math.max(a.y, b.y) - groundY < J.bridgeMinHeight) {
+        warnings.push(`${label}: настил на ${road.id} ниже ${J.bridgeMinHeight} м над землёй — под ним не пройти`);
+      }
+    }
+    if (road.type !== 'ground') {
+      const top = Math.max(...road.points.map(p => p.y));
+      if (top - groundY < J.bridgeMinHeight) {
+        errors.push(`${label}: ${road.type} с верхом ${top} не поднимается над землёй на ${J.bridgeMinHeight} м`);
+      }
+    }
+    roadRects.push(...roadRectsOf(road));
+  }
+
+  // --- здания: footprint, комнаты, лестницы, двери ---
+  const roadIds = new Set((raw.roads ?? []).map(r => r.id));
+  // наземная улица под домом — дом посреди проезжей части: маршруты идут по
+  // настилу, а габарит стоит в нём, поэтому такое здание бракуется
+  const groundRects = roadRects.filter(r => r.ground);
+  for (const [n, b] of (raw.buildings ?? []).entries()) {
+    const label = `buildings[${n}] (${b.id})`;
+    const fp = normalizePolygon(b.footprint, `${label}.footprint`, errors);
+    if (!fp) continue;
+    const fpCells = rasterPoly(fp, cell);
+    if (fpCells.size === 0) { errors.push(`${label}: footprint не покрывает ни одной клетки — здания нет`); continue; }
+    const bounds = polyBounds(fp);
+    for (const rect of polyRects(fp)) {
+      for (const rr of groundRects) {
+        if (rectsIntersect(rect, rr.rect, 0.05)) {
+          errors.push(`${label}: часть footprint ${fmtRect(rect)} легла на план наземной дороги ${rr.id} — дом стоит в улице`);
+        }
+      }
+    }
+    for (const v of [[bounds.minX, bounds.minZ], [bounds.maxX, bounds.maxZ]]) {
+      if (Math.abs(v[0]) > half || Math.abs(v[1]) > half) {
+        errors.push(`${label}: выходит за землю (${size} м): точка ${v[0]}, ${v[1]}`);
+      }
+    }
+
+    const used = [];
+    // цель двери может быть только улицей, комнатой этого же дома или лестницей:
+    // на несуществующий адрес карта повесила бы проём, ведущий в никуда
+    const roomIds = new Set(b.rooms.map(r => r.id));
+    const stairIds = new Set((b.stairs ?? []).map(s => s.id));
+    for (const [k, room] of b.rooms.entries()) {
+      const rlabel = `${label}.rooms[${k}] (${room.id})`;
+      if (room.floor >= b.floorsCount) {
+        errors.push(`${rlabel}: этаж ${room.floor} при floorsCount ${b.floorsCount}`);
+      }
+      const rp = normalizePolygon(room.polygon, `${rlabel}.polygon`, errors);
+      if (!rp) continue;
+      const rc = rasterPoly(rp, cell);
+      for (const key of rc) {
+        if (!fpCells.has(key)) { errors.push(`${rlabel}: комната выходит за периметр footprint (клетка ${key})`); break; }
+      }
+      for (const prev of used) {
+        if (prev.floor !== room.floor) continue;
+        if (cellsIntersect(rc, prev.cells)) {
+          errors.push(`${rlabel}: пересекается с комнатой ${prev.id} того же этажа`);
+        }
+      }
+      used.push({ id: room.id, floor: room.floor, cells: rc, rect: boundsOf(rp) });
+      for (const c of (room.connections ?? [])) {
+        if (!roadIds.has(c.target) && !roomIds.has(c.target) && !stairIds.has(c.target)) {
+          errors.push(`${rlabel}: target '${c.target}' — не улица, не комната и не лестница этого дома`);
+        }
+        const onEdge = polyEdges(rp).some(e => distToEdge(e, c.portalPosition.x, c.portalPosition.z) <= 0.25);
+        if (!onEdge) {
+          errors.push(`${rlabel}: portalPosition ${c.portalPosition.x}, ${c.portalPosition.z} не на ребре комнаты —`
+            + ' дверь не прорежет стену');
+        }
+      }
+    }
+
+    for (const [k, st] of (b.stairs ?? []).entries()) {
+      const slabel = `${label}.stairs[${k}] (${st.id})`;
+      const [k0, k1] = st.connectsFloors;
+      if (k1 <= k0) errors.push(`${slabel}: connectsFloors [${k0}, ${k1}] — вниз лестница не ведёт`);
+      if (k1 >= b.floorsCount) errors.push(`${slabel}: верхний этаж ${k1} при floorsCount ${b.floorsCount}`);
+      const d = st.dimensions;
+      const along = Math.max(d.width, d.length), across = Math.min(d.width, d.length);
+      const rect = rectAround(st.position.x, st.position.z, along, across);
+      const sc = rasterRect(rect, cell);
+      for (const key of sc) {
+        if (!fpCells.has(key)) { errors.push(`${slabel}: лестница вне footprint (клетка ${key})`); break; }
+      }
+      if (st.type === 'spiral' && across < 2 * (CONFIG.alien.radius + CONFIG.radius)) {
+        errors.push(`${slabel}: винтовая лестница уже ${2 * (CONFIG.alien.radius + CONFIG.radius)} м — тело Чужого не впишется`);
+      }
+      // перекрытие и крыша вокруг марша режутся проёмом на клиенте, поэтому
+      // соседство комнаты с лестницей — норма. Норма обязана быть с обеих сторон:
+      // без комнаты внизу марш стоит над ямой, без комнаты наверху поднявшийся
+      // выходит в плиту перекрытия
+      const roomAt = floor => used.find(r => r.floor === floor && cellsIntersect(sc, r.cells));
+      if (!roomAt(k0)) {
+        errors.push(`${slabel}: низ марша не попадает ни в одну комнату этажа ${k0} — под ступенями нет пола`);
+      }
+      if (!roomAt(k1)) {
+        errors.push(`${slabel}: верх марша не попадает ни в одну комнату этажа ${k1} — поднявшийся выйдет в перекрытие`);
+      }
+    }
+
+    // вход обязан лежать на фасадном ребре: парсер знает только комнату,
+    // поэтому проверяем, что портал на ребре и footprint тоже (иначе это
+    // внутренняя перегородка, и с улицы в дом не попасть)
+    for (const room of used) {
+      for (const c of (room.connections ?? [])) {
+        const onFp = polyEdges(fp).some(e => distToEdge(e, c.portalPosition.x, c.portalPosition.z) <= 0.25);
+        if (!onFp) warnings.push(`${label}: вход ${c.linkType ?? 'door'} комнаты ${room.id} на внутренней перегородке, не на фасаде`);
+      }
+    }
+  }
+
+  // --- уникальность идентификаторов ---
+  const ids = new Set();
+  const addId = (v, where) => {
+    if (ids.has(v)) errors.push(`${where}: id '${v}' уже занят`);
+    ids.add(v);
+  };
+  for (const r of raw.roads ?? []) addId(r.id, 'roads');
+  for (const b of raw.buildings ?? []) {
+    addId(b.id, 'buildings');
+    for (const r of b.rooms ?? []) addId(r.id, `buildings/${b.id}/rooms`);
+    for (const s of b.stairs ?? []) addId(s.id, `buildings/${b.id}/stairs`);
+  }
+  for (const o of raw.landscapeObjects ?? []) addId(o.id, 'landscapeObjects');
+  for (const l of raw.lights ?? []) addId(l.id, 'lights');
+
+  // --- настоящие источники: лимит и опоры моста вне планов дорог ---
+  const real = (raw.lights ?? []).filter(l => l.type !== 'directional');
+  if (real.length > J.maxRealLights) {
+    errors.push(`lights: ${real.length} источников point/spot — максимум ${J.maxRealLights}`
+      + ' (каждый умножает свет во все фрагменты сцены)');
+  }
+  if ((raw.lights ?? []).filter(l => l.type === 'directional').length > 1) {
+    errors.push('lights: больше одного directional — второй складывать в sky.sun некуда');
+  }
+  for (const o of raw.landscapeObjects ?? []) {
+    if (o.model !== 'concrete_pillar') continue;
+    const rect = rectAround(o.position.x, o.position.z, J.pillarSection, J.pillarSection);
+    for (const rr of roadRects) {
+      if (rr.ground && rectsIntersect(rect, rr.rect, 0.05)) {
+        errors.push(`landscapeObjects (${o.id}): опора стоит в плане наземной дороги ${rr.id} — по улице она преградой не станет, но визуально закопана в асфальт`);
+      }
+    }
+  }
+
+  // --- спавн и точка B внутри земли ---
+  for (const [key, pos] of [['gameplay.spawn', raw.gameplay?.spawn], ['gameplay.exit', raw.gameplay?.exit]]) {
+    if (!pos) continue;
+    if (Math.abs(pos.x) > half || Math.abs(pos.z) > half) {
+      errors.push(`${key}: точка ${pos.x}, ${pos.z} вне земли ${raw.ground?.size} м`);
+    }
+  }
+
+  return { errors, warnings, geometryOnly: true };
+}
+
+/** План полосы дороги (для проверки «опора не посреди улицы»). */
+function roadRectsOf(road) {
+  const out = [];
+  const halfW = road.width / 2;
+  for (let i = 0; i + 1 < road.points.length; i++) {
+    const a = road.points[i], b = road.points[i + 1];
+    const horiz = Math.abs(a.x - b.x) >= Math.abs(a.z - b.z);
+    const minX = horiz ? Math.min(a.x, b.x) - halfW : a.x - halfW;
+    const maxX = horiz ? Math.max(a.x, b.x) + halfW : a.x + halfW;
+    const minZ = horiz ? a.z - halfW : Math.min(a.z, b.z) - halfW;
+    const maxZ = horiz ? a.z + halfW : Math.max(a.z, b.z) + halfW;
+    out.push({ id: road.id, ground: road.type === 'ground', rect: { minX, maxX, minZ, maxZ } });
+  }
+  return out;
+}
+
+/** Расстояние от точки до отрезка в плане (отрезок — по оси). */
+function distToEdge(e, x, z) {
+  const lo = e.axis === 'x' ? Math.min(e.x0, e.x1) : Math.min(e.z0, e.z1);
+  const hi = e.axis === 'x' ? Math.max(e.x0, e.x1) : Math.max(e.z0, e.z1);
+  const t = e.axis === 'x' ? x : z;
+  const cross = e.axis === 'x' ? z : x;
+  const fixed = e.axis === 'x' ? e.z0 : e.x0;
+  return Math.hypot(Math.max(lo - t, 0, t - hi), Math.abs(cross - fixed));
+}
+
+/** Прямоугольник заданного размера вокруг точки (длина — по X, ширина — по Z). */
+function rectAround(cx, cz, length, width) {
+  return {
+    minX: r3(cx - length / 2), maxX: r3(cx + length / 2),
+    minZ: r3(cz - width / 2), maxZ: r3(cz + width / 2),
+  };
+}
+
+/** Габарит полигона как rect. */
+function boundsOf(poly) {
+  const b = polyBounds(poly);
+  return { minX: r3(b.minX), maxX: r3(b.maxX), minZ: r3(b.minZ), maxZ: r3(b.maxZ) };
+}
+
+/** Прямоугольник в текст ошибки — чтобы по координатам было видно, где именно. */
+const fmtRect = r => `[${r3(r.minX)}…${r3(r.maxX)} × ${r3(r.minZ)}…${r3(r.maxZ)}]`;
+
+export { ROOM_TYPES, ROAD_TYPES, STAIR_TYPES, LIGHT_TYPES, LINK_TYPES, cellKey };

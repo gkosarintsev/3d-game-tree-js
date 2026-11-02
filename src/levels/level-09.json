@@ -1,0 +1,391 @@
+{
+  "metadata": {
+    "levelName": "Json_Pipeline_Showcase",
+    "name": "Глава 9. Сводная из JSON",
+    "hint": "Все типы объектов пайплайна на одной площади: улицы двух ярусов, дома с комнатами и тремя видами лестниц. Дойдите от точки A до маяка на втором этаже углового дома.",
+    "engine": "AI-First Three.js Pipeline",
+    "units": "meters"
+  },
+  "ground": {
+    "y": 0,
+    "size": 176,
+    "color": "#23262c"
+  },
+  "roads": [
+    {
+      "id": "road_main",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        { "x": -80, "y": 0.12, "z": 0 },
+        { "x": 0, "y": 0.12, "z": 0 },
+        { "x": 80, "y": 0.12, "z": 0 }
+      ]
+    },
+    {
+      "id": "road_cross",
+      "type": "ground",
+      "width": 8,
+      "lamps": true,
+      "points": [
+        { "x": -16, "y": 0.16, "z": -70 },
+        { "x": -16, "y": 0.16, "z": 0 },
+        { "x": -16, "y": 0.16, "z": 70 }
+      ]
+    },
+    {
+      "id": "road_overpass",
+      "type": "bridge",
+      "width": 9,
+      "points": [
+        { "x": -80, "y": 0.12, "z": -42 },
+        { "x": -40, "y": 8, "z": -42 },
+        { "x": 40, "y": 8, "z": -42 },
+        { "x": 80, "y": 0.12, "z": -42 }
+      ]
+    },
+    {
+      "id": "road_bank",
+      "type": "embankment",
+      "width": 7,
+      "points": [
+        { "x": -30, "y": 0.12, "z": 56 },
+        { "x": 0, "y": 3, "z": 56 },
+        { "x": 50, "y": 3, "z": 56 },
+        { "x": 78, "y": 0.12, "z": 56 }
+      ]
+    }
+  ],
+  "buildings": [
+    {
+      "id": "building_plaza",
+      "name": "Commercial Corner Plaza",
+      "isEnterable": true,
+      "floorsCount": 2,
+      "floorHeight": 3.5,
+      "facadeMaterial": "glass_and_concrete",
+      "footprint": [
+        { "x": 8, "z": 8 },
+        { "x": 38, "z": 8 },
+        { "x": 38, "z": 34 },
+        { "x": 8, "z": 34 },
+        { "x": 8, "z": 8 }
+      ],
+      "rooms": [
+        {
+          "id": "plaza_hall",
+          "floor": 0,
+          "type": "hall",
+          "polygon": [
+            { "x": 8, "z": 8 },
+            { "x": 24, "z": 8 },
+            { "x": 24, "z": 34 },
+            { "x": 8, "z": 34 }
+          ],
+          "connections": [
+            {
+              "target": "road_main",
+              "portalPosition": { "x": 16, "y": 0, "z": 8 },
+              "linkType": "main_entrance"
+            },
+            {
+              "target": "plaza_cafe",
+              "portalPosition": { "x": 24, "y": 0, "z": 14 },
+              "linkType": "door"
+            }
+          ]
+        },
+        {
+          "id": "plaza_cafe",
+          "floor": 0,
+          "type": "cafe",
+          "polygon": [
+            { "x": 24, "z": 8 },
+            { "x": 38, "z": 8 },
+            { "x": 38, "z": 34 },
+            { "x": 24, "z": 34 }
+          ],
+          "connections": [
+            {
+              "target": "road_main",
+              "portalPosition": { "x": 31, "y": 0, "z": 8 },
+              "linkType": "door"
+            }
+          ]
+        },
+        {
+          "id": "plaza_corridor",
+          "floor": 1,
+          "type": "corridor",
+          "polygon": [
+            { "x": 24, "z": 8 },
+            { "x": 38, "z": 8 },
+            { "x": 38, "z": 34 },
+            { "x": 24, "z": 34 }
+          ],
+          "connections": [
+            {
+              "target": "plaza_office",
+              "portalPosition": { "x": 24, "y": 3.5, "z": 20 },
+              "linkType": "door"
+            }
+          ]
+        },
+        {
+          "id": "plaza_office",
+          "floor": 1,
+          "type": "office",
+          "polygon": [
+            { "x": 8, "z": 8 },
+            { "x": 24, "z": 8 },
+            { "x": 24, "z": 34 },
+            { "x": 8, "z": 34 }
+          ]
+        }
+      ],
+      "stairs": [
+        {
+          "id": "plaza_stair_a",
+          "connectsFloors": [0, 1],
+          "type": "straight",
+          "position": { "x": 31, "z": 30 },
+          "rotation": 0,
+          "dimensions": { "width": 2, "length": 6, "height": 3.5 }
+        }
+      ]
+    },
+    {
+      "id": "building_l",
+      "name": "Corner Tower L",
+      "isEnterable": true,
+      "floorsCount": 3,
+      "floorHeight": 3.5,
+      "facadeMaterial": "concrete",
+      "footprint": [
+        { "x": -64, "z": -34 },
+        { "x": -24, "z": -34 },
+        { "x": -24, "z": -20 },
+        { "x": -44, "z": -20 },
+        { "x": -44, "z": -8 },
+        { "x": -58, "z": -8 },
+        { "x": -58, "z": -20 },
+        { "x": -64, "z": -20 }
+      ],
+      "rooms": [
+        {
+          "id": "l_hall",
+          "floor": 0,
+          "type": "hall",
+          "polygon": [
+            { "x": -44, "z": -34 },
+            { "x": -24, "z": -34 },
+            { "x": -24, "z": -20 },
+            { "x": -44, "z": -20 }
+          ],
+          "connections": [
+            {
+              "target": "road_cross",
+              "portalPosition": { "x": -24, "y": 0, "z": -26 },
+              "linkType": "main_entrance"
+            },
+            {
+              "target": "l_utility",
+              "portalPosition": { "x": -44, "y": 0, "z": -26 },
+              "linkType": "door"
+            }
+          ]
+        },
+        {
+          "id": "l_utility",
+          "floor": 0,
+          "type": "utility",
+          "polygon": [
+            { "x": -64, "z": -34 },
+            { "x": -44, "z": -34 },
+            { "x": -44, "z": -8 },
+            { "x": -58, "z": -8 },
+            { "x": -58, "z": -20 },
+            { "x": -64, "z": -20 }
+          ],
+          "connections": [
+            {
+              "target": "road_main",
+              "portalPosition": { "x": -51, "y": 0, "z": -8 },
+              "linkType": "back_entrance"
+            }
+          ]
+        },
+        {
+          "id": "l_office",
+          "floor": 1,
+          "type": "office",
+          "polygon": [
+            { "x": -44, "z": -34 },
+            { "x": -24, "z": -34 },
+            { "x": -24, "z": -20 },
+            { "x": -44, "z": -20 }
+          ],
+          "connections": [
+            {
+              "target": "l_shape_room1",
+              "portalPosition": { "x": -44, "y": 3.5, "z": -26 },
+              "linkType": "door"
+            }
+          ]
+        },
+        {
+          "id": "l_shape_room1",
+          "floor": 1,
+          "type": "room",
+          "polygon": [
+            { "x": -64, "z": -34 },
+            { "x": -44, "z": -34 },
+            { "x": -44, "z": -8 },
+            { "x": -58, "z": -8 },
+            { "x": -58, "z": -20 },
+            { "x": -64, "z": -20 }
+          ]
+        },
+        {
+          "id": "l_room2",
+          "floor": 2,
+          "type": "room",
+          "polygon": [
+            { "x": -44, "z": -34 },
+            { "x": -24, "z": -34 },
+            { "x": -24, "z": -20 },
+            { "x": -44, "z": -20 }
+          ]
+        },
+        {
+          "id": "l_utility2",
+          "floor": 2,
+          "type": "utility",
+          "polygon": [
+            { "x": -64, "z": -34 },
+            { "x": -44, "z": -34 },
+            { "x": -44, "z": -8 },
+            { "x": -58, "z": -8 },
+            { "x": -58, "z": -20 },
+            { "x": -64, "z": -20 }
+          ],
+          "connections": [
+            {
+              "target": "l_room2",
+              "portalPosition": { "x": -44, "y": 7, "z": -26 },
+              "linkType": "door"
+            }
+          ]
+        }
+      ],
+      "stairs": [
+        {
+          "id": "l_stair_spiral",
+          "connectsFloors": [0, 1],
+          "type": "spiral",
+          "position": { "x": -30, "z": -26 },
+          "rotation": 0,
+          "dimensions": { "width": 5.6, "length": 5.6 }
+        },
+        {
+          "id": "l_stair_shape",
+          "connectsFloors": [1, 2],
+          "type": "l_shape",
+          "position": { "x": -51, "z": -14 },
+          "rotation": 0,
+          "dimensions": { "width": 4.6, "length": 6.6 }
+        }
+      ]
+    },
+    {
+      "id": "building_kiosk",
+      "name": "Kiosk",
+      "isEnterable": true,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        { "x": 44, "z": 8 },
+        { "x": 58, "z": 8 },
+        { "x": 58, "z": 22 },
+        { "x": 44, "z": 22 }
+      ],
+      "rooms": [
+        {
+          "id": "kiosk_hall",
+          "floor": 0,
+          "type": "hall",
+          "polygon": [
+            { "x": 44, "z": 8 },
+            { "x": 58, "z": 8 },
+            { "x": 58, "z": 22 },
+            { "x": 44, "z": 22 }
+          ],
+          "connections": [
+            {
+              "target": "road_main",
+              "portalPosition": { "x": 50, "y": 0, "z": 8 },
+              "linkType": "main_entrance"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "building_shed",
+      "name": "Locked Depot",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "footprint": [
+        { "x": -84, "z": 40 },
+        { "x": -64, "z": 40 },
+        { "x": -64, "z": 56 },
+        { "x": -84, "z": 56 }
+      ],
+      "rooms": []
+    }
+  ],
+  "landscapeObjects": [
+    { "id": "tree_1", "model": "tree", "position": { "x": -6, "y": 0, "z": 20 }, "scale": { "x": 1, "y": 1.2, "z": 1 } },
+    { "id": "tree_2", "model": "tree", "position": { "x": -6, "y": 0, "z": 32 }, "scale": { "x": 1, "y": 0.9, "z": 1 } },
+    { "id": "tree_3", "model": "tree", "position": { "x": 4, "y": 0, "z": -16 }, "rotation": { "x": 0, "y": 35, "z": 0 }, "scale": { "x": 1.1, "y": 1, "z": 1.1 } },
+    { "id": "tree_4", "model": "tree", "position": { "x": -70, "y": 0, "z": -54 }, "scale": { "x": 1, "y": 1.1, "z": 1 } },
+    { "id": "tree_5", "model": "tree", "position": { "x": 66, "y": 0, "z": -20 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "tree_6", "model": "tree", "position": { "x": 24, "y": 0, "z": 44 }, "scale": { "x": 0.9, "y": 1.2, "z": 0.9 } },
+    { "id": "bench_1", "model": "bench", "position": { "x": 14, "y": 0, "z": 6.5 }, "rotation": { "x": 0, "y": 0, "z": 0 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "bench_2", "model": "bench", "position": { "x": 22, "y": 0, "z": 6.5 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "bench_3", "model": "bench", "position": { "x": -10, "y": 0, "z": 10 }, "rotation": { "x": 0, "y": 180, "z": 0 }, "scale": { "x": 1.2, "y": 1, "z": 1 } },
+    { "id": "bench_4", "model": "bench", "position": { "x": -10, "y": 0, "z": 16 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "bollard_1", "model": "bollard", "position": { "x": 12, "y": 0, "z": 6.8 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "bollard_2", "model": "bollard", "position": { "x": 16, "y": 0, "z": 6.8 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "bollard_3", "model": "bollard", "position": { "x": 20, "y": 0, "z": 6.8 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "bollard_4", "model": "bollard", "position": { "x": 34, "y": 0, "z": 6.8 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "bollard_5", "model": "bollard", "position": { "x": -22, "y": 0, "z": -26 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "bollard_6", "model": "bollard", "position": { "x": -22, "y": 0, "z": -30 }, "scale": { "x": 1, "y": 1, "z": 1 } },
+    { "id": "pillar_depot", "model": "concrete_pillar", "position": { "x": -60, "y": 0, "z": 36 }, "scale": { "x": 1.6, "y": 4, "z": 1.6 } }
+  ],
+  "lights": [
+    { "id": "sun_light", "type": "directional", "position": { "x": 120, "y": 220, "z": 80 }, "color": "#bcd0ff", "intensity": 0.55 },
+    { "id": "plaza_lamp", "type": "point", "position": { "x": 20, "y": 6, "z": 2 }, "color": "#ffcf9a", "intensity": 110, "distance": 46 },
+    { "id": "hall_plaza_light", "type": "point", "position": { "x": 16, "y": 2.9, "z": 20 }, "color": "#ffe6c0", "intensity": 70, "distance": 30 },
+    { "id": "hall_l_light", "type": "point", "position": { "x": -34, "y": 2.9, "z": -26 }, "color": "#ffe6c0", "intensity": 70, "distance": 30 },
+    { "id": "underpass_light", "type": "point", "position": { "x": -16, "y": 6, "z": -42 }, "color": "#9fd0ff", "intensity": 90, "distance": 40 },
+    { "id": "facade_spot", "type": "spot", "position": { "x": 4, "y": 1.6, "z": 40 }, "target": { "x": 22, "y": 6, "z": 20 }, "color": "#ffd9a8", "intensity": 160, "distance": 60, "angle": 0.5 }
+  ],
+  "sky": {
+    "sky": "#0b1020",
+    "fog": { "color": "#0e1424", "near": 40, "far": 260 },
+    "hemi": { "sky": "#1b2a44", "ground": "#0a0d12", "intensity": 0.4 },
+    "lights": { "count": 6, "reach": 55, "height": 5.4, "spacing": 20, "intensity": 70 }
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": { "x": -8, "z": 14 },
+    "exit": { "x": -34, "z": -26 },
+    "exitRadius": 4,
+    "enemies": { "count": 3 },
+    "alienEnemies": { "count": 1 }
+  }
+}

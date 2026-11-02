@@ -1,0 +1,218 @@
+/**
+ * Плоская геометрия уровня в плане (XZ): полигоны с рёбрами по осям, растер
+ * клеток и раскладка полигона в союз прямоугольников. THREE не зависит, поэтому
+ * модуль общий для обоих берегов пайплайна: его берут и инструменты Node
+ * (валидатор схемы и нормализатор), и карта браузера (src/json-map.js).
+ *
+ * Одно и то же решение «комната внутри footprint», «пролёт лестницы не в
+ * комнате», «перекрытие минус проём» должно быть у парсера и у карты: иначе
+ * парсер пропускает то, на чём карта строит невидимую стену или дыру в полу.
+ */
+
+/** Округление координаты до миллиметра: детерминизм выхода парсера. */
+export const r3 = v => Math.round(v * 1000) / 1000;
+
+/** Допуск «ребро по оси»: косое ребро в схеме запрещено, но float может дать 1e-12. */
+export const AXIS_EPS = 0.01;
+
+/** Ключ клетки растра. */
+export const cellKey = (i, j) => `${i}:${j}`;
+
+/** Площадь полигона со знаком (знак — ориентация обхода в плане XZ). */
+export function signedArea(poly) {
+  let s = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    s += a.x * b.z - b.x * a.z;
+  }
+  return s / 2;
+}
+
+/**
+ * Приводит полигон к виду «без повторов, против часовой, без лишних вершин на
+ * прямых участках, рёбра по осям». Возвращает список ошибок — их текст собирает
+ * валидатор схемы.
+ * @param {{x:number, z:number}[]} points первый и последний узлы могут
+ *   совпадать (явное замыкание из брифа) — дубликат убирается
+ */
+export function normalizePolygon(points, label, errors) {
+  if (!Array.isArray(points) || points.length < 4) {
+    errors.push(`${label}: в полигоне меньше четырёх вершин — фигура не замкнута`);
+    return null;
+  }
+  const p = points.map(v => ({ x: r3(v.x), z: r3(v.z) }));
+  // явное замыкание (первая == последняя) не считается вершиной
+  if (p.length > 1 && p[0].x === p[p.length - 1].x && p[0].z === p[p.length - 1].z) p.pop();
+  for (let i = p.length - 1; i >= 1; i--) {
+    if (p[i].x === p[i - 1].x && p[i].z === p[i - 1].z) {
+      errors.push(`${label}: вершина ${i} совпадает с ${i - 1} — нулевое ребро`);
+      p.splice(i, 1);
+    }
+  }
+  if (p.length < 3) {
+    errors.push(`${label}: после удаления дублей осталось меньше трёх вершин`);
+    return null;
+  }
+  for (let i = 0; i < p.length; i++) {
+    const a = p[i], b = p[(i + 1) % p.length];
+    if (Math.abs(a.x - b.x) > AXIS_EPS && Math.abs(a.z - b.z) > AXIS_EPS) {
+      errors.push(`${label}: ребро ${i}→${(i + 1) % p.length} не по оси X или Z — `
+        + 'косые стены дают ступенчатую коллизию, схема их запрещает');
+    }
+  }
+  if (signedArea(p) < 0) p.reverse();
+  // три последовательные вершины на одной прямой — средняя лишняя: стена из
+  // двух сегментов вместо одной (и лишний солид)
+  for (let i = p.length - 1; i >= 0 && p.length > 3; i--) {
+    const a = p[(i + p.length - 1) % p.length], b = p[i], c = p[(i + 1) % p.length];
+    const collinear = (a.x === b.x && b.x === c.x) || (a.z === b.z && b.z === c.z);
+    if (collinear) p.splice(i, 1);
+  }
+  return p;
+}
+
+/** Прямоугольник вокруг полигона. */
+export function polyBounds(poly) {
+  const out = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+  for (const p of poly) {
+    out.minX = Math.min(out.minX, p.x); out.maxX = Math.max(out.maxX, p.x);
+    out.minZ = Math.min(out.minZ, p.z); out.maxZ = Math.max(out.maxZ, p.z);
+  }
+  return out;
+}
+
+/**
+ * Лежит ли точка внутри полигона с осевыми рёбрами. Граница считается
+ * внутренней: комнаты стыкуются фасадами, и «на границе» — это «внутри».
+ */
+export function pointInPoly(poly, x, z) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    // на горизонтальном или вертикальном ребре: луч может «перепрыгнуть»
+    // вершину дважды — проверяем принадлежность грани отдельно
+    if (onEdge(a, b, x, z)) return true;
+    if ((a.z > z) !== (b.z > z)) {
+      const t = (z - a.z) / (b.z - a.z);
+      if (x < a.x + t * (b.x - a.x)) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Точка на отрезке (оба конца — осевой отрезок, поэтому проверка простая). */
+function onEdge(a, b, x, z) {
+  if (a.x === b.x && a.x === x) return Math.min(a.z, b.z) - 1e-6 <= z && z <= Math.max(a.z, b.z) + 1e-6;
+  if (a.z === b.z && a.z === z) return Math.min(a.x, b.x) - 1e-6 <= x && x <= Math.max(a.x, b.x) + 1e-6;
+  return false;
+}
+
+/**
+ * Растер полигона в клетки сетки шагом cell (центр клетки внутри полигона).
+ * @returns {Set<string>} ключи клеток
+ */
+export function rasterPoly(poly, cell) {
+  const b = polyBounds(poly);
+  const out = new Set();
+  const i0 = Math.floor(b.minX / cell), i1 = Math.floor(b.maxX / cell);
+  const j0 = Math.floor(b.minZ / cell), j1 = Math.floor(b.maxZ / cell);
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      if (pointInPoly(poly, (i + 0.5) * cell, (j + 0.5) * cell)) out.add(cellKey(i, j));
+    }
+  }
+  return out;
+}
+
+/** Растер прямоугольника теми же клетками (минимальная клетка — 1×1×cell). */
+export function rasterRect(rect, cell) {
+  const out = new Set();
+  const i0 = Math.floor(rect.minX / cell), i1 = Math.floor((rect.maxX - 1e-9) / cell);
+  const j0 = Math.floor(rect.minZ / cell), j1 = Math.floor((rect.maxZ - 1e-9) / cell);
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) out.add(cellKey(i, j));
+  }
+  return out;
+}
+
+/** Пересечение множеств клеток — пересекаются ли две фигуры в плане. */
+export function cellsIntersect(a, b) {
+  const [small, big] = a.size < b.size ? [a, b] : [b, a];
+  for (const k of small) if (big.has(k)) return true;
+  return false;
+}
+
+/**
+ * Раскладка полигона с осевыми рёбрами в союз прямоугольников: горизонтальными
+ * полосами по всем различающимся координатам Z (для L-образного — 2 прямоугольника,
+ * для П-образного — 3). Полоса берётся по центру высоты, поэтому стык полос
+ * не порождает ни щели, ни наложения.
+ */
+export function polyRects(poly) {
+  const zs = [...new Set(poly.map(p => p.z))].sort((a, b) => a - b);
+  const rects = [];
+  for (let k = 0; k + 1 < zs.length; k++) {
+    const minZ = zs[k], maxZ = zs[k + 1];
+    const zc = (minZ + maxZ) / 2;
+    const xs = [...new Set(poly.map(p => p.x))].sort((a, b) => a - b);
+    let run = null;
+    for (let i = 0; i + 1 < xs.length; i++) {
+      const inside = pointInPoly(poly, (xs[i] + xs[i + 1]) / 2, zc);
+      const cover = { minX: xs[i], maxX: xs[i + 1] };
+      if (inside && run) run.maxX = cover.maxX;
+      else if (inside) run = cover;
+      else if (run) { rects.push({ ...run, minZ, maxZ }); run = null; }
+    }
+    if (run) rects.push({ ...run, minZ, maxZ });
+  }
+  // соседние полосы с одинаковым X-прогоном сливаем: лишний прямоугольник —
+  // лишний солид и лишняя граница в миникарте
+  const merged = [];
+  for (const r of rects.sort((a, b) => a.minZ - b.minZ || a.minX - b.minX)) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.maxZ === r.minZ && prev.minX === r.minX && prev.maxX === r.maxX) prev.maxZ = r.maxZ;
+    else merged.push({ ...r });
+  }
+  return merged;
+}
+
+/** Пересекаются ли прямоугольники (касание гранью — не пересечение). */
+export function rectsIntersect(a, b, margin = 0) {
+  return a.minX < b.maxX - margin && a.maxX > b.minX + margin &&
+    a.minZ < b.maxZ - margin && a.maxZ > b.minZ + margin;
+}
+
+/**
+ * Прямоугольник минус прямоугольник-проём: до четырёх полос вокруг дыры.
+ * Так из плиты перекрытия вырезается лестничная шахта без дробления на сетку.
+ */
+export function subtractRect(rect, hole) {
+  if (!rectsIntersect(rect, hole)) return [rect];
+  const out = [];
+  const minX = Math.max(rect.minX, hole.minX), maxX = Math.min(rect.maxX, hole.maxX);
+  const minZ = Math.max(rect.minZ, hole.minZ), maxZ = Math.min(rect.maxZ, hole.maxZ);
+  if (rect.minX < minX) out.push({ minX: rect.minX, maxX: minX, minZ: rect.minZ, maxZ: rect.maxZ });
+  if (maxX < rect.maxX) out.push({ minX: maxX, maxX: rect.maxX, minZ: rect.minZ, maxZ: rect.maxZ });
+  if (rect.minZ < minZ) out.push({ minX, maxX, minZ: rect.minZ, maxZ: minZ });
+  if (maxZ < rect.maxZ) out.push({ minX, maxX, minZ: maxZ, maxZ: rect.maxZ });
+  return out.filter(r => r.maxX - r.minX > 1e-6 && r.maxZ - r.minZ > 1e-6);
+}
+
+/** Габарит двух прямоугольников (для быстрой отбраковки в коллизиях карты). */
+export function unionBounds(a, b) {
+  return {
+    minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX),
+    minZ: Math.min(a.minZ, b.minZ), maxZ: Math.max(a.maxZ, b.maxZ),
+  };
+}
+
+/** Рёбра полигона как отрезки в плане: {x0,z0,x1,z1,axis}. */
+export function polyEdges(poly) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    if (a.z === b.z) out.push({ x0: a.x, z0: a.z, x1: b.x, z1: b.z, axis: 'x' });
+    else out.push({ x0: a.x, z0: a.z, x1: b.x, z1: b.z, axis: 'z' });
+  }
+  return out;
+}

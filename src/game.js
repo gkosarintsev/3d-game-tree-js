@@ -5,6 +5,7 @@ import { createTerrainMap } from './terrain-map.js';
 import { createCityMap } from './city-map.js';
 import { createModelMap } from './model-map.js';
 import { createStreamedMap } from './stream-map.js';
+import { createJsonMap } from './json-map.js';
 import { preloadMapAsset } from './glb.js';
 import { ExitGoal } from './exit.js';
 import { LEVELS } from './levels/index.js';
@@ -25,6 +26,7 @@ const MAP_KINDS = {
   model: createModelMap,
   stream: createStreamedMap,
   town: createTownMap,
+  json: createJsonMap,
 };
 
 /**

@@ -1,0 +1,620 @@
+/**
+ * Нормализатор уровня: сырой JSON топологии (его пишет LLM) → данные, из которых
+ * клиент строит карту без собственной геодезии. План — docs/json-pipeline-plan.md.
+ *
+ * Здесь считается всё, что должно быть посчитано один раз и одинаково всегда:
+ * замкнутые полигоны против часовой стрелки, союз прямоугольников из footprint,
+ * абсолютные высоты этажей, проступи лестниц (подъём ступени никогда не больше
+ * CONFIG.building.stepUp — иначе ни ноги, ни сфера Чужого её не перешагнут) и их
+ * проёмы в перекрытиях, настилы дорог со ступенчатыми уклонами, автогенерированные
+ * опоры эстакады и фонари вдоль дорог, проёмы дверей, отметка опоры под каждым
+ * предметом.
+ *
+ * ГПСЧ не используется: одинаковый вход даёт побайтово одинаковый выход.
+ */
+import { CONFIG } from '../src/config.js';
+import {
+  normalizePolygon, pointInPoly, polyBounds, polyEdges, polyRects, r3, rectsIntersect,
+  unionBounds,
+} from '../src/geo2d.js';
+
+const J = CONFIG.jsonMap;
+const ROTATIONS = [0, 90, 180, 270];
+
+/**
+ * @param {object} raw уровень, прошедший validateLevel
+ * @returns {{name:string, hint:string, sky:object, gameplay:object, map:object, warnings:string[]}}
+ */
+export function normalizeLevel(raw) {
+  const warnings = [];
+  const ground = {
+    y: r3(raw.ground?.y ?? 0),
+    size: r3(raw.ground?.size ?? 176),
+    color: raw.ground?.color ?? J.asphalt,
+  };
+
+  const buildings = (raw.buildings ?? []).map(b => normalizeBuilding(b, ground, warnings));
+  const roads = (raw.roads ?? []).map(r => normalizeRoad(r, ground));
+
+  // препятствия для автогенерации: план наземных улиц и габариты зданий —
+  // опора или фонарь, выросшие посреди асфальта или внутри дома, не объект уровня
+  const obstacles = [
+    ...roads.filter(r => r.type === 'ground').flatMap(r => r.decks.map(d => ({ id: r.id, kind: 'road', rect: d }))),
+    ...buildings.map(b => ({ id: b.id, kind: 'building', rect: b.bounds })),
+  ];
+  for (const road of roads) {
+    road.pillars.push(...bridgePillars(road, ground, obstacles, warnings));
+    if (road.withLamps) road.lamps.push(...roadLamps(road, obstacles, warnings));
+  }
+
+  const support = makeSupport(ground, roads, buildings);
+  const props = [
+    ...(raw.landscapeObjects ?? []).map(o => authoredProp(o, support, obstacles, warnings)),
+    ...roads.flatMap(r => r.pillars),
+    ...roads.flatMap(r => r.lamps),
+  ].filter(Boolean).sort(byId);
+
+  // directional-свет главы становится «солнцем» неба: второй directional сцене не нужен
+  const dir = (raw.lights ?? []).find(l => l.type === 'directional');
+  const lights = (raw.lights ?? []).filter(l => l.type !== 'directional').map(l => ({
+    id: l.id,
+    type: l.type,
+    position: { x: r3(l.position.x), y: r3(l.position.y), z: r3(l.position.z) },
+    // у точечного источника направления нет; у прожектора без цели луч смотрит
+    // вдоль −Y, поэтому цель держат данные главы
+    target: l.target
+      ? { x: r3(l.target.x), y: r3(l.target.y), z: r3(l.target.z) }
+      : undefined,
+    color: l.color ?? 0xffcf9a,
+    intensity: l.intensity ?? CONFIG.night.intensity,
+    distance: r3(l.distance ?? CONFIG.night.reach),
+    angle: l.angle ?? 0.7,
+  })).sort(byId);
+
+  const sky = { ...(raw.sky ?? {}) };
+  if (dir) {
+    sky.sun = {
+      color: dir.color ?? 0xbcd0ff,
+      intensity: dir.intensity ?? 0.5,
+      position: [r3(dir.position.x), r3(dir.position.y), r3(dir.position.z)],
+    };
+  }
+
+  const gp = raw.gameplay ?? {};
+  checkPoints(gp, buildings, roads, warnings);
+
+  return {
+    name: raw.metadata.name,
+    hint: raw.metadata.hint,
+    sky,
+    gameplay: {
+      goal: 'exit',
+      exit: { x: r3(gp.exit.x), z: r3(gp.exit.z) },
+      exitRadius: gp.exitRadius ?? CONFIG.terrain.exitRadius,
+      enemies: gp.enemies ?? {},
+      alienEnemies: gp.alienEnemies ?? {},
+    },
+    map: {
+      kind: 'json',
+      units: 'meters',
+      ground,
+      bounds: worldBounds(buildings, roads, ground),
+      // точка A живёт в карте: движок передаёт createMap только map-секцию, а
+      // spawn нужен карте, чтобы найти опору под ногами до построения графа
+      spawn: { x: r3(gp.spawn.x), z: r3(gp.spawn.z) },
+      buildings,
+      roads,
+      props,
+      lights,
+    },
+    warnings,
+  };
+}
+
+const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+// ------------------------------------------------------------------- здания
+
+/**
+ * Здание: footprint → союз прямоугольников и сегменты стен, комнаты → полы и
+ * перегородки, лестницы → проступи и проёмы, connections → проёмы дверей.
+ *
+ * Стены центруются на линии ребра: фасад и наружное ребро комнаты, стоящей
+ * вплотную к фасаду, дают один и тот же прямоугольник, поэтому дубль отпадает
+ * ключом, а не сравнением с допуском.
+ */
+function normalizeBuilding(b, ground, warnings) {
+  const errors = [];
+  const footprint = normalizePolygon(b.footprint, `${b.id}.footprint`, errors);
+  if (errors.length) throw new Error(errors.join('\n'));
+  const bb = polyBounds(footprint);
+  const baseY = r3(b.baseY ?? ground.y);
+  const floorHeight = r3(b.floorHeight);
+
+  const walls = new Map();
+  const putWall = (edge, facade) => {
+    const r = edgeRect(edge, J.wallThickness);
+    const key = `${r.axis}|${r.minX}|${r.maxX}|${r.minZ}|${r.maxZ}`;
+    const prev = walls.get(key);
+    walls.set(key, prev ? { ...prev, facade: prev.facade || facade } : { ...r, facade });
+  };
+  for (const edge of polyEdges(footprint)) putWall(edge, true);
+
+  const rooms = b.rooms.map(room => {
+    const rp = normalizePolygon(room.polygon, `${b.id}.${room.id}.polygon`, errors);
+    if (errors.length) throw new Error(errors.join('\n'));
+    for (const edge of polyEdges(rp)) putWall(edge, false);
+    return {
+      id: room.id,
+      type: room.type,
+      floor: room.floor,
+      rect: planOf(rp),
+      y: r3(baseY + room.floor * floorHeight),
+    };
+  }).sort(byId);
+
+  const stairs = (b.stairs ?? []).map(s => normalizeStair(s, baseY, floorHeight, b.id, errors)).sort(byId);
+  if (errors.length) throw new Error(errors.join('\n'));
+
+  const doors = [];
+  for (const raw of b.rooms) {
+    const room = rooms.find(r => r.id === raw.id);
+    if (!raw.connections?.length) continue;
+    const rp = normalizePolygon(raw.polygon, `${b.id}.${room.id}.polygon`, errors);
+    for (const c of raw.connections) {
+      const edge = nearestEdge(polyEdges(rp), c.portalPosition.x, c.portalPosition.z);
+      const span = edge.axis === 'x' ? [edge.x0, edge.x1] : [edge.z0, edge.z1];
+      const fixed = edge.axis === 'x' ? edge.z0 : edge.x0;
+      const along = edge.axis === 'x' ? c.portalPosition.x : c.portalPosition.z;
+      const center = clamp(r3(along), Math.min(...span) + J.doorWidth / 2, Math.max(...span) - J.doorWidth / 2);
+      const rect = edge.axis === 'x'
+        ? { minX: r3(center - J.doorWidth / 2), maxX: r3(center + J.doorWidth / 2), minZ: r3(fixed - J.wallThickness / 2 - 0.01), maxZ: r3(fixed + J.wallThickness / 2 + 0.01) }
+        : { minX: r3(fixed - J.wallThickness / 2 - 0.01), maxX: r3(fixed + J.wallThickness / 2 + 0.01), minZ: r3(center - J.doorWidth / 2), maxZ: r3(center + J.doorWidth / 2) };
+      const mid = { x: r3((rect.minX + rect.maxX) / 2), z: r3((rect.minZ + rect.maxZ) / 2) };
+      // «наружу» считается от полигона комнаты, а не здания: для двери в фасаде
+      // это одно и то же, а для внутренней перегородки — выход в соседнюю комнату
+      const out = outward(rp, mid);
+      doors.push({
+        id: `${room.id}→${c.target}`,
+        room: room.id,
+        target: c.target,
+        linkType: c.linkType ?? 'door',
+        axis: edge.axis,
+        y: room.y,
+        height: r3(Math.min(J.doorHeight, floorHeight - J.slabThickness - 0.1)),
+        rect,
+        inside: { x: mid.x - out.x * 1.4, z: mid.z - out.z * 1.4 },
+        outside: { x: mid.x + out.x * 1.4, z: mid.z + out.z * 1.4 },
+      });
+    }
+  }
+
+  return {
+    id: b.id,
+    name: b.name ?? b.id,
+    isEnterable: b.isEnterable !== false,
+    baseY,
+    floorHeight,
+    floorsCount: b.floorsCount,
+    roofY: r3(baseY + b.floorsCount * floorHeight),
+    facadeMaterial: b.facadeMaterial ?? 'concrete',
+    footprint: footprint.map(p => ({ x: r3(p.x), z: r3(p.z) })),
+    bounds: { minX: r3(bb.minX), maxX: r3(bb.maxX), minZ: r3(bb.minZ), maxZ: r3(bb.maxZ) },
+    rects: polyRects(footprint).map(r => rectOut(r)).sort(byRect),
+    walls: [...walls.values()].sort((a, c) => keyOfRect(a) < keyOfRect(c) ? -1 : 1),
+    rooms,
+    stairs,
+    doors: doors.sort(byId),
+  };
+}
+
+const keyOfRect = r => `${r.minX}|${r.maxX}|${r.minZ}|${r.maxZ}`;
+const byRect = (a, b) => (keyOfRect(a) < keyOfRect(b) ? -1 : 1);
+const rectOut = r => ({ minX: r3(r.minX), maxX: r3(r.maxX), minZ: r3(r.minZ), maxZ: r3(r.maxZ) });
+
+/** Ребро полигона → план стены толщиной thickness, центрованный на ребре. */
+function edgeRect(edge, thickness) {
+  const half = thickness / 2;
+  if (edge.axis === 'x') {
+    return {
+      axis: 'x',
+      minX: r3(Math.min(edge.x0, edge.x1)), maxX: r3(Math.max(edge.x0, edge.x1)),
+      minZ: r3(edge.z0 - half), maxZ: r3(edge.z0 + half),
+    };
+  }
+  return {
+    axis: 'z',
+    minX: r3(edge.x0 - half), maxX: r3(edge.x0 + half),
+    minZ: r3(Math.min(edge.z0, edge.z1)), maxZ: r3(Math.max(edge.z0, edge.z1)),
+  };
+}
+
+function planOf(poly) {
+  const b = polyBounds(poly);
+  return { minX: r3(b.minX), maxX: r3(b.maxX), minZ: r3(b.minZ), maxZ: r3(b.maxZ) };
+}
+
+/** Наружу от полигона — проба в 1,2 м по четырём осям: где вне полигона, туда и наружу. */
+function outward(poly, p) {
+  const probes = [{ x: 1, z: 0 }, { x: -1, z: 0 }, { x: 0, z: 1 }, { x: 0, z: -1 }];
+  let fallback = probes[0];
+  for (const d of probes) {
+    const out = !pointInPoly(poly, p.x + d.x * 1.2, p.z + d.z * 1.2);
+    if (!out) continue;
+    if (pointInPoly(poly, p.x - d.x * 1.2, p.z - d.z * 1.2)) return d;
+    fallback = fallback ?? d;
+  }
+  return fallback;
+}
+
+function nearestEdge(edges, x, z) {
+  let best = null, bestD = Infinity;
+  for (const e of edges) {
+    const d = edgeDistance(e, x, z);
+    if (d < bestD - 1e-9) { bestD = d; best = e; }
+  }
+  return best;
+}
+
+function edgeDistance(e, x, z) {
+  if (e.axis === 'x') {
+    const min = Math.min(e.x0, e.x1), max = Math.max(e.x0, e.x1);
+    return Math.hypot(Math.max(min - x, 0, x - max), Math.abs(z - e.z0));
+  }
+  const min = Math.min(e.z0, e.z1), max = Math.max(e.z0, e.z1);
+  return Math.hypot(Math.abs(x - e.x0), Math.max(min - z, 0, z - max));
+}
+
+const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+/**
+ * Лестница → проступи в мировых координатах + проём. Марш считается в локальной
+ * системе (X — направление подъёма, низ при X = 0, Y вверх, вправо — Z), затем
+ * поворачивается на rotation и переносится в position: косых маршей схема не
+ * делает, поэтому поворот кратен 90° и AABB повёрнутого прямоугольника точен.
+ */
+function normalizeStair(s, baseY, floorHeight, buildingId, errors) {
+  const [k0, k1] = s.connectsFloors;
+  const y0 = r3(baseY + k0 * floorHeight);
+  const y1 = r3(baseY + k1 * floorHeight);
+  const height = r3(y1 - y0);
+  const rotation = s.rotation ?? 0;
+  if (!ROTATIONS.includes(rotation)) {
+    errors.push(`${buildingId}.${s.id}: rotation ${rotation}° — допустимы только 0/90/180/270 (косой марш дал бы ступенчатую коллизию)`);
+  }
+  const L = r3(Math.max(s.dimensions.width, s.dimensions.length));
+  const W = r3(Math.min(s.dimensions.width, s.dimensions.length));
+  const cx = r3(s.position.x), cz = r3(s.position.z);
+  const world = rect => toWorld(rect, rotation, cx, cz, L, W);
+
+  const steps = s.type === 'spiral'
+    ? spiralSteps(cx, cz, Math.min(L, W) / 2, y0, height, rotation)
+    : stairSteps(s.type, L, W, y0, height, world);
+
+  const first = steps[0], last = steps[steps.length - 1];
+  return {
+    id: s.id,
+    type: s.type,
+    connectsFloors: [k0, k1],
+    y0, y1, height,
+    rotation,
+    rect: world({ minX: 0, maxX: L, minZ: 0, maxZ: W }),
+    steps,
+    bottom: { x: r3((first.minX + first.maxX) / 2), z: r3((first.minZ + first.maxZ) / 2), y: first.top },
+    top: { x: r3((last.minX + last.maxX) / 2), z: r3((last.minZ + last.maxZ) / 2), y: last.top },
+  };
+}
+
+/**
+ * Раскладка марша в локальных координатах (X — направление подъёма, низ при
+ * X = 0). Прямой — один прогон по всей длине. Г-образный: прогон по X до
+ * изгиба, плоская площадка на уровне последнего шага, прогон по Z от ближней
+ * полосы ширины к дальней. Подъём одной проступи никогда не больше J.maxRise,
+ * иначе ни ноги, ни сфера Чужого её не перешагнут.
+ */
+function stairLayout(type, L, W, height) {
+  if (type !== 'l_shape') {
+    const n = Math.max(2, Math.ceil(height / J.maxRise));
+    const rise = height / n;
+    return [{ axis: 'x', a0: 0, a1: L, c0: 0, c1: W, count: n, yFrom: 0, risePer: rise }];
+  }
+  const n = Math.max(4, Math.ceil(height / J.maxRise));
+  const rise = height / n;
+  const nA = Math.ceil(n / 2), nB = n - nA;
+  const bendX = r3(L * 0.6), midZ = r3(W / 2);
+  return [
+    { axis: 'x', a0: 0, a1: bendX, c0: 0, c1: midZ, count: nA, yFrom: 0, risePer: rise },
+    { axis: 'x', a0: bendX, a1: L, c0: 0, c1: midZ, count: 1, yFrom: rise * nA, risePer: 0 },
+    { axis: 'z', a0: midZ, a1: W, c0: bendX, c1: L, count: nB, yFrom: rise * nA, risePer: rise },
+  ];
+}
+
+/** Проступи марша: локальные прямоугольники снизу вверх → мировые AABB с отметкой верха. */
+function stairSteps(type, L, W, y0, height, world) {
+  const out = [];
+  for (const run of stairLayout(type, L, W, height)) {
+    for (let i = 1; i <= run.count; i++) {
+      const t0 = run.a0 + (run.a1 - run.a0) * ((i - 1) / run.count);
+      const t1 = run.a0 + (run.a1 - run.a0) * (i / run.count);
+      const [lo, hi] = [Math.min(t0, t1), Math.max(t0, t1)];
+      const local = run.axis === 'x'
+        ? { minX: lo, maxX: hi, minZ: run.c0, maxZ: run.c1 }
+        : { minX: run.c0, maxX: run.c1, minZ: lo, maxZ: hi };
+      out.push({ ...rectOut(world(local)), top: r3(y0 + run.yFrom + run.risePer * i) });
+    }
+  }
+  return out;
+}
+
+/**
+ * Проступи винта: AABB секторов круга. Поворот задаёт начальный угол, поэтому
+ * лестница вписана в rect здания; радиус — половина меньшей стороны пролёта.
+ */
+function spiralSteps(cx, cz, radius, y0, height, rotation) {
+  const n = Math.max(
+    Math.ceil(height / J.maxRise),
+    Math.ceil((2 * Math.PI) / J.spiralAngle),
+  );
+  const rise = height / n, dphi = (2 * Math.PI) / n;
+  const inner = radius * 0.2;
+  const phi0 = (rotation * Math.PI) / 180;
+  const out = [];
+  for (let i = 1; i <= n; i++) {
+    const a0 = phi0 + (i - 1) * dphi, a1 = phi0 + i * dphi;
+    const pts = [];
+    for (const phi of [a0, a1]) {
+      pts.push([cx + Math.cos(phi) * radius, cz + Math.sin(phi) * radius]);
+      pts.push([cx + Math.cos(phi) * inner, cz + Math.sin(phi) * inner]);
+    }
+    const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
+    out.push({
+      minX: r3(Math.min(...xs)), maxX: r3(Math.max(...xs)),
+      minZ: r3(Math.min(...zs)), maxZ: r3(Math.max(...zs)),
+      top: r3(y0 + rise * i),
+    });
+  }
+  return out.filter(s => s.top - y0 > 0.02);
+}
+
+/**
+ * Локальный прямоугольник марша → мировой при повороте на rotation и переносе
+ * в центр position. Формулы — поворот вокруг центра локального box L×W.
+ */
+function toWorld(rect, rotation, cx, cz, L, W) {
+  switch (rotation) {
+    case 90: return {
+      minX: cx + W / 2 - rect.maxZ, maxX: cx + W / 2 - rect.minZ,
+      minZ: cz - L / 2 + rect.minX, maxZ: cz - L / 2 + rect.maxX,
+    };
+    case 180: return {
+      minX: cx + L / 2 - rect.maxX, maxX: cx + L / 2 - rect.minX,
+      minZ: cz + W / 2 - rect.maxZ, maxZ: cz + W / 2 - rect.minZ,
+    };
+    case 270: return {
+      minX: cx - W / 2 + rect.minZ, maxX: cx - W / 2 + rect.maxZ,
+      minZ: cz + L / 2 - rect.maxX, maxZ: cz + L / 2 - rect.minX,
+    };
+    default: return {
+      minX: cx - L / 2 + rect.minX, maxX: cx - L / 2 + rect.maxX,
+      minZ: cz - W / 2 + rect.minZ, maxZ: cz - W / 2 + rect.maxZ,
+    };
+  }
+}
+
+// ------------------------------------------------------------------- дороги
+
+/**
+ * Дорога → пластины настила. Плоский пролёт — одна пластина с верхом `topY`.
+ * Пролёт с подъёмом — ОДНА наклонная пластина (`ramp: true`, верх идёт от
+ * `topAtMin` до `topAtMax` вдоль оси): картинка гладкая, как склон горы в главе 1,
+ * и твёрдость обязана совпасть с ней, поэтому перепад не разбивают на коробки
+ * ступеней — наклонный пролёт держит аналитическая призма (`JsonMap.prisms`).
+ * Крутизну ограничивает схема: `|rise| / run ≤ J.maxSlope`, иначе ни ноги, ни
+ * сфера Чужого такой подъём не перешагнут.
+ */
+function normalizeRoad(road, ground) {
+  const halfW = road.width / 2;
+  const decks = [];
+  for (let i = 0; i + 1 < road.points.length; i++) {
+    const a = road.points[i], b = road.points[i + 1];
+    const axis = Math.abs(a.x - b.x) >= Math.abs(a.z - b.z) ? 'x' : 'z';
+    const aAlong = axis === 'x' ? a.x : a.z;
+    const bAlong = axis === 'x' ? b.x : b.z;
+    const along0 = Math.min(aAlong, bAlong), along1 = Math.max(aAlong, bAlong);
+    // отметки верха на ближней и дальней по оси границах плана
+    const topLo = aAlong <= bAlong ? a.y : b.y;
+    const topHi = aAlong <= bAlong ? b.y : a.y;
+    const cross = axis === 'x' ? a.z : a.x;
+    // низ пролёта, а не его верх: на нижней отметке пластина сходится с соседней
+    // (или с землёй). Взять верх — первая пластина ramps встала бы на 0,525 м
+    // выше асфальта (7,88/15 при stepUp 0,6), и вход на эстакаду, и сход с неё
+    // перестали бы быть перешагиваемыми
+    const top = r3(Math.min(topLo, topHi));
+    const plan = axis === 'x'
+      ? { minX: along0, maxX: along1, minZ: cross - halfW, maxZ: cross + halfW }
+      : { minX: cross - halfW, maxX: cross + halfW, minZ: along0, maxZ: along1 };
+    decks.push({
+      ...rectOut(plan), axis,
+      topY: top,
+      bottomY: r3(top - J.deckThickness),
+      topAtMin: r3(topLo),
+      topAtMax: r3(topHi),
+      ramp: Math.abs(topHi - topLo) > 0.01,
+    });
+  }
+
+  const fill = [], aprons = [];
+  if (road.type === 'embankment') {
+    for (const d of decks) {
+      if (d.ramp || d.bottomY - ground.y <= 0.05) continue;
+      // пластина стоит на грунте: опоры ей не нужны, они ушли бы в тело насыпи
+      d.grounded = true;
+      fill.push({ ...rectOut(d), topY: d.bottomY, bottomY: ground.y });
+      // откос поднимается до ВЕРХА настила, а не до его подошвы: иначе с полотна
+      // на склон и обратно приходится делать шаг ровно на толщину плиты (0,6 м при
+      // stepUp 0,6), и на границе плана опоры нет ни там, ни там — сошедший
+      // проваливается в грунт насыпи и застревает в её блокере
+      const run = r3(J.apronRun * (d.topY - ground.y));
+      if (d.axis === 'x') {
+        aprons.push({ axis: 'x', minX: d.minX, maxX: d.maxX, cross: d.minZ, dir: -1, run, topY: d.topY, groundY: ground.y });
+        aprons.push({ axis: 'x', minX: d.minX, maxX: d.maxX, cross: d.maxZ, dir: 1, run, topY: d.topY, groundY: ground.y });
+      } else {
+        aprons.push({ axis: 'z', minZ: d.minZ, maxZ: d.maxZ, cross: d.minX, dir: -1, run, topY: d.topY, groundY: ground.y });
+        aprons.push({ axis: 'z', minZ: d.minZ, maxZ: d.maxZ, cross: d.maxX, dir: 1, run, topY: d.topY, groundY: ground.y });
+      }
+    }
+  }
+
+  return {
+    id: road.id,
+    type: road.type,
+    width: r3(road.width),
+    withLamps: !!road.lamps,
+    decks,
+    fill,
+    aprons,
+    pillars: [],
+    lamps: [],
+  };
+}
+
+/**
+ * Опоры эстакады: два ряда ПОД настилом с шагом J.pillarSpacing, сечением
+ * J.pillarSection, от земли до низа настила. Наружная грань опоры отступлена от
+ * края плиты на J.pillarEdge — стойка обязана держать полотно, а не стоять в
+ * метре рядом с ним. Если настил уже, чем два ряда с таким отступом, ряд один
+ * по оси полотна. Пластина, стоящая на грунте (`grounded` — насыпь уже отсыпана
+ * под ней), опор не имеет вовсе. Позиция в плане наземной улицы или внутри
+ * здания — опора пропускается с предупреждением: её не видно, а правила о
+ * декоре не дают ей стать стеной.
+ */
+function bridgePillars(road, ground, obstacles, warnings) {
+  const out = [];
+  for (const d of road.decks) {
+    if (d.ramp || d.grounded || d.bottomY - ground.y <= 1.0) continue;
+    const from = d.axis === 'x' ? d.minX : d.minZ;
+    const to = d.axis === 'x' ? d.maxX : d.maxZ;
+    const cross = d.axis === 'x' ? (d.minZ + d.maxZ) / 2 : (d.minX + d.maxX) / 2;
+    const halfW = (d.axis === 'x' ? d.maxZ - d.minZ : d.maxX - d.minX) / 2;
+    const inset = halfW - J.pillarSection / 2 - J.pillarEdge;
+    const offs = inset >= J.pillarSection ? [-inset, inset] : [0];
+    for (let t = from + J.pillarSpacing / 2; t < to - 0.01; t += J.pillarSpacing) {
+      const sides = d.axis === 'x'
+        ? offs.map(o => ({ x: t, z: r3(cross + o) }))
+        : offs.map(o => ({ x: r3(cross + o), z: t }));
+      for (const p of sides) {
+        const rect = {
+          minX: p.x - J.pillarSection / 2, maxX: p.x + J.pillarSection / 2,
+          minZ: p.z - J.pillarSection / 2, maxZ: p.z + J.pillarSection / 2,
+        };
+        const hit = obstacles.find(o => rectsIntersect(rect, o.rect, 0.05));
+        if (hit) {
+          warnings.push(`${road.id}: опора в ${r3(p.x)}, ${r3(p.z)} попала в ${hit.id} — пропущена`);
+          continue;
+        }
+        out.push(makeProp(`pillar_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'concrete_pillar',
+          p.x, ground.y, p.z,
+          { x: J.pillarSection, y: r3(d.bottomY - ground.y), z: J.pillarSection }, 'bridge_pillar'));
+      }
+    }
+  }
+  return out;
+}
+
+/** Фонари вдоль настила: шаг J.lampSpacing, по обе стороны на J.lampOffset за краем. */
+function roadLamps(road, obstacles, warnings) {
+  const out = [];
+  for (const d of road.decks) {
+    if (d.ramp) continue;
+    const from = d.axis === 'x' ? d.minX : d.minZ;
+    const to = d.axis === 'x' ? d.maxX : d.maxZ;
+    for (let t = from + J.lampSpacing / 2; t < to - 0.01; t += J.lampSpacing) {
+      const sides = d.axis === 'x'
+        ? [{ x: t, z: d.minZ - J.lampOffset }, { x: t, z: d.maxZ + J.lampOffset }]
+        : [{ x: d.minX - J.lampOffset, z: t }, { x: d.maxX + J.lampOffset, z: t }];
+      for (const p of sides) {
+        const hit = obstacles.find(o => o.kind === 'building' && rectsIntersect(pointRect(p), o.rect, 0.05));
+        if (hit) {
+          warnings.push(`${road.id}: фонарь в ${r3(p.x)}, ${r3(p.z)} попал в ${hit.id} — пропущен`);
+          continue;
+        }
+        out.push(makeProp(`lamp_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'lamp_post', p.x, d.topY, p.z,
+          { x: 1, y: 1, z: 1 }, 'road_lamp'));
+      }
+    }
+  }
+  return out;
+}
+
+const pointRect = p => ({ minX: p.x - 0.1, maxX: p.x + 0.1, minZ: p.z - 0.1, maxZ: p.z + 0.1 });
+
+// ------------------------------------------------------------------- предметы и опоры
+
+/**
+ * Функция опоры по плану: верх настила дороги, если точка в его прямоугольнике
+ * (у наклонного пролёта — отметка наклонной плоскости под этой точкой), иначе низ
+ * перекрытия первого этажа здания (baseY), иначе земля. Предмет, поставленный на
+ * отметку ниже своей опоры, утонул бы в асфальте, а выше — висел.
+ */
+function makeSupport(ground, roads, buildings) {
+  const plates = roads.flatMap(r => r.decks.map(d => ({
+    rect: d, axis: d.axis, lo: d.axis === 'x' ? d.minX : d.minZ,
+    hi: d.axis === 'x' ? d.maxX : d.maxZ, y: d.topAtMin, y1: d.topAtMax,
+  })));
+  const plots = buildings.map(b => ({ rect: b.bounds, y: b.baseY }));
+  return (x, z) => {
+    let y = ground.y;
+    for (const p of plates) {
+      if (!inRect(x, z, p.rect)) continue;
+      const u = p.axis === 'x' ? x : z;
+      const top = p.y1 === p.y ? p.y : p.y + (p.y1 - p.y) * (u - p.lo) / (p.hi - p.lo);
+      if (top > y) y = top;
+    }
+    for (const p of plots) if (inRect(x, z, p.rect) && p.y > y) y = p.y;
+    return r3(y);
+  };
+}
+
+const inRect = (x, z, r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
+
+function authoredProp(o, support, obstacles, warnings) {
+  const y = o.position.y ?? support(o.position.x, o.position.z);
+  const snapped = support(o.position.x, o.position.z);
+  if (Math.abs(y - snapped) > 0.05) {
+    warnings.push(`landscapeObjects (${o.id}): position.y ${y} не совпадает с опорой ${snapped} — предмет поставлен на неё`);
+  }
+  const hit = obstacles.find(ob => ob.kind === 'building' && rectsIntersect(pointRect(o.position), ob.rect, 0.05));
+  if (hit && o.model !== 'bollard') warnings.push(`landscapeObjects (${o.id}): внутри габарита ${hit.id} — предмет не виден из улиц`);
+  return makeProp(o.id, o.model, o.position.x, snapped, o.position.z,
+    { x: o.scale?.x ?? 1, y: o.scale?.y ?? 1, z: o.scale?.z ?? 1 }, 'authored', o.rotation?.y ?? 0);
+}
+
+function makeProp(id, model, x, y, z, scale, source, rotationY = 0) {
+  return {
+    id, model, source, rotationY,
+    position: { x: r3(x), y: r3(y), z: r3(z) },
+    scale: { x: r3(scale.x), y: r3(scale.y), z: r3(scale.z) },
+  };
+}
+
+/** Проверка точек главы: спавн не в стене, точка B на чём-то стоит. */
+function checkPoints(gp, buildings, roads, warnings) {
+  const insideWall = (x, z) => buildings.some(b => b.walls.some(w => inRect(x, z, w)));
+  const onSomething = (x, z) => buildings.some(b => inRect(x, z, b.bounds)) ||
+    roads.some(r => r.decks.some(d => inRect(x, z, d)));
+  if (gp.spawn && insideWall(gp.spawn.x, gp.spawn.z)) {
+    warnings.push(`gameplay.spawn ${gp.spawn.x}, ${gp.spawn.z}: внутри стены — игрок родится запертым`);
+  }
+  if (gp.exit && !onSomething(gp.exit.x, gp.exit.z)) {
+    warnings.push(`gameplay.exit ${gp.exit.x}, ${gp.exit.z}: не над зданием и не над настилом — маяк повиснет`);
+  }
+}
+
+function worldBounds(buildings, roads, ground) {
+  let out = { minX: -ground.size / 2, maxX: ground.size / 2, minZ: -ground.size / 2, maxZ: ground.size / 2 };
+  for (const b of buildings) out = unionBounds(out, b.bounds);
+  for (const r of roads) for (const d of r.decks) out = unionBounds(out, d);
+  return rectOut(out);
+}
+
+export { normalizeBuilding, normalizeRoad, normalizeStair, toWorld, edgeRect, inRect };
