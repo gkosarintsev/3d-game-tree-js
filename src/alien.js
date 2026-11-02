@@ -911,10 +911,15 @@ export class Alien extends AlienBody {
     this._clawPitch = 0.22;
     this.claw.position.copy(this._clawHome);
     this.claw.rotation.x = this._clawPitch;
+    this.claw.visible = false;  // до первого удара рука в покое и не видна
     this.camera.add(this.claw);
   }
 
-  /** Замах: рука вылетает вперёд и возвращается за config.alien.strike.animTime. */
+  /**
+   * Замах: рука вылетает вперёд и возвращается за config.alien.strike.animTime.
+   * Вне замаха её не видно вовсе — профиль `k` начинается и кончается нулём,
+   * поэтому рука появляется и исчезает, лежа дома, без скачка в кадре.
+   */
   _updateClaw(dt) {
     if (this.strikeAnim > 0) this.strikeAnim = Math.max(0, this.strikeAnim - dt);
     const T = this.cfg.strike.animTime;
@@ -925,6 +930,7 @@ export class Alien extends AlienBody {
       this._clawHome.z + k * 0.34,
     );
     this.claw.rotation.x = this._clawPitch - k * 1.15;
+    this.claw.visible = this.strikeAnim > 0;
   }
 
   /** Собирает камеру: позиция — вдоль нормали от центра тела, взгляд — по fwd/pitch. */
