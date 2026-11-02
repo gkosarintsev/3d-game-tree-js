@@ -470,6 +470,57 @@ export class JsonMap extends SolidField {
     return this.anchors.map(a => ({ ...a }));
   }
 
+  /**
+   * Метки для отладочного режима (`?debug=1`): по одной точке на каждый объект
+   * данных, из которых собран уровень. Текст начинается с `id` из брифа, чтобы по
+   * метке поле находилось в `level-09.json` поиском; у пластин настила, тела
+   * насыпи и откосов своего `id` нет (их считает парсер), поэтому они подписываются
+   * `id` дороги и своим видом.
+   *
+   * Точки берутся из той же геометрии, что и солиды с опорами: отладочный вывод
+   * обязан отвечать про реальное тело уровня, а не пересчитывать высоты второй
+   * копией арифметики парсера.
+   *
+   * @returns {{text: string, x: number, y: number, z: number}[]}
+   */
+  debugIds() {
+    const out = [];
+    const cx = r => (r.minX + r.maxX) / 2;
+    const cz = r => (r.minZ + r.maxZ) / 2;
+    const put = (text, x, y, z) => out.push({ text, x, y, z });
+
+    for (const b of this.buildings) {
+      put(b.id, cx(b.bounds), b.roofY + 1, cz(b.bounds));
+      for (const r of b.rooms) put(`${r.id} · эт ${r.floor}`, cx(r.rect), r.y + 1.2, cz(r.rect));
+      for (const s of b.stairs) put(`${s.id} · ${s.type}`, cx(s.rect), s.y1 + 0.7, cz(s.rect));
+      for (const d of b.doors) put(`${d.id} · ${d.linkType}`, d.outside.x, d.y + d.height + 0.4, d.outside.z);
+    }
+    for (const road of this.roads) {
+      const plan = road.decks.reduce((a, d) => ({
+        minX: Math.min(a.minX, d.minX), maxX: Math.max(a.maxX, d.maxX),
+        minZ: Math.min(a.minZ, d.minZ), maxZ: Math.max(a.maxZ, d.maxZ),
+        top: Math.max(a.top, d.topAtMin, d.topAtMax),
+      }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity, top: -Infinity });
+      put(`${road.id} · ${road.type}`, cx(plan), plan.top + 1.3, cz(plan));
+      road.decks.forEach((d, i) => put(`${road.id} · пл ${i + 1}${d.ramp ? ' · наклон' : ''}`,
+        cx(d), (d.topAtMin + d.topAtMax) / 2 + 0.6, cz(d)));
+      road.fill.forEach((f, i) => put(`${road.id} · тело насыпи ${i + 1}`, cx(f), f.topY + 0.6, cz(f)));
+      road.aprons.forEach((a, i) => {
+        const toe = a.cross + a.dir * Math.abs(a.run);
+        put(`${road.id} · откос ${i + 1}`,
+          a.axis === 'x' ? cx(a) : (a.cross + toe) / 2,
+          (a.topY + a.groundY) / 2 + 0.5,
+          a.axis === 'x' ? (a.cross + toe) / 2 : cz(a));
+      });
+    }
+    for (const p of this.props) put(`${p.id} · ${p.model}`, p.position.x, p.position.y + 1.5, p.position.z);
+    for (const l of this.lightSpecs) put(`${l.id} · ${l.type}`, l.position.x, l.position.y + 1, l.position.z);
+
+    const s = this.spec.spawn;
+    if (s) put('spawn · точка A', s.x, this.groundHeightAt(s.x, s.z, this.groundY) + 1.6, s.z);
+    return out;
+  }
+
   _inBuilding(x, z, margin = 0.2) {
     return this.buildings.some(b => x > b.bounds.minX - margin && x < b.bounds.maxX + margin
       && z > b.bounds.minZ - margin && z < b.bounds.maxZ + margin);

@@ -34,7 +34,9 @@
  *  16. Меш собирается без NaN-вершин, свет глав — из данных и в пределах пула;
  *  17. Миникарта рисует план без исключений;
  *  18. Свободные точки для объектов действительно свободны и опираются;
- *  19. Детерминизм: два сбора дают побитово равные отметки узлов.
+ *  19. Метки id для `?debug=1` покрывают все объекты данных и стоят над своими
+ *      планами;
+ *  20. Детерминизм: два сбора дают побитово равные отметки узлов.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
@@ -111,10 +113,14 @@ function testContract() {
     'randomNavPoint'];
   const missing = [...fields.filter(f => map[f] === undefined),
     ...methods.filter(m => typeof map[m] !== 'function')];
+  // необязательные члены: карта из брифа подписывает свои объекты (метки id в
+  // ?debug=1), но не стримит — окно у неё одно
+  const optional = ['debugIds', 'updateStreaming'].filter(o => typeof map[o] === 'function');
   return {
     name: 'Контракт карты закрыт (движок знает только его члены)',
     passed: missing.length === 0,
-    info: missing.length ? `нет членов: ${missing.join(', ')}` : `${fields.length + methods.length} членов на месте`,
+    info: missing.length ? `нет членов: ${missing.join(', ')}`
+      : `${fields.length + methods.length} членов на месте, опциональные: ${optional.join(', ') || 'нет'}`,
   };
 }
 
@@ -628,6 +634,56 @@ function testDeterminism() {
 }
 
 /**
+ * Метки id для `?debug=1`: `debugIds()` обязан покрыть каждый объект данных, у
+ * которого есть `id`, ставить метку на уже посчитанную геометрию (точка в плане
+ * своего объекта и в границах уровня) и отвечать одинаково на повторный вызов.
+ * Проверка держит именно это: если метка врёт или id пропущен, человек по ней
+ * найдёт в `level-09.json` не то, что видит перед собой.
+ */
+function testDebugIds() {
+  const map = builtMap();
+  const ids = map.debugIds();
+  const again = map.debugIds();
+  const bad = [];
+  const texts = new Set(ids.map(l => l.text.split(' · ')[0]));
+  const want = [];
+  for (const b of map.buildings) {
+    want.push(b.id);
+    for (const r of b.rooms) want.push(r.id);
+    for (const s of b.stairs) want.push(s.id);
+    for (const d of b.doors) want.push(d.id);
+  }
+  for (const road of map.roads) want.push(road.id);
+  for (const p of map.props) want.push(p.id);
+  for (const l of map.lightSpecs) want.push(l.id);
+  for (const id of want) if (!texts.has(id)) bad.push(`метки нет для id «${id}»`);
+
+  const bb = map.bounds;
+  for (const l of ids) {
+    if (!l.text || !Number.isFinite(l.x + l.y + l.z)) bad.push(`метка «${l.text}» без текста или с негодными координатами`);
+    if (l.x < bb.minX || l.x > bb.maxX || l.z < bb.minZ || l.z > bb.maxZ) bad.push(`«${l.text}» вне границ уровня`);
+    if (l.y < map.groundY - 1 || l.y > 40) bad.push(`«${l.text}» на отметке ${l.y.toFixed(1)} м`);
+  }
+  // метка здания обязана стоять над его же планом, а не над соседним домом
+  for (const b of map.buildings) {
+    const l = ids.find(x => x.text === b.id);
+    if (l && !(l.x > b.bounds.minX && l.x < b.bounds.maxX && l.z > b.bounds.minZ && l.z < b.bounds.maxZ)) {
+      bad.push(`${b.id}: метка вне габарита дома`);
+    }
+  }
+  const same = again.length === ids.length
+    && again.every((l, i) => l.text === ids[i].text && l.x === ids[i].x && l.y === ids[i].y && l.z === ids[i].z);
+  if (!same) bad.push('повторный вызов дал другой список');
+
+  return {
+    name: 'Метки id покрывают все объекты данных и стоят на своей геометрии',
+    passed: bad.length === 0 && ids.length >= want.length,
+    info: bad.length ? `${bad.length}: ${bad.slice(0, 3).join('; ')}`
+      : `${ids.length} меток на ${want.length} id из данных, все в границах уровня и над своими планами`,
+  };
+}
+
+/**
  * Прогоняет тесты JSON-главы и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
@@ -651,6 +707,7 @@ export async function runJsonTests() {
     testMeshAndLights,
     testMinimap,
     testOpenPositions,
+    testDebugIds,
     testDeterminism,
   ];
   const results = [];

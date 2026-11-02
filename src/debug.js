@@ -5,9 +5,13 @@
  * загружать любую главу напрямую. Поля со значком ⟳ влияют только после
  * перезагрузки главы (сущности создаются при загрузке).
  *
+ * По кнопке показывает id объектов данных прямо в мире — таблички-спрайты по
+ * точкам, которые карта отдаёт через необязательный член контракта `debugIds()`.
+ *
  * Это единственная панель UI вне hud.js — осознанное исключение (AGENTS.md):
  * она не участвует в игровом процессе и не открывается без ?debug=1.
  */
+import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { LEVELS } from './levels/index.js';
 
@@ -58,7 +62,131 @@ const FIELDS = [
   { path: 'camera.fov', label: 'FOV камеры', step: 1, camera: true },
 ];
 
+const LABEL_HEIGHT = 0.5;   // м: высота таблички в мире
+
+/**
+ * Табличка с текстом: canvas по ширине строки, спрайт с `depthTest: false` —
+ * иначе ближайшая стена отрежет половину id, и метку нельзя прочитать из угла.
+ */
+function makeLabel(text, x, y, z) {
+  const font = 'bold 44px "Segoe UI", sans-serif';
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = font;
+  const w = Math.ceil(measure.measureText(text).width) + 20;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = 60;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(8,14,22,.78)';
+  ctx.fillRect(0, 0, w, 60);
+  ctx.strokeStyle = '#5fd0a8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, w - 2, 58);
+  ctx.font = font;
+  ctx.fillStyle = '#d9f2e6';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 10, 32);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, toneMapped: false });
+  const sp = new THREE.Sprite(mat);
+  sp.position.set(x, y, z);
+  sp.center.set(0.5, 0);   // табличка стоит над точкой, а не накрывает её
+  const k = LABEL_HEIGHT / 60;
+  sp.scale.set(w * k, LABEL_HEIGHT, 1);
+  sp.renderOrder = 999;
+  return sp;
+}
+
+/**
+ * Метки id объектов в мире. Точки берёт у карты через необязательный член
+ * контракта `debugIds()` (его держит карта из брифа, где у каждого объекта данных
+ * есть свой id), поэтому панель не знает ни схемы уровня, ни номеров глав.
+ *
+ * Набор живёт, только пока метки включены: при выключении каждая текстура и
+ * материал `dispose()`-нятся (это объекты сцены — то же требование, что к пулу
+ * огней), а при смене главы перестраиваются, потому что `_buildLevel` создаёт
+ * новую сцену и старый набор в ней остаться не может.
+ */
+function createIdLabels(game, onChange) {
+  let group = null;
+  let shownMap = null;
+  let enabled = false;
+
+  const clear = () => {
+    if (!group) return;
+    for (const sp of group.children) {
+      sp.material.map?.dispose();
+      sp.material.dispose();
+    }
+    group.clear();
+    group.removeFromParent();
+    group = null;
+    shownMap = null;
+  };
+
+  const build = () => {
+    const map = game.map;
+    clear();
+    if (!map || typeof map.debugIds !== 'function') return false;
+    group = new THREE.Group();
+    group.name = 'debugIds';
+    for (const p of map.debugIds()) group.add(makeLabel(p.text, p.x, p.y, p.z));
+    shownMap = map;
+    game.scene.add(group);
+    return true;
+  };
+
+  // Перестройка — по окончанию загрузки главы, а не опросом `game.map` каждый
+  // кадр: загрузка уже единственная точка, где карта и сцена меняются все сразу
+  // (её зовут и кнопка панели, и смерть, и переход к следующей главе), а wrap
+  // instance-метода ловит и отложенные вызовы из hud.
+  const original = game._loadLevel.bind(game);
+  game._loadLevel = async (index) => {
+    const r = await original(index);
+    if (enabled && game.map !== shownMap) {
+      build();
+      // главу без `debugIds` перестройка гасит, а подпись под кнопкой станет
+      // правдой, а не застывшим числом прошлой главы
+      onChange?.();
+    }
+    return r;
+  };
+
+  return {
+    /** Включить/выключить метки. Состояние переживает смену главы: иначе
+     *  включённые метки молча не появились бы после перехода в главу из брифа. */
+    set(on) {
+      enabled = on;
+      if (on) build();
+      else clear();
+    },
+    count: () => (group ? group.children.length : 0),
+  };
+}
+
 export function mountDebug(game) {
+  let idsOn = false;
+  let idsBtn = null;
+  let idsNote = null;
+
+  // смена подписи — одна функция на кнопку и на перестройку меток после загрузки
+  // главы: застывшее число после перехода в другую главу вводило бы в заблуждение
+  const syncIdsBtn = () => {
+    if (!idsBtn) return;
+    if (!idsOn) {
+      idsBtn.textContent = 'Показать id объектов';
+      idsNote.textContent = '';
+      return;
+    }
+    const n = idLabels.count();
+    idsBtn.textContent = `Скрыть id объектов (${n})`;
+    idsNote.textContent = n ? '' : 'меток нет: главе нечего подписывать';
+  };
+
+  const idLabels = createIdLabels(game, syncIdsBtn);
+
   const panel = document.createElement('div');
   panel.id = 'debugPanel';
   panel.style.cssText =
@@ -98,6 +226,17 @@ export function mountDebug(game) {
     };
     mkBtn('Загрузить выбранную главу', () => game._loadLevel(Number(select.value)));
     mkBtn('Перезагрузить текущую главу', () => game._loadLevel(game.levelIndex));
+
+    idsBtn = mkBtn('Показать id объектов', () => {
+      idsOn = !idsOn;
+      idLabels.set(idsOn);
+      syncIdsBtn();
+    });
+
+    idsNote = document.createElement('div');
+    idsNote.style.cssText = 'margin:-4px 0 6px;color:#7d94ad;font-size:11px;';
+    panel.appendChild(idsNote);
+    syncIdsBtn();
 
     for (const f of FIELDS) {
       if (f.group) {
