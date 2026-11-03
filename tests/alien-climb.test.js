@@ -18,9 +18,14 @@
  *   2. Чужой залезает с земли на крышу;
  *  2b. Перевал на крышу оставляет тело на крыше и ведёт внутрь дома (взгляд
  *      переносится поворотом корпуса, а не сохраняется в мире);
+ *  2c. Тот же перевал не доворачивает корпус вокруг вертикали мира: курс идёт
+ *      вдоль подъёма, единственный разворот — тангаж;
  *   3. Чужой спускается с крыши обратно на стену;
  *   4. Чужой спускается со стены на землю;
  *   5. Чужой вылезает с потолка верхнего этажа через лаз в крыше на крышу;
+ *  5b. Плоскость перевала сквозь лаз содержит направление бега: горизонтальная
+ *      проекция нормали идёт вдоль бега, а голова в середине дуги смотрит вверх
+ *      (бочка вокруг линии взгляда — старая вырожденная ось (0,0,−1));
  *   6. Чужой спускается с крыши через тот же лаз обратно на потолок;
  *   7. Чужой обходит наружный угол дома по стене: с южной стены перебирается на
  *      смежную восточную через угол и не падает вниз;
@@ -122,6 +127,27 @@ function simulate(alien, steps) {
       x: alien.pos.x, y: alien.pos.y, z: alien.pos.z,
       upX: alien.up.x, upY: alien.up.y, upZ: alien.up.z,
       grounded: alien.grounded,
+    });
+  }
+  return trace;
+}
+
+/**
+ * Прогоняет кадры и оставляет только те, где тело шло плавным переходом
+ * (`_tween` активен ДО шага — последний кадр перехода ещё считается переходным).
+ * Собирает полную рамку тела, потому что мерить надо плоскость вращения, а не
+ * только нормаль.
+ */
+function simulateTransition(alien, steps) {
+  const trace = [];
+  for (let i = 0; i < steps; i++) {
+    const inTween = !!alien._tween;
+    alien.update(DT);
+    if (!inTween) continue;
+    trace.push({
+      t: i,
+      x: alien.pos.x, y: alien.pos.y, z: alien.pos.z,
+      up: alien.up.clone(), fwd: alien.fwd.clone(),
     });
   }
   return trace;
@@ -742,13 +768,105 @@ function testMantleKeepsRoof() {
 }
 
 /**
+ * 5b. Перевал сквозь лаз вращается в плоскости направления бега. Старая
+ * реализация строила всю ориентацию одним `setFromUnitVectors(fromUp, toUp)`, и
+ * при антипараллельных нормах (потолок ↔ кровля) Three.js брал вырожденную ось
+ * `(0,0,−1)` — мировую Z. Чужой бежит к лазу именно вдоль Z, поэтому ось
+ * совпадала с линией взгляда и перевал читался бочкой: нормаль уходила вбок (по
+ * X), а «вперёд» оставалось горизонтальным. Мерим признаки честного перевала:
+ * горизонтальная проекция нормали остаётся вдоль бега, в середине дуги голова
+ * смотрит вверх, на новую опору. Третье — итог: дуга через кромку разворачивает
+ * «вперёд» против бега, и с зажатой «вперёд» тело тут же вернулось бы в лаз
+ * назад; переход обязан довернуть корпус по ходу, а не оставить его задом наперёд.
+ */
+function testHoleSweepFollowsRun() {
+  const { map } = buildHoleWorld();
+  const alien = makeAlien(map);
+  placeAlien(alien, {
+    x: HOLE_X, y: CEIL_Y, z: HOLE_Z_IN - 2.5, up: [0, -1, 0], fwd: [0, 0, 1], pitch: 0,
+  });
+  const tw = simulateTransition(alien, 150);
+
+  let sideways = 0;   // доля X в горизонтальной проекции нормали (у бочки → 1)
+  let headUp = -1;    // сколько раз корпус смотрел «вверх» по ходу дуги
+  for (const s of tw) {
+    const lat = Math.abs(s.up.x);
+    const hor = Math.hypot(s.up.x, s.up.z);
+    if (hor > 0.15) sideways = Math.max(sideways, lat / hor);
+    headUp = Math.max(headUp, s.fwd.y);
+  }
+
+  // «вперёд» удерживается: тело должно уйти с лаза, а не перевернуться обратно
+  const tail = simulate(alien, 90);
+  const fellBack = tail.some(s => s.upY <= -0.9);
+  const along = alien.fwd.z;
+
+  const passed = tw.length >= 3 && sideways <= 0.35 && headUp >= 0.5
+    && !fellBack && along > 0.5;
+  return {
+    name: 'Перевал сквозь лаз идёт в плоскости бега и оставляет курс по ходу',
+    passed,
+    info: passed
+      ? `${tw.length} кадров перехода, максимум боковой доли нормали ${sideways.toFixed(2)}, ` +
+        `голова поднималась до fwd.y=${headUp.toFixed(2)}, итог fwd.z=${along.toFixed(2)}, ` +
+        `z=${alien.pos.z.toFixed(2)} (лаз на ${HOLE_Z_IN}…${HOLE_Z_OUT})`
+      : `${tw.length} кадров перехода, боковая доля ${sideways.toFixed(2)} (нужно ≤ 0.35), ` +
+        `fwd.y вверх ${headUp.toFixed(2)} (нужно ≥ 0.5), итог fwd.z=${along.toFixed(2)} ` +
+        `(нужно > 0.5), вернулся на потолок: ${fellBack}`,
+  };
+}
+
+/**
+ * 2c. Перевал со стены на крышу не доворачивает корпус вокруг вертикали мира.
+ * Ось дуги — касательная кромки, поэтому горизонтальное «вперёд» идёт вдоль
+ * подъёма всё время перехода; единственный разрешённый разворот — тангаж. Прыжок
+ * курса на одном кадре даёт ровно то «поворот вбок», который видно на косом
+ * фасаде, если взгляд в середине дуги стал параллельно нормали (старый путь
+ * бросал «вперёд» на мировую ось через `_replanar`).
+ */
+function testMantleKeepsHeading() {
+  const { map } = buildTestWorld();
+  const alien = makeAlien(map);
+  placeAlien(alien, { x: 0, y: RADIUS, z: WALL_Z + 1.5, up: [0, 1, 0], fwd: [0, 0, -1], pitch: 0.9 });
+  const tw = simulateTransition(alien, 240);
+
+  const yawOf = v => Math.atan2(v.x, -v.z); // курс в мире: −Z = 0
+  let jump = 0;
+  let prev = null;
+  for (const s of tw) {
+    if (Math.hypot(s.fwd.x, s.fwd.z) < 0.25) { prev = null; continue; } // курс не определён в вертикальной стойке
+    const y = yawOf(s.fwd);
+    if (prev !== null) {
+      let d = Math.abs(y - prev);
+      if (d > Math.PI) d = 2 * Math.PI - d;
+      jump = Math.max(jump, d);
+    }
+    prev = y;
+  }
+  // итоговый курс после выхода на крышу — внутрь дома (−Z), как и подъём
+  simulate(alien, 60);
+  const inward = alien.fwd.z < -0.2;
+  const passed = tw.length >= 3 && jump <= 0.3 && inward;
+  return {
+    name: 'Перевал со стены на крышу не доворачивает корпус вокруг вертикали',
+    passed,
+    info: passed
+      ? `${tw.length} кадров перехода, максимальный скачок курса за кадр ${jump.toFixed(2)} рад, ` +
+        `итог fwd=(${alien.fwd.x.toFixed(2)},0,${alien.fwd.z.toFixed(2)})`
+      : `скачок курса ${jump.toFixed(2)} рад за кадр (нужно ≤ 0.3), кадров ${tw.length}, ` +
+        `итог fwd=(${alien.fwd.x.toFixed(2)},0,${alien.fwd.z.toFixed(2)}), внутрь=${inward}`,
+  };
+}
+
+/**
  * Прогоняет все тесты лазания и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
 export function runAlienClimbTests() {
   const tests = [
-    testClimbWall, testClimbRoof, testMantleKeepsRoof, testRoofToWall, testWallToGround,
-    testCeilToRoof, testRoofToCeil, testWallCornerWrap,
+    testClimbWall, testClimbRoof, testMantleKeepsRoof, testMantleKeepsHeading,
+    testRoofToWall, testWallToGround,
+    testCeilToRoof, testRoofToCeil, testHoleSweepFollowsRun, testWallCornerWrap,
     testLeapSticksToWall, testLeapHurtsEnemy, testRoofStopsFall, testDamageAndRegen,
     testShaftHoleToRoof, testShaftHoleToCeiling,
     testLeapOntoWallFromGround, testSpaceLeapForward,

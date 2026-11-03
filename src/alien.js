@@ -77,6 +77,14 @@ export class AlienBody {
     this._twBuf = new THREE.Vector3();
     this._twQ = new THREE.Quaternion();
     this._twQ2 = new THREE.Quaternion();
+    this._twQ3 = new THREE.Quaternion();
+    this._twQ4 = new THREE.Quaternion();
+    this._twAxis = new THREE.Vector3();
+    this._twTravel = new THREE.Vector3();
+    this._twFix = new THREE.Quaternion();
+    this._twArc = 0;
+    this._twTwistAng = 0;
+    this._twHalf = false;
   }
 
   get position() { return this.pos; }
@@ -580,8 +588,21 @@ export class AlienBody {
   /**
    * Начинает плавный переход тела на другую поверхность (перевал со стены на
    * крышу, проход сквозь лаз). В отличие от мгновенного `_land`, позиция и
-   * нормаль доводятся за несколько кадров, поэтому камера не «перекидывается»
-   * рывком. Мировая линия взгляда сохраняется — меняется только ориентация тела.
+   * ориентация доводятся за несколько кадров, поэтому камера не «перекидывается»
+   * рывком.
+   *
+   * Ориентация — дуга вокруг **касательной кромки**: плоскость перевала обязана
+   * содержать направление бега. Один `setFromUnitVectors(fromUp, toUp)` этого не
+   * даёт: касательной в нём нет, а при антипараллельных нормах (переворот
+   * потолок ↔ кровля сквозь лаз) Three.js берёт ось из наименьшей по модулю
+   * компоненты — для `(0,−1,0)` это мировая Z, то есть вдоль бега, и перевал
+   * читается бочкой вокруг линии взгляда (замер — docs/defects-v2-plan.md).
+   *
+   * Линия взгляда едет вместе с корпусом (поворотом той же дуги). Горизонт после
+   * переворота остаётся горизонтом — ровно то, ради чего взгляд сохраняли в мире,
+   * — но без вырождения в середине дуги: там мировая линия становится параллельна
+   * новой нормали, `_restoreLook` не оставляет выбора, и `_replanar` бросает
+   * «вперёд» на мировую ось (отсюда «поворот вбок» на косом фасаде v2).
    */
   _beginTransition(hit) {
     const cfg = this.cfg;
@@ -598,18 +619,38 @@ export class AlienBody {
     const tr = cfg.transition;
     const dist = this._twFromPos.distanceTo(this._twToPos);
     const dur = Math.max(tr.minTime, Math.min(tr.maxTime, dist / tr.speed));
-    this._twQ.setFromUnitVectors(this._twFromUp, this._twToUp);
 
-    // Перевал со стены на крышу: линию взгляда переносим вместе с корпусом.
-    // Мировое сохранение (нужное при перевороте потолок ↔ пол) здесь играет
-    // против тела: подъём требует pitch > climbPitch, то есть на стене взгляд
-    // откинут вдоль нормали стены наружу, и после перевала он смотрит ОТ здания
-    // — с зажатой «вперёд» Чужой сходит с только что взятой кромки и сползает
-    // по стене назад. Перенесённый поворотом корпуса взгляд оставляет «вперёд»
-    // в сторону подъёма (внутрь строения), поэтому перевал на крышу продолжается
-    // движением по крыше, а не спуском.
-    if (Math.abs(this._twFromUp.y) <= WALL_NORMAL_Y && Math.abs(this._twToUp.y) > WALL_NORMAL_Y) {
-      this._twLook.applyQuaternion(this._twQ);
+    const dot = Math.max(-1, Math.min(1, this._twFromUp.dot(this._twToUp)));
+    this._twArc = Math.acos(dot);
+    this._transitionAxis(this._twAxis);
+    this._twQ.setFromAxisAngle(this._twAxis, this._twArc);
+    // Дуга обязана кончаться точно в нормали цели: ось из направления бега
+    // перпендикулярна ей, но не прежней нормали, и без доводки последний кадр
+    // разворачивает корпус рывком (на креновой дуге моста — на доли градуса).
+    this._twBuf.copy(this._twFromUp).applyQuaternion(this._twQ);
+    this._twFix.setFromUnitVectors(this._twBuf, this._twToUp);
+    this._twQ.premultiply(this._twFix);
+
+    // Переворот на 180° (потолок ↔ кровля сквозь лаз) дугой через кромку всегда
+    // разворачивает «вперёд» против бега: с зажатой «вперёд» тело тут же вернулось
+    // бы в тот же лаз. Второй половиной перехода доворачиваем корпус вокруг новой
+    // опоры по направлению бега — переворот через край, как человек из люка.
+    this._twHalf = false;
+    this._twTwistAng = 0;
+    if (this._twArc > Math.PI * 0.75) {
+      const dir = this._travelDir(this._probe);
+      dir.addScaledVector(this._twToUp, -dir.dot(this._twToUp));
+      const look = this._twTravel.copy(this._twLook).applyQuaternion(this._twQ);
+      look.addScaledVector(this._twToUp, -look.dot(this._twToUp));
+      if (dir.lengthSq() > 1e-4 && look.lengthSq() > 1e-4) {
+        dir.normalize();
+        look.normalize();
+        const ang = Math.atan2(this._tmp.crossVectors(look, dir).dot(this._twToUp), look.dot(dir));
+        if (Math.abs(ang) > 0.2) {
+          this._twTwistAng = ang;
+          this._twHalf = true;
+        }
+      }
     }
 
     this._tween = { t: 0, dur };
@@ -619,7 +660,42 @@ export class AlienBody {
     beep(160, 0.05, 'triangle');
   }
 
-  /** Кадр плавного перехода: доводим позицию и нормаль тела с easing. */
+  /**
+   * Горизонтальное направление бега текущего кадра — по нему ориентируется
+   * плоскость перевала. Без намерения движения берём «вперёд» тела, без него —
+   * вектор переноса центра: переход всегда куда-то едет.
+   */
+  _travelDir(out) {
+    out.copy(this._wish).setY(0);
+    if (out.lengthSq() < 1e-6) out.copy(this.fwd).setY(0);
+    if (out.lengthSq() < 1e-6) out.copy(this._twToPos).sub(this._twFromPos).setY(0);
+    return out;
+  }
+
+  /**
+   * Ось дуги перехода. Пока нормали не противоположны, это `fromUp × toUp` —
+   * единственная ось короткой дуги, она же касательная кромки (для перевала
+   * стена → крыша даёт ровно те −90° вокруг фасада, что и раньше). У
+   * противоположных нормалей короткая дуга не определена, и ось берётся
+   * перпендикулярно бегу: `бег × toUp` — та из двух полуокружностей, на которой
+   * голова в середине дуги смотрит на новую опору, а не вниз.
+   */
+  _transitionAxis(out) {
+    out.crossVectors(this._twFromUp, this._twToUp);
+    if (out.lengthSq() > 1e-4 && this._twArc < Math.PI - 0.2) return out.normalize();
+    const travel = this._travelDir(this._twTravel);
+    out.crossVectors(travel, this._twToUp);
+    if (out.lengthSq() < 1e-8) out.crossVectors(travel, this._twFromUp);
+    if (out.lengthSq() < 1e-8) {
+      // ни бега, ни переноса: любая ось, перпендикулярная нормали цели
+      out.set(0, 0, 1);
+      if (Math.abs(out.dot(this._twToUp)) > 0.9) out.set(1, 0, 0);
+      out.crossVectors(out, this._twToUp);
+    }
+    return out.normalize();
+  }
+
+  /** Кадр плавного перехода: доводим позицию и ориентацию тела с easing. */
   _updateTransition(dt) {
     const tw = this._tween;
     tw.t += dt;
@@ -627,9 +703,22 @@ export class AlienBody {
     const e = a * a * (3 - 2 * a); // smoothstep: мягкий разгон и торможение
 
     this.pos.copy(this._twFromPos).lerp(this._twToPos, e);
-    this._twQ2.set(0, 0, 0, 1).slerp(this._twQ, e);
+    if (this._twHalf) {
+      // первая половина — дуга через кромку, вторая — доворот по ходу бега;
+      // доводка концевой нормали размазана по второму этапу
+      const flip = Math.min(1, 2 * e);
+      const turn = Math.max(0, 2 * e - 1);
+      this._twQ2.setFromAxisAngle(this._twAxis, this._twArc * flip);
+      this._twQ3.identity().slerp(this._twFix, turn);
+      this._twQ4.setFromAxisAngle(this._twToUp, this._twTwistAng * turn);
+      this._twQ2.premultiply(this._twQ3).premultiply(this._twQ4);
+    } else {
+      this._twQ2.set(0, 0, 0, 1).slerp(this._twQ, e);
+    }
     this.up.copy(this._twFromUp).applyQuaternion(this._twQ2).normalize();
-    if (!this._restoreLook(this._twBuf.copy(this._twLook))) this._replanar();
+    // взгляд едет вместе с корпусом: угол между ним и нормалью не меняется,
+    // поэтому середина дуги не вырождается и «вперёд» не прыгает на мировую ось
+    if (!this._restoreLook(this._twBuf.copy(this._twLook).applyQuaternion(this._twQ2))) this._replanar();
 
     if (a >= 1) this._tween = null;
   }

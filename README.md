@@ -80,7 +80,7 @@ http://localhost:8124/3d-game.html?debug=1
 2. Откройте консоль разработчика (`F12`) и выполните:
 
 ```js
-// механика лазания Чужого (19 тестов)
+// механика лазания Чужого (21 тест)
 const climb = await import('/tests/alien-climb.test.js');
 climb.runAlienClimbTests();
 
@@ -159,7 +159,7 @@ const json2 = await import('/tests/json2-level.test.js');
 await json2.runJson2Tests();
 ```
 
-Свежий зелёный прогон всех браузерных сюит — **208/208**. Парсер уровня
+Свежий зелёный прогон всех браузерных сюит — **210/210**. Парсер уровня
 (схема → нормализация → модуль главы, включая генератор кварталов) тестируется
 отдельно на Node: `node tools/level-parser.test.mjs` даёт **99/99**.
 
