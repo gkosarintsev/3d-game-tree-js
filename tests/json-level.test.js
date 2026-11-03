@@ -1148,14 +1148,15 @@ function testVertRoofHoles() {
   if (Math.abs(map.groundHeightAt(-35, -5, towerFloor0) - towerFloor0) > 1e-6) {
     bad.push(`пол башни над кровлей не отдаёт свою отметку: ${map.groundHeightAt(-35, -5, towerFloor0)}`);
   }
-  // верхний марш приходит ровно на кровлю: последняя проступь держит, плиты над ней нет
+  // верхняя проступь люка встаёт на подъём ниже плиты: над шахтой опорой отвечает
+  // она, а не кровля — иначе проёма с кровли нет и поднявшийся в ловушку не выходит
   const last = tower.stairs.find(s => s.id === 'tw_roof').steps.slice(-1)[0];
   const cx = (last.minX + last.maxX) / 2, cz = (last.minZ + last.maxZ) / 2;
-  if (Math.abs(map.groundHeightAt(cx, cz, tower.roofY - J.maxRise) - tower.roofY) > 1e-6) {
-    bad.push('верхняя проступь не даёт отметку кровли');
+  if (Math.abs(map.groundHeightAt(cx, cz, tower.roofY) - last.top) > 1e-6) {
+    bad.push(`над шахтой опора ${map.groundHeightAt(cx, cz, tower.roofY)} вместо верхней проступи ${last.top}`);
   }
   if (covered(tower, cx, cz)) bad.push('плита кровли башни не прорезана шахтой');
-  if (Math.abs(last.top - tower.roofY) > 1e-6) bad.push(`верх марша ${last.top} вместо кровли ${tower.roofY}`);
+  if (tower.roofY - last.top > STEP) bad.push(`спуск в люк ${tower.roofY - last.top} круче шага ${STEP}`);
   // щели в перекрытии нет: проём ровно во план шахты, а рядом плита держит
   if (covered(tower, shaft.maxX + 0.5, (shaft.minZ + shaft.maxZ) / 2)) {
     if (!covered(tower, shaft.minX - 0.5, (shaft.minZ + shaft.maxZ) / 2)) bad.push('плита кровли прорезана шире шахты');
@@ -1185,23 +1186,34 @@ function testVertLadderClimb() {
   if (!r || r.minY < s.steps[1].top - J.ladderRung - 1e-6) {
     bad.push(`проступь держит тело от ${r ? r.minY : '—'} вместо толщины ${J.ladderRung}`);
   }
-  // шаг по проступям: от пола до пола, каждый подъём перешагиваем, провала нет
+  // шаг по проступям: от пола до верхней пластины, каждый подъём перешагиваем,
+  // провала нет. Верхняя пластина НЕ доходит до этажа на один подъём — иначе она
+  // отвечала бы опорой над всем проёмом и спуск с этажа в шахту был бы невозможен
   const cx = (s.rect.minX + s.rect.maxX) / 2, cz = (s.rect.minZ + s.rect.maxZ) / 2;
+  const lastTop = s.steps[s.steps.length - 1].top;
   let feet = map.groundHeightAt(cx, cz, s.y0);
   const rises = [];
-  for (let guard = 0; guard < 64 && feet < s.y1 - 1e-6; guard++) {
+  for (let guard = 0; guard < 64 && feet < lastTop - 1e-6; guard++) {
     const next = map.groundHeightAt(cx, cz, feet);
     if (next <= feet + 1e-6) { bad.push(`ступор на ${feet}`); break; }
     if (next - feet > STEP) { bad.push(`подъём ${feet}→${next} круче шага ${STEP}`); break; }
     rises.push(next - feet);
     feet = next;
   }
-  if (Math.abs(feet - s.y1) > 1e-6) bad.push(`по проступлям пришли на ${feet}, ожидалось ${s.y1}`);
+  if (Math.abs(feet - lastTop) > 1e-3) bad.push(`по проступлям пришли на ${feet}, верхняя пластина ${lastTop}`);
+  if (!(s.y1 - lastTop > 0 && s.y1 - lastTop <= STEP)) {
+    bad.push(`проём между ${lastTop} и этажом ${s.y1} не в шаге ноги — дыра односторонняя`);
+  }
+  // с верхней пластины — на плиту пола этажа (её верх на шов выше отметки)
+  const onto = map.groundHeightAt(s.rect.maxX + 0.6, cz, lastTop);
+  if (Math.abs(onto - (s.y1 + J.floorRise)) > 0.02) {
+    bad.push(`с верхней пластины на ${onto}, а пол этажа на ${(s.y1 + J.floorRise).toFixed(2)}`);
+  }
   return {
-    name: 'Вертикальный марш поднимает нога: шаг по проступям от пола до пола',
+    name: 'Вертикальный марш поднимает нога: шаг по проступям и выход на этаж',
     passed: bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ')
-      : `${rises.length} шагов подъёмом ${Math.max(...rises).toFixed(2)} м (предел ${J.maxRise}), ${feet} = верх ${s.y1}`,
+      : `${rises.length} шагов подъёмом ${Math.max(...rises).toFixed(2)} м (предел ${J.maxRise}), ${feet} + ${(s.y1 - lastTop).toFixed(3)} м плиты = этаж ${s.y1}`,
   };
 }
 

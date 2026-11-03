@@ -355,8 +355,12 @@ function stairRun(type, L, W) {
  * делает, поэтому поворот кратен 90° и AABB повёрнутого прямоугольника точен.
  *
  * `connectsFloors [k0, k1]` с `k1 === floorsCount` — марш, выведенный на кровлю:
- * его верхняя отметка ровно `roofY`, а проём в плите кровли режет клиент (там же,
- * где он режет проём в перекрытии этажа).
+ * его отметка назначения `y1` ровно `roofY`, а проём в плите кровли режет клиент
+ * (там же, где он режет проём в перекрытии этажа).
+ *
+ * У вертикального марша `steps[last].top` лежит на одном подъёме НИЖЕ `y1`:
+ * проём шахты и план проступи совпадают, поэтому пластина заподлицо с этажом
+ * или кровлей не оставляла бы дыры — ни спуска, ни провала (`stairLayout`).
  */
 function normalizeStair(s, baseY, floorHeight, buildingId, errors, warnings = []) {
   const [k0, k1] = s.connectsFloors;
@@ -410,11 +414,16 @@ function normalizeStair(s, baseY, floorHeight, buildingId, errors, warnings = []
  * Вертикальный марш (`full`) устроен иначе: план проступи не делит длину шахты,
  * а покрывает её целиком — подъём держит не горизонтальный шаг, а отметка
  * пластины, поэтому `stairSteps` по `full` кладёт все проступи в один план.
+ * Отсюда и последний подъём короче остальных: верхняя проступь останавливается
+ * на одном `risePer` ниже своей отметки. План проступи здесь совпадает с планом
+ * проёма, поэтому пластина заподлицо с полом или кровлёй отвечала бы опорой над
+ * всем проёмом — дыра читалась бы сплошным настилом и спуск был бы невозможен
+ * (замер — `docs/defects-v2-plan.md` §3).
  */
 function stairLayout(type, L, W, height) {
   if (type === 'ladder') {
-    const n = Math.max(2, Math.ceil(height / J.maxRise));
-    return [{ axis: 'x', a0: 0, a1: L, c0: 0, c1: W, count: n, yFrom: 0, risePer: height / n, full: true }];
+    const n = Math.max(3, Math.ceil(height / J.maxRise));
+    return [{ axis: 'x', a0: 0, a1: L, c0: 0, c1: W, count: n - 1, yFrom: 0, risePer: height / n, full: true }];
   }
   if (type !== 'l_shape') {
     const n = Math.max(2, Math.ceil(height / J.maxRise));

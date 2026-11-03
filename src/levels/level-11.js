@@ -204,13 +204,6 @@ export const LEVEL_11 = {
                 "minZ": 1.3,
                 "maxZ": 2.7,
                 "top": 6.686
-              },
-              {
-                "minX": -77.2,
-                "maxX": -75.8,
-                "minZ": 1.3,
-                "maxZ": 2.7,
-                "top": 7.2
               }
             ],
             "bottom": {
@@ -221,7 +214,7 @@ export const LEVEL_11 = {
             "top": {
               "x": -76.5,
               "z": 2,
-              "y": 7.2
+              "y": 6.686
             }
           },
           {
@@ -518,13 +511,6 @@ export const LEVEL_11 = {
                 "minZ": 41.3,
                 "maxZ": 42.7,
                 "top": 6.686
-              },
-              {
-                "minX": -77.2,
-                "maxX": -75.8,
-                "minZ": 41.3,
-                "maxZ": 42.7,
-                "top": 7.2
               }
             ],
             "bottom": {
@@ -535,7 +521,7 @@ export const LEVEL_11 = {
             "top": {
               "x": -76.5,
               "z": 42,
-              "y": 7.2
+              "y": 6.686
             }
           },
           {
@@ -893,13 +879,6 @@ export const LEVEL_11 = {
                 "minZ": -67.2,
                 "maxZ": -65.8,
                 "top": 9.067
-              },
-              {
-                "minX": 53.8,
-                "maxX": 55.2,
-                "minZ": -67.2,
-                "maxZ": -65.8,
-                "top": 9.6
               }
             ],
             "bottom": {
@@ -910,7 +889,7 @@ export const LEVEL_11 = {
             "top": {
               "x": 54.5,
               "z": -66.5,
-              "y": 9.6
+              "y": 9.067
             }
           },
           {

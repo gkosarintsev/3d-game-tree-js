@@ -763,22 +763,33 @@ t('план марша: dimensions обязательна всем, кроме l
     `ширина шахты ladder ${s.rect.maxX - s.rect.minX}, ожидалось ${J.ladderShaft}`);
 });
 
-t('вертикальный марш: проступи в одном плане шахты, подъём ≤ maxRise, верх ровно на отметку', () => {
+t('вертикальный марш: проступи в одном плане шахты, подъём ≤ maxRise, верх на rise ниже отметки', () => {
   const level = normalizeLevel(vertLevel());
-  const s = vertBuilding(level, 'tower').stairs.find(x => x.id === 'tw_ladder');
-  eq(s.steps.length, Math.ceil(s.height / J.maxRise), 'число проступей');
+  const tower = vertBuilding(level, 'tower');
+  const s = tower.stairs.find(x => x.id === 'tw_ladder');
+  // проступей на одну меньше, чем подъёмов: верхний остаётся между последней
+  // пластиной и этажом, иначе проём шахты читал бы опорой заподлицо
+  eq(s.steps.length, Math.ceil(s.height / J.maxRise) - 1, 'число проступей');
   for (const st of s.steps) {
     eq(st.minX, s.rect.minX, 'план проступи по X');
     eq(st.maxZ, s.rect.maxZ, 'план проступи по Z');
   }
+  const rise = s.height / (s.steps.length + 1);
+  assert(rise <= J.maxRise + 1e-9, `подъём ${rise} круче ${J.maxRise}`);
   let prev = s.y0;
   for (const st of s.steps) {
     assert(st.top - prev <= J.maxRise + 1e-9, `подъём проступи ${st.top - prev} круче ${J.maxRise}`);
     prev = st.top;
   }
-  eq(prev, s.y1, 'последняя проступь не пришла на этаж');
-  const up = vertBuilding(level, 'tower').stairs.find(x => x.id === 'tw_roof');
-  eq(up.steps[up.steps.length - 1].top, vertBuilding(level, 'tower').roofY, 'верхний марш не пришёл на кровлю');
+  // и вверх, и вниз последний переход — в шаге ноги: без зазора дыра односторонняя
+  assert(Math.abs(prev - (s.y1 - rise)) < 1e-3,
+    `верхняя проступь на ${prev}, ожидался подъём ниже этажа на ${rise}`);
+  assert(s.y1 - prev <= CONFIG.building.stepUp + 1e-9, `этаж на ${s.y1 - prev} выше последней проступи — спуск не перешагнуть`);
+  const up = tower.stairs.find(x => x.id === 'tw_roof');
+  const upRise = up.height / (up.steps.length + 1);
+  const upTop = up.steps[up.steps.length - 1].top;
+  assert(Math.abs(upTop - (tower.roofY - upRise)) < 1e-3, `люк кровли: верхняя проступь на ${upTop}, плита на ${tower.roofY}`);
+  assert(tower.roofY - upTop <= CONFIG.building.stepUp + 1e-9, 'спуск в люк круче шага ноги');
 });
 
 t('свисяющий торец skybridge — ошибка; торец у двери или у ходовой кровли — норма', () => {

@@ -32,11 +32,13 @@
  *      опускаются на дно;
  *  12. Интерьеры: все этажи и ходовые кровли вводимых домов достижимы от A, а
  *      наружный узел каждой наземной двери связан с улицей;
- *  13. Окна, мусор и неон — счётчики есть, а твёрдость, опоры и маршрут те же,
+ *  13. Люк кровли: плита над шахтой не опора, с кровли можно сойти, подъём
+ *      остаётся, и выход из шахты ведёт на пол этажа;
+ *  14. Окна, мусор и неон — счётчики есть, а твёрдость, опоры и маршрут те же,
  *      что без секций;
- *  14. Метки id (`?debug=1`) покрывают объекты данных, различают дугу, угол и
+ *  15. Метки id (`?debug=1`) покрывают объекты данных, различают дугу, угол и
  *      кровлю; миникарта печатает дугу кольцом и не падает;
- *  15. Детерминизм и бюджет сцены: узлы и солиды совпадают, NaN нет, свет — из
+ *  16. Детерминизм и бюджет сцены: узлы и солиды совпадают, NaN нет, свет — из
  *      данных и в пределах пула.
  */
 import * as THREE from 'three';
@@ -742,6 +744,61 @@ function testInteriors() {
 }
 
 /**
+ * Люк кровли односторонним делит план проступи: все пластины вертикального
+ * марша лежат в одном плане, а `groundHeightAt` отвечает самую высокую опору не
+ * выше feet + stepUp. Верхняя пластина заподлицо с плитой кровли — и над шахтой
+ * опорой становится сам марш: с кровли не сойти (парапет не выпускает за край,
+ * и кровля превращается в ловушку). Поэтому верхняя проступь останавливается на
+ * подъём ниже `roofY`; проём в плите остаётся полным планом шахты.
+ */
+function testRoofHatch() {
+  const map = map11();
+  const bad = [];
+  let hatches = 0;
+  let lastDrop = 0, firstDrop = 0;
+  for (const b of map.buildings) {
+    if (!b.roof?.walkable) continue;
+    for (const s of b.stairs) {
+      if (s.type !== 'ladder' || s.connectsFloors[1] !== b.floorsCount) continue;
+      hatches++;
+      const cx = (s.rect.minX + s.rect.maxX) / 2, cz = (s.rect.minZ + s.rect.maxZ) / 2;
+      const top = s.steps[s.steps.length - 1].top;
+      // 1) над шахтой плитой кровли не отвечает: опора — верхняя проступь
+      const over = map.groundHeightAt(cx, cz, b.roofY);
+      if (over >= b.roofY - 1e-9) bad.push(`${s.id}: над шахтой опора ${over} = кровля, проёма нет`);
+      if (Math.abs(over - top) > 0.02) bad.push(`${s.id}: над шахтой ${over} вместо верхней проступи ${top}`);
+      // 2) зазор между плитой и верхней проступью — в обе стороны шаг ноги:
+      //    с плиты вниз в люк и с проступи вверх на плиту
+      if (b.roofY - top > STEP) bad.push(`${s.id}: спуск в люк ${(b.roofY - top).toFixed(3)} м круче шага ${STEP}`);
+      firstDrop = Math.max(firstDrop, b.roofY - top);
+      // 3) подъём цел: цепочка от пола шагами ≤ stepUp доходит до верхней проступи
+      let feet = map.groundHeightAt(cx, cz, s.y0);
+      for (let guard = 0; guard < 64 && feet < top - 1e-6; guard++) {
+        const next = map.groundHeightAt(cx, cz, feet);
+        if (next <= feet + 1e-6) { bad.push(`${s.id}: подъём стал на ${feet}`); break; }
+        if (next - feet > STEP) { bad.push(`${s.id}: подъём ${feet}→${next} круче шага ${STEP}`); break; }
+        feet = next;
+      }
+      if (Math.abs(feet - top) > 1e-3) bad.push(`${s.id}: подъём дошёл до ${feet}, верхняя проступь ${top}`);
+      // 4) сойти из шахты есть куда: под нижней пластиной пол этажа (проём
+      //    режет только плиту прибытия), а телу над верхней пластиной свободно
+      const base = map.groundHeightAt(cx, cz, s.y0 - 0.3);
+      if (Math.abs(base - (s.y0 + J.floorRise)) > 0.02) {
+        bad.push(`${s.id}: под шахтой опора ${base} вместо пола этажа ${(s.y0 + J.floorRise).toFixed(2)}`);
+      }
+      if (map.isBlocked(cx, cz, CONFIG.radius, top, PLAYER_H)) bad.push(`${s.id}: в люке нет места телу`);
+      lastDrop = Math.max(lastDrop, top - base);
+    }
+  }
+  return {
+    name: 'Люк кровли: над шахтой плита не опора, с кровли сойти можно, подъём цел',
+    passed: bad.length === 0 && hatches >= 3 && firstDrop > 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${hatches} люка: шаг с плиты в люк ${firstDrop.toFixed(3)} м, из шахты до пола этажа падение ${lastDrop.toFixed(2)} м, подъём по проступям ≤ ${STEP} м`,
+  };
+}
+
+/**
  * Окна, мусор и неон — картинка: счётчики есть, а твёрдость, опоры, узлы и
  * маршрут A→B совпадают с картой без секций. Иначе визуальный шум менял бы
  * прохождение, чего правила проекта не допускают.
@@ -908,6 +965,7 @@ export async function runJson2Tests() {
     testSkybridge,
     testWaterways,
     testInteriors,
+    testRoofHatch,
     testPicture,
     testIdsAndMinimap,
     testDeterminismAndBudget,

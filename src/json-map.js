@@ -2180,6 +2180,10 @@ export class JsonMap extends SolidField {
             // решает мир: чужой объём и луч живут в мировых координатах
             const p = this._toWorld(b, x, z);
             if (this._roofCovered(b, p.x, p.z)) continue;
+            // шахта марши-люка — проём во всю плиту: предмет над ней повис бы в
+            // воздухе (опора отвечает на подъём ниже плиты) и закрыл единственный
+            // спуск с кровли
+            if (this._inStair(b, x, z, b.floorsCount)) continue;
             if (!clearAbove(p.x, b.roofY, p.z)) continue;
             add(pick(draw(), models), r3(p.x), b.roofY, r3(p.z), draw, frame?.deg ?? 0);
             n++;
