@@ -16,7 +16,7 @@ import { CONFIG } from '../src/config.js';
 import {
   normalizePolygon, pointInPoly, polyBounds, polyEdges, polyRects, r3, rectsIntersect,
   subtractRect, unionBounds, frameOf, frameAt, obbHitsRect, obbHitsObb, obbOf, unrotatePoint, rotatePoint,
-  arcBounds, arcDelta,
+  arcBounds, arcDelta, arcBankAt,
 } from '../src/geo2d.js';
 
 const J = CONFIG.jsonMap;
@@ -602,18 +602,30 @@ function normalizeRoad(road, ground) {
  * авторские градусы переживают запись в модуль без потерь. Косинусы углов никто
  * не хранит: их считает потребитель по той же паре чисел.
  *
- * `topAtMin/topAtMax` — крайние отметки **верхней** поверхности с учётом крена:
- * внешний край выше среднего на `tan(bank) · halfW`, и валидатор обязан видеть
- * именно его, иначе мост над рекой проходил бы проверку по заниженной отметке.
- * Сам верх над точкой считает `deckTopAt` по углу и радиусу.
+ * Крен — **не константа секции, а функция угла**: он ноль на обоих торцах и
+ * разгоняется до авторского `bank` по косинусоиде за переходный угол `bankTrans`.
+ * Прямой настил, примыкающий к торцу, плоский, и постоянный крен клал бы линию
+ * стыка диагональю (замер — 0,84 м на 8 м ширины). Длина перехода выбрана так,
+ * чтобы продольный уклон **края** полотна не превысил `J.maxSlope`, которым схема
+ * ограничивает ось, — за вычетом самого продольного уклона: краю достается и
+ * подъём, и раскрутка крена сразу. Кламп в 40 % развёртки на торец не даёт
+ * переходам съесть короткую дугу и накладываться друг на друга.
+ *
+ * `topAtMin/topAtMax` — отметки **срезов** (плоскости торцов, где крена нет), а не
+ * гребень середины: валидатор сравнивает их с концами соседних элементов, и
+ * ложный гребень завышал бы мост над рекой на `tan(bank) · halfW`. Верх над
+ * точкой сектора считает `deckTopAt` по углу и радиусу.
  */
 function normalizeArc(a) {
   const span = a.to - a.from;
   const halfW = a.width / 2;
   const y0 = r3(a.y[0]), y1 = r3(a.y[1]);
   const tanBank = r3(Math.tan((a.bank ?? 0) * DEG));
-  const bank = Math.abs(tanBank) * halfW;
   const lo = Math.min(y0, y1), hi = Math.max(y0, y1);
+  const len = a.radius * Math.abs(span * DEG);
+  // край полотна едет и по подъёму, и по раскрутке крена сразу: на переход
+  // остаётся столько `maxSlope`, сколько не съел продольный уклон
+  const axisSlope = len > 0 ? Math.abs(y1 - y0) / len : 0;
   return {
     ...rectOut(arcBounds(a.cx, a.cz, a.radius, halfW, a.from * DEG, a.to * DEG)),
     arc: true,
@@ -621,24 +633,45 @@ function normalizeArc(a) {
     R: r3(a.radius), halfW: r3(halfW),
     a0: a.from, a1: a.to, span,
     y0, y1, tanBank,
+    bankTrans: transitionDeg(tanBank, halfW, a.radius, span, axisSlope),
     width: r3(a.width),
-    topY: r3(lo - bank),
-    bottomY: r3(lo - bank - J.deckThickness),
-    topAtMin: r3(lo - bank),
-    topAtMax: r3(hi + bank),
+    topY: lo,
+    bottomY: r3(lo - J.deckThickness),
+    topAtMin: lo,
+    topAtMax: hi,
     ramp: Math.abs(y1 - y0) > 0.01,
     rails: !!a.rails,
   };
 }
 
 /**
+ * Переходный угол крена (градусы): половина косинусоиды набирает `bankLen` метров
+ * поперечного подъёма с максимальной крутизной `π/2 · bankLen / L_t`, поэтому при
+ * `L_t = π/2 · bankLen / spare` крутизна ровно `spare`, и суммарный уклон края
+ * полотна остаётся в `J.maxSlope`. Нулевой крен даёт нулевой переход — потребителю
+ * нечем делить.
+ */
+function transitionDeg(tanBank, halfW, R, span, axisSlope) {
+  const bankLen = Math.abs(tanBank) * halfW;
+  if (bankLen === 0) return 0;
+  const spare = Math.max(J.maxSlope - axisSlope, J.maxSlope * 0.25);
+  const trans = ((Math.PI / 2) * bankLen / spare / R) / DEG;
+  return r3(Math.min(trans, 0.4 * Math.abs(span)));
+}
+
+/** Крен полотна дуги на угле `ang` (рад) — одна формула для всех потребителей. */
+function deckBankAt(d, ang) {
+  return arcBankAt(ang - d.a0 * DEG, d.span * DEG, d.tanBank, d.bankTrans * DEG);
+}
+
+/**
  * Верх дуги в точке её сектора — та же формула, что отдаёт движок (`topAt`).
  * Опоры и фонари стоят на краю полотна, где крен добавляет к отметке оси
- * `tanBank · отступ`; брать `topY` (минимум по всему сектору) значило бы утопить
- * их в настиле на внешнем краю и подвесить на внутреннем.
+ * `крен(угол) · отступ`; брать `topY` (минимум по всему сектору) значило бы
+ * утопить их в настиле на внешнем краю и подвесить на внутреннем.
  */
 function arcTopAt(d, ang, rho) {
-  return d.y0 + (d.y1 - d.y0) * (ang - d.a0 * DEG) / (d.span * DEG) + d.tanBank * (rho - d.R);
+  return d.y0 + (d.y1 - d.y0) * (ang - d.a0 * DEG) / (d.span * DEG) + deckBankAt(d, ang) * (rho - d.R);
 }
 
 /** Угол в (−180, 180]: производная касательная не обязана попадать в тот же круг. */
@@ -1159,8 +1192,10 @@ function deckTopAt(d, x, z) {
     const dx = x - d.cx, dz = z - d.cz;
     const delta = arcDelta(Math.atan2(dz, dx), d.a0 * DEG, d.span * DEG) ?? 0;
     const span = d.span * DEG;
-    // подъём линеен по длине дуги, то есть по углу; крен — по отступу от осевой
-    return d.y0 + (d.y1 - d.y0) * delta / span + d.tanBank * (Math.hypot(dx, dz) - d.R);
+    // подъём линеен по длине дуги, то есть по углу; крен — по отступу от осевой и
+    // по углу же (у торцов он ноль, поэтому стык с прямым настилом горизонтален)
+    return d.y0 + (d.y1 - d.y0) * delta / span
+      + deckBankAt(d, d.a0 * DEG + delta) * (Math.hypot(dx, dz) - d.R);
   }
   if (d.topAtMax === d.topAtMin) return d.topAtMin;
   let u, lo, hi;

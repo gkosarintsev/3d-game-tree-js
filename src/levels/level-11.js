@@ -1634,11 +1634,12 @@ export const LEVEL_11 = {
             "y0": 0.12,
             "y1": 12,
             "tanBank": 0.105,
+            "bankTrans": 4.253,
             "width": 8,
-            "topY": -0.3,
-            "bottomY": -0.9,
-            "topAtMin": -0.3,
-            "topAtMax": 12.42,
+            "topY": 0.12,
+            "bottomY": -0.48,
+            "topAtMin": 0.12,
+            "topAtMax": 12,
             "ramp": true,
             "rails": true
           },
@@ -2044,7 +2045,7 @@ export const LEVEL_11 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 10.898,
+              "y": 10.906,
               "z": 1.6
             }
           },
@@ -2060,7 +2061,7 @@ export const LEVEL_11 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 11.486,
+              "y": 11.479,
               "z": 1.6
             }
           },
@@ -5117,7 +5118,7 @@ export const LEVEL_11 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 10.898,
+          "y": 10.906,
           "z": 1.6
         }
       },
@@ -5149,7 +5150,7 @@ export const LEVEL_11 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 11.486,
+          "y": 11.479,
           "z": 1.6
         }
       },

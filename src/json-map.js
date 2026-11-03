@@ -5,7 +5,7 @@ import { SolidField, circleHitsBox } from './solids.js';
 import { NavGraph } from './nav-graph.js';
 import {
   r3, subtractRect, frameAt, frameOf, obbOf, obbHitsRect, rotatePoint, rotatedBounds, unrotatePoint,
-  arcDelta,
+  arcDelta, arcBankAt,
 } from './geo2d.js';
 import { buildProps } from './props.js';
 
@@ -514,7 +514,10 @@ export class JsonMap extends SolidField {
         // дуга: ни коробки, ни призмы — её верх и коллизию держит sweep, а
         // габарит остаётся только фильтром индексов и миникарты
         if (d.arc) {
-          const s = { ...d, road: road.id, roadType: road.type, a0r: d.a0 * DEG, spanr: d.span * DEG };
+          const s = {
+            ...d, road: road.id, roadType: road.type,
+            a0r: d.a0 * DEG, spanr: d.span * DEG, transr: d.bankTrans * DEG,
+          };
           this.sweeps.push(s);
           // лента нарезается один раз и кормит обе стороны правила «картинка
           // совпадает с опорой»: тот же треугольник, что виден, принимает и луч
@@ -541,19 +544,25 @@ export class JsonMap extends SolidField {
    * луч, поэтому «картинка совпадает с опорой» — не соглашение, а один и тот же
    * набор граней. Отклонение ленты от точной поверхности (хорда 5° при R 40 м)
    * равно 3,8 см, опора при этом остаётся аналитической (`topAt`).
+   *
+   * Крен берётся из `arcBankAt` по доле развёртки, поэтому торец ленты — вертикаль
+   * с **горизонтальным** верхом: примыкающий прямой настил плоский, и линия их
+   * контакта обязана быть горизонталью, а не диагональю на всю ширину.
    */
   _sweepMesh(s) {
-    const n = Math.max(1, Math.ceil(Math.abs(s.span) / J.sweepSlice));
     const t = J.deckThickness;
-    const rings = [];
-    for (let i = 0; i <= n; i++) {
-      const ang = s.a0r + s.spanr * i / n;
-      rings.push([s.R - s.halfW, s.R + s.halfW].map(rho => [
+    const fr = sweepFractions(s);
+    const rings = fr.map(f => {
+      const delta = s.spanr * f;
+      const ang = s.a0r + delta;
+      const bank = arcBankAt(delta, s.spanr, s.tanBank, s.transr);
+      const y = s.y0 + (s.y1 - s.y0) * f;
+      return [s.R - s.halfW, s.R + s.halfW].map(rho => [
         s.cx + Math.cos(ang) * rho,
-        s.y0 + (s.y1 - s.y0) * i / n + s.tanBank * (rho - s.R),
+        y + bank * (rho - s.R),
         s.cz + Math.sin(ang) * rho,
-      ]));
-    }
+      ]);
+    });
     const tris = [];
     const add = (a, b, c, ref) => {
       const nv = faceNormal(a, b, c);
@@ -565,10 +574,10 @@ export class JsonMap extends SolidField {
     };
     const quad = (a, b, c, d, ref) => { add(a, b, c, ref); add(a, c, d, ref); };
     const down = p => [p[0], p[1] - t, p[2]];
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i + 1 < fr.length; i++) {
       const [ti0, to0] = rings[i], [ti1, to1] = rings[i + 1];
       const [bi0, bo0, bi1, bo1] = [down(ti0), down(to0), down(ti1), down(to1)];
-      const ang = s.a0r + s.spanr * (i + 0.5) / n;
+      const ang = s.a0r + s.spanr * (fr[i] + fr[i + 1]) / 2;
       const rx = Math.cos(ang), rz = Math.sin(ang);
       quad(ti0, to0, to1, ti1, [0, 1, 0]);
       quad(bi0, bi1, bo1, bo0, [0, -1, 0]);
@@ -583,7 +592,7 @@ export class JsonMap extends SolidField {
     const tang = a => [-Math.sin(a) * dir, 0, Math.cos(a) * dir];
     const t0 = tang(s.a0r), t1 = tang(s.a0r + s.spanr);
     cap(rings[0], [-t0[0], 0, -t0[2]]);
-    cap(rings[n], t1);
+    cap(rings[rings.length - 1], t1);
     s.tris = tris;
     this.geo.decks.push(this._sweepGeo(tris));
     if (s.rails) this._sweepRails(s);
@@ -2758,11 +2767,44 @@ function pushOutWedgeLocal(c, r, w) {
 }
 
 /**
+ * Доли развёртки для нарезки ленты: ровная сетка ≤ `J.sweepSlice` плюс мелкие
+ * полосы в обеих переходных зонах крена.
+ *
+ * Четырёхугольник ленты, у которого крен на концах разный, — седло: высота растёт
+ * как произведение доли длины на отступ от осевой, и никакой диагональю двумя
+ * плоскими треугольниками его не покрыть — зазор грани и точной поверхности
+ * доходит до `Δкрен · ширина полотна`. Поэтому в переходе полоса мельчает ровно
+ * настолько, чтобы этот зазор остался в `J.sweepRibbonTwist`: иначе картинка
+ * разошлась бы с опорой именно там, где крен набирается.
+ */
+function sweepFractions(s) {
+  const absSpan = Math.abs(s.spanr);
+  const pts = [0, 1];
+  const coarse = Math.max(1, Math.ceil(absSpan / (J.sweepSlice * DEG)));
+  for (let k = 1; k < coarse; k++) pts.push(k / coarse);
+  if (s.transr > 0 && s.tanBank) {
+    const nr = Math.max(2, Math.ceil(Math.abs(s.tanBank) * Math.PI * s.halfW / J.sweepRibbonTwist));
+    const band = s.transr / absSpan / nr;
+    for (let k = 0; k <= nr; k++) {
+      pts.push(k * band);
+      pts.push(1 - k * band);
+    }
+  }
+  pts.sort((a, b) => a - b);
+  const out = [];
+  for (const f of pts) {
+    if (!out.length || f - out[out.length - 1] > 1e-9) out.push(f);
+  }
+  return out;
+}
+
+/**
  * Верх полотна дуги под мировой точкой: null — точка вне сектора. Угол считается
  * `atan2(dz, dx)` — тем же обходом, что у `yaw` пластин, поэтому и развёртка
  * назад (`span < 0`) читается `arcDelta` без второй ветки арифметики.
  *
- * Подъём линеен по длине дуги, то есть по углу; крен — по отступу от осевой.
+ * Подъём линеен по длине дуги, то есть по углу; крен — по отступу от осевой и по
+ * тому же углу (`arcBankAt`: у торцов ноль, в середине авторский).
  */
 function sweepTopAt(s, x, z) {
   const dx = x - s.cx, dz = z - s.cz;
@@ -2770,12 +2812,15 @@ function sweepTopAt(s, x, z) {
   if (delta === null) return null;
   const rho = Math.hypot(dx, dz);
   if (Math.abs(rho - s.R) > s.halfW + 1e-9) return null;
-  return s.y0 + (s.y1 - s.y0) * delta / s.spanr + s.tanBank * (rho - s.R);
+  return s.y0 + (s.y1 - s.y0) * delta / s.spanr
+    + arcBankAt(delta, s.spanr, s.tanBank, s.transr) * (rho - s.R);
 }
 
 /** Верх полотна на известных угле и радиусе (без обратного `atan2`). */
 function sweepSurfaceAt(s, ang, rho) {
-  return s.y0 + (s.y1 - s.y0) * (ang - s.a0r) / s.spanr + s.tanBank * (rho - s.R);
+  const delta = ang - s.a0r;
+  return s.y0 + (s.y1 - s.y0) * delta / s.spanr
+    + arcBankAt(delta, s.spanr, s.tanBank, s.transr) * (rho - s.R);
 }
 
 /**
@@ -2833,11 +2878,14 @@ function sweepNear(s, x, z) {
     const k = rho > 1e-9 ? rc / rho : 1;
     return {
       dp: Math.max(0, Math.abs(rho - s.R) - s.halfW),
-      top: s.y0 + (s.y1 - s.y0) * delta / s.spanr + s.tanBank * (rc - s.R),
+      top: s.y0 + (s.y1 - s.y0) * delta / s.spanr
+        + arcBankAt(delta, s.spanr, s.tanBank, s.transr) * (rc - s.R),
       px: s.cx + dx * k, pz: s.cz + dz * k,
     };
   }
-  // вне развёртки: ближайший торец — отрезок от внутреннего радиуса к внешнему
+  // вне развёртки: ближайший торец — отрезок от внутреннего радиуса к внешнему.
+  // Крен на нём ровно ноль (переход начинается с торца), поэтому верх торца —
+  // отметка оси без поправки на радиус
   let best = null;
   for (const [a, yEnd] of [[s.a0r, s.y0], [s.a0r + s.spanr, s.y1]]) {
     const ux = Math.cos(a), uz = Math.sin(a);
@@ -2845,7 +2893,7 @@ function sweepNear(s, x, z) {
     const px = s.cx + ux * t, pz = s.cz + uz * t;
     const dp = Math.hypot(x - px, z - pz);
     if (!best || dp < best.dp) {
-      best = { dp, top: yEnd + s.tanBank * (t - s.R), px, pz };
+      best = { dp, top: yEnd, px, pz };
     }
   }
   return best;

@@ -15,13 +15,24 @@
  * 0,105104. Поэтому сначала проверяется, что модуль несёт именно округлённый
  * бриф (допуск 0,5 мм), а уже потом формула сверяется с этими числами впритык.
  *
+ * Профиль крена по развёртке — не украшение, а следствие стыка: лента с авторским
+ * креном до самого торца заканчивается скруглённым срезом (верхний край среза —
+ * горизонталь только на осевой), и примыкающий к нему плоский настил даёт линию
+ * контакта диагональю на всю ширину — 0,84 м для 6° на 8 м полотна. Крен поэтому
+ * набирается половиной косинусы на переходе у обоих торцов, а длина перехода
+ * считается из остатка `maxSlope` после продольного уклона: край полотна не смеет
+ * быть круче оси. Полоса с разными кренами на концах — седло, две плоские граньи
+ * на него не ложатся, поэтому угловая нарезка ленты в зоне перехода мельчает
+ * (`J.sweepRibbonTwist` — бюджет зазора), а вне её остаётся решёточной.
+ *
  * Запуск в браузере (через консоль страницы игры, где есть importmap):
  *   const m = await import('/tests/rotated-sweep.test.js?v=1');
  *   await m.runRotatedSweepTests();
  *
  * Проверяются сценарии:
  *   1. Бриф v2 с дугой проходит схему и нормализатор без предупреждений, сектор
- *      доходит до данных карты, карта держит sweep и отдаёт его верх через topAt;
+ *      доходит до данных карты, переходный угол и отметки срезов в них лежат,
+ *      карта держит sweep и отдаёт его верх через topAt;
  *   2. Верх дуги совпадает с независимой формулой по всему сектору, включая крен;
  *   3. Опора есть только в секторе: за бортом, во внутреннем отверстии и вне
  *      развёртки — земля, хотя габарит эти точки накрывает;
@@ -35,9 +46,15 @@
  *      сходятся с аналитическим верхом в пределах хорды нарезки (≤ 0,05 м);
  *      подземные пробы у начала (крен топит внутренний край) не сверяются;
  *   9. Луч снизу попадает в низ плиты, а не проваливается сквозь полотно;
- *  10. Перила `rails` бракуют край полотна, но не мешают идти по осевой;
- *  11. Миникарта печатает дугу кольцевым сектором (два `ctx.arc`), а не габаритом;
- *  12. Граф навигации идёт по осевой дуги: маршрут с земли доводит до точки B на
+ *  10. Крен сходит к нулю на обоих срезах (торец ленты плоский), полный он только
+ *      в середине развёртки, а уклон внешнего края вдоль дуги остаётся ≤ maxSlope;
+ *  11. Лента в зоне раскрутки крена не ступенит: луч сходится с точной
+ *      поверхностью в бюджете `J.sweepRibbonTwist`;
+ *  12. Стык дуги с плоской касательной пластиной — горизонталь: три сечения и луч
+ *      на одной отметке (без перехода крена эта линия — диагональ 0,84 м);
+ *  13. Перила `rails` бракуют край полотна, но не мешают идти по осевой;
+ *  14. Миникарта печатает дугу кольцевым сектором (два `ctx.arc`), а не габаритом;
+ *  15. Граф навигации идёт по осевой дуги: маршрут с земли доводит до точки B на
  *      полотне, а узлы на нём стоят на плоскости дуги и не выброшены как карман.
  */
 import { createJsonMap } from '../src/json-map.js';
@@ -68,10 +85,37 @@ const P = (arc, deg, rho = arc.radius) => ({
   z: arc.cz + Math.sin(deg * DEG) * rho,
 });
 
-/** Верх полотна на угле `deg` и радиусе `rho`: уклон по углу, крен по отступу. */
+/**
+ * Доля авторского крена на переходе: у обоих торцов ноль, в середине развёртки —
+ * единица. Своя арифметика: половина косинусы набрана так, что производная
+ * обращается в нуль и на срезе, и на плато — ни та, ни другая точка не ломается.
+ */
+const bankFrac = (deg, a0, a1, trans) => {
+  if (!trans) return 1;
+  const e = Math.max(0, Math.min(Math.abs(deg - a0), Math.abs(a1 - deg)));
+  return e >= trans ? 1 : (1 - Math.cos(Math.PI * e / trans)) / 2;
+};
+
+/**
+ * Переходный угол (градусы) из брифа: столько `maxSlope` остаётся на раскрутку
+ * крена, сколько не съел продольный уклон, — край полотна едет вверх и по тому,
+ * и по другому сразу.
+ */
+const transOfArc = (arc) => {
+  const tanBank = Math.round(Math.tan((arc.bank ?? 0) * DEG) * 1000) / 1000;
+  const bankLen = Math.abs(tanBank) * arc.width / 2;
+  if (!bankLen) return 0;
+  const len = arc.radius * Math.abs((arc.to - arc.from) * DEG);
+  const slope = len > 0 ? Math.abs(arc.y[1] - arc.y[0]) / len : 0;
+  return Math.min(((Math.PI / 2) * bankLen / Math.max(J.maxSlope - slope, J.maxSlope * 0.25) / arc.radius) / DEG,
+    0.4 * Math.abs(arc.to - arc.from));
+};
+
+/** Верх полотна на угле `deg` и радиусе `rho`: уклон по длине дуги + переходный крен. */
 const surface = (arc, deg, rho = arc.radius) => {
   const t = (deg - arc.from) / (arc.to - arc.from);
-  return arc.y[0] + (arc.y[1] - arc.y[0]) * t + Math.tan(arc.bank * DEG) * (rho - arc.radius);
+  return arc.y[0] + (arc.y[1] - arc.y[0]) * t
+    + Math.tan(arc.bank * DEG) * bankFrac(deg, arc.from, arc.to, transOfArc(arc)) * (rho - arc.radius);
 };
 
 const EXIT = P(ARC, (ARC.from + ARC.to) / 2);
@@ -81,7 +125,8 @@ const R3 = v => Math.round(v * 1000) / 1000;
 
 /** Верх дуги по константам данных карты: та же независимая формула, но на `d`. */
 const surfaceOf = (d, deg, rho = d.R) =>
-  d.y0 + (d.y1 - d.y0) * (deg - d.a0) / (d.a1 - d.a0) + d.tanBank * (rho - d.R);
+  d.y0 + (d.y1 - d.y0) * (deg - d.a0) / (d.a1 - d.a0)
+  + d.tanBank * bankFrac(deg, d.a0, d.a1, d.bankTrans) * (rho - d.R);
 
 const RAW = {
   kind: 'json2',
@@ -127,6 +172,13 @@ function testBrief() {
   if (d.tanBank !== wantTan) bad.push(`крен ${d.tanBank} вместо ${wantTan}`);
   if (d.halfW !== ARC.width / 2) bad.push(`полуширина ${d.halfW}`);
   if (d.a0 !== ARC.from || d.a1 !== ARC.to) bad.push(`углы ${d.a0}→${d.a1}`);
+  // переходный угол — производная величина: парсер считает её из округлённого
+  // крена, и своя формула теста обязана сойтись с ней в пределах округления
+  const wantTrans = transOfArc(ARC);
+  if (Math.abs(d.bankTrans - wantTrans) > 1e-3) bad.push(`переход ${d.bankTrans}° вместо ${wantTrans.toFixed(3)}°`);
+  if (d.topAtMin !== R3(ARC.y[0]) || d.topAtMax !== R3(ARC.y[1])) {
+    bad.push(`срез дуги ${d.topAtMin}→${d.topAtMax}, а не ${ARC.y[0]}→${ARC.y[1]} — крен завысил бы мост`);
+  }
   if (map.sweeps.length !== 1) bad.push(`sweeps: ${map.sweeps.length}`);
   if (!map.sweeps[0]?.tris?.length) bad.push('лента дуги не построена');
   if (map.geo.decks.length !== 1) bad.push(`мешей настила: ${map.geo.decks.length}`);
@@ -138,7 +190,7 @@ function testBrief() {
     name: 'Бриф v2: дуга принята, сектор дошёл до карты, sweep отдаёт верх через topAt',
     passed: bad.length === 0,
     info: bad.length ? bad.join('; ')
-      : `дуга R ${ARC.radius} м, ${d.span}°, верх 0,12→12 м, крен 6°; отметка середины ${top.toFixed(3)} м`,
+      : `дуга R ${ARC.radius} м, ${d.span}°, верх 0,12→12 м, крен 6° сходит на ${d.bankTrans}°; середина ${top.toFixed(3)} м`,
   };
 }
 
@@ -395,6 +447,171 @@ function testRailsBlockEdge() {
   };
 }
 
+/**
+ * Крен сходит к нулю на обоих срезах, и край полотна остаётся в `maxSlope`:
+ * подъём держит ось, а раскрутка крена — только то, что от подъёма осталось.
+ * Проверяется разностью высот двух бортов и конечной разностью вдоль борта — по
+ * опоре карты, а не по формуле модуля.
+ */
+function testBankEndsAndEdgeSlope() {
+  const map = builtMap();
+  const d = deckInfo();
+  const bad = [];
+  // на обоих срезах разница ботов — ноль: торец ленты плоский
+  for (const deg of [d.a0, d.a1]) {
+    const inner = map.topAt(P(ARC, deg, d.R - d.halfW + 0.05).x, P(ARC, deg, d.R - d.halfW + 0.05).z);
+    const outer = map.topAt(P(ARC, deg, d.R + d.halfW - 0.05).x, P(ARC, deg, d.R + d.halfW - 0.05).z);
+    if (inner === null || outer === null) { bad.push(`на срезе ${deg}° опоры нет`); continue; }
+    if (Math.abs(outer - inner) > 1e-6) {
+      bad.push(`срез ${deg}°: борта разошлись на ${(outer - inner).toFixed(4)} м — торец наклонён`);
+    }
+    const axis = deg === d.a0 ? d.y0 : d.y1;
+    if (Math.abs(inner - axis) > 1e-6) bad.push(`срез ${deg}°: полотно на ${inner.toFixed(4)}, а не на ${axis}`);
+  }
+  // в середине развёртки крен обязан быть полным: 6° на 6 м между бортами
+  const midIn = map.topAt(P(ARC, 90, 37).x, P(ARC, 90, 37).z);
+  const midOut = map.topAt(P(ARC, 90, 43).x, P(ARC, 90, 43).z);
+  const wantBank = d.tanBank * 6;
+  if (Math.abs((midOut - midIn) - wantBank) > 1e-6) {
+    bad.push(`крен по ширине в середине ${(midOut - midIn).toFixed(4)} вместо ${wantBank.toFixed(4)}`);
+  }
+  // уклон внешнего края вдоль дуги: подъём оси + набираемый крен не смел превысить
+  // то, что схема даёт оси. Шаг 0,25° — мельче любой нарезки ленты
+  const rho = d.R + d.halfW - 0.05;
+  const step = 0.25;
+  let worst = 0, worstAt = 0;
+  for (let deg = d.a0 + step; deg <= d.a1 - step; deg += step) {
+    const a = map.topAt(P(ARC, deg - step, rho).x, P(ARC, deg - step, rho).z);
+    const b = map.topAt(P(ARC, deg + step, rho).x, P(ARC, deg + step, rho).z);
+    if (a === null || b === null) { bad.push(`край ${deg.toFixed(2)}°: опоры нет`); continue; }
+    const slope = Math.abs(b - a) / (2 * step * DEG * rho);
+    if (slope > worst) { worst = slope; worstAt = deg; }
+  }
+  if (worst > J.maxSlope + 1e-3) {
+    bad.push(`уклон края ${worst.toFixed(4)} на ${worstAt.toFixed(1)}° — выше maxSlope ${J.maxSlope}`);
+  }
+  const axisSlope = Math.abs(d.y1 - d.y0) / (d.R * Math.abs(d.span * DEG));
+  return {
+    name: 'Крен сходит к нулю на срезах, а уклон края полотна остаётся в maxSlope',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `срезы плоские (${d.y0} и ${d.y1} м), крен в середине ${(midOut - midIn).toFixed(3)} м, `
+        + `худший край ${worst.toFixed(4)} (ось ${axisSlope.toFixed(4)})`,
+  };
+}
+
+/**
+ * Стык дуги с прямым настилом — горизонталь, а не диагональ на всю ширину.
+ * Настил примыкает к верхнему срезу плоской касательной пластиной; пока крен не
+ * сходит на торце, линия контакта двух полотен — разность `tan(bank) · ширина`
+ * (для 6° на 8 м это 0,84 м), и по ней человек идёт поперёк уклона. Проверяется
+ * опорой и лучом в трёх сечениях: внутренний борт, осевая, внешний борт.
+ */
+function testJointWithFlatDeck() {
+  const arc = { ...ARC, from: 0, to: 90, y: [0.12, 6] };
+  const trans = transOfArc(arc);
+  // пластина идёт по касательной к верхнему срезу (развёртка против часовой ⇒
+  // касательная на угле a — угол a + 90°), начало совпадает с торцом дуги
+  const tanAng = (arc.to + 90) * DEG;
+  const plateLen = 30;
+  const end = P(arc, arc.to, arc.radius);
+  const plate = {
+    x: end.x + Math.cos(tanAng) * plateLen / 2,
+    z: end.z + Math.sin(tanAng) * plateLen / 2,
+    yaw: arc.to + 90, length: plateLen, width: arc.width, y: arc.y[1],
+  };
+  const level = normalizeLevel(structuredClone({
+    ...RAW,
+    roads: [
+      { id: 'rp_arc_joint', type: 'bridge', elements: [{ arc }] },
+      { id: 'rp_plate_joint', type: 'bridge', elements: [{ plate }] },
+    ],
+    gameplay: { ...RAW.gameplay, exit: { x: plate.x, z: plate.z } },
+  }));
+  const map = createJsonMap(level.map);
+  const d = level.map.roads[0].decks[0];
+  const bad = [];
+  // три сечения стыка: дуга у своего среза и пластина у своего начала
+  const at = (deg, rho) => ({ x: arc.cx + Math.cos(deg * DEG) * rho, z: arc.cz + Math.sin(deg * DEG) * rho });
+  const fromPlate = (u) => ({
+    x: plate.x + Math.cos(tanAng) * u, z: plate.z + Math.sin(tanAng) * u,
+  });
+  const rows = [];
+  for (const off of [-arc.width / 2 + 0.3, 0, arc.width / 2 - 0.3]) {
+    const rho = arc.radius + off;
+    const onArc = map.groundHeightAt(at(arc.to - 1e-3, rho).x, at(arc.to - 1e-3, rho).z, 500);
+    const joint = fromPlate(-plateLen / 2 + 0.3);
+    const onPlate = map.groundHeightAt(joint.x - Math.sin(tanAng) * off, joint.z + Math.cos(tanAng) * off, 500);
+    if (onArc === null) bad.push(`дуга у среза при отступе ${off.toFixed(1)} м опоры не даёт`);
+    if (Math.abs(onPlate - arc.y[1]) > 1e-6) bad.push(`пластина у стыка на ${onPlate}, а не на ${arc.y[1]}`);
+    if (onArc !== null && Math.abs(onArc - onPlate) > 0.02) {
+      bad.push(`стык при отступе ${off.toFixed(1)} м: дуга ${onArc.toFixed(3)}, настил ${onPlate.toFixed(3)}`);
+    }
+    if (onArc !== null) rows.push(onArc);
+  }
+  const spread = Math.max(...rows) - Math.min(...rows);
+  if (spread > 1e-3) bad.push(`линия стыка расходится на ${spread.toFixed(3)} м`);
+  // тот же замер лучом: попадание по всей ширине среза на одной отметке
+  for (const off of [-arc.width / 2 + 0.3, arc.width / 2 - 0.3]) {
+    const p = at(arc.to - 0.02, arc.radius + off);
+    const hit = map.raySolid(p.x, arc.y[1] + 5, p.z, 0, -1, 0, 12);
+    if (!hit || Math.abs(hit.y - arc.y[1]) > 0.05) {
+      bad.push(`луч у стыка (отступ ${off.toFixed(1)} м): ${hit ? hit.y.toFixed(3) : 'мимо'}, а не ${arc.y[1]}`);
+    }
+  }
+  // без перехода та же линия была бы диагональю на 2·tan(6°)·4 м — проверяем, что
+  // тест измеряет именно это: величина, которую он ловит
+  const diagonal = 2 * Math.tan(arc.bank * DEG) * (arc.width / 2 - 0.3);
+  map.dispose?.();
+  return {
+    name: 'Стык дуги с прямым настилом — горизонталь: три сечения и луч на одной отметке',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `переход ${trans.toFixed(2)}°, разброс стыка ${spread.toExponential(1)} м; `
+        + `без перехода диагональ была бы ${diagonal.toFixed(2)} м`,
+  };
+}
+
+/**
+ * Лента в переходе обязана остаться картинкой, а не ступенями: полоса с разными
+ * кренами на концах — седло, и две плоские треугольники не ложатся на него без
+ * зазора `Δкрен · ширина`. Поэтому угловая нарезка адаптируется: здесь сверяется
+ * расхождение луча с точной поверхностью именно в зоне раскрутки крена.
+ */
+function testTransitionMeshTight() {
+  const map = builtMap();
+  const d = deckInfo();
+  const bad = [];
+  let worst = 0, probes = 0;
+  for (let i = 0; i <= 40; i++) {
+    for (const side of [1, -1]) {
+      // обе зоны перехода: от торца до полного крена
+      const deg = side > 0 ? d.a0 + (d.bankTrans * i) / 40 : d.a1 - (d.bankTrans * i) / 40;
+      const rho = d.R + side * (d.halfW - 0.2);
+      const p = P(ARC, deg, rho);
+      const want = surfaceOf(d, deg, rho);
+      if (want < 0.3) continue; // внутренний край у самой земли: первым бьёт асфальт улицы
+      const hit = map.raySolid(p.x, want + 4, p.z, 0, -1, 0, 10);
+      if (!hit) { bad.push(`угол ${deg.toFixed(2)}: луч не нашёл ленту в переходе`); continue; }
+      const err = Math.abs(hit.y - want);
+      worst = Math.max(worst, err);
+      probes++;
+      if (err > J.sweepRibbonTwist + 0.01) {
+        bad.push(`угол ${deg.toFixed(2)}: лента ${hit.y.toFixed(4)} вместо ${want.toFixed(4)} (${err.toFixed(4)} м)`);
+      }
+    }
+  }
+  const bands = map.sweeps[0].tris.length;
+  if (probes < 40) bad.push(`сверено только ${probes} проб перехода`);
+  return {
+    name: 'Лента в переходе крена не ступенит: луч сходится с точной поверхностью в пределе зазора',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${probes} проб в обеих зонах раскрутки, худшее расхождение ${worst.toFixed(4)} м при бюджете `
+        + `${J.sweepRibbonTwist} м; граней ленты ${bands}`,
+  };
+}
+
 function testMinimapArc() {
   const map = builtMap();
   const d = deckInfo();
@@ -505,6 +722,9 @@ export async function runRotatedSweepTests() {
     testSphereTravels,
     testRayHitsRibbon,
     testRayUnderside,
+    testBankEndsAndEdgeSlope,
+    testTransitionMeshTight,
+    testJointWithFlatDeck,
     testRailsBlockEdge,
     testMinimapArc,
     testNavAlongArc,

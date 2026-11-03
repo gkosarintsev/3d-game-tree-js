@@ -118,9 +118,22 @@ function arcPoint(d, deg, rho = d.R) {
   return { x: d.cx + Math.cos(deg * DEG) * rho, z: d.cz + Math.sin(deg * DEG) * rho };
 }
 
+/**
+ * Доля авторского крена на угле `deg`: ноль у обоих торцов, единица в середине
+ * развёртки. Переход держит уклон края полотна в `maxSlope` и делает линию стыка
+ * с прямым настилом горизонталью — здесь он повторяется своей арифметикой, потому
+ * что сверять ленту с той же функцией, что её рисует, значит не мерить ничего.
+ */
+function arcBankFrac(d, deg) {
+  if (!d.bankTrans) return 1;
+  const e = Math.max(0, Math.min(Math.abs(deg - d.a0), Math.abs(d.a1 - deg)));
+  return e >= d.bankTrans ? 1 : (1 - Math.cos((Math.PI * e) / d.bankTrans)) / 2;
+}
+
 /** Верх полотна дуги по её константам: уклон по углу, крен по отступу от оси. */
 function arcSurface(d, deg, rho = d.R) {
-  return d.y0 + (d.y1 - d.y0) * (deg - d.a0) / (d.a1 - d.a0) + d.tanBank * (rho - d.R);
+  return d.y0 + (d.y1 - d.y0) * (deg - d.a0) / (d.a1 - d.a0)
+    + d.tanBank * arcBankFrac(d, deg) * (rho - d.R);
 }
 
 /** Косая запись карты (дом, плита): мировая точка внутри её собственных осей. */

@@ -843,10 +843,10 @@ function checkRoadElements(road, label, half, groundY, warnings) {
           break;
         }
       }
-      // крен поднимает внешний край: маяк и зазор под мостом обязан видеть
-      // именно его, а не среднюю отметку полотна
-      const bank = Math.abs(Math.tan((ar.bank ?? 0) * DEG)) * halfW;
-      const lo = Math.min(ar.y[0], ar.y[1]) - bank, hi = Math.max(ar.y[0], ar.y[1]) + bank;
+      // отметки торцов — средины полотна без крена: крен у обоих концов дуги
+      // сходится к нулю (переход пишет нормализатор), а гребень живёт в середине
+      // развёртки и сравнивать его с концом соседнего элемента незачем
+      const lo = Math.min(ar.y[0], ar.y[1]), hi = Math.max(ar.y[0], ar.y[1]);
       if (road.type !== 'ground' && hi - groundY < J.bridgeMinHeight) {
         warnings.push(`${elabel}: настил на ${road.id} ниже ${J.bridgeMinHeight} м над землёй — под ним не пройти`);
       }
@@ -893,12 +893,12 @@ function roadRectsOf(road) {
       const pl = el?.plate;
       if (el?.arc) {
         const ar = el.arc, halfW = ar.width / 2;
-        const bank = Math.abs(Math.tan((ar.bank ?? 0) * DEG)) * halfW;
         out.push({
           id: road.id, ground: road.type === 'ground',
           rect: arcBounds(ar.cx, ar.cz, ar.radius, halfW, ar.from * DEG, ar.to * DEG),
-          topLo: Math.min(ar.y[0], ar.y[1]) - bank,
-          topHi: Math.max(ar.y[0], ar.y[1]) + bank,
+          // та же арифметика, что у нормализатора: отметки торцов без крена
+          topLo: Math.min(ar.y[0], ar.y[1]),
+          topHi: Math.max(ar.y[0], ar.y[1]),
         });
         continue;
       }

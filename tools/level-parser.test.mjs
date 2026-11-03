@@ -1287,10 +1287,34 @@ const arcPoint = (arc, deg, rho = arc.radius) => ({
   x: arc.cx + Math.cos(deg * Math.PI / 180) * rho,
   z: arc.cz + Math.sin(deg * Math.PI / 180) * rho,
 });
-/** Верх полотна на угле `deg` и радиусе `rho` (уклон по длине дуги + крен). */
+/**
+ * Переходный угол крена (градусы): своя арифметика — длина за вычетом подъёма.
+ * Крен берётся округлённым, как его пишет парсер (`r3` до деления на радиус):
+ * иначе проверка меряет расхождение округления, а не формулы.
+ */
+const arcTrans = (arc) => {
+  const D = Math.PI / 180;
+  const tanBank = Math.round(Math.tan((arc.bank ?? 0) * D) * 1000) / 1000;
+  const bankLen = Math.abs(tanBank) * arc.width / 2;
+  if (!bankLen) return 0;
+  const len = arc.radius * Math.abs((arc.to - arc.from) * D);
+  const slope = len > 0 ? Math.abs(arc.y[1] - arc.y[0]) / len : 0;
+  const spare = Math.max(J.maxSlope - slope, J.maxSlope * 0.25);
+  const trans = ((Math.PI / 2) * bankLen / spare / arc.radius) / D;
+  return Math.min(trans, 0.4 * Math.abs(arc.to - arc.from));
+};
+/** Доля авторского крена на угле `deg`: у обоих торцов ноль, в середине — 1. */
+const arcBankFrac = (arc, deg) => {
+  const tr = arcTrans(arc);
+  if (!tr) return 1;
+  const e = Math.min(Math.abs(deg - arc.from), Math.abs(arc.to - deg));
+  return e >= tr ? 1 : (1 - Math.cos(Math.PI * e / tr)) / 2;
+};
+/** Верх полотна на угле `deg` и радиусе `rho` (уклон по длине дуги + переходный крен). */
 const arcTop = (arc, deg, rho = arc.radius) => {
   const t = (deg - arc.from) / (arc.to - arc.from);
-  return arc.y[0] + (arc.y[1] - arc.y[0]) * t + Math.tan(arc.bank * Math.PI / 180) * (rho - arc.radius);
+  return arc.y[0] + (arc.y[1] - arc.y[0]) * t
+    + Math.tan((arc.bank ?? 0) * Math.PI / 180) * arcBankFrac(arc, deg) * (rho - arc.radius);
 };
 const arcExit = arc => arcPoint(arc, arc.from + (arc.to - arc.from) * 0.5);
 
@@ -1312,6 +1336,10 @@ t('v2: дуга настила принимается и доносит до м�
   eq(d.y1, 12, 'верх в конце');
   eq(d.rails, true, 'перила');
   assert(Math.abs(d.tanBank - Math.tan(6 * Math.PI / 180)) < 1e-3, `крен ${d.tanBank}`);
+  assert(Math.abs(d.bankTrans - arcTrans(ARC)) < 2e-3, `переходный угол ${d.bankTrans}° вместо ${arcTrans(ARC).toFixed(3)}°`);
+  // отметки дуги — торцы (срезы) без крена: гребень середины не смеет завышать мост
+  eq(d.topAtMin, 0.12, 'отметка начала с гребнем крена');
+  eq(d.topAtMax, 12, 'отметка конца с гребнем крена');
   // AABB — только фильтр: он шире сектора и не смеет решать, где полотно
   assert(Math.abs(d.maxX - 44) < 1e-6 && Math.abs(d.minX + 44) < 1e-6, `габарит по X: ${d.minX}…${d.maxX}`);
   assert(d.maxZ > 40 && d.minZ < -20, `габарит по Z не покрывает дугу: ${d.minZ}…${d.maxZ}`);
@@ -1394,6 +1422,69 @@ t('предмет на дуге встаёт на её плоскость с к�
   eq(offArc.position.y, 0, 'предмет вне развёртки удержан габаритом сектора');
   assert(!level.warnings.some(w => w.includes('on_arc')),
     `верный предмет на дуге отмечен: ${level.warnings.join(' | ')}`);
+});
+
+/**
+ * Крен — функция угла, а не константа секции: у обоих торцов он ноль, поэтому
+ * срез ленты горизонтален и примыкающий прямой настил касается полотна по всей
+ * ширине, а не по диагонали (замер прежней сборки — 0,84 м перепада на 8 м).
+ * Проверяется и предел, из которого считается переход: край полотна едет и по
+ * подъёму, и по раскрутке крена сразу, и его суммарный уклон обязан остаться в
+ * `J.maxSlope`.
+ */
+t('v2: крен дуги сходит к нулю на торцах, а край полотна остаётся в maxSlope', () => {
+  const raw = v2Raw(r => {
+    r.buildings = [];
+    r.roads = [arcRoad('rp_bank', ARC)];
+    // у самого торца угол `atan2` может выйти за развёртку на последнюю двойку,
+    // а предмет обязан стоять внутри сектора — берём 0,02° от края
+    const onEnd = arcPoint(ARC, ARC.to - 0.02, ARC.radius + ARC.width / 2 - 0.05);
+    const onMid = arcPoint(ARC, ARC.from + (ARC.to - ARC.from) / 2, ARC.radius + ARC.width / 2 - 0.05);
+    r.landscapeObjects = [
+      { id: 'edge_end', model: 'container', position: { x: onEnd.x, y: 0, z: onEnd.z } },
+      { id: 'edge_mid', model: 'container', position: { x: onMid.x, y: 0, z: onMid.z } },
+    ];
+    r.gameplay.exit = arcExit(ARC);
+  });
+  const { errors } = validateLevel(raw, LEVEL_SPEC_V2);
+  eq(errors.length, 0, `валидатор не принял креновую дугу: ${errors.join(' | ')}`);
+  const level = normalizeLevel(raw);
+  const bad = [];
+  // торец: оба края полотна на отметке оси — линия стыка с прямым настилом горизонтальна
+  for (const [deg, y] of [[ARC.from, ARC.y[0]], [ARC.to, ARC.y[1]]]) {
+    for (const rho of [ARC.radius - ARC.width / 2, ARC.radius + ARC.width / 2]) {
+      const top = arcTop(ARC, deg, rho);
+      if (Math.abs(top - y) > 1e-9) bad.push(`край среза ${deg}° на ${top.toFixed(3)} вместо ${y}`);
+    }
+  }
+  // середина: полный крен на месте — внешний край выше внутреннего на tan(bank)·ширину
+  const mid = ARC.from + (ARC.to - ARC.from) / 2;
+  const across = arcTop(ARC, mid, ARC.radius + ARC.width / 2) - arcTop(ARC, mid, ARC.radius - ARC.width / 2);
+  const wantAcross = Math.tan(ARC.bank * Math.PI / 180) * ARC.width;
+  if (Math.abs(across - wantAcross) > 1e-6) {
+    bad.push(`крен поперёк полотна ${across.toFixed(3)} вместо ${wantAcross.toFixed(3)}`);
+  }
+  // предмет у торца встаёт на отметку оси (постоянный крен поднимал бы его на
+  // `tan(bank) · halfW` = 0,42 м выше стыкуемого настила), а в середине — на край
+  // с полным креном
+  const edgeRho = ARC.radius + ARC.width / 2 - 0.05;
+  const end = level.map.props.find(p => p.id === 'edge_end');
+  const middle = level.map.props.find(p => p.id === 'edge_mid');
+  if (Math.abs(end.position.y - ARC.y[1]) > 0.02) {
+    bad.push(`у торца предмет на ${end.position.y}, а не на отметке оси ${ARC.y[1]}`);
+  }
+  const wantMid = arcTop(ARC, mid, edgeRho);
+  if (Math.abs(middle.position.y - wantMid) > 1e-2) {
+    bad.push(`в середине предмет на ${middle.position.y}, а не на ${wantMid.toFixed(3)}`);
+  }
+  // суммарный уклон внешнего края: подъём оси плюс максимум производной крена
+  const len = ARC.radius * Math.abs(ARC.to - ARC.from) * Math.PI / 180;
+  const edgeAt = s => arcTop(ARC, ARC.from + (ARC.to - ARC.from) * (s / len), ARC.radius + ARC.width / 2);
+  const h = 0.02;
+  let worst = 0;
+  for (let s = h; s < len - h; s += h) worst = Math.max(worst, (edgeAt(s + h) - edgeAt(s - h)) / (2 * h));
+  if (worst > J.maxSlope + 2e-3) bad.push(`уклон края полотна ${worst.toFixed(3)} м/м круче ${J.maxSlope}`);
+  eq(bad.length, 0, bad.slice(0, 3).join(' | '));
 });
 
 // ------------------------------------------------------ развязка (v2, этап 6)
