@@ -13,12 +13,16 @@ import {
   AXIS_EPS, cellKey, normalizePolygon, polyBounds, polyEdges, polyRects,
   r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
 } from '../src/geo2d.js';
-import { normalizeWaterway } from './normalize-level.mjs';
+import { inRect, normalizeBuilding, normalizeWaterway } from './normalize-level.mjs';
 
 const J = CONFIG.jsonMap;
 const ROOM_TYPES = ['office', 'corridor', 'hall', 'room', 'cafe', 'utility'];
-const ROAD_TYPES = ['ground', 'bridge', 'embankment'];
-const STAIR_TYPES = ['straight', 'l_shape', 'spiral'];
+// skybridge — не-наземный настил без опор: его держат здания, поэтому у каждого
+// его торца обязана быть дверь или ходовая кровля на той же отметке
+const ROAD_TYPES = ['ground', 'bridge', 'embankment', 'skybridge'];
+// ladder — вертикальный марш: план шахты не меняется с высотой, подъём одной
+// проступи тот же, что у ступени (J.maxRise), поэтому нога идёт им, как лестницей
+const STAIR_TYPES = ['straight', 'l_shape', 'spiral', 'ladder'];
 const BANK_TYPES = ['quay', 'slope'];
 const LIGHT_TYPES = ['point', 'spot', 'directional'];
 const LINK_TYPES = ['main_entrance', 'door', 'back_entrance'];
@@ -70,10 +74,16 @@ export const LEVEL_SPEC = obj({
     id: str({ req: true }),
     name: str(),
     isEnterable: bool(),
-    floorsCount: num({ min: 1, max: 12, req: true }),
+    // потолок этажей — 60 только для невводимых башен (их этажи — ритм фасада,
+    // плит нет); вводимый дом ограничен J.enterableFloors — проверется геометрией
+    floorsCount: num({ min: 1, max: 60, req: true }),
     floorHeight: num({ min: 2.4, max: 8, req: true }),
     baseY: num(),
     facadeMaterial: str(),
+    roof: obj({
+      walkable: bool(),
+      parapet: num({ min: 0, max: 1.5 }),
+    }),
     footprint: arr(V2XZ, { minItems: 4, req: true }),
     rooms: arr(obj({
       id: str({ req: true }),
@@ -333,8 +343,25 @@ export function validateLevel(raw) {
   // наземная улица под домом — дом посреди проезжей части: маршруты идут по
   // настилу, а габарит стоит в нём, поэтому такое здание бракуется
   const groundRects = roadRects.filter(r => r.ground);
+  // нормализованные копии зданий: торцы переходов проверяются по тем же отметкам
+  // полов, кровель и дверей, что считает парсер, — своя копия этой арифметики
+  // разъехалась бы с ним при первой же правке
+  const normBuildings = [];
   for (const [n, b] of (raw.buildings ?? []).entries()) {
     const label = `buildings[${n}] (${b.id})`;
+    const enterable = b.isEnterable !== false;
+    if (enterable && b.floorsCount > J.enterableFloors) {
+      errors.push(`${label}: ${b.floorsCount} этажей во вводимом доме — максимум ${J.enterableFloors}`
+        + ' (механизм маршей: посадка и проёмы перекрытий считаются по этажам)');
+    }
+    if (b.roof && b.roof.walkable !== true && (b.roof.parapet ?? 0) > 0) {
+      warnings.push(`${label}: парапет ${b.roof.parapet} при невходимой кровле — по ней никто не ходит, ограждения парсер не ставит`);
+    }
+    try {
+      normBuildings.push(normalizeBuilding(b, { y: groundY, size }, []));
+    } catch {
+      // разбор полигона упадёт уже в ошибках ниже — проверять торцы перехода не по чему
+    }
     const fp = normalizePolygon(b.footprint, `${label}.footprint`, errors);
     if (!fp) continue;
     const fpCells = rasterPoly(fp, cell);
@@ -398,10 +425,26 @@ export function validateLevel(raw) {
     for (const [k, st] of (b.stairs ?? []).entries()) {
       const slabel = `${label}.stairs[${k}] (${st.id})`;
       const [k0, k1] = st.connectsFloors;
+      // верх марша обязан совпасть с чем-то: перекрытием этажа (k1 < floorsCount)
+      // или кровлей (k1 === floorsCount — люк на крышу). Глубже кровли марша нет:
+      // плита её не пропустит, а на отметке выше roofY опоры не существует
+      const toRoof = k1 === b.floorsCount;
       if (k1 <= k0) errors.push(`${slabel}: connectsFloors [${k0}, ${k1}] — вниз лестница не ведёт`);
-      if (k1 >= b.floorsCount) errors.push(`${slabel}: верхний этаж ${k1} при floorsCount ${b.floorsCount}`);
-      const d = st.dimensions;
-      const along = Math.max(d.width, d.length), across = Math.min(d.width, d.length);
+      if (k1 > b.floorsCount) {
+        errors.push(`${slabel}: верхний этаж ${k1} при floorsCount ${b.floorsCount} — марш ушёл выше кровли (отметка ${b.baseY ?? 0} + ${k1}·${b.floorHeight})`);
+      }
+      if (toRoof && b.roof?.walkable !== true) {
+        errors.push(`${slabel}: марш выведен на кровлю (этаж ${k1}), а она не ходкая — roof.walkable: true`
+          + ' иначе поднявшийся встанет на плиту, по которой парсер не ведёт маршруты, и упрётся в парапет');
+      }
+      // план по умолчанию имеет только вертикальный марш (шахта J.ladderShaft):
+      // у остальных размеров нет, и марш встал бы в точку
+      const d = st.dimensions ?? (st.type === 'ladder' ? { width: J.ladderShaft, length: J.ladderShaft } : null);
+      if (!d) {
+        errors.push(`${slabel}: ${st.type} без dimensions — план марша обязана задавать схема, по умолчанию его держит только ladder`);
+      }
+      const dd = d ?? { width: J.ladderShaft, length: J.ladderShaft };
+      const along = Math.max(dd.width, dd.length), across = Math.min(dd.width, dd.length);
       const rect = rectAround(st.position.x, st.position.z, along, across);
       const sc = rasterRect(rect, cell);
       for (const key of sc) {
@@ -418,7 +461,7 @@ export function validateLevel(raw) {
       if (!roomAt(k0)) {
         errors.push(`${slabel}: низ марша не попадает ни в одну комнату этажа ${k0} — под ступенями нет пола`);
       }
-      if (!roomAt(k1)) {
+      if (!toRoof && !roomAt(k1)) {
         errors.push(`${slabel}: верх марша не попадает ни в одну комнату этажа ${k1} — поднявшийся выйдет в перекрытие`);
       }
     }
@@ -430,6 +473,36 @@ export function validateLevel(raw) {
       for (const c of (room.connections ?? [])) {
         const onFp = polyEdges(fp).some(e => distToEdge(e, c.portalPosition.x, c.portalPosition.z) <= 0.25);
         if (!onFp) warnings.push(`${label}: вход ${c.linkType ?? 'door'} комнаты ${room.id} на внутренней перегородке, не на фасаде`);
+      }
+    }
+  }
+
+  // --- переходы (skybridge): у пластины нет опор с земли, её держат здания ---
+  // Каждый торец обязан совпасть с отметкой пола комнаты (тогда в переход ведёт
+  // её дверь) или с ходовой кровлей (тогда настил примыкает к плите). Без этого
+  // парсер выдал бы пластину в воздухе: нога на неё встанет из узла настила, а
+  // маршруту негде было бы на неё войти и с неё выйти.
+  // Проверяется не вся пластина, а её конец глубиной в ширину настила: прямолинейный
+  // переход — одна пластина на оба торца, и проверка ею целиком пропускала бы
+  // висячий конец, стоило бы другому концу зацепить здание.
+  for (const [n, road] of (raw.roads ?? []).entries()) {
+    if (road.type !== 'skybridge') continue;
+    const label = `roads[${n}] (${road.id})`;
+    const plans = roadRectsOf(road);
+    const ends = [[0, road.points[0], 'начальный'], [plans.length - 1, road.points[road.points.length - 1], 'конечный']];
+    for (const [pi, p, name] of ends) {
+      const plate = plans[pi]?.rect;
+      if (!plate) { errors.push(`${label}: настил не разложен на пластины — торцу негде проверять опору`); continue; }
+      const cap = endCap(plate, p, road.width);
+      const elabel = `${label}: торец ${name} (${p.x}, ${p.z}) на отметке ${p.y}`;
+      const door = normBuildings.some(b => b.doors.some(d => Math.abs(d.y - p.y) <= J.skybridgeFit
+        && inRect(d.outside.x, d.outside.z, cap)));
+      const roof = normBuildings.some(b => b.roof?.walkable === true
+        && Math.abs(b.roofY - p.y) <= J.skybridgeFit
+        && rectsIntersect(cap, b.bounds, 0.05));
+      if (!door && !roof) {
+        errors.push(`${elabel}: не имеет опоры в плане — ни двери комнаты, ни ходовой кровли на своей отметке `
+          + `(допуск ${J.skybridgeFit} м): настил перехода висит в воздухе`);
       }
     }
   }
@@ -494,6 +567,17 @@ function roadRectsOf(road) {
     out.push({ id: road.id, ground: road.type === 'ground', rect: { minX, maxX, minZ, maxZ } });
   }
   return out;
+}
+
+/** Конец пластины в плане: полоса глубиной `depth` у той границы, к которой ближе точка. */
+function endCap(rect, p, depth) {
+  const alongX = rect.maxX - rect.minX >= rect.maxZ - rect.minZ;
+  const lo = alongX ? p.x : p.z, min = alongX ? rect.minX : rect.minZ, max = alongX ? rect.maxX : rect.maxZ;
+  const d = Math.min(depth, max - min);
+  const [a0, a1] = Math.abs(lo - min) <= Math.abs(lo - max) ? [min, min + d] : [max - d, max];
+  return alongX
+    ? { minX: r3(a0), maxX: r3(a1), minZ: rect.minZ, maxZ: rect.maxZ }
+    : { minX: rect.minX, maxX: rect.maxX, minZ: r3(a0), maxZ: r3(a1) };
 }
 
 /** Расстояние от точки до отрезка в плане (отрезок — по оси). */

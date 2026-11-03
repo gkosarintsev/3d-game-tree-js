@@ -51,7 +51,9 @@ export function normalizeLevel(raw) {
   ];
   const water = waterwayFoot(channels);
   for (const road of roads) {
-    road.pillars.push(...bridgePillars(road, ground, obstacles, warnings, water));
+    // перехода не держат колонны: их держат здания, а опора с земли до настила
+    // на 27 м проткнула бы кровли и дворы, под которыми переход идёт
+    if (road.type !== 'skybridge') road.pillars.push(...bridgePillars(road, ground, obstacles, warnings, water));
     if (road.withLamps) road.lamps.push(...roadLamps(road, obstacles, warnings, water));
   }
 
@@ -209,6 +211,17 @@ function normalizeBuilding(b, ground, warnings) {
     floorsCount: b.floorsCount,
     roofY: r3(baseY + b.floorsCount * floorHeight),
     facadeMaterial: b.facadeMaterial ?? 'concrete',
+    // секция `roof` появляется только у дома, где она задана в брифе: глава 9
+    // без неё обязана нормализоваться побайтово как раньше (плиты кровли тогда
+    // не опоры, а просто солиды)
+    ...(b.roof ? {
+      roof: {
+        walkable: b.roof.walkable === true,
+        // парапет по умолчанию держит идущего в полуметре от края; нулевой —
+        // кровля без ограждения (и тогда сход с края не бракуется ничем)
+        parapet: r3(b.roof.parapet ?? (b.roof.walkable === true ? J.parapetHeight : 0)),
+      },
+    } : {}),
     footprint: footprint.map(p => ({ x: r3(p.x), z: r3(p.z) })),
     bounds: { minX: r3(bb.minX), maxX: r3(bb.maxX), minZ: r3(bb.minZ), maxZ: r3(bb.maxZ) },
     rects: polyRects(footprint).map(r => rectOut(r)).sort(byRect),
@@ -283,6 +296,10 @@ const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
  * системе (X — направление подъёма, низ при X = 0, Y вверх, вправо — Z), затем
  * поворачивается на rotation и переносится в position: косых маршей схема не
  * делает, поэтому поворот кратен 90° и AABB повёрнутого прямоугольника точен.
+ *
+ * `connectsFloors [k0, k1]` с `k1 === floorsCount` — марш, выведенный на кровлю:
+ * его верхняя отметка ровно `roofY`, а проём в плите кровли режет клиент (там же,
+ * где он режет проём в перекрытии этажа).
  */
 function normalizeStair(s, baseY, floorHeight, buildingId, errors) {
   const [k0, k1] = s.connectsFloors;
@@ -293,8 +310,11 @@ function normalizeStair(s, baseY, floorHeight, buildingId, errors) {
   if (!ROTATIONS.includes(rotation)) {
     errors.push(`${buildingId}.${s.id}: rotation ${rotation}° — допустимы только 0/90/180/270 (косой марш дал бы ступенчатую коллизию)`);
   }
-  const L = r3(Math.max(s.dimensions.width, s.dimensions.length));
-  const W = r3(Math.min(s.dimensions.width, s.dimensions.length));
+  // у вертикального марша план — шахта постоянного сечения: width/length в брифе
+  // не нужны, их берёт J.ladderShaft (схема это разрешает, и только для ladder)
+  const dims = s.dimensions ?? { width: J.ladderShaft, length: J.ladderShaft };
+  const L = r3(Math.max(dims.width, dims.length));
+  const W = r3(Math.min(dims.width, dims.length));
   const cx = r3(s.position.x), cz = r3(s.position.z);
   const world = rect => toWorld(rect, rotation, cx, cz, L, W);
 
@@ -322,8 +342,16 @@ function normalizeStair(s, baseY, floorHeight, buildingId, errors) {
  * изгиба, плоская площадка на уровне последнего шага, прогон по Z от ближней
  * полосы ширины к дальней. Подъём одной проступи никогда не больше J.maxRise,
  * иначе ни ноги, ни сфера Чужого её не перешагнут.
+ *
+ * Вертикальный марш (`full`) устроен иначе: план проступи не делит длину шахты,
+ * а покрывает её целиком — подъём держит не горизонтальный шаг, а отметка
+ * пластины, поэтому `stairSteps` по `full` кладёт все проступи в один план.
  */
 function stairLayout(type, L, W, height) {
+  if (type === 'ladder') {
+    const n = Math.max(2, Math.ceil(height / J.maxRise));
+    return [{ axis: 'x', a0: 0, a1: L, c0: 0, c1: W, count: n, yFrom: 0, risePer: height / n, full: true }];
+  }
   if (type !== 'l_shape') {
     const n = Math.max(2, Math.ceil(height / J.maxRise));
     const rise = height / n;
@@ -345,12 +373,15 @@ function stairSteps(type, L, W, y0, height, world) {
   const out = [];
   for (const run of stairLayout(type, L, W, height)) {
     for (let i = 1; i <= run.count; i++) {
-      const t0 = run.a0 + (run.a1 - run.a0) * ((i - 1) / run.count);
-      const t1 = run.a0 + (run.a1 - run.a0) * (i / run.count);
-      const [lo, hi] = [Math.min(t0, t1), Math.max(t0, t1)];
+      // у вертикального марша все проступи лежат в одном плане шахты: их различает
+      // только отметка верха, а низ каждой — на своей толщине (клиент)
+      const [lo, hi] = run.full
+        ? [Math.min(run.a0, run.a1), Math.max(run.a0, run.a1)]
+        : [run.a0 + (run.a1 - run.a0) * ((i - 1) / run.count), run.a0 + (run.a1 - run.a0) * (i / run.count)];
+      const [from, to] = [Math.min(lo, hi), Math.max(lo, hi)];
       const local = run.axis === 'x'
-        ? { minX: lo, maxX: hi, minZ: run.c0, maxZ: run.c1 }
-        : { minX: run.c0, maxX: run.c1, minZ: lo, maxZ: hi };
+        ? { minX: from, maxX: to, minZ: run.c0, maxZ: run.c1 }
+        : { minX: run.c0, maxX: run.c1, minZ: from, maxZ: to };
       out.push({ ...rectOut(world(local)), top: r3(y0 + run.yFrom + run.risePer * i) });
     }
   }

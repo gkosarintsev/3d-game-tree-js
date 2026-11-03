@@ -64,6 +64,8 @@ export class JsonMap extends SolidField {
     this.stairCells = [];
     /** плиты полов комнат: опоры, узлы навигации и миникарта */
     this.floorPlates = [];
+    /** плиты ходовых кровель (`roof.walkable`): опора уровня roofY и её решётка узлов */
+    this.roofPlates = [];
     this.deckPlates = [];
     /** наклонные твёрдости: пролёты настилов и откосы насыпи — призмы профиля (u, y) */
     this.prisms = [];
@@ -131,12 +133,61 @@ export class JsonMap extends SolidField {
       for (const w of b.walls) this._wall(w, b);
       for (const r of b.rooms) this._floorPlate(b, r);
       for (const s of b.stairs) this._stair(s);
-      // крыша — солид, но НЕ опора: ExitGoal берёт отметку точки B как
-      // groundHeightAt(x, z, 500), то есть самый верх из опор. Сделав крышу
-      // опорой, точку B подняли бы на кровлю, а цель ищут на последнем этаже
-      for (const rect of b.rects) {
-        this._box(rect, b.roofY - J.slabThickness, b.roofY, 'slabs');
+      this._roof(b);
+    }
+  }
+
+  /**
+   * Кровля: плита по союзу прямоугольников footprint, проём там, где сквозь неё
+   * проходит марш или стоит здание, опора и парапет — если она ходкая.
+   *
+   * Ходовая кровля получает `surface`, невходимая остаётся просто солидом. Дело
+   * не в аккуратности: `ExitGoal` берёт отметку точки B как `groundHeightAt(x, z,
+   * 500)`, то есть самый верх из опор, — сделай мы опорой любую крышу, маяк главы
+   * переехал бы на кровлю дома, под которым стоит улица. Там же, где по кровле
+   * правда ходят, цель на ней и должна стоять.
+   *
+   * Парапет — блокер от `roofY` до `roofY + parapet`: идущему по кровле он не
+   * препятствие ниже его верха, но у края бракует и узел графа, и сход с плиты
+   * (`isBlocked` меряет тело от отметки ног). Где к кровле примыкает настил
+   * перехода, в паравете остаёт проём, иначе переход упирался бы в ограждение.
+   */
+  _roof(b) {
+    const walk = b.roof?.walkable === true;
+    // настил, чей верх совпал с отметкой кровли (допуск схемы): ему расступаются
+    // и плита, и парапет. Берём до `pierce`, пока `walk` не проверено, — у
+    // невходимой кровли настил всё равно не должен ложиться на её плиту
+    const arrivals = this.roads.filter(r => r.type !== 'ground').flatMap(r => r.decks).filter(d =>
+      Math.abs(d.topAtMin - b.roofY) <= J.skybridgeFit || Math.abs(d.topAtMax - b.roofY) <= J.skybridgeFit);
+    // чужое здание, выросшее из этой плиты (подиум + башня), марш, выведенный
+    // на кровлю, и план примыкающего настила оставляют в ней проём: иначе плита
+    // легла бы внутрь первого этажа соседа, а решётка узлов встала бы под ним, и
+    // там, где настил идёт поверх плиты, остались бы со-плоскостные верха
+    const pierce = [
+      ...b.stairs.filter(s => s.connectsFloors[1] === b.floorsCount).map(s => s.rect),
+      ...this.buildings.filter(o => o !== b && o.baseY > b.roofY - 0.5 && o.baseY < b.roofY + 1)
+        .map(o => o.bounds),
+      ...arrivals,
+    ];
+    for (const rect of b.rects) {
+      const pieces = pierce.reduce((list, hole) => list.flatMap(p => subtractRect(p, hole)), [rect]);
+      for (const p of pieces) {
+        this._box(p, b.roofY - J.slabThickness, b.roofY, 'slabs', { surface: walk });
+        if (walk) this.roofPlates.push({ ...p, y: b.roofY, building: b.id });
       }
+    }
+    if (!walk || !(b.roof.parapet > 0)) return;
+    // парапет режем планом настила, растянутым вдоль его оси на толщину стены:
+    // полоса паравета стоит СЕРЕДНИНОЙ на фасадной линии (± половина толщины), и
+    // обрезка его собственным планом дала бы разрез не поперёк ограждения, а
+    // вдоль — проёма бы не осталось, и переход упирался в него габаритом
+    const gaps = arrivals.map(d => (d.axis === 'x'
+      ? { ...d, minX: d.minX - J.wallThickness, maxX: d.maxX + J.wallThickness }
+      : { ...d, minZ: d.minZ - J.wallThickness, maxZ: d.maxZ + J.wallThickness }));
+    for (const w of b.walls) {
+      if (!w.facade) continue;
+      const pieces = gaps.reduce((list, d) => list.flatMap(p => subtractRect(p, d)), [w]);
+      for (const p of pieces) this._box(p, b.roofY, r3(b.roofY + b.roof.parapet), 'walls', { collide: true });
     }
   }
 
@@ -242,7 +293,13 @@ export class JsonMap extends SolidField {
 
   /** Марш: коробки ступеней от пола, на котором он стоит, до каждой проступи. */
   _stair(s) {
-    for (const st of s.steps) this._box(st, s.y0, st.top, 'stairs', { surface: true });
+    for (const st of s.steps) {
+      // вертикальный марш: проступь — пластина на СВОЁМ подъёме, а не столб от
+      // пола шахты до неё (иначе картинка — монолит, которого глаз не видит,
+      // а правило «твёрдость совпадает с картинкой» нарушено)
+      const y0 = s.type === 'ladder' ? r3(st.top - J.ladderRung) : s.y0;
+      this._box(st, y0, st.top, 'stairs', { surface: true });
+    }
     this.stairCells.push({ ...s.rect, k0: s.connectsFloors[0], k1: s.connectsFloors[1] });
   }
 
@@ -538,11 +595,16 @@ export class JsonMap extends SolidField {
     });
   }
 
-  /** Свободные точки уровня: центры плит полов, пластин настилов и сетки земли. */
+  /** Свободные точки уровня: центры плит полов и кровель, пластин настилов и сетки земли. */
   _collectAnchors() {
     const out = [];
     const push = (x, y, z) => out.push({ x, y, z });
     for (const p of this.floorPlates) {
+      push((p.minX + p.maxX) / 2, p.y, (p.minZ + p.maxZ) / 2);
+    }
+    // опорная точка на кровле нужна пулу огней: фонарь, переставленный на верх
+    // подиума, светит идущему по крыше, а не его теням внизу
+    for (const p of this.roofPlates) {
       push((p.minX + p.maxX) / 2, p.y, (p.minZ + p.maxZ) / 2);
     }
     for (const d of this.deckPlates) {
@@ -591,6 +653,16 @@ export class JsonMap extends SolidField {
       for (const r of b.rooms) put(`${r.id} · эт ${r.floor}`, cx(r.rect), r.y + 1.2, cz(r.rect));
       for (const s of b.stairs) put(`${s.id} · ${s.type}`, cx(s.rect), s.y1 + 0.7, cz(s.rect));
       for (const d of b.doors) put(`${d.id} · ${d.linkType}`, d.outside.x, d.y + d.height + 0.4, d.outside.z);
+      // кровля и её парапет подписываются только у дома с секцией roof: у главы 9
+      // её нет, и меток стало бы меньше ровно на столько, сколько их не было
+      if (b.roof) {
+        put(`${b.id} · кровля · ${b.roof.walkable ? 'ходовая' : 'невходима'}`,
+          cx(b.bounds), b.roofY + 1.8, cz(b.bounds));
+        if (b.roof.walkable && b.roof.parapet > 0) {
+          b.walls.filter(w => w.facade).forEach((w, i) => put(`${b.id} · парапет ${i + 1}`,
+            cx(w), b.roofY + b.roof.parapet + 0.4, cz(w)));
+        }
+      }
     }
     for (const road of this.roads) {
       const plan = road.decks.reduce((a, d) => ({
@@ -709,18 +781,23 @@ export class JsonMap extends SolidField {
 
   /**
    * Граф навигации: решётка по открытой земле, сетка полов каждой комнаты,
-   * цепочка проступей каждого марша, цепочка пластин не-наземных дорог и пары
-   * узлов в дверных проёмах.
+   * решётка ходовых кровель, цепочка проступей каждого марша, цепочка пластин
+   * не-наземных дорог и пары узлов в дверных проёмах.
    *
    * Ребра длиннее шага своей решётки появляются только явно — у двери, у начала
    * и конца марша, на сходе с настила:LINK по радиусу «как можно дальше» связал
    * бы клетки через весь марш, и маршрут повёл врага сквозь ступени.
+   *
+   * Кровли строятся ДО маршей и настилов: и посадка марша на крышу, и торец
+   * перехода связываются с уже существующими узлами (`_linkClosest` не заглядывает
+   * в те, что появятся позже).
    */
   _buildNav() {
     const nav = new NavGraph();
     const rstep = J.navRoomStep;
     this._navLattice(nav);
     this._navRooms(nav, rstep);
+    this._navRoofs(nav);
     this._navStairs(nav, rstep);
     this._navDecks(nav);
     this._navWater(nav);
@@ -810,10 +887,59 @@ export class JsonMap extends SolidField {
     return Math.abs(y - level) <= J.floorRise + 0.02 ? y : null;
   }
 
+  /**
+   * Решётка ходовых кровель: узлы шагом `J.navStep` по плитам на отметке roofY.
+   *
+   * Клетку бракует то же, что и пол комнаты: нет опоры уровня кровли (проём под
+   * шахтой марша, чужое здание) или габариту мешает парапет — он и держит идущего
+   * в полуметре от края, и не даёт сойти с плиты там, где нет ни схода, ни
+   * перехода. Связи между плитами одного здания идут через `_link`: ребро над
+   * проёмом отбракует `_edgeSupported`, и марш останется единственной дорогой
+   * через него.
+   */
+  _navRoofs(nav) {
+    if (!this.roofPlates.length) return;
+    const step = J.navStep;
+    const r = CONFIG.radius + 0.05;
+    for (const b of this.buildings) {
+      if (b.roof?.walkable !== true) continue;
+      const nx = Math.floor((b.bounds.maxX - b.bounds.minX) / step);
+      const nz = Math.floor((b.bounds.maxZ - b.bounds.minZ) / step);
+      const lat = [];
+      for (let j = 0; j <= nz; j++) {
+        const row = new Array(nx + 1);
+        const z = b.bounds.minZ + r + j * step;
+        if (z <= b.bounds.maxZ - r + 1e-6) {
+          for (let i = 0; i <= nx; i++) {
+            const x = b.bounds.minX + r + i * step;
+            if (x > b.bounds.maxX - r + 1e-6) continue;
+            const y = this._floorSupport(x, z, b.roofY);
+            if (y === null) continue;
+            if (this.isBlocked(x, z, CONFIG.radius, b.roofY, CONFIG.eyeHeight)) continue;
+            row[i] = nav.add(x, y, z, `k:${b.id}:${i}:${j}`);
+          }
+        }
+        lat.push(row);
+      }
+      for (let j = 0; j < lat.length; j++) {
+        for (let i = 0; i <= nx; i++) {
+          const id = lat[j][i];
+          if (id === undefined) continue;
+          if (i > 0 && lat[j][i - 1] !== undefined) this._link(nav, id, lat[j][i - 1]);
+          if (j > 0 && lat[j - 1][i] !== undefined) this._link(nav, id, lat[j - 1][i]);
+        }
+      }
+    }
+  }
+
   /** Цепочка проступей марша + посадки у его начала и конца. */
   _navStairs(nav, rstep) {
     for (const b of this.buildings) {
       for (const s of b.stairs) {
+        // верх марша на кровле ищет соседей по решётке кровли (шаг J.navStep), а
+        // не по сетке пола (J.navRoomStep): иначе радиус в 3,6 м не дотянет до
+        // ближайшего узла, и поднявшийся с марша останется на одной точке
+        const roofTop = b.roof?.walkable === true && s.connectsFloors[1] === b.floorsCount;
         let prev;
         const ids = [];
         s.steps.forEach((st, k) => {
@@ -826,10 +952,10 @@ export class JsonMap extends SolidField {
         if (!ids.length) continue;
         const bottom = this._landing(nav, s, -1);
         const top = this._landing(nav, s, 1);
-        for (const [land, tread] of [[bottom, ids[0]], [top, ids[ids.length - 1]]]) {
+        for (const [land, tread, isTop] of [[bottom, ids[0], false], [top, ids[ids.length - 1], true]]) {
           if (land === undefined) continue;
           this._link(nav, land, tread);
-          this._linkClosest(nav, land, rstep * 1.2, 3);
+          this._linkClosest(nav, land, isTop && roofTop ? J.navStep * 1.5 : rstep * 1.2, 3);
         }
       }
     }
@@ -1247,12 +1373,13 @@ export class JsonMap extends SolidField {
     };
 
     const y = playerPos ? playerPos.y : this.spawn.y;
-    // этаж игрока = плита пола, чья отметка ближе всего: у разных домов своя
-    // высота этажа, поэтому ориентироваться на floorHeight движку незачем
+    // этаж игрока = плита пола или кровли, чья отметка ближе всего: у разных
+    // домов своя высота этажа, поэтому ориентироваться на floorHeight движку
+    // незачем
     let level = this.spawn.y, levelFloor = 0, best = Infinity;
-    for (const p of this.floorPlates) {
+    for (const p of [...this.floorPlates, ...this.roofPlates]) {
       const d = Math.abs(p.y - y);
-      if (d < best) { best = d; level = p.y; levelFloor = p.floor; }
+      if (d < best) { best = d; level = p.y; levelFloor = p.floor ?? 0; }
     }
 
     // вода — под всем остальным: план русла виден и с уровня дна, и с моста
@@ -1262,6 +1389,9 @@ export class JsonMap extends SolidField {
     fill(this.deckPlates, d => !d.ramp && Math.abs(d.topY - y) <= 1);
     ctx.fillStyle = 'rgba(196,212,232,.5)';
     fill(this.floorPlates, p => p.y === level);
+    // плита кровли на плане — тот же пол: с неё и ведут маршруты, и миникарта
+    // обязана показывать её контур, иначе идущий по крыше видит пустоту
+    fill(this.roofPlates, p => p.y === level);
     ctx.fillStyle = '#262f3d';
     fill(this.blockers, w => w.y1 > y + 0.05 && w.y0 < y + CONFIG.eyeHeight);
     ctx.fillStyle = '#5b4a2c';

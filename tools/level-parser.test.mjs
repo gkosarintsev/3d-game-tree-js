@@ -601,6 +601,191 @@ t('парсер воды детерминирован: два прогона д�
   eq(a.code, b.code, 'текст модуля различится');
 });
 
+// ---------------------------------------------------------------- вертикаль: кровли, марши, переходы
+
+/**
+ * Полигон вертикали: подиум с ходовой кровлей, башня на нём (её пол первого этажа
+ * = кровля подиума), марш на кровлю подиума, вертикальный марш в башне до её
+ * кровли, skybridge от кровли подиума к дверью ангарa на отметке 8 м и мост,
+ * который обязан остаться с опорами (переход — без).
+ */
+function vertLevel(mutate) {
+  const box = (minX, minZ, maxX, maxZ) => [
+    { x: minX, z: minZ }, { x: maxX, z: minZ }, { x: maxX, z: maxZ }, { x: minX, z: maxZ },
+  ];
+  const raw = {
+    metadata: { levelName: 'vertical', name: 'Полигон вертикали', hint: '—', units: 'meters' },
+    ground: { size: 160 },
+    roads: [
+      { id: 'street_0', type: 'ground', width: 8, lamps: true,
+        points: [{ x: -70, y: 0.12, z: -44 }, { x: 70, y: 0.12, z: -44 }] },
+      { id: 'sb_podium', type: 'skybridge', width: 3.4, lamps: true,
+        points: [{ x: -10, y: 8, z: 0 }, { x: 20, y: 8, z: 0 }] },
+      { id: 'br_0', type: 'bridge', width: 6,
+        points: [{ x: 55, y: 5, z: 10 }, { x: 55, y: 5, z: 60 }] },
+    ],
+    buildings: [
+      {
+        id: 'podium', name: 'Подиум', floorsCount: 2, floorHeight: 4,
+        footprint: box(-60, -30, -10, 30), roof: { walkable: true },
+        rooms: [
+          { id: 'pod_r0', floor: 0, type: 'hall', polygon: box(-60, -30, -10, 30),
+            connections: [{ target: 'street_0', portalPosition: { x: -35, y: 0, z: -30 }, linkType: 'main_entrance' }] },
+          { id: 'pod_r1', floor: 1, type: 'office', polygon: box(-60, -30, -10, 30) },
+        ],
+        stairs: [
+          { id: 'pod_s01', type: 'straight', connectsFloors: [0, 1], position: { x: -52, z: 24 },
+            dimensions: { width: 6, length: 4 } },
+          { id: 'pod_roof', type: 'straight', connectsFloors: [1, 2], position: { x: -16, z: 0 },
+            dimensions: { width: 6, length: 4 } },
+        ],
+      },
+      {
+        id: 'tower', name: 'Башня', baseY: 8, floorsCount: 4, floorHeight: 4,
+        footprint: box(-45, -10, -25, 10), roof: { walkable: true },
+        rooms: [
+          { id: 'tw_r0', floor: 0, type: 'hall', polygon: box(-45, -10, -25, 10),
+            connections: [{ target: 'street_0', portalPosition: { x: -45, y: 8, z: 0 }, linkType: 'door' }] },
+          { id: 'tw_r1', floor: 1, type: 'office', polygon: box(-45, -10, -25, 10) },
+          { id: 'tw_r2', floor: 2, type: 'office', polygon: box(-45, -10, -25, 10) },
+          { id: 'tw_r3', floor: 3, type: 'utility', polygon: box(-45, -10, -25, 10) },
+        ],
+        stairs: [
+          { id: 'tw_ladder', type: 'ladder', connectsFloors: [0, 2], position: { x: -35, z: 0 } },
+          { id: 'tw_roof', type: 'ladder', connectsFloors: [2, 4], position: { x: -35, z: 0 } },
+        ],
+      },
+      {
+        id: 'annex', name: 'Ангар', floorsCount: 3, floorHeight: 4,
+        footprint: box(20, -15, 50, 15),
+        rooms: [
+          { id: 'an_r2', floor: 2, type: 'office', polygon: box(20, -15, 50, 15),
+            connections: [{ target: 'sb_podium', portalPosition: { x: 20, y: 8, z: 0 }, linkType: 'door' }] },
+        ],
+      },
+    ],
+    landscapeObjects: [],
+    lights: [],
+    gameplay: { goal: 'exit', spawn: { x: 0, z: -44 }, exit: { x: -50, z: 0 } },
+  };
+  if (mutate) mutate(raw);
+  return raw;
+}
+
+function vertErrors(mutate) {
+  return validateLevel(vertLevel(mutate)).errors;
+}
+
+function vertRoad(level, id) {
+  return level.map.roads.find(r => r.id === id);
+}
+
+function vertBuilding(level, id) {
+  return level.map.buildings.find(b => b.id === id);
+}
+
+t('полигон вертикали проходит валидатор и нормализатор без ошибок и предупреждений', () => {
+  const { errors, warnings } = validateLevel(vertLevel());
+  eq(errors.length, 0, `ошибки: ${errors.join(' | ')}`);
+  eq(warnings.length, 0, `предупреждения: ${warnings.join(' | ')}`);
+  const level = normalizeLevel(vertLevel());
+  eq(vertBuilding(level, 'podium').roofY, 8, 'отметка кровли подиума');
+  eq(vertBuilding(level, 'tower').roofY, 24, 'отметка кровли башни');
+});
+
+t('секция roof есть только у заданного дома, парапет по умолчанию — J.parapetHeight', () => {
+  const level = normalizeLevel(vertLevel());
+  eq(vertBuilding(level, 'podium').roof.walkable, true, 'ходовая кровля');
+  eq(vertBuilding(level, 'podium').roof.parapet, J.parapetHeight, 'парапет по умолчанию');
+  assert(vertBuilding(level, 'annex').roof === undefined, 'roof появилась у дома, где её не задавали');
+  const low = normalizeLevel(vertLevel(r => { r.buildings[0].roof = { walkable: true, parapet: 0.4 }; }));
+  eq(low.map.buildings[0].roof.parapet, 0.4, 'парапет из брифа');
+});
+
+t('глава 9 остаётся без секции roof — и в данных, и в байтах модуля', () => {
+  const level = normalizeLevel(rawLevel);
+  for (const b of level.map.buildings) {
+    assert(b.roof === undefined, `${b.id}: roof там, где её не задавали`);
+  }
+  const mod = generateModule(structuredClone(rawLevel), 'src/levels/level-09.json').code;
+  assert(!mod.includes('"roof"'), 'ключ roof завёлся в модуле главы 9 — байты не сойдутся');
+});
+
+t('этажи: вводимый дом ограничен enterableFloors, невводимая башня — до 60', () => {
+  hasError(vertErrors(r => { r.buildings[0].floorsCount = 13; }), 'этажей во вводимом доме');
+  const towerTall = vertErrors(r => {
+    r.buildings[0].floorsCount = 60;
+    r.buildings[0].isEnterable = false;
+    r.buildings[0].rooms = [{ id: 'pod_r0', floor: 0, type: 'hall', polygon: r.buildings[0].footprint.map(p => ({ ...p })) }];
+    r.buildings[0].stairs = [];
+  });
+  assert(!towerTall.some(e => e.includes('этажей во вводимом доме')), `невводимая башня в 60 этажей бракуется: ${towerTall.join(' | ')}`);
+});
+
+t('марш выше кровли и марш на невходовую кровлю — ошибки', () => {
+  hasError(vertErrors(r => { r.buildings[0].stairs[1].connectsFloors = [1, 3]; }), 'марш ушёл выше кровли');
+  hasError(vertErrors(r => { r.buildings[0].roof.walkable = false; }), 'она не ходкая');
+});
+
+t('план марша: dimensions обязательна всем, кроме ladder', () => {
+  const errors = vertErrors(r => {
+    delete r.buildings[1].stairs[0].dimensions;
+    r.buildings[1].stairs[0].type = 'straight';
+  });
+  hasError(errors, 'tw_ladder', 'без dimensions');
+  const level = normalizeLevel(vertLevel());
+  const s = vertBuilding(level, 'tower').stairs.find(x => x.id === 'tw_ladder');
+  // габарит шахты из `r3` координат, поэтому сравниваем с допуском: 1,4 − 1,4 в float даёт хвост
+  assert(Math.abs((s.rect.maxX - s.rect.minX) - J.ladderShaft) < 1e-6,
+    `ширина шахты ladder ${s.rect.maxX - s.rect.minX}, ожидалось ${J.ladderShaft}`);
+});
+
+t('вертикальный марш: проступи в одном плане шахты, подъём ≤ maxRise, верх ровно на отметку', () => {
+  const level = normalizeLevel(vertLevel());
+  const s = vertBuilding(level, 'tower').stairs.find(x => x.id === 'tw_ladder');
+  eq(s.steps.length, Math.ceil(s.height / J.maxRise), 'число проступей');
+  for (const st of s.steps) {
+    eq(st.minX, s.rect.minX, 'план проступи по X');
+    eq(st.maxZ, s.rect.maxZ, 'план проступи по Z');
+  }
+  let prev = s.y0;
+  for (const st of s.steps) {
+    assert(st.top - prev <= J.maxRise + 1e-9, `подъём проступи ${st.top - prev} круче ${J.maxRise}`);
+    prev = st.top;
+  }
+  eq(prev, s.y1, 'последняя проступь не пришла на этаж');
+  const up = vertBuilding(level, 'tower').stairs.find(x => x.id === 'tw_roof');
+  eq(up.steps[up.steps.length - 1].top, vertBuilding(level, 'tower').roofY, 'верхний марш не пришёл на кровлю');
+});
+
+t('свисяющий торец skybridge — ошибка; торец у двери или у ходовой кровли — норма', () => {
+  const both = vertErrors(r => {
+    r.roads[1].points = [{ x: -10, y: 8, z: 60 }, { x: 20, y: 8, z: 60 }];
+  });
+  eq(both.filter(e => e.includes('не имеет опоры')).length, 2, `оба торца браковались иначе чем двумя ошибками: ${both.join(' | ')}`);
+  // один конец зацепляется за кровлю, другой уходит в пустоту: проверка обязана
+  // брать конец пластины, а не её план целиком
+  const far = vertErrors(r => { r.roads[1].points[1] = { x: 70, y: 8, z: 0 }; });
+  eq(far.filter(e => e.includes('не имеет опоры')).length, 1, `висячий конец среди принятых: ${far.join(' | ')}`);
+  assert(far.some(e => e.includes('конечный')), 'бракуется не тот конец: ' + far.join(' | '));
+  const noRoof = vertErrors(r => { r.buildings[0].roof.walkable = false; });
+  eq(noRoof.filter(e => e.includes('не имеет опоры')).length, 1, `без ходовой кровли обязан браковаться только западный ворот: ${noRoof.join(' | ')}`);
+  assert(noRoof.some(e => e.includes('начальный')), 'бракуется не кровля-опора: ' + noRoof.join(' | '));
+});
+
+t('под skybridge опор нет, под мостом — есть; фонари разрешены и там, и там', () => {
+  const level = normalizeLevel(vertLevel());
+  eq(vertRoad(level, 'sb_podium').pillars.length, 0, 'колонны под переходом');
+  assert(vertRoad(level, 'br_0').pillars.length > 0, 'мост остался без опор');
+  assert(vertRoad(level, 'sb_podium').lamps.length > 0, 'фонари на переходе пропали');
+});
+
+t('парсер вертикали детерминирован: два прогона дают побайтово равный модуль', () => {
+  const a = generateModule(vertLevel(), 'src/levels/level-10.json');
+  const b = generateModule(vertLevel(), 'src/levels/level-10.json');
+  eq(a.code, b.code, 'текст модуля различится');
+});
+
 // ---------------------------------------------------------------- CLI и детерминизм
 
 t('парсер детерминирован: два прогона дают побайтово равный модуль', () => {

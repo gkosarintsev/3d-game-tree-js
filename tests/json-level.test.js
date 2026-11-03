@@ -946,6 +946,370 @@ function testDebugIds() {
   };
 }
 
+// ---------------------------------------------------------------- вертикаль: кровли, марши, переходы
+//
+// Тот же полигон, что прогоняет Node-проверка парсера (`vertLevel` в
+// tools/level-parser.test.mjs), но собранный в карту: ходовая кровля как опора,
+// проём марша в её плите, вертикальный марш, переход без опор и дверь на его
+// отметке — проверить «ногами и маршрутом» больше негде.
+
+const VERT_RAW = {
+  metadata: { levelName: 'vertical', name: 'Полигон вертикали', hint: '—', units: 'meters' },
+  ground: { size: 160 },
+  roads: [
+    { id: 'street_0', type: 'ground', width: 8, lamps: true,
+      points: [{ x: -70, y: 0.12, z: -44 }, { x: 70, y: 0.12, z: -44 }] },
+    { id: 'sb_podium', type: 'skybridge', width: 3.4, lamps: true,
+      points: [{ x: -10, y: 8, z: 0 }, { x: 20, y: 8, z: 0 }] },
+    { id: 'br_0', type: 'bridge', width: 6,
+      points: [{ x: 55, y: 5, z: 10 }, { x: 55, y: 5, z: 60 }] },
+  ],
+  buildings: [
+    {
+      id: 'podium', name: 'Подиум', floorsCount: 2, floorHeight: 4,
+      footprint: [{ x: -60, z: -30 }, { x: -10, z: -30 }, { x: -10, z: 30 }, { x: -60, z: 30 }],
+      roof: { walkable: true },
+      rooms: [
+        {
+          id: 'pod_r0', floor: 0, type: 'hall',
+          polygon: [{ x: -60, z: -30 }, { x: -10, z: -30 }, { x: -10, z: 30 }, { x: -60, z: 30 }],
+          connections: [{ target: 'street_0', portalPosition: { x: -35, y: 0, z: -30 }, linkType: 'main_entrance' }],
+        },
+        {
+          id: 'pod_r1', floor: 1, type: 'office',
+          polygon: [{ x: -60, z: -30 }, { x: -10, z: -30 }, { x: -10, z: 30 }, { x: -60, z: 30 }],
+        },
+      ],
+      stairs: [
+        { id: 'pod_s01', type: 'straight', connectsFloors: [0, 1], position: { x: -52, z: 24 },
+          dimensions: { width: 6, length: 4 } },
+        { id: 'pod_roof', type: 'straight', connectsFloors: [1, 2], position: { x: -16, z: 0 },
+          dimensions: { width: 6, length: 4 } },
+      ],
+    },
+    {
+      id: 'tower', name: 'Башня', baseY: 8, floorsCount: 4, floorHeight: 4,
+      footprint: [{ x: -45, z: -10 }, { x: -25, z: -10 }, { x: -25, z: 10 }, { x: -45, z: 10 }],
+      roof: { walkable: true },
+      rooms: [
+        {
+          id: 'tw_r0', floor: 0, type: 'hall',
+          polygon: [{ x: -45, z: -10 }, { x: -25, z: -10 }, { x: -25, z: 10 }, { x: -45, z: 10 }],
+          connections: [{ target: 'street_0', portalPosition: { x: -45, y: 8, z: 0 }, linkType: 'door' }],
+        },
+        { id: 'tw_r1', floor: 1, type: 'office',
+          polygon: [{ x: -45, z: -10 }, { x: -25, z: -10 }, { x: -25, z: 10 }, { x: -45, z: 10 }] },
+        { id: 'tw_r2', floor: 2, type: 'office',
+          polygon: [{ x: -45, z: -10 }, { x: -25, z: -10 }, { x: -25, z: 10 }, { x: -45, z: 10 }] },
+        { id: 'tw_r3', floor: 3, type: 'utility',
+          polygon: [{ x: -45, z: -10 }, { x: -25, z: -10 }, { x: -25, z: 10 }, { x: -45, z: 10 }] },
+      ],
+      stairs: [
+        { id: 'tw_ladder', type: 'ladder', connectsFloors: [0, 2], position: { x: -35, z: 0 } },
+        { id: 'tw_roof', type: 'ladder', connectsFloors: [2, 4], position: { x: -35, z: 0 } },
+      ],
+    },
+    {
+      id: 'annex', name: 'Ангар', floorsCount: 3, floorHeight: 4,
+      footprint: [{ x: 20, z: -15 }, { x: 50, z: -15 }, { x: 50, z: 15 }, { x: 20, z: 15 }],
+      rooms: [
+        {
+          id: 'an_r2', floor: 2, type: 'office',
+          polygon: [{ x: 20, z: -15 }, { x: 50, z: -15 }, { x: 50, z: 15 }, { x: 20, z: 15 }],
+          connections: [{ target: 'sb_podium', portalPosition: { x: 20, y: 8, z: 0 }, linkType: 'door' }],
+        },
+      ],
+    },
+  ],
+  landscapeObjects: [],
+  lights: [],
+  gameplay: { goal: 'exit', spawn: { x: 0, z: -44 }, exit: { x: -50, z: 0 } },
+};
+
+let vertBuilt = null;
+
+/** Карта вертикали с построенной геометрией: плиты кровель, блокеры-парапеты и граф собраны. */
+function vertMap() {
+  if (!vertBuilt) {
+    vertBuilt = createJsonMap(normalizeLevel(VERT_RAW).map);
+    vertBuilt.build(new THREE.Scene());
+  }
+  return vertBuilt;
+}
+
+function testVertRoofSupport() {
+  const map = vertMap();
+  const podium = map.buildings.find(b => b.id === 'podium');
+  const tower = map.buildings.find(b => b.id === 'tower');
+  const annex = map.buildings.find(b => b.id === 'annex');
+  const bad = [];
+  if (!podium.roof?.walkable || !tower.roof?.walkable) bad.push('ходовые кровли пропали');
+  if (annex.roof) bad.push('у дома без секции roof кровля появилась');
+  // ходовая кровля — опора своей отметки, а не «пол мира»: пробу с высоты самой
+  // плиты, потому что groundHeightAt отдаёт высшую опору в пределах шага ноги
+  for (const b of [podium, tower]) {
+    const x = (b.bounds.minX + b.bounds.maxX) / 2;
+    const z = b.bounds.minZ + 5;
+    const y = map.groundHeightAt(x, z, b.roofY);
+    if (Math.abs(y - b.roofY) > 1e-6) bad.push(`${b.id}: опора на кровле ${y} вместо ${b.roofY}`);
+  }
+  // невходимой кровли в опорах нет: плита ангара — солид, но ноги на неё не ставятся
+  if (Math.abs(map.groundHeightAt(35, 0, annex.roofY) - annex.roofY) <= 1e-6) {
+    bad.push('кровля ангара стала опорой');
+  }
+  // парапет держит край на отметке кровли: у края бракуется и сход, и узел
+  const edge = { x: podium.bounds.maxX, z: 20 };
+  if (!map.isBlocked(edge.x, edge.z, CONFIG.radius, podium.roofY, CONFIG.eyeHeight)) {
+    bad.push('парапет не бракует сход с края кровли');
+  }
+  // где к кровле примыкает настил, в паравете проём: иначе переход упёрся в ограждение
+  const gate = { x: podium.bounds.maxX, z: 0 };
+  if (map.isBlocked(gate.x, gate.z, CONFIG.radius, podium.roofY, CONFIG.eyeHeight)) {
+    bad.push('парапет не расступился перед настилом перехода');
+  }
+  // коллизия ограждения — полоса ровно от кровли до кровли + parapet: у фасадной
+  // линии не должно быть блокера, который залезает в эту полосу снизу (тогда
+  // идущий этажом ниже упёрся бы в невидимую стену) или кончается выше её верха
+  const onFacade = w => podium.walls.some(f => w.minX >= f.minX - 1e-6 && w.maxX <= f.maxX + 1e-6
+    && w.minZ >= f.minZ - 1e-6 && w.maxZ <= f.maxZ + 1e-6);
+  const over = map.blockers.filter(w => onFacade(w) && w.y1 > podium.roofY + 1e-6);
+  const par = over.filter(w => Math.abs(w.y0 - podium.roofY) < 1e-6
+    && Math.abs(w.y1 - (podium.roofY + podium.roof.parapet)) < 1e-6);
+  if (!par.length) bad.push('блокеров парагета нет');
+  const stray = over.filter(w => !par.includes(w));
+  if (stray.length) {
+    bad.push(`у фасада подиума торчит блокер ${stray[0].y0}…${stray[0].y1} вне полосы парагета`);
+  }
+  // решётка узлов кровли не лезет за парапет и стоит на своей плите
+  const roofNodes = map.nav.pos.filter(p => Math.abs(p.y - podium.roofY) <= J.floorRise + 0.02
+    && inRect$(p.x, p.z, podium.bounds));
+  if (roofNodes.length < 4) bad.push(`узлов на кровле подиума ${roofNodes.length}`);
+  for (const p of roofNodes) {
+    if (map.isBlocked(p.x, p.z, CONFIG.radius, p.y, CONFIG.eyeHeight)) bad.push(`узел ${p.x}, ${p.z} задержан габаритом`);
+    if (Math.abs(map.groundHeightAt(p.x, p.z, p.y - 0.5) - p.y) > 0.06) bad.push(`узел ${p.x}, ${p.z} не на опоре`);
+  }
+  return {
+    name: 'Ходовая кровля — опора, парапет держит край и расступается перед настилом',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `кровли ${podium.roofY} и ${tower.roofY} держат, узлов на кровле подиума ${roofNodes.length}, `
+      + `плиток ограждения ${par.length} высотою ${podium.roof.parapet}, у края габариту тесно, а в проёме настила свободно`,
+  };
+}
+
+function testVertRoofHoles() {
+  const map = vertMap();
+  const podium = map.buildings.find(b => b.id === 'podium');
+  const tower = map.buildings.find(b => b.id === 'tower');
+  const shaft = tower.stairs.find(s => s.id === 'tw_roof').rect;
+  const stair = podium.stairs.find(s => s.id === 'pod_roof').rect;
+  const bad = [];
+  const covered = (b, x, z) => map.roofPlates.some(p => p.building === b.id && inRect$(x, z, p));
+  // проём марша: над шахтой своей плиты кровли нет, но марш там и держит
+  if (covered(podium, (stair.minX + stair.maxX) / 2, (stair.minZ + stair.maxZ) / 2)) {
+    bad.push('плита кровли легла на проём марша');
+  }
+  if (!covered(podium, podium.bounds.minX + 5, 0)) bad.push('плита кровли не покрывает footprint');
+  // башня, выросшая из кровли, вырезает её своим габаритом: держит пол её первого этажа
+  if (covered(podium, -35, 0)) bad.push('плита подиума осталась внутри первого этажа башни');
+  const towerFloor0 = tower.baseY + J.floorRise;
+  if (Math.abs(map.groundHeightAt(-35, -5, towerFloor0) - towerFloor0) > 1e-6) {
+    bad.push(`пол башни над кровлей не отдаёт свою отметку: ${map.groundHeightAt(-35, -5, towerFloor0)}`);
+  }
+  // верхний марш приходит ровно на кровлю: последняя проступь держит, плиты над ней нет
+  const last = tower.stairs.find(s => s.id === 'tw_roof').steps.slice(-1)[0];
+  const cx = (last.minX + last.maxX) / 2, cz = (last.minZ + last.maxZ) / 2;
+  if (Math.abs(map.groundHeightAt(cx, cz, tower.roofY - J.maxRise) - tower.roofY) > 1e-6) {
+    bad.push('верхняя проступь не даёт отметку кровли');
+  }
+  if (covered(tower, cx, cz)) bad.push('плита кровли башни не прорезана шахтой');
+  if (Math.abs(last.top - tower.roofY) > 1e-6) bad.push(`верх марша ${last.top} вместо кровли ${tower.roofY}`);
+  // щели в перекрытии нет: проём ровно во план шахты, а рядом плита держит
+  if (covered(tower, shaft.maxX + 0.5, (shaft.minZ + shaft.maxZ) / 2)) {
+    if (!covered(tower, shaft.minX - 0.5, (shaft.minZ + shaft.maxZ) / 2)) bad.push('плита кровли прорезана шире шахты');
+  }
+  return {
+    name: 'Проём марша в плите кровли: над шахтой плиты нет, соседняя плита цела',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${map.roofPlates.length} плит кровли, проёмы над маршами и под башней, верх марша на ${tower.roofY}`,
+  };
+}
+
+function testVertLadderClimb() {
+  const map = vertMap();
+  const tower = map.buildings.find(b => b.id === 'tower');
+  const s = tower.stairs.find(x => x.id === 'tw_ladder');
+  const bad = [];
+  // все проступи в одном плане шахты
+  for (const st of s.steps) {
+    if (Math.abs(st.minX - s.rect.minX) > 1e-6 || Math.abs(st.maxZ - s.rect.maxZ) > 1e-6) {
+      bad.push('проступь вертикального марша не в плане шахты');
+      break;
+    }
+  }
+  // проступь — пластина на своём подъёме, а не столб от пола шахты
+  const r = map.solids.find(x => Math.abs(x.maxY - s.steps[1].top) < 1e-6 && inRect$(x.minX + 0.1, x.minZ + 0.1, s.rect));
+  if (!r || r.minY < s.steps[1].top - J.ladderRung - 1e-6) {
+    bad.push(`проступь держит тело от ${r ? r.minY : '—'} вместо толщины ${J.ladderRung}`);
+  }
+  // шаг по проступям: от пола до пола, каждый подъём перешагиваем, провала нет
+  const cx = (s.rect.minX + s.rect.maxX) / 2, cz = (s.rect.minZ + s.rect.maxZ) / 2;
+  let feet = map.groundHeightAt(cx, cz, s.y0);
+  const rises = [];
+  for (let guard = 0; guard < 64 && feet < s.y1 - 1e-6; guard++) {
+    const next = map.groundHeightAt(cx, cz, feet);
+    if (next <= feet + 1e-6) { bad.push(`ступор на ${feet}`); break; }
+    if (next - feet > STEP) { bad.push(`подъём ${feet}→${next} круче шага ${STEP}`); break; }
+    rises.push(next - feet);
+    feet = next;
+  }
+  if (Math.abs(feet - s.y1) > 1e-6) bad.push(`по проступлям пришли на ${feet}, ожидалось ${s.y1}`);
+  return {
+    name: 'Вертикальный марш поднимает нога: шаг по проступям от пола до пола',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${rises.length} шагов подъёмом ${Math.max(...rises).toFixed(2)} м (предел ${J.maxRise}), ${feet} = верх ${s.y1}`,
+  };
+}
+
+function testVertSkybridgeSolid() {
+  const map = vertMap();
+  const road = map.roads.find(r => r.id === 'sb_podium');
+  const deck = road.decks[0];
+  const bad = [];
+  if (road.pillars.length) bad.push('под переходом выросли колонны');
+  const pillars = map.props.filter(p => p.source === 'bridge_pillar');
+  if (pillars.some(p => inRect$(p.position.x, p.position.z, deck))) bad.push('опора моста стоит в плане перехода');
+  if (!pillars.length) bad.push('мост br_0 остался без опор');
+  const onDeck = map.solids.find(s => Math.abs(s.maxY - deck.topY) < 1e-6 && inRect$(5, 0, s));
+  if (!onDeck) bad.push('настила перехода нет в солидах');
+  else if (Math.abs(onDeck.minY - (deck.topY - J.deckThickness)) > 1e-6) bad.push(`настил толщиной ${onDeck.maxY - onDeck.minY}`);
+  if (Math.abs(map.groundHeightAt(5, 0, deck.topY) - deck.topY) > 1e-6) bad.push('настил перехода не держит опору');
+  if (map.isBlocked(5, 0, CONFIG.radius, deck.topY, CONFIG.eyeHeight)) bad.push('настил перехода задерживает габарит');
+  // дверь ангара обязана выходить прямо на настил: её наружная точка стоит на нём
+  const door = map.buildings.find(b => b.id === 'annex').doors[0];
+  if (!inRect$(door.outside.x, door.outside.z, deck)) bad.push('дверь ангара не в плане настила');
+  if (Math.abs(map.groundHeightAt(door.outside.x, door.outside.z, deck.topY) - deck.topY) > 1e-6) {
+    bad.push('под дверью перехода нет настила');
+  }
+  return {
+    name: 'Переход твёрдый, без опор с земли, а его торец ведёт в дверь на своей отметке',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `настил ${deck.topY} м толщиной ${J.deckThickness}, опор перехода ${road.pillars.length}, `
+      + `опор моста ${pillars.length}, дверь ${door.id} на своём плане`,
+  };
+}
+
+function testVertPaths() {
+  const map = vertMap();
+  const podium = map.buildings.find(b => b.id === 'podium');
+  const tower = map.buildings.find(b => b.id === 'tower');
+  const bad = [];
+  const street = { x: 0, y: map.groundY, z: -44 };
+  const walk = (from, to, label) => {
+    const path = map.findPath(from, to);
+    if (!Array.isArray(path) || path.length < 2) { bad.push(`${label}: маршрута нет`); return []; }
+    for (let i = 0; i + 1 < path.length; i++) {
+      const f = walkEdge(map, i === 0 ? from : path[i], path[i + 1]);
+      if (f) { bad.push(`${label}: ребро ${i} — ${f.reason} в ${f.x.toFixed(1)}, ${f.z.toFixed(1)}`); break; }
+    }
+    return path;
+  };
+  // улица → кровля подиума: через дверь, два марша и решётку кровли
+  const roof = walk(street, { x: -50, y: podium.roofY, z: 10 }, 'кровля подиума');
+  const onRoof = roof.filter(p => Math.abs(p.y - podium.roofY) <= J.floorRise + 0.02 && inRect$(p.x, p.z, podium.bounds));
+  if (roof.length && onRoof.length < 2) bad.push(`по кровле подиума прошли ${onRoof.length} узлов`);
+  // кровля подиума → дверь ангара через настил перехода
+  const bridge = walk({ x: -50, y: podium.roofY, z: 10 }, { x: 25, y: 8, z: 0 }, 'дверь ангара');
+  const deck = map.roads.find(r => r.id === 'sb_podium').decks[0];
+  if (bridge.length && !bridge.some(p => inRect$(p.x, p.z, deck) && Math.abs(p.y - deck.topY) < 0.02)) {
+    bad.push('маршрут в ангар не шёл по настилу перехода');
+  }
+  // кровля подиума → кровля башни: дверь на уровне кровли, вертикальные марши
+  const top = walk({ x: -50, y: podium.roofY, z: 10 }, { x: -32.5, y: tower.roofY, z: 2.5 }, 'кровля башни');
+  if (top.length) {
+    if (!top.some(p => Math.abs(p.y - tower.roofY) <= J.floorRise + 0.02)) bad.push('маршрут не встал на кровлю башни');
+    if (!top.some(p => p.y > podium.roofY + 1 && p.y < tower.roofY - 1 && inRect$(p.x, p.z, tower.bounds))) {
+      bad.push('на кровлю башни не поднимались по её маршам');
+    }
+  }
+  // одна связная сеть: всё вертикальное достижимо из точки A
+  const start = map.nav.nearestNode(map.spawn.x, map.spawn.y, map.spawn.z);
+  const seen = new Uint8Array(map.nav.pos.length);
+  const q = [start];
+  seen[start] = 1;
+  for (let h = 0; h < q.length; h++) for (const nb of map.nav.adj[q[h]]) if (!seen[nb]) { seen[nb] = 1; q.push(nb); }
+  if (q.length !== map.nav.pos.length) bad.push(`узлов вне сети из точки A: ${map.nav.pos.length - q.length}`);
+  return {
+    name: 'Маршрут идёт по кровле, через переход и вверх по вертикальным маршам',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `кровля подиума ${roof.length} узлов (${onRoof.length} на плите), переход ${bridge.length}, `
+      + `башня ${top.length}, сеть ${q.length} из ${map.nav.pos.length}`,
+  };
+}
+
+function testVertIdsAndMinimap() {
+  const map = vertMap();
+  const ids = map.debugIds();
+  const bad = [];
+  for (const b of map.buildings) {
+    if (!b.roof) continue;
+    const label = ids.find(l => l.text === `${b.id} · кровля · ходовая`);
+    if (!label) bad.push(`метки кровли ${b.id} нет`);
+    else if (Math.abs(label.y - (b.roofY + 1.8)) > 1e-6) bad.push(`${b.id}: метка кровли на ${label.y}`);
+    const parapets = ids.filter(l => l.text.startsWith(`${b.id} · парапет`));
+    if (parapets.length !== b.walls.filter(w => w.facade).length) {
+      bad.push(`${b.id}: меток парагета ${parapets.length} при фасадах ${b.walls.filter(w => w.facade).length}`);
+    }
+    for (const l of parapets) if (Math.abs(l.y - (b.roofY + b.roof.parapet + 0.4)) > 1e-6) bad.push(`${l.text} не над ограждением`);
+  }
+  const bridge = ids.find(l => l.text === 'sb_podium · skybridge');
+  if (!bridge) bad.push('метки перехода нет');
+  const ladder = ids.find(l => l.text === 'tw_ladder · ladder');
+  if (!ladder) bad.push('метки вертикального марша нет');
+  // миникарта считает этажом и кровлю: план на отметке игрока-на-крыше даёт «Отметка 8.0 м»
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const texts = [];
+  const realText = ctx.fillText.bind(ctx);
+  ctx.fillText = (s, x, y) => { texts.push(s); realText(s, x, y); };
+  try {
+    map.drawMinimap(ctx, 256, { x: -50, y: map.roofPlates.find(p => p.building === 'podium').y, z: 0 });
+  } catch (e) { bad.push(`миникарта: ${e.message}`); }
+  if (!texts.some(s => s.includes('8.0'))) bad.push(`план кровли не найден: ${texts.join(' / ')}`);
+  return {
+    name: 'Метки id и миникарта видят кровли, парапеты, марши и переход',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${ids.filter(l => l.text.includes('кровля')).length} метки кровель, `
+      + `${ids.filter(l => l.text.includes('парапет')).length} парапетов, план «${texts[0]}»`,
+  };
+}
+
+function testVertDeterminism() {
+  const a = createJsonMap(normalizeLevel(VERT_RAW).map);
+  const b = createJsonMap(normalizeLevel(VERT_RAW).map);
+  let diff = 0;
+  if (a.nav.pos.length !== b.nav.pos.length) diff = Infinity;
+  else {
+    for (let i = 0; i < a.nav.pos.length; i++) {
+      if (a.nav.pos[i].x !== b.nav.pos[i].x || a.nav.pos[i].y !== b.nav.pos[i].y
+        || a.nav.pos[i].z !== b.nav.pos[i].z) diff++;
+    }
+  }
+  return {
+    name: 'Детерминизм вертикали: два сбора дают одинаковые узлы и плиты',
+    passed: diff === 0 && a.solids.length === b.solids.length && a.roofPlates.length === b.roofPlates.length,
+    info: diff === 0 ? `${a.nav.pos.length} узлов совпали, солидов ${a.solids.length}, плит кровли ${a.roofPlates.length}`
+      : `различий — ${diff}`,
+  };
+}
+
 /**
  * Прогоняет тесты JSON-главы и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
@@ -972,6 +1336,13 @@ export async function runJsonTests() {
     testWaterSlopes,
     testWaterNav,
     testWaterPillarsAndIds,
+    testVertRoofSupport,
+    testVertRoofHoles,
+    testVertLadderClimb,
+    testVertSkybridgeSolid,
+    testVertPaths,
+    testVertIdsAndMinimap,
+    testVertDeterminism,
     testMeshAndLights,
     testMinimap,
     testOpenPositions,
