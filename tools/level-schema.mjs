@@ -159,6 +159,20 @@ export const LEVEL_SPEC = obj({
       keep: num({ min: 0, max: 1 }),
     }),
   }),
+  // неон и билборды: наличие секции включает вывод, числа — переопределение
+  // `CONFIG.jsonMap.signage` (панели считает карта, как окна и мусор)
+  signage: obj({
+    minFloors: num({ min: 1, max: 40 }),  // эт: дома ниже вывесок не носят
+    minRun: num({ min: 2, max: 40 }),     // м: минимальный бег фасадной грани
+    edge: num({ min: 0.2, max: 8 }),      // м: отступ панели от угла фасада
+    step: num({ min: 2, max: 40 }),       // м: шаг слотов вдоль грани
+    width: arr(num({ min: 0.5, max: 30 }), { minItems: 2, maxItems: 2 }), // [min, max] м
+    minWidth: num({ min: 0.5, max: 20 }),  // м: уже этого панель — полоска, слот прочеркнут
+    panelFloors: num({ min: 1, max: 12 }),// эт: высота панели через этажи
+    perFace: num({ min: 1, max: 8 }),     // штук: не больше N панелей на грань
+    keep: num({ min: 0, max: 1 }),        // доля слотов, занятая вывесками
+    offset: num({ min: 0.02, max: 2 }),   // м: вынос за грань стены
+  }),
   sky: obj({
     sky: color(),
     fog: obj({ color: color(), near: num({ min: 1 }), far: num({ min: 2 }) }),

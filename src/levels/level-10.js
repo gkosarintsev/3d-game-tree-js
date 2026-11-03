@@ -81869,6 +81869,13 @@ export const LEVEL_10 = {
       "street": {
         "every": 26
       }
+    },
+    "signage": {
+      "keep": 0.75,
+      "width": [
+        3.5,
+        6.5
+      ]
     }
   },
   "sky": {

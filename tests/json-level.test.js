@@ -54,22 +54,27 @@
  *      вброд, и каждое его ребро проходимо шагом;
  *  29. Глава 10: авторские доминанты открыты на всех этажах и кровлях, а
  *      генератор дал кварталы с достижимыми интерьерами на обоих берегах.
- *  30. Окна фасадов (секция `windows`): без неё окон нет, с ней — инстансы
- *      палитры, собранные детерминированно;
- *  31. Окна — только картинка: солиды, блокеры, опоры, узлы графа и маршрут
- *      A→B совпадают с картой без окон;
+ *  30. Окна фасадов (секция `windows`) и мусор (секция `clutter`): без них
+ *      картинок нет, с ними — инстансы палитры и типов, собранные
+ *      детерминированно;
+ *  31. Картинка — только картинка: солиды, блокеры, опоры, узлы графа и маршрут
+ *      A→B совпадают с картой без всех трёх секций;
  *  32. Каждый квад висит снаружи своей стены и смотрит наружу: рейкаст назад
  *      даёт стену на ≤ 0,12 м, вперёд — воздух не ближе 0,5 м;
  *  33. Доля горящих окон держит настройку `lit`, все цвета палитры в сцене;
- *  34. Бюджет района с окнами и мусором: отрисовки, экземпляры и треугольники
- *      в пределах замера главы 10;
- *  35. `dispose()` убирает меши окон и их материалы, общие материалы пропов
- *      остаются живыми;
+ *  34. Бюджет района с окнами, мусором и неоном: отрисовки, экземпляры и
+ *      треугольники в пределах замера главы 10;
+ *  35. `dispose()` убирает меши окон и неона с их материалами, общие материалы
+ *      пропов остаются живыми;
  *  36. Мусор кровель и тротуаров (секция `clutter`): каждый предмет стоит на
  *      своей опоре, над ним есть запас по высоте, а оба прохода — и кровли, и
  *      улицы — действительно что-то ставят типами из списка моделей;
  *  37. Детерминизм мусора: два сбора дают совпадающие списки предметов и
- *      побитово равные матрицы экземпляров пропов.
+ *      побитово равные матрицы экземпляров пропов;
+ *  38. Неон и билборды (секция `signage`): панели — инстансы палитры в пределах
+ *      заявленных размеров, все цвета в сцене;
+ *  39. Панель висит на своей стене, вынесена за окна и не протыкает чужой объём;
+ *  40. Детерминизм неона: два сбора дают побитово равные матрицы панелей.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
@@ -1547,7 +1552,7 @@ function testChapter10Interiors() {
   };
 }
 
-// ----------------------------------------------- окна фасадов и мусор района
+// ------------------------------- окна фасадов, мусор района и неон
 
 /**
  * Светящиеся окна и мусор кровель-тротуаров — картинка, собранная картой из её
@@ -1560,9 +1565,14 @@ function testChapter10Interiors() {
  * `dispose()` — убрать меши и материалы окон, но не общие материалы пропов.
  */
 
-/** Меши окон в сцене: инстансы с `MeshBasicMaterial` — окно не освещается, оно и есть свет. */
+/** Меши окон в сцене: инстансы квадов, помеченные рядом вывода (окно не освещается — оно и есть свет). */
 function windowMeshes(scene) {
-  return scene.children.filter(o => o.isInstancedMesh && o.material.isMeshBasicMaterial);
+  return scene.children.filter(o => o.isInstancedMesh && o.userData.quad === 'windows');
+}
+
+/** Меши неона и билбордов: те же `MeshBasicMaterial`, поэтому ряд вывода читается из `userData`. */
+function signMeshes(scene) {
+  return scene.children.filter(o => o.isInstancedMesh && o.userData.quad === 'signage');
 }
 
 let winBuilt = null;
@@ -1575,20 +1585,23 @@ function windowsInScene() {
   return winBuilt;
 }
 
-function testWindowsNeedSection() {
+function testPictureNeedsSections() {
   const scene = new THREE.Scene();
   const map = createJsonMap(LEVEL_09.map);
   map.build(scene);
   const win = windowMeshes(scene);
   const ok = map.winCfg === null && map.windowCount === 0
-    && map.clutterCfg === null && map.clutterCount === 0 && win.length === 0;
+    && map.clutterCfg === null && map.clutterCount === 0
+    && map.signCfg === null && map.signageCount === 0
+    && win.length === 0 && signMeshes(scene).length === 0;
   map.dispose();
   return {
-    name: 'Без секций `windows` и `clutter` картинок нет: глава 9 собирается как раньше',
+    name: 'Без секций `windows`, `clutter` и `signage` картинок нет: глава 9 собирается как раньше',
     passed: ok,
-    info: ok ? `глава 9: окон ${map.windowCount}, мусора ${map.clutterCount}, `
-      + `мешей картинок ${win.length}, солидов ${map.solids.length}`
-      : `окон ${map.windowCount}, мусора ${map.clutterCount}, мешей ${win.length} при отсутствующих секциях`,
+    info: ok ? `глава 9: окон ${map.windowCount}, мусора ${map.clutterCount}, панелей ${map.signageCount}, `
+      + `мешей картинок ${win.length} — солидов ${map.solids.length}`
+      : `окон ${map.windowCount}, мусора ${map.clutterCount}, панелей ${map.signageCount}, `
+        + `мешей ${win.length + signMeshes(scene).length} при отсутствующих секциях`,
   };
 }
 
@@ -1642,6 +1655,7 @@ function testWindowNeutral() {
   const raw = structuredClone(LEVEL_10.map);
   delete raw.windows;
   delete raw.clutter;
+  delete raw.signage;
   const plain = createJsonMap(raw);
   plain.build(new THREE.Scene());
   const e = LEVEL_10.gameplay.exit;
@@ -1652,19 +1666,23 @@ function testWindowNeutral() {
   const bad = [];
   if (!a || !b) bad.push(`маршрута нет: ${a ? 'есть' : 'нет'} против ${b ? 'есть' : 'нет'}`);
   else if (!same(a, b)) bad.push(`маршрут A→B разный: ${a.length} шагов против ${b.length}`);
-  if (plain.winCfg || plain.clutterCfg) bad.push('секций нет, а настройки остались');
-  if (plain.windowCount || plain.clutterCount) bad.push(`без секций собрано ${plain.windowCount} окон и ${plain.clutterCount} предметов`);
+  if (plain.winCfg || plain.clutterCfg || plain.signCfg) bad.push('секций нет, а настройки остались');
+  if (plain.windowCount || plain.clutterCount || plain.signageCount) {
+    bad.push(`без секций собрано ${plain.windowCount} окон, ${plain.clutterCount} предметов `
+      + `и ${plain.signageCount} панелей`);
+  }
   if (withW.solids.length !== plain.solids.length) bad.push(`солидов ${withW.solids.length} против ${plain.solids.length}`);
   if (withW.blockers.length !== plain.blockers.length) bad.push(`блокиров ${withW.blockers.length} против ${plain.blockers.length}`);
   if (withW.surfaces.length !== plain.surfaces.length) bad.push(`опор ${withW.surfaces.length} против ${plain.surfaces.length}`);
   if (withW.nav.pos.length !== plain.nav.pos.length) bad.push(`узлов ${withW.nav.pos.length} против ${plain.nav.pos.length}`);
   plain.dispose();
   return {
-    name: 'Окна и мусор — только картинка: твёрдость, опоры, граф и маршрут A→B не меняются',
+    name: 'Окна, мусор и неон — только картинка: твёрдость, опоры, граф и маршрут A→B не меняются',
     passed: bad.length === 0 && !!a && a.length > 10,
     info: bad.length ? bad.slice(0, 3).join('; ')
-      : `${withW.windowCount} окон + ${withW.clutterCount} предметов против нуля: солидов ${withW.solids.length}, `
-        + `опор ${withW.surfaces.length}, узлов ${withW.nav.pos.length}, маршрут ${a.length} шагов — совпали`,
+      : `${withW.windowCount} окон + ${withW.clutterCount} предметов + ${withW.signageCount} панелей `
+        + `против нуля: солидов ${withW.solids.length}, опор ${withW.surfaces.length}, `
+        + `узлов ${withW.nav.pos.length}, маршрут ${a.length} шагов — совпали`,
   };
 }
 
@@ -1725,9 +1743,10 @@ function testWindowLitRatio() {
 
 /**
  * Бюджет района: узкое место — не треугольники геометрии, а число отрисовок и
- * экземпляров (один меш на цвет палитры + один на тип пропа), поэтому окна и
- * мусор инстансятся. Верхние границы — замер главы 10 с запасом: геометрия района
- * даёт 10 мешей, окна добавляют 4, пропы с мусором — 13.
+ * экземпляров (один меш на цвет палитры квадов + один на пару «тип + материал»
+ * пропа), поэтому окна, мусор и неон инстансятся. Верхние границы — замер главы
+ * 10 с запасом: геометрия района с грунтом и водой даёт 7 мешей, пропы с мусором —
+ * 16, окна — 4, неон — 5 (всего 32).
  */
 function testDistrictBudget() {
   const { map, scene } = windowsInScene();
@@ -1742,13 +1761,14 @@ function testDistrictBudget() {
     instances += n;
     instTris += t * n;
   }
-  const ok = meshes <= 34 && map.windowCount <= 40000 && instTris <= 280000 && instances <= 45000;
+  const ok = meshes <= 40 && map.windowCount <= 40000 && instTris <= 280000 && instances <= 45000;
   return {
-    name: 'Бюджет района: отрисовки, экземпляры и треугольники с окнами и мусором',
+    name: 'Бюджет района: отрисовки, экземпляры и треугольники с окнами, мусором и неоном',
     passed: ok,
-    info: `${meshes} мешей (отрисовок), ${map.windowCount} окон и ${map.clutterCount} предметов `
-      + `мусора, ${instances} экземпляров, ${(Math.round(instTris) / 1000).toFixed(1)} тыс. треугов `
-      + `с инстансами (сумма геометрий — ${(Math.round(geoTris) / 1000).toFixed(1)} тыс.)`,
+    info: `${meshes} мешей (отрисовок), ${map.windowCount} окон, ${map.clutterCount} предметов мусора `
+      + `и ${map.signageCount} панелей, ${instances} экземпляров, `
+      + `${(Math.round(instTris) / 1000).toFixed(1)} тыс. треугов с инстансами `
+      + `(сумма геометрий — ${(Math.round(geoTris) / 1000).toFixed(1)} тыс.)`,
   };
 }
 
@@ -1756,7 +1776,7 @@ function testWindowDispose() {
   const scene = new THREE.Scene();
   const map = createJsonMap(LEVEL_10.map);
   map.build(scene);
-  const win = windowMeshes(scene);
+  const win = [...windowMeshes(scene), ...signMeshes(scene)];
   const shared = scene.children.filter(o => o.isInstancedMesh && o.userData.sharedMaterial);
   let winDisposed = 0, sharedDisposed = 0;
   for (const m of win) {
@@ -1770,10 +1790,10 @@ function testWindowDispose() {
   map.dispose();
   const leftMeshes = scene.children.filter(o => o.isMesh || o.isInstancedMesh).length;
   return {
-    name: 'dispose() убирает меши окон и их материалы, но не общие материалы пропов',
+    name: 'dispose() убирает меши окон и неона с их материалами, но не общие материалы пропов',
     passed: win.length > 0 && shared.length > 0 && leftMeshes === 0
       && winDisposed === win.length && sharedDisposed === 0,
-    info: `${win.length} мешей окон убрано из сцены, их материалов disposed — ${winDisposed}, `
+    info: `${win.length} мешей квадов убрано из сцены, их материалов disposed — ${winDisposed}, `
       + `общих материалов пропов тронуто ${sharedDisposed} из ${shared.length}; меши в сцене: ${leftMeshes}`,
   };
 }
@@ -1874,6 +1894,102 @@ function testClutterDeterminism() {
 }
 
 /**
+ * Панель неона — тот же квад, что и окно, только крупнее и вынесена дальше от
+ * грани (иначе два квада со-плоскостные и мигают). Проверяется то, что не видно
+ * в счётчиках: панель обязана стоять на своей стене, а не в чужом объёме, и не
+ * иметь права на твёрдость.
+ */
+function signageInScene() {
+  const { map, scene } = windowsInScene();
+  return { map, meshes: signMeshes(scene), items: [...map._signageItems().values()].flat() };
+}
+
+function testSignageMeshes() {
+  const { map, meshes, items } = signageInScene();
+  const cfg = map.signCfg;
+  const palette = new Set(cfg.colors);
+  const offPalette = meshes.filter(m => !palette.has(m.material.color.getHex()));
+  const instances = meshes.reduce((n, m) => n + m.count, 0);
+  const nan = meshes.filter(m => Array.from(m.instanceMatrix.array).some(v => !Number.isFinite(v))).length;
+  const used = new Set(meshes.map(m => m.material.color.getHex()));
+  // границы берутся по всей таблице ритма: у `neon_panel` свой разброс ширины, и
+  // базовое число главы их не покрывает
+  const styles = [cfg, ...Object.values(cfg.byMaterial ?? {})];
+  const maxW = Math.max(...styles.map(s => s.width?.[1] ?? 0));
+  const minW = Math.min(...styles.map(s => s.minWidth ?? cfg.minWidth));
+  const sizes = items.map(i => i.w);
+  return {
+    name: 'Неон — инстансы палитры: панели, меши, размеры и матрицы без NaN',
+    passed: map.signageCount >= 200 && instances === map.signageCount && items.length === map.signageCount
+      && meshes.length <= 6 && offPalette.length === 0 && nan === 0
+      && used.size === cfg.colors.length
+      && Math.min(...sizes) >= minW - 1e-6
+      && Math.max(...sizes) <= maxW + 1e-6,
+    info: `${map.signageCount} панелей на ${meshes.length} мешах палитры (инстансов ${instances}), `
+      + `ширина ${(Math.min(...sizes)).toFixed(1)}…${(Math.max(...sizes)).toFixed(1)} м `
+      + `(границы таблицы ${minW}…${maxW}), цветов ${used.size} из ${cfg.colors.length}, `
+      + `вне палитры ${offPalette.length}, NaN ${nan}`,
+  };
+}
+
+function testSignageOnFacade() {
+  const { map, items } = signageInScene();
+  const step = Math.max(1, Math.floor(items.length / 200));
+  let checked = 0, bad = 0;
+  const first = [];
+  const floors = new Set();
+  for (let i = 0; i < items.length; i += step) {
+    const it = items[i];
+    checked++;
+    floors.add(Math.round(it.y));
+    const inward = map.raySolid(it.x, it.y, it.z, -it.s, 0, -it.c, 0.8);
+    const outward = map.raySolid(it.x, it.y, it.z, it.s, 0, it.c, 1.2);
+    const why = !inward ? 'за панелью нет стены'
+      : inward.dist > 0.55 ? `стена в ${inward.dist.toFixed(2)} м за панелью`
+      : outward && outward.dist < 0.5 ? `стена в ${outward.dist.toFixed(2)} м перед панелью` : null;
+    if (why) {
+      bad++;
+      if (first.length < 3) first.push(`${why} (${it.x.toFixed(1)}, ${it.y.toFixed(1)}, ${it.z.toFixed(1)})`);
+    }
+  }
+  return {
+    name: 'Панель висит на своей стене, вынесена за окна и не протыкает чужой объём',
+    passed: checked > 150 && bad === 0 && floors.size > 4,
+    info: bad ? `${bad} из ${checked}: ${first.join('; ')}`
+      : `${checked} панелей: стена за каждой на ≤ 0,55 м, перед каждой — воздух ≥ 0,5 м, `
+        + `отметок ${floors.size}`,
+  };
+}
+
+function testSignageDeterminism() {
+  const scenes = [new THREE.Scene(), new THREE.Scene()];
+  const maps = scenes.map(s => {
+    const m = createJsonMap(LEVEL_10.map);
+    m.build(s);
+    return m;
+  });
+  const lists = scenes.map(s => signMeshes(s).sort((a, b) => a.material.color.getHex() - b.material.color.getHex()));
+  let diff = 0;
+  if (maps[0].signageCount !== maps[1].signageCount || lists[0].length !== lists[1].length) {
+    diff = Infinity;
+  } else {
+    for (let i = 0; i < lists[0].length; i++) {
+      const A = lists[0][i].instanceMatrix.array;
+      const B = lists[1][i].instanceMatrix.array;
+      if (A.length !== B.length) { diff = Infinity; break; }
+      for (let k = 0; k < A.length; k++) if (A[k] !== B[k]) diff++;
+    }
+  }
+  for (const m of maps) m.dispose();
+  return {
+    name: 'Детерминизм неона: два сбора дают побитово равные матрицы панелей',
+    passed: diff === 0 && maps[0].signageCount > 0,
+    info: diff === 0 ? `${maps[0].signageCount} панелей, ${lists[0].length} меша — матрицы совпали побитово`
+      : `различий в матрицах — ${diff}`,
+  };
+}
+
+/**
  * Прогоняет тесты JSON-главы и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
@@ -1910,7 +2026,7 @@ export async function runJsonTests() {
     testCityDoorReachesStreet,
     testChapter10Route,
     testChapter10Interiors,
-    testWindowsNeedSection,
+    testPictureNeedsSections,
     testWindowMeshes,
     testWindowDeterminism,
     testWindowNeutral,
@@ -1920,6 +2036,9 @@ export async function runJsonTests() {
     testWindowDispose,
     testClutterPlacement,
     testClutterDeterminism,
+    testSignageMeshes,
+    testSignageOnFacade,
+    testSignageDeterminism,
     testMeshAndLights,
     testMinimap,
     testOpenPositions,

@@ -18,6 +18,10 @@
     "roof": { "perHouse": 4 },
     "street": { "every": 26 }
   },
+  "signage": {
+    "keep": 0.75,
+    "width": [3.5, 6.5]
+  },
   "city": {
     "seed": 20261103,
     "districts": [

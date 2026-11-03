@@ -127,8 +127,9 @@ export function normalizeLevel(raw) {
       // модуль как есть, потому что позиции считает карта, а не парсер, — список
       // из 34 тыс. квадов удвоил бы файл главы
       ...(raw.windows ? { windows: raw.windows } : {}),
-      // тот же порядок у мусора кровель и тротуаров (`_clutterItems`)
+      // тот же порядок у мусора кровель и тротуаров и у неона фасадов
       ...(raw.clutter ? { clutter: raw.clutter } : {}),
+      ...(raw.signage ? { signage: raw.signage } : {}),
     },
     warnings,
   };

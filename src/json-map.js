@@ -99,6 +99,8 @@ export class JsonMap extends SolidField {
     // Вложенные ритмы merge-ятся по-частям, чтобы бриф правил одну цифру, а не
     // переставлял весь блок.
     this.clutterCfg = spec.clutter ? this._clutterSpec(spec.clutter) : null;
+    // неон и билборды — третий выводимый ряд того же механизма (`_signageItems`)
+    this.signCfg = spec.signage ? { ...J.signage, ...spec.signage } : null;
 
     /** @type {{minX,maxX,minZ,maxZ,y0,y1}[]} стены, насыпь, откосы и дно там, где в него нельзя */
     this.blockers = [];
@@ -1472,6 +1474,92 @@ export class JsonMap extends SolidField {
   }
 
   /**
+   * Неон и билборды: панели по фасадным граням тех же домов, что носят окна.
+   *
+   * Вывод, а не список в брифе — по той же причине, что и окна и мусор: панель
+   * влезает в четыре числа, а её адрес считается из габарита стены, который
+   * парсер уже посчитал. Ручной путь для этого закрыт форматом: `authoredProp`
+   * ставит предмет на опору земли и предупреждает о любой другой высоте, а
+   * предупреждение в закоммиченном модуле запрещено (AGENTS.md о пайплайне JSON).
+   *
+   * От окна панель отличается масштабом и выносом: `offset` больше, чем у окон,
+   * иначе два квада лежат в одной плоскости и мигают в z-buffer. Панель бракуется,
+   * если её перекрывает объём другого дома (та же `_buriedRuns`, что у окон, но по
+   * интервалу ширины, а не по центру слота) и если её нижний этаж — дверной проём:
+   * вывеска посреди входа читается второй дверью.
+   *
+   * @returns {Map<number, {x,y,z,c,s,w,h}[]>} цвет палитры → экземпляры, та же
+   *   форма, что у `_windowItems`
+   */
+  _signageItems() {
+    const S = this.signCfg;
+    const groups = new Map();
+    if (!S) return groups;
+    const put = (color, it) => {
+      if (!groups.has(color)) groups.set(color, []);
+      groups.get(color).push(it);
+    };
+    for (const b of this.buildings) {
+      const style = S.byMaterial?.[b.facadeMaterial];
+      const cfg = style ? { ...S, ...style } : S;
+      if (!(cfg.keep > 0) || !b.floorsCount || b.floorsCount < cfg.minFloors) continue;
+      // двери этажа трогает только тот этаж, где они есть (как у окон)
+      const doorFloors = new Set(b.doors.map(d => Math.round((d.y - b.baseY) / b.floorHeight)));
+      const hb = fnvStr(2166136261, `${b.id}|sign`);
+      for (const w of b.walls) {
+        if (!w.facade) continue;
+        const face = this._outerFace(b, w);
+        if (!face || face.hi - face.lo < cfg.minRun) continue;
+        const buried = this._buriedRuns(b, face, cfg.offset);
+        const line = face.coord + face.dir * cfg.offset;
+        const hf = fnvMix(hb, Math.round(face.coord * 100) + (face.axis === 'x' ? 7 : 13));
+        // нижний этаж панели: `max` двух отсчётов смещает выбор к верху фасада —
+        // там панель видна через крыши соседних малоэтажных домов, а в цоколе её
+        // съедает первый ряд
+        // полосы делят полезную ширину грани равномерно, а не садятся на сетку от
+        // её угла: на грани в 10 м (медиана района) сетка шагом 6–12 м ставила
+        // центр слота так, что панель шириной 4–8 м не влезала никогда, и `keep`
+        // на плотность не влиял вовсе (замер: 63 панели при keep 0,4 и 63 при 1)
+        const usable = face.hi - face.lo - 2 * cfg.edge;
+        if (usable < cfg.minWidth) continue;
+        const n = Math.max(1, Math.min(cfg.perFace, Math.floor(usable / cfg.step)));
+        for (let k = 0; k < n; k++) {
+          const draw = makeDraw(fnvMix(hf, k * 7919));
+          if (draw() >= cfg.keep) continue;
+          const width = r3(Math.min(cfg.width[0] + (cfg.width[1] - cfg.width[0]) * draw(), usable / n));
+          if (width < cfg.minWidth) continue;
+          const p = r3(face.lo + cfg.edge + usable * (k + 0.5) / n);
+          const floors = Math.min(cfg.panelFloors + (draw() < 0.5 ? 0 : 1), b.floorsCount - 1);
+          // пояс выбирается среди этажей, где панель реально влезает: `max` двух
+          // отсчётов тянет его вверх, а кламп по `fMax` держит 4-этажный дом (их в
+          // районе большинство) — иначе верхний пояс всегда вне этажности и панель
+          // не ставится вовсе, как бы ни был велик `keep`
+          const fMax = b.floorsCount - floors;
+          if (fMax < 1) continue;
+          const f = Math.min(fMax, 1 + Math.floor(Math.max(draw(), draw()) * fMax));
+          let onDoor = false;
+          for (let i = 0; i < floors; i++) if (doorFloors.has(f + i)) onDoor = true;
+          if (onDoor) continue;
+          const y0 = b.baseY + f * b.floorHeight;
+          const h = Math.min(floors * b.floorHeight - 0.4, b.roofY - y0 - 0.3);
+          if (h < 1.5) continue;
+          const cy = y0 + h / 2;
+          // интервал панели по бегу и по высоте против интервалов чужого объёма
+          if (buried.some(r => p - width / 2 < r[1] && p + width / 2 > r[0]
+            && cy - h / 2 < r[3] && cy + h / 2 > r[2])) continue;
+          put(cfg.colors[Math.min(cfg.colors.length - 1, Math.floor(draw() * cfg.colors.length))], {
+            x: face.axis === 'x' ? p : line,
+            y: cy,
+            z: face.axis === 'x' ? line : p,
+            c: face.c, s: face.s, w: width, h,
+          });
+        }
+      }
+    }
+    return groups;
+  }
+
+  /**
    * Участки фасада, где окно оказалось бы внутри соседнего здания: башня,
    * выросшая из подиума, фасад дома, впритык поставленного к соседу.
    *
@@ -1727,22 +1815,34 @@ export class JsonMap extends SolidField {
     return false;
   }
 
+  /** Светящиеся окна фасадов: вывод и меши — у `_windowItems` и `_buildQuads`. */
+  _buildWindows(scene) {
+    this.windowCount = this.winCfg ? this._buildQuads(scene, this._windowItems(), 'windows') : 0;
+  }
+
+  /** Неон и билборды: те же квады, другая палитра и вынос за грань. */
+  _buildSignage(scene) {
+    this.signageCount = this.signCfg ? this._buildQuads(scene, this._signageItems(), 'signage') : 0;
+  }
+
   /**
-   * Меши окон: по одному `InstancedMesh` на цвет палитры, а не на окно, и общая
-   * геометрия квада. Материал — `MeshBasicMaterial`: окну не нужен свет сцены,
-   * оно и есть свет, поэтому горящее окно читается ровно своим цветом независимо
-   * от пула огней и остаётся видимым сквозь туман района.
+   * Меши квадов: по одному `InstancedMesh` на цвет палитры, а не на окно, и общая
+   * геометрия. Материал — `MeshBasicMaterial`: кваду не нужен свет сцены, он и
+   * есть свет, поэтому горящее окно и неон читаются ровно своим цветом независимо
+   * от пула огней и остаются видимыми сквозь туман района.
    *
    * Матрица экземпляра пишется в буфер руками: повороты здесь только кратные 90°,
    * и на 32 тыс. окон `Matrix4.compose` с кватернионом стоил больше, чем вся
    * выводимая позиция.
+   *
+   * @param {'windows'|'signage'} kind — чтобы `dispose()` и тесты отличали один
+   *   выводимый ряд от другого: материалы у них одинаковые по классу.
+   * @returns {number} число экземпляров
    */
-  _buildWindows(scene) {
-    this.windowCount = 0;
-    if (!this.winCfg) return;
-    const groups = this._windowItems();
-    if (!groups.size) return;
+  _buildQuads(scene, groups, kind) {
+    if (!groups.size) return 0;
     const geo = new THREE.PlaneGeometry(1, 1);
+    let count = 0;
     for (const [color, items] of groups) {
       const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color }), items.length);
       const a = mesh.instanceMatrix.array;
@@ -1757,10 +1857,12 @@ export class JsonMap extends SolidField {
       // сфера по экземплярам: без неё frustum culling меряет единичный квад в
       // центре мира и окно исчезает, как только начало координат уходит за экран
       mesh.computeBoundingSphere();
+      mesh.userData.quad = kind;
       scene.add(mesh);
       this.sceneObjects.push(mesh);
-      this.windowCount += items.length;
+      count += items.length;
     }
+    return count;
   }
 
   build(scene) {
@@ -1802,6 +1904,7 @@ export class JsonMap extends SolidField {
       this.sceneObjects.push(mesh);
     }
     this._buildWindows(scene);
+    this._buildSignage(scene);
     this._buildLights(scene);
   }
 
