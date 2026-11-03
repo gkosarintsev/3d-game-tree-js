@@ -47,7 +47,8 @@
  *      подземные пробы у начала (крен топит внутренний край) не сверяются;
  *   9. Луч снизу попадает в низ плиты, а не проваливается сквозь полотно;
  *  10. Крен сходит к нулю на обоих срезах (торец ленты плоский), полный он только
- *      в середине развёртки, а уклон внешнего края вдоль дуги остаётся ≤ maxSlope;
+ *      в середине развёртки, уклон внешнего края вдоль дуги остаётся ≤ maxSlope,
+ *      а гребень кромки заключён между отметками торцов — к стыку приходит снизу;
  *  11. Лента в зоне раскрутки крена не ступенит: луч сходится с точной
  *      поверхностью в бюджете `J.sweepRibbonTwist`;
  *  12. Стык дуги с плоской касательной пластиной — горизонталь: три сечения и луч
@@ -102,9 +103,11 @@ const bankFrac = (deg, a0, a1, trans) => {
 };
 
 /**
- * Переходный угол (градусы) из брифа: столько `maxSlope` остаётся на раскрутку
- * крена, сколько не съел продольный уклон, — край полотна едет вверх и по тому,
- * и по другому сразу.
+ * Переходный угол (градусы) из брифа: два предела, больший из них и держит
+ * переход. Первый — край полотна едет вверх и по подъёму, и по раскрутке крена
+ * сразу, поэтому на раскрутку остаётся столько `maxSlope`, сколько не съел уклон
+ * оси. Второй — раскрутка не круче самого подъёма: иначе гребень кромки
+ * переваливает через отметку стыкуемого настила и падает к ней.
  */
 const transOfArc = (arc) => {
   const tanBank = Math.round(Math.tan((arc.bank ?? 0) * DEG) * 1000) / 1000;
@@ -112,7 +115,9 @@ const transOfArc = (arc) => {
   if (!bankLen) return 0;
   const len = arc.radius * Math.abs((arc.to - arc.from) * DEG);
   const slope = len > 0 ? Math.abs(arc.y[1] - arc.y[0]) / len : 0;
-  return Math.min(((Math.PI / 2) * bankLen / Math.max(J.maxSlope - slope, J.maxSlope * 0.25) / arc.radius) / DEG,
+  const spare = Math.max(J.maxSlope - slope, J.maxSlope * 0.25);
+  const rate = slope > 0 ? Math.min(spare, slope) : spare;
+  return Math.min(((Math.PI / 2) * bankLen / rate / arc.radius) / DEG,
     0.4 * Math.abs(arc.to - arc.from));
 };
 
@@ -558,7 +563,8 @@ function testRailPushesSphereRadially() {
  * Крен сходит к нулю на обоих срезах, и край полотна остаётся в `maxSlope`:
  * подъём держит ось, а раскрутка крена — только то, что от подъёма осталось.
  * Проверяется разностью высот двух бортов и конечной разностью вдоль борта — по
- * опоре карты, а не по формуле модуля.
+ * опоре карты, а не по формуле модуля, — и тем, что гребень кромки не выходит за
+ * отметки торцов: к стыку он приходит снизу.
  */
 function testBankEndsAndEdgeSlope() {
   const map = builtMap();
@@ -597,13 +603,33 @@ function testBankEndsAndEdgeSlope() {
   if (worst > J.maxSlope + 1e-3) {
     bad.push(`уклон края ${worst.toFixed(4)} на ${worstAt.toFixed(1)}° — выше maxSlope ${J.maxSlope}`);
   }
+  // гребень кромки заключён между отметками торцов: к стыку он приходит снизу, а
+  // у схода не зарывается в грунт. Переход, посчитанный только по бюджету
+  // `maxSlope`, поднимал внешний борт на 0,202 м выше настила моста в 2,4 м до
+  // стыка и ронял внутренний на 0,053 м ниже земли — шаг 0,25° мельче любой
+  // нарезки ленты, горб из двух метров он не пропустит
+  const lo = Math.min(d.y0, d.y1), hi = Math.max(d.y0, d.y1);
+  let over = 0, under = 0, overAt = 0, crestProbes = 0;
+  for (const rhoEdge of [d.R + d.halfW - 0.05, d.R - d.halfW + 0.05]) {
+    for (let deg = d.a0 + 0.02; deg <= d.a1 - 0.02; deg += 0.25) {
+      const p = P(ARC, deg, rhoEdge);
+      const top = map.topAt(p.x, p.z);
+      if (top === null) { bad.push(`кромка ${deg.toFixed(2)}°: опоры нет`); continue; }
+      crestProbes++;
+      if (top - hi > over) { over = top - hi; overAt = deg; }
+      under = Math.max(under, lo - top);
+    }
+  }
+  if (over > 1e-6) bad.push(`кромка на ${overAt.toFixed(1)}° переваливает через ${hi} м на ${over.toFixed(3)} м`);
+  if (under > 1e-6) bad.push(`кромка уходит ниже ${lo} м на ${under.toFixed(3)} м`);
   const axisSlope = Math.abs(d.y1 - d.y0) / (d.R * Math.abs(d.span * DEG));
   return {
-    name: 'Крен сходит к нулю на срезах, а уклон края полотна остаётся в maxSlope',
+    name: 'Крен сходит к нулю на срезах: край полотна в maxSlope и заключён между отметками торцов',
     passed: bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ')
       : `срезы плоские (${d.y0} и ${d.y1} м), крен в середине ${(midOut - midIn).toFixed(3)} м, `
-        + `худший край ${worst.toFixed(4)} (ось ${axisSlope.toFixed(4)})`,
+        + `худший край ${worst.toFixed(4)} (ось ${axisSlope.toFixed(4)}), ${crestProbes} проб кромки: `
+        + `горб ${over.toFixed(3)} м, провал ${under.toFixed(3)} м, переход ${d.bankTrans}°`,
   };
 }
 

@@ -1373,7 +1373,8 @@ const arcPoint = (arc, deg, rho = arc.radius) => ({
   z: arc.cz + Math.sin(deg * Math.PI / 180) * rho,
 });
 /**
- * Переходный угол крена (градусы): своя арифметика — длина за вычетом подъёма.
+ * Переходный угол крена (градусы): своя арифметика — два предела, уклон края в
+ * `maxSlope` и монотонный гребень (раскрутка крена не круче подъёма оси).
  * Крен берётся округлённым, как его пишет парсер (`r3` до деления на радиус):
  * иначе проверка меряет расхождение округления, а не формулы.
  */
@@ -1385,7 +1386,8 @@ const arcTrans = (arc) => {
   const len = arc.radius * Math.abs((arc.to - arc.from) * D);
   const slope = len > 0 ? Math.abs(arc.y[1] - arc.y[0]) / len : 0;
   const spare = Math.max(J.maxSlope - slope, J.maxSlope * 0.25);
-  const trans = ((Math.PI / 2) * bankLen / spare / arc.radius) / D;
+  const rate = slope > 0 ? Math.min(spare, slope) : spare;
+  const trans = ((Math.PI / 2) * bankLen / rate / arc.radius) / D;
   return Math.min(trans, 0.4 * Math.abs(arc.to - arc.from));
 };
 /** Доля авторского крена на угле `deg`: у обоих торцов ноль, в середине — 1. */
@@ -1513,11 +1515,12 @@ t('предмет на дуге встаёт на её плоскость с к�
  * Крен — функция угла, а не константа секции: у обоих торцов он ноль, поэтому
  * срез ленты горизонтален и примыкающий прямой настил касается полотна по всей
  * ширине, а не по диагонали (замер прежней сборки — 0,84 м перепада на 8 м).
- * Проверяется и предел, из которого считается переход: край полотна едет и по
- * подъёму, и по раскрутке крена сразу, и его суммарный уклон обязан остаться в
- * `J.maxSlope`.
+ * Проверяются оба предела, из которых считается переход: край полотна едет и по
+ * подъёму, и по раскрутке крена сразу, поэтому его суммарный уклон обязан остаться
+ * в `J.maxSlope`, а гребень кромки обязан заключаться между отметками торцов —
+ * к срезу приходить снизу и не зарываться в грунт у схода.
  */
-t('v2: крен дуги сходит к нулю на торцах, а край полотна остаётся в maxSlope', () => {
+t('v2: крен дуги сходит к нулю на торцах: край полотна в maxSlope и приходит к стыку снизу', () => {
   const raw = v2Raw(r => {
     r.buildings = [];
     r.roads = [arcRoad('rp_bank', ARC)];
@@ -1564,11 +1567,27 @@ t('v2: крен дуги сходит к нулю на торцах, а край
   }
   // суммарный уклон внешнего края: подъём оси плюс максимум производной крена
   const len = ARC.radius * Math.abs(ARC.to - ARC.from) * Math.PI / 180;
-  const edgeAt = s => arcTop(ARC, ARC.from + (ARC.to - ARC.from) * (s / len), ARC.radius + ARC.width / 2);
+  const degAt = s => ARC.from + (ARC.to - ARC.from) * (s / len);
+  const edgeAt = s => arcTop(ARC, degAt(s), ARC.radius + ARC.width / 2);
+  const innerAt = s => arcTop(ARC, degAt(s), ARC.radius - ARC.width / 2);
   const h = 0.02;
   let worst = 0;
   for (let s = h; s < len - h; s += h) worst = Math.max(worst, (edgeAt(s + h) - edgeAt(s - h)) / (2 * h));
   if (worst > J.maxSlope + 2e-3) bad.push(`уклон края полотна ${worst.toFixed(3)} м/м круче ${J.maxSlope}`);
+  // гребень кромки заключён между отметками торцов: к срезу он приходит снизу, а
+  // у схода не зарывается в грунт (короткий переход только по maxSlope поднимал
+  // внешний край на 0,202 м выше моста и ронял внутренний на 0,053 м ниже земли)
+  const lo = Math.min(ARC.y[0], ARC.y[1]), hi = Math.max(ARC.y[0], ARC.y[1]);
+  for (const [name, at] of [['внешний', edgeAt], ['внутренний', innerAt]]) {
+    let over = 0, under = 0;
+    for (let s = 0; s <= len; s += len / 2000) {
+      const cur = at(s);
+      over = Math.max(over, cur - hi);
+      under = Math.max(under, lo - cur);
+    }
+    if (over > 1e-6) bad.push(`${name} край полотна переваливает через отметку среза на ${over.toFixed(3)} м`);
+    if (under > 1e-6) bad.push(`${name} край полотна уходит ниже отметки схода на ${under.toFixed(3)} м`);
+  }
   eq(bad.length, 0, bad.slice(0, 3).join(' | '));
 });
 
