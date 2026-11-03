@@ -178,7 +178,22 @@ export const CONFIG = {
       },
     },
     maxRealLights: 8,      // штук: настоящих point/spot на уровень (свет — множитель в каждый фрагмент)
-    models: ['concrete_pillar', 'lamp_post', 'tree', 'bench', 'bollard'],
+    // --- мусор кровель и тротуаров: картинка, как окна. Включается секцией
+    // `clutter` в брифе, позиции выводит карта, а не парсер ---
+    clutter: {
+      roof: { edge: 1.2, step: 5, keep: 0.5, perHouse: 3 },
+      street: { every: 30, inset: 1.4, minLamp: 3, keep: 0.6 },
+      head: 3.2,           // м: свободный зазор над предметом — под переходом или
+                           // пролётом моста контейнер прятался бы в картинке сверху
+      tall: 26,            // м: кровля выше — на ней антенна и площадка, а не бак
+      roofModels: ['vent', 'ac_unit', 'water_tank', 'wire_spool'],
+      tallModels: ['antenna', 'av_pad', 'water_tank', 'vent'],
+      streetModels: ['barrier', 'container', 'market_stall'],
+      size: [0.85, 1.25],  // разброс масштаба: один тип не читается копией себя
+    },
+    models: ['concrete_pillar', 'lamp_post', 'tree', 'bench', 'bollard',
+      'vent', 'ac_unit', 'antenna', 'water_tank', 'wire_spool',
+      'barrier', 'container', 'market_stall', 'av_pad'],
     asphalt: 0x2a2d33,
     concrete: 0x707681,
     earth: 0x55503f,       // грунт насыпи и её откос

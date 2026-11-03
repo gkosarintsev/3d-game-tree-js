@@ -40,6 +40,20 @@ function fnvStr(h, s) {
 const fnvUnit = h => (h >>> 0) / 4294967296;
 
 /**
+ * Ряд детерминированных отсчётов из одного семени: каждое следующее число —
+ * хеш предыдущего, а не `slot + 1`. Это важно: два отсчёта, снятые с соседних
+ * целых (`k` и `k + 1`), сильно коррелируют в старших битах, а именно старшие
+ * биты дают `fnvUnit`. Замер на мусоре кровель: два первых типа из списка
+ * забирали 97 % вместо 50 %, потому что «тип» брали из `slot + 1` после того,
+ * как «плотность» отсекла `slot`.
+ */
+const FNV_SALT = 0x9E3779B9;
+function makeDraw(seed) {
+  let x = seed >>> 0;
+  return () => { x = fnvMix(x, FNV_SALT); return fnvUnit(x); };
+}
+
+/**
  * Карта уровня, собранного из брифа (глава 9): дома с комнатами и этажами, три
  * типа дорог, лестницы трёх видов, двери, насыпи и откосы.
  *
@@ -81,6 +95,10 @@ export class JsonMap extends SolidField {
     // окна фасадов включаются секцией `windows` в брифе: главы без неё собираются
     // ровно как раньше. Числа — из `J.windows`, переопределение — из брифа.
     this.winCfg = spec.windows ? { ...J.windows, ...spec.windows } : null;
+    // мусор кровель и тротуаров — тот же порядок: секция `clutter` включает вывод.
+    // Вложенные ритмы merge-ятся по-частям, чтобы бриф правил одну цифру, а не
+    // переставлял весь блок.
+    this.clutterCfg = spec.clutter ? this._clutterSpec(spec.clutter) : null;
 
     /** @type {{minX,maxX,minZ,maxZ,y0,y1}[]} стены, насыпь, откосы и дно там, где в него нельзя */
     this.blockers = [];
@@ -1540,6 +1558,164 @@ export class JsonMap extends SolidField {
     return false;
   }
 
+  /** Настройка мусора: `J.clutter` плюс переопределение ритмов из брифа. */
+  _clutterSpec(o) {
+    const C = { ...J.clutter, ...o };
+    C.roof = { ...J.clutter.roof, ...(o.roof ?? {}) };
+    C.street = { ...J.clutter.street, ...(o.street ?? {}) };
+    return C;
+  }
+
+  /**
+   * Мусор кровель и тротуаров: позиции, как у окон, выводятся из данных facade и
+   * настилов, а не приезжают списком из парсера — 1,2 тыс. записей удвоили бы
+   * файл главы. Предметы не создают ни `solids`, ни `blockers`, ни узлов графа
+   * (правило о декоре в AGENTS.md): человек проходит сквозь венткороб так же,
+   * как сквозь пальму.
+   *
+   * Два правила, без которых вывод превратился бы в шум:
+   *
+   * 1. Предмет стоит там, где его держат. На кровле — точка внутри своего плана
+   *    с отступом от борта (парапет и сход с края не трогает) и без соседнего
+   *    дома, чей объём проходит через эту отметку: иначе бак висел бы внутри
+   *    башни, выросшей из подиума. На улице — у борта настила, вне габарита
+   *    домов, не ближе `minLamp` к уже поставленному предмету (фонари и деревья
+   *    приходят из брифа) и там, где опора совпадает с верхом пролёта.
+   * 2. Детерминизм. Случайности нет: выбор слота, типа и масштаба считается
+   *    хэшем от id дома или дороги плюс номер слота, поэтому два прогона дают
+   *    побитово равные матрицы, а правка `keep` сдвигает только плотность.
+   *
+   * @returns {object[]} записи в формате нормализованных `props` для `buildProps`
+   */
+  _clutterItems() {
+    const C = this.clutterCfg;
+    if (!C) return [];
+    const items = [];
+    const nearProp = this._propNear();
+    const size = h => r3(C.size[0] + (C.size[1] - C.size[0]) * h);
+    const pick = (h, list) => list[Math.min(list.length - 1, Math.floor(h * list.length))];
+    // над предметом обязано быть пусто: переход или пролёт моста, приходящийся
+    // на уровень кровли, прятал бы бак внутри своей картинки
+    const clearAbove = (x, y, z) => !this.raySolid(x, y + 0.2, z, 0, 1, 0, C.head);
+    const add = (model, x, y, z, draw) => {
+      const s = size(draw());
+      items.push({
+        model,
+        source: 'generated',
+        rotationY: Math.floor(draw() * 4) * 90,
+        position: { x, y, z },
+        scale: { x: s, y: s, z: s },
+      });
+    };
+
+    for (const b of this.buildings) {
+      if (!b.floorsCount) continue;
+      const models = b.roofY >= C.tall ? C.tallModels : C.roofModels;
+      const hb = fnvStr(2166136261, `${b.id}|roof`);
+      let n = 0;
+      let done = false;
+      for (const r of b.rects) {
+        if (done) break;
+        if (r.maxX - r.minX < 2 * C.roof.edge || r.maxZ - r.minZ < 2 * C.roof.edge) continue;
+        let k = 0;
+        for (let x = r.minX + C.roof.edge; x <= r.maxX - C.roof.edge + 1e-6; x += C.roof.step) {
+          for (let z = r.minZ + C.roof.edge; z <= r.maxZ - C.roof.edge + 1e-6; z += C.roof.step, k++) {
+            if (n >= C.roof.perHouse) { done = true; break; }
+            const draw = makeDraw(fnvMix(hb, k * 7919));
+            if (draw() >= C.roof.keep) continue;
+            if (this._roofCovered(b, x, z)) continue;
+            if (!clearAbove(x, b.roofY, z)) continue;
+            add(pick(draw(), models), r3(x), b.roofY, r3(z), draw);
+            n++;
+          }
+        }
+      }
+    }
+
+    for (const road of this.roads) {
+      // по настилам мостов и переходов мусора нет: там не тротуар, а единственный
+      // проход — контейнер посреди пролёта выглядел бы стеной, которой нет
+      if (road.type !== 'ground') continue;
+      for (const d of road.decks) {
+        const alongX = d.axis === 'x';
+        const lo = alongX ? d.minX : d.minZ;
+        const hi = alongX ? d.maxX : d.maxZ;
+        const len = hi - lo;
+        if (len < C.street.every) continue;
+        const hs = fnvStr(2166136261, `${road.id}|${Math.round(lo * 10)}|${Math.round(hi * 10)}`);
+        let k = 0;
+        for (let u = lo + C.street.every / 2; u <= hi - C.street.every / 2; u += C.street.every, k++) {
+          for (const side of [-1, 1]) {
+            const draw = makeDraw(fnvMix(hs, (k * 2 + side + 2) * 7919));
+            if (draw() >= C.street.keep) continue;
+            const cross = (side < 0 ? (alongX ? d.minZ : d.minX) : (alongX ? d.maxZ : d.maxX)) - side * C.street.inset;
+            const x = alongX ? u : cross;
+            const z = alongX ? cross : u;
+            if (this._planHolds(x, z)) continue;
+            if (nearProp(x, z, C.street.minLamp)) continue;
+            const top = d.ramp
+              ? d.topAtMin + (d.topAtMax - d.topAtMin) * (u - lo) / (hi - lo)
+              : d.topY;
+            const g = this.groundHeightAt(x, z, r3(top) + 0.4);
+            if (Math.abs(g - top) > 0.25) continue;
+            if (!clearAbove(x, g, z)) continue;
+            add(pick(draw(), C.streetModels), r3(x), g, r3(z), draw);
+          }
+        }
+      }
+    }
+    return items;
+  }
+
+  /** Через эту точку кровли проходит чужой объём: надстройка лота или соседний дом. */
+  _roofCovered(b, x, z) {
+    for (const idx of this._planAt(this._buildingCells, x, z)) {
+      const o = this.buildings[idx];
+      if (o === b || !this._rectsHold(o, x, z)) continue;
+      if (o.baseY < b.roofY + 0.05 && o.roofY > b.roofY + 0.05) return true;
+    }
+    return false;
+  }
+
+  /** Есть ли план любого дома в точке (уличному предмету там не место). */
+  _planHolds(x, z) {
+    for (const idx of this._planAt(this._buildingCells, x, z)) {
+      if (this._rectsHold(this.buildings[idx], x, z)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Сетка уже поставленных предметов: фонари и деревья приходят из брифа, и
+   * новый контейнер в трёх метрах от фонарного столба читался бы одной кучей.
+   * Строится на один вывод, шаг ячейки — `minLamp`, чтобы проба брала 3×3.
+   */
+  _propNear() {
+    const C = this.clutterCfg;
+    // шаг ячейки — `minLamp`, но бриф может задать и ноль; на нулевой ячейке
+    // сетка превратилась бы в деление на ноль и бесконечные ключи
+    const cell = Math.max(0.5, C.street.minLamp);
+    const grid = new Map();
+    const key = (i, j) => `${i}|${j}`;
+    for (const p of this.props) {
+      const i = Math.floor(p.position.x / cell), j = Math.floor(p.position.z / cell);
+      const k = key(i, j);
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(p.position);
+    }
+    return (x, z, r) => {
+      const i = Math.floor(x / cell), j = Math.floor(z / cell);
+      for (let di = -1; di <= 1; di++) {
+        for (let dj = -1; dj <= 1; dj++) {
+          for (const p of grid.get(key(i + di, j + dj)) ?? []) {
+            if (Math.hypot(p.x - x, p.z - z) < r) return true;
+          }
+        }
+      }
+      return false;
+    };
+  }
+
   /** Попадает ли слот на дверной проём своего этажа: окно в двери выглядело бы вторым проёмом. */
   _doorOverlaps(b, face, p, floorY, floorHeight, width) {
     for (const d of b.doors) {
@@ -1617,7 +1793,9 @@ export class JsonMap extends SolidField {
       this.sceneObjects.push(mesh);
     }
 
-    for (const mesh of buildProps(scene, this.props)) {
+    const clutter = this._clutterItems();
+    this.clutterCount = clutter.length;
+    for (const mesh of buildProps(scene, this.props.concat(clutter))) {
       // материалы пропов общие на модуль (src/props.js) и переживают загрузку
       // следующей главы — dispose() обязан снимать геометрию, но не их
       mesh.userData.sharedMaterial = true;

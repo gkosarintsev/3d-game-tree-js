@@ -14,6 +14,10 @@
   "windows": {
     "lit": 0.42
   },
+  "clutter": {
+    "roof": { "perHouse": 4 },
+    "street": { "every": 26 }
+  },
   "city": {
     "seed": 20261103,
     "districts": [

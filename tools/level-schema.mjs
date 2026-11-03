@@ -141,6 +141,24 @@ export const LEVEL_SPEC = obj({
     offset: num({ min: 0.01, max: 1 }),
     lit: num({ min: 0, max: 1 }),
   }),
+  // мусор кровель и тротуаров: наличие секции включает вывод, ритмы —
+  // переопределение `CONFIG.jsonMap.clutter` (картинка считается картой, как окна)
+  clutter: obj({
+    tall: num({ min: 3, max: 200 }),
+    head: num({ min: 1.5, max: 12 }),     // м: свободный зазор над предметом
+    roof: obj({
+      edge: num({ min: 0.4, max: 8 }),    // м: отступ предмета от борта кровли
+      step: num({ min: 1, max: 20 }),     // м: шаг сетки на кровле
+      keep: num({ min: 0, max: 1 }),      // доля слотов, занятая мусором
+      perHouse: num({ min: 0, max: 12 }), // штук: не больше этого на дом
+    }),
+    street: obj({
+      every: num({ min: 4, max: 60 }),    // м: шаг вдоль настила
+      inset: num({ min: 0.3, max: 6 }),   // м: насколько предмет уйдёт с полотна к борту
+      minLamp: num({ min: 0, max: 12 }),  // м: не ближе этого к уже поставленному предмету
+      keep: num({ min: 0, max: 1 }),
+    }),
+  }),
   sky: obj({
     sky: color(),
     fog: obj({ color: color(), near: num({ min: 1 }), far: num({ min: 2 }) }),

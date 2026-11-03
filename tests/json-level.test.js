@@ -61,10 +61,15 @@
  *  32. Каждый квад висит снаружи своей стены и смотрит наружу: рейкаст назад
  *      даёт стену на ≤ 0,12 м, вперёд — воздух не ближе 0,5 м;
  *  33. Доля горящих окон держит настройку `lit`, все цвета палитры в сцене;
- *  34. Бюджет района с окнами: отрисовки, экземпляры и треугольники в пределах
- *      замера главы 10;
+ *  34. Бюджет района с окнами и мусором: отрисовки, экземпляры и треугольники
+ *      в пределах замера главы 10;
  *  35. `dispose()` убирает меши окон и их материалы, общие материалы пропов
- *      остаются живыми.
+ *      остаются живыми;
+ *  36. Мусор кровель и тротуаров (секция `clutter`): каждый предмет стоит на
+ *      своей опоре, над ним есть запас по высоте, а оба прохода — и кровли, и
+ *      улицы — действительно что-то ставят типами из списка моделей;
+ *  37. Детерминизм мусора: два сбора дают совпадающие списки предметов и
+ *      побитово равные матрицы экземпляров пропов.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
@@ -73,6 +78,7 @@ import { LEVEL_10 } from '../src/levels/level-10.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { expandCity } from '../tools/city.js';
 import { CONFIG } from '../src/config.js';
+import { propModels } from '../src/props.js';
 
 const J = CONFIG.jsonMap;
 const STEP = CONFIG.building.stepUp;
@@ -1541,16 +1547,17 @@ function testChapter10Interiors() {
   };
 }
 
-// ------------------------------------------------------------ окна фасадов
+// ----------------------------------------------- окна фасадов и мусор района
 
 /**
- * Светящиеся окна — картинка, собранная картой из её же данных фасада
- * (`spec.windows` включает механизм). Проверяется ровно то, из-за чего иначе
- * пострадал бы геймплей или загрузка: главы без секции обязаны остаться как
- * раньше, окна не смеют трогать твёрдость и граф, квад обязан висеть снаружи
- * своей стены и смотреть наружу (иначе стекло прячется в солид или торчит в
- * соседний дом), а `dispose()` — убрать их меши и материалы, но не общие
- * материалы пропов.
+ * Светящиеся окна и мусор кровель-тротуаров — картинка, собранная картой из её
+ * же данных (`spec.windows` и `spec.clutter` включают механизм). Проверяется
+ * ровно то, из-за чего иначе пострадал бы геймплей или загрузка: главы без
+ * секций обязаны остаться как раньше, картинки не смеют трогать твёрдость и
+ * граф, квад обязан висеть снаружи своей стены и смотреть наружу (иначе стекло
+ * прячется в солид или торчит в соседний дом), предмет обязан стоять на реальной
+ * опоре с запасом над головой (иначе вентляционная коробка висит над проёмом), а
+ * `dispose()` — убрать меши и материалы окон, но не общие материалы пропов.
  */
 
 /** Меши окон в сцене: инстансы с `MeshBasicMaterial` — окно не освещается, оно и есть свет. */
@@ -1573,13 +1580,15 @@ function testWindowsNeedSection() {
   const map = createJsonMap(LEVEL_09.map);
   map.build(scene);
   const win = windowMeshes(scene);
-  const ok = map.winCfg === null && map.windowCount === 0 && win.length === 0;
+  const ok = map.winCfg === null && map.windowCount === 0
+    && map.clutterCfg === null && map.clutterCount === 0 && win.length === 0;
   map.dispose();
   return {
-    name: 'Без секции `windows` окон нет: глава 9 собирается как раньше',
+    name: 'Без секций `windows` и `clutter` картинок нет: глава 9 собирается как раньше',
     passed: ok,
-    info: ok ? `глава 9: окон ${map.windowCount}, мешей окон ${win.length}, солидов ${map.solids.length}`
-      : `окон ${map.windowCount}, мешей ${win.length} при отсутствующей секции`,
+    info: ok ? `глава 9: окон ${map.windowCount}, мусора ${map.clutterCount}, `
+      + `мешей картинок ${win.length}, солидов ${map.solids.length}`
+      : `окон ${map.windowCount}, мусора ${map.clutterCount}, мешей ${win.length} при отсутствующих секциях`,
   };
 }
 
@@ -1632,6 +1641,7 @@ function testWindowNeutral() {
   const withW = windowsInScene().map;
   const raw = structuredClone(LEVEL_10.map);
   delete raw.windows;
+  delete raw.clutter;
   const plain = createJsonMap(raw);
   plain.build(new THREE.Scene());
   const e = LEVEL_10.gameplay.exit;
@@ -1642,19 +1652,19 @@ function testWindowNeutral() {
   const bad = [];
   if (!a || !b) bad.push(`маршрута нет: ${a ? 'есть' : 'нет'} против ${b ? 'есть' : 'нет'}`);
   else if (!same(a, b)) bad.push(`маршрут A→B разный: ${a.length} шагов против ${b.length}`);
-  if (plain.winCfg) bad.push('секции нет, а настройка осталась');
-  if (plain.windowCount) bad.push(`без секции собрано ${plain.windowCount} окон`);
+  if (plain.winCfg || plain.clutterCfg) bad.push('секций нет, а настройки остались');
+  if (plain.windowCount || plain.clutterCount) bad.push(`без секций собрано ${plain.windowCount} окон и ${plain.clutterCount} предметов`);
   if (withW.solids.length !== plain.solids.length) bad.push(`солидов ${withW.solids.length} против ${plain.solids.length}`);
   if (withW.blockers.length !== plain.blockers.length) bad.push(`блокиров ${withW.blockers.length} против ${plain.blockers.length}`);
   if (withW.surfaces.length !== plain.surfaces.length) bad.push(`опор ${withW.surfaces.length} против ${plain.surfaces.length}`);
   if (withW.nav.pos.length !== plain.nav.pos.length) bad.push(`узлов ${withW.nav.pos.length} против ${plain.nav.pos.length}`);
   plain.dispose();
   return {
-    name: 'Окна — только картинка: твёрдость, опоры, граф и маршрут A→B не меняются',
+    name: 'Окна и мусор — только картинка: твёрдость, опоры, граф и маршрут A→B не меняются',
     passed: bad.length === 0 && !!a && a.length > 10,
     info: bad.length ? bad.slice(0, 3).join('; ')
-      : `${withW.windowCount} окон против 0: солидов ${withW.solids.length}, опор ${withW.surfaces.length}, `
-        + `узлов ${withW.nav.pos.length}, маршрут ${a.length} шагов — совпали`,
+      : `${withW.windowCount} окон + ${withW.clutterCount} предметов против нуля: солидов ${withW.solids.length}, `
+        + `опор ${withW.surfaces.length}, узлов ${withW.nav.pos.length}, маршрут ${a.length} шагов — совпали`,
   };
 }
 
@@ -1715,11 +1725,11 @@ function testWindowLitRatio() {
 
 /**
  * Бюджет района: узкое место — не треугольники геометрии, а число отрисовок и
- * экземпляров (один меш на цвет палитры + один на тип пропа), поэтому окна
- * инстансятся. Верхние границы — замер главы 10 с запасом: `build` без окон даёт
- * 10 мешей, с окнами — 14.
+ * экземпляров (один меш на цвет палитры + один на тип пропа), поэтому окна и
+ * мусор инстансятся. Верхние границы — замер главы 10 с запасом: геометрия района
+ * даёт 10 мешей, окна добавляют 4, пропы с мусором — 13.
  */
-function testWindowBudget() {
+function testDistrictBudget() {
   const { map, scene } = windowsInScene();
   let meshes = 0, geoTris = 0, instTris = 0, instances = 0;
   for (const o of scene.children) {
@@ -1732,13 +1742,13 @@ function testWindowBudget() {
     instances += n;
     instTris += t * n;
   }
-  const ok = meshes <= 20 && map.windowCount <= 40000 && instTris <= 250000 && instances <= 45000;
+  const ok = meshes <= 34 && map.windowCount <= 40000 && instTris <= 280000 && instances <= 45000;
   return {
-    name: 'Бюджет района: отрисовки, экземпляры и треугольники вместе с окнами',
+    name: 'Бюджет района: отрисовки, экземпляры и треугольники с окнами и мусором',
     passed: ok,
-    info: `${meshes} мешей (отрисовок), ${map.windowCount} окон, ${instances} экземпляров, `
-      + `${(Math.round(instTris) / 1000).toFixed(1)} тыс. треугов с инстансами `
-      + `(сумма геометрий — ${(Math.round(geoTris) / 1000).toFixed(1)} тыс.)`,
+    info: `${meshes} мешей (отрисовок), ${map.windowCount} окон и ${map.clutterCount} предметов `
+      + `мусора, ${instances} экземпляров, ${(Math.round(instTris) / 1000).toFixed(1)} тыс. треугов `
+      + `с инстансами (сумма геометрий — ${(Math.round(geoTris) / 1000).toFixed(1)} тыс.)`,
   };
 }
 
@@ -1765,6 +1775,101 @@ function testWindowDispose() {
       && winDisposed === win.length && sharedDisposed === 0,
     info: `${win.length} мешей окон убрано из сцены, их материалов disposed — ${winDisposed}, `
       + `общих материалов пропов тронуто ${sharedDisposed} из ${shared.length}; меши в сцене: ${leftMeshes}`,
+  };
+}
+
+/** Меши пропов в сцене: инстансы, помеченные картой как носящие общий материал. */
+function propMeshes(scene) {
+  return scene.children.filter(o => o.isInstancedMesh && o.userData.sharedMaterial);
+}
+
+/**
+ * Мусор ставится по тем же правилам, что и опоры ног: под предметом обязана быть
+ * поверхность уровня его основания, а над ним — свободное место по высоте самого
+ * предмета. Проверяются оба прохода отдельно: кровля без улицы (или наоборот)
+ * выглядела бы как квартал, заставленный кондиционерами только на крышах.
+ */
+function testClutterPlacement() {
+  const map = windowsInScene().map;
+  const C = map.clutterCfg;
+  const items = map._clutterItems();
+  const models = new Set(propModels());
+  const unknown = items.filter(i => !models.has(i.model));
+  const kinds = new Set(items.map(i => i.model));
+  // мусор кровли берётся и из списка обычных крыш, и из списка высоких зданий,
+  // поэтому улица считается по своему списку, а всё остальное легло на крыши
+  const street = items.filter(i => C.streetModels.includes(i.model)).length;
+  const roof = items.length - street;
+
+  const step = Math.max(1, Math.floor(items.length / 200));
+  let checked = 0, failed = 0;
+  const first = [];
+  for (let i = 0; i < items.length; i += step) {
+    const { x, y, z } = items[i].position;
+    // вниз — опора под основанием: основание ставится на кровлю или на грунт,
+    // поэтому луч от 0,8 м над ним обязан упереться в геометрию в этом же метре,
+    // а не в пустоту (предмет висит над проёмом) и не в далёкое дно (торчит из
+    // солида, из которого луч выходит снизу)
+    const down = map.raySolid(x, y + 0.8, z, 0, -1, 0, 1.6);
+    const up = map.raySolid(x, y + 0.2, z, 0, 1, 0, C.head);
+    checked++;
+    const why = !down ? 'под основанием нет опоры'
+      : down.dist < 0.5 ? `опора в ${down.dist.toFixed(2)} м под основанием — предмет провалилён в геометрию`
+      : down.dist > 1.1 ? `опора в ${(0.8 - down.dist).toFixed(2)} м под основанием`
+      : up ? `над предметом потолок в ${up.dist.toFixed(2)} м` : null;
+    if (why) {
+      failed++;
+      if (first.length < 3) first.push(`${why} (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`);
+    }
+  }
+
+  return {
+    name: 'Мусор стоит на своей опоре и под свободным потолком, типы — из списка моделей',
+    passed: items.length >= 500 && unknown.length === 0 && roof > 50 && street > 50
+      && checked > 150 && failed === 0 && map.clutterCount === items.length,
+    info: failed ? `${failed} из ${checked}: ${first.join('; ')}`
+      : `${items.length} предметов (${roof} на кровлях, ${street} на улицах), типов ${kinds.size}, `
+        + `${checked} проб: опора под каждой, потолок свободен`,
+  };
+}
+
+function testClutterDeterminism() {
+  const scenes = [new THREE.Scene(), new THREE.Scene()];
+  const maps = scenes.map(s => {
+    const m = createJsonMap(LEVEL_10.map);
+    m.build(s);
+    return m;
+  });
+  const lists = scenes.map(propMeshes);
+  // сравниваются матрицы, а не сумма `count`: тип из двух частей (дерево, фонарь,
+  // авиатерраса) даёт два меша с одним и тем же счётчиком, и по экземплярам
+  // число предметов не восстанавливается
+  let diff = 0;
+  if (lists[0].length !== lists[1].length) diff = Infinity;
+  else {
+    for (let i = 0; i < lists[0].length; i++) {
+      const A = lists[0][i].instanceMatrix.array;
+      const B = lists[1][i].instanceMatrix.array;
+      if (A.length !== B.length) { diff = Infinity; break; }
+      for (let k = 0; k < A.length; k++) if (A[k] !== B[k]) diff++;
+    }
+  }
+  const items = maps.map(m => m._clutterItems());
+  const same = items[0].length === items[1].length
+    && items[0].every((it, i) => {
+      const o = items[1][i];
+      return it.model === o.model && it.rotationY === o.rotationY
+        && it.position.x === o.position.x && it.position.y === o.position.y && it.position.z === o.position.z
+        && it.scale.x === o.scale.x && it.scale.y === o.scale.y && it.scale.z === o.scale.z;
+    });
+  for (const m of maps) m.dispose();
+  return {
+    name: 'Детерминизм мусора: два сбора дают равные предметы и побитово равные матрицы',
+    passed: diff === 0 && same && items[0].length === maps[0].clutterCount && items[0].length > 0,
+    info: diff === 0 && same
+      ? `${items[0].length} предметов совпали по всем полям, ${lists[0].length} мешей пропов — `
+        + 'матрицы экземпляров совпали побитово'
+      : `различий в матрицах — ${diff}, списки предметов ${same ? 'совпали' : 'разошлись'}`,
   };
 }
 
@@ -1811,8 +1916,10 @@ export async function runJsonTests() {
     testWindowNeutral,
     testWindowFacesOutward,
     testWindowLitRatio,
-    testWindowBudget,
+    testDistrictBudget,
     testWindowDispose,
+    testClutterPlacement,
+    testClutterDeterminism,
     testMeshAndLights,
     testMinimap,
     testOpenPositions,

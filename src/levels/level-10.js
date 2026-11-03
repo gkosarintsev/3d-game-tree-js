@@ -81861,6 +81861,14 @@ export const LEVEL_10 = {
     "lights": [],
     "windows": {
       "lit": 0.42
+    },
+    "clutter": {
+      "roof": {
+        "perHouse": 4
+      },
+      "street": {
+        "every": 26
+      }
     }
   },
   "sky": {
