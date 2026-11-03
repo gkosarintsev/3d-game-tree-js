@@ -832,39 +832,81 @@ export class JsonMap extends SolidField {
     }
   }
 
-  /** Сетка полов комнат: клетки внутри rect, кроме плана марша и клеток без опоры. */
+  /**
+   * Сетка полов комнат: клетки внутри rect, кроме плана марша и клеток без опоры.
+   *
+   * Тесная комната (дома генератора кварталов 7–8 м) решётки `J.navRoomStep`
+   * почти не имеет: линия `rect.min + r` всегда попадает в полосу габарита у
+   * стены (телу нужно 0,8 м от грани, а узел стоит в 0,5), а следующая — в проём
+   * марша посередине. Пол при этом есть, марш в комнату выходит, но связывать
+   * нечего, и весь верх дома отрезает `_pruneToSpawn`. Если грубый проход дал
+   * меньше трёх клеток, сетка повторяется шагом вдвое мельче: её узлы лежат
+   * между прежними (ключ — координаты клетки, поэтому совпадающие точки не
+   * дублируются) и связываются и друг с другом, и с живыми грубыми клетками.
+   */
   _navRooms(nav, rstep) {
-    const r = CONFIG.radius + 0.05;
     for (const b of this.buildings) {
       for (const room of b.rooms) {
-        const cols = [];
-        const xs = [];
-        for (let x = room.rect.minX + r; x <= room.rect.maxX - r + 1e-6; x += rstep) xs.push(x);
-        const zs = [];
-        for (let z = room.rect.minZ + r; z <= room.rect.maxZ - r + 1e-6; z += rstep) zs.push(z);
-        for (let j = 0; j < zs.length; j++) {
-          const row = [];
-          for (let i = 0; i < xs.length; i++) {
-            const x = xs[i], z = zs[j];
-            if (this._inStair(b, x, z, room.floor)) continue;
-            // клетка над проёмом перекрытия (шахта марша) опоры этой комнаты не имеет
-            const y = this._floorSupport(x, z, room.y);
-            if (y === null) continue;
-            if (this.isBlocked(x, z, CONFIG.radius, room.y, CONFIG.eyeHeight)) continue;
-            row[i] = nav.add(x, y, z, `r:${room.id}:${i}:${j}`);
-          }
-          cols.push(row);
-        }
-        for (let j = 0; j < zs.length; j++) {
-          for (let i = 0; i < xs.length; i++) {
-            const id = cols[j][i];
-            if (id === undefined) continue;
-            if (i > 0 && cols[j][i - 1] !== undefined) this._link(nav, id, cols[j][i - 1]);
-            if (j > 0 && cols[j - 1][i] !== undefined) this._link(nav, id, cols[j - 1][i]);
-          }
+        if (this._roomGrid(nav, b, room, rstep, false) <= 2) {
+          this._roomGrid(nav, b, room, rstep / 2, true);
         }
       }
     }
+  }
+
+  /**
+   * Один проход решётки пола комнаты. `fine` — мельчающая сетка: её узлы тянут
+   * рёбра к соседям по своему шагу и к клеткам грубого прохода (`_linkClosest`),
+   * потому что общая adjacency-решётка их не связывает — они из разных фаз.
+   *
+   * @returns {number} число поставленных (или найденных) клеток
+   */
+  _roomGrid(nav, b, room, step, fine) {
+    const r = CONFIG.radius + 0.05;
+    const cols = [];
+    const xs = [];
+    for (let x = room.rect.minX + r; x <= room.rect.maxX - r + 1e-6; x += step) xs.push(x);
+    const zs = [];
+    for (let z = room.rect.minZ + r; z <= room.rect.maxZ - r + 1e-6; z += step) zs.push(z);
+    let count = 0;
+    for (let j = 0; j < zs.length; j++) {
+      const row = [];
+      for (let i = 0; i < xs.length; i++) {
+        const x = xs[i], z = zs[j];
+        if (this._inStair(b, x, z, room.floor)) continue;
+        // клетка над проёмом перекрытия (шахта марша) опоры этой комнаты не имеет
+        const y = this._floorSupport(x, z, room.y);
+        if (y === null) continue;
+        if (this.isBlocked(x, z, CONFIG.radius, room.y, CONFIG.eyeHeight)) continue;
+        const id = nav.add(x, y, z, `r:${room.id}:${Math.round(x * 100)}:${Math.round(z * 100)}`);
+        row[i] = id;
+        count++;
+        if (fine) this._linkClosest(nav, id, step * 1.8, 3);
+      }
+      cols.push(row);
+    }
+    for (let j = 0; j < zs.length; j++) {
+      for (let i = 0; i < xs.length; i++) {
+        const id = cols[j][i];
+        if (id === undefined) continue;
+        if (i > 0 && cols[j][i - 1] !== undefined) this._link(nav, id, cols[j][i - 1]);
+        if (j > 0 && cols[j - 1][i] !== undefined) this._link(nav, id, cols[j - 1][i]);
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Посадка марша осталась висеть на одном ребре (только на своей ступени): в
+   * тесной комнате единственная клетка решётки лежит за проёмом марша, и ребро
+   * через проём бракует `_edgeSupported`. Этаж с сеткой мельче и повторная
+   * связка посадки — иначе `_pruneToSpawn` отрезает весь верх дома.
+   */
+  _refineFloor(nav, b, floor, land, rstep) {
+    for (const room of b.rooms) {
+      if (room.floor === floor) this._roomGrid(nav, b, room, rstep / 2, true);
+    }
+    this._linkClosest(nav, land, rstep * 1.2, 3);
   }
 
   _inStair(b, x, z, floor) {
@@ -955,7 +997,20 @@ export class JsonMap extends SolidField {
         for (const [land, tread, isTop] of [[bottom, ids[0], false], [top, ids[ids.length - 1], true]]) {
           if (land === undefined) continue;
           this._link(nav, land, tread);
+          // цепочка от люка: решётка кровли шагом `J.navStep` не обязана оставить
+          // узел СНАРУЖИ шахты (на доме 7 × 7 обе её линии попадают в габарит
+          // парапета), а ребро «посадка → узел через проём» бракует
+          // `_edgeSupported`. Без цепочки поднявшийся стоит на одной точке, и
+          // `_pruneToSpawn` отрезает кровлю вместе с маршем
+          if (isTop && roofTop) this._roofChain(nav, b, s, land);
           this._linkClosest(nav, land, isTop && roofTop ? J.navStep * 1.5 : rstep * 1.2, 3);
+          // посадка висит на одном ребре (только на своей ступени): в тесной
+          // комнате генератора единственная клетка решётки лежит за проёмом
+          // марша, и ребро через него бракуется — этаж с кровлей отрезались бы
+          // целиком. Сетка этажа повторяется шагом вдвое мельче
+          if (!(isTop && roofTop) && nav.adj[land].length <= 1) {
+            this._refineFloor(nav, b, isTop ? s.connectsFloors[1] : s.connectsFloors[0], land, rstep);
+          }
         }
       }
     }
@@ -998,6 +1053,43 @@ export class JsonMap extends SolidField {
       return id;
     }
     return undefined;
+  }
+
+  /**
+   * Цепочка узлов от люка марша вдоль кровли. Решётка кровли шагом `J.navStep`
+   * привязана к габариту дома и отступает в `CONFIG.radius` от его края, поэтому
+   * на небольшой плите (7 × 7 м) обе её линии попадают в габарит парапета, а
+   * ребро «посадка → единственная клетка через проём шахты» бракует
+   * `_edgeSupported`: поднявшийся по лестнице стоит на одной точке, и
+   * `_pruneToSpawn` отрезает кровлю вместе с маршем. Здесь шаг `J.navRoomStep`
+   * наружу от центра шахты: он короче решёточного и гарантированно держит
+   * опору кровли между посадкой и первой живой линией решётки.
+   *
+   * Цепочка обрывается на первой непригодной клетке — за ней парапет или край
+   * плиты, и «прыгнуть через мёртвую точку» нога не перенесёт.
+   */
+  _roofChain(nav, b, s, land) {
+    const from = nav.pos[land];
+    const len = Math.hypot(from.x - (s.rect.minX + s.rect.maxX) / 2,
+      from.z - (s.rect.minZ + s.rect.maxZ) / 2);
+    if (len < 1e-6) return;
+    const dx = (from.x - (s.rect.minX + s.rect.maxX) / 2) / len;
+    const dz = (from.z - (s.rect.minZ + s.rect.maxZ) / 2) / len;
+    let prev = land;
+    let added = 0;
+    for (let k = 1; k <= 8; k++) {
+      const x = from.x + dx * k * J.navRoomStep;
+      const z = from.z + dz * k * J.navRoomStep;
+      const y = this._floorSupport(x, z, b.roofY);
+      if (y === null || this.isBlocked(x, z, CONFIG.radius, b.roofY, CONFIG.eyeHeight)) break;
+      const id = nav.add(x, y, z, `k:${b.id}:h:${s.id}:${k}`);
+      this._link(nav, prev, id);
+      prev = id;
+      added++;
+    }
+    // последняя живая точка дотягивается до решётки кровли: без этого большой
+    // пролёт крыши остался бы отдельным островом, а цепочка — тупиком на 8 м
+    if (added) this._linkClosest(nav, prev, J.navStep * 1.2, 3);
   }
 
   /**
@@ -1088,9 +1180,25 @@ export class JsonMap extends SolidField {
         const outId = nav.add(d.outside.x, oy, d.outside.z, `e:${d.id}:o`);
         nav.link(inId, outId);
         this._linkClosest(nav, inId, rstep * 2.4, 3);
-        this._linkClosest(nav, outId, J.navStep * 1.8, 3);
+        // наружный узел НАРУЖНОЙ двери обязан выйти на решётку улицы: пол той же
+        // комнаты лежит от него ближе (дверь врезана в фасад, а линия решётки —
+        // в 0,5 м от стены), и без фильтра лимит в три ребра съедают именно они —
+        // дом остаётся связным внутри, но отрезанным от улицы, и `_pruneToSpawn`
+        // выбрасывает его целиком (замер на 10 генераторных дверях: 1 дом из 10
+        // терял всё). Дверь между комнатами одного дома фильтру не подлежит: её
+        // наружная точка стоит внутри плана, и цель её — соединить интерьер
+        this._linkClosest(nav, outId, J.navStep * 1.8, 3,
+          this._inPlan(b, d.outside) ? null : (p => !this._inPlan(b, p)));
       }
     }
+  }
+
+  /**
+   * Точка внутри плана здания — по прямоугольникам частей, а не по габариту:
+   * Г-образный дом держит двор внутри своего охвата, и он не «комната».
+   */
+  _inPlan(b, p) {
+    return b.rects.some(r => p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ);
   }
 
   /**
@@ -1132,8 +1240,10 @@ export class JsonMap extends SolidField {
   /**
    * Связывает узел с несколькими ближайшими подходящими: так дверь выходит на
    * решётку, а марш — на пол комнаты, не имея ребра длиннее шага своей сетки.
+   * `filter`, если задан, отсекает кандидатов до сортировки — им пользуются
+   * двери, которым нужна решётка улицы, а не пол той же комнаты.
    */
-  _linkClosest(nav, id, radius, count) {
+  _linkClosest(nav, id, radius, count, filter) {
     const from = nav.pos[id];
     const near = [];
     // кандидатов берём из пространственной сетки узлов, а не из всего списка:
@@ -1144,6 +1254,7 @@ export class JsonMap extends SolidField {
       const p = nav.pos[i];
       const d = Math.hypot(p.x - from.x, p.z - from.z);
       if (d > radius || d < 0.01) continue;
+      if (filter && !filter(p)) continue;
       near.push({ i, d });
     }
     // порядок с прежним полным перебором: при равных расстояниях раньше шел

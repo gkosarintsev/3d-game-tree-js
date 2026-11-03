@@ -46,12 +46,16 @@
  *  23. Свободные точки для объектов действительно свободны и опираются;
  *  24. Метки id для `?debug=1` покрывают все объекты данных и стоят над своими
  *      планами;
- *  25. Детерминизм: два сбора дают побитово равные отметки узлов.
+ *  25. Детерминизм: два сбора дают побитово равные отметки узлов;
+ *  26. Квартал генератора (`tools/city.js`): все этажи вводимых домов и ходовые
+ *      кровли достижимы, недостижимых узлов нет;
+ *  27. Наружный узел двери связан с решёткой улицы, а не только с полом дома.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
 import { LEVEL_09 } from '../src/levels/level-09.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
+import { expandCity } from '../tools/city.js';
 import { CONFIG } from '../src/config.js';
 
 const J = CONFIG.jsonMap;
@@ -1311,6 +1315,120 @@ function testVertDeterminism() {
 }
 
 /**
+ * Полигон генератора кварталов (`tools/city.js`): один район, земля 300 м, сид
+ * фиксирован. Взят dense (`lot.pitch` 10 при `inset` 1,5) намеренно — редкие
+ * кварталы дают широкие комнаты, где решётка пола живёт и без мельчающего
+ * прохода, и тест ничего не проверял бы. Сид 4242 даёт 95 лотов, 10 вводимых
+ * домов и 5 ходовых кровель.
+ */
+const CITY_RAW = {
+  metadata: { levelName: 'cityGen', name: 'Кварталы', hint: '—', units: 'meters' },
+  ground: { y: 0, size: 300 },
+  city: {
+    seed: 4242,
+    districts: [{
+      id: 'k', block: { minX: -130, maxX: 130, minZ: -130, maxZ: 130 }, style: 'kitsch',
+      street: { pitch: 38, width: 12 }, lot: { pitch: 10, inset: 1.5, merge: 0.5 },
+      height: { minFloors: 2, maxFloors: 6, floorHeight: 3.4 },
+      tower: { chance: 0.05, floors: [16, 30], floorHeight: 3.9 },
+      enterableEvery: 4, skip: 0.05, courtyard: 0.14,
+      roofs: { walkable: true, access: 0.5, parapet: 0.9 },
+    }],
+  },
+  roads: [], buildings: [], landscapeObjects: [], lights: [],
+  gameplay: { goal: 'exit', spawn: { x: 0, z: 0 }, exit: { x: 10, z: 10 }, exitRadius: 4 },
+};
+
+let cityBuilt = null;
+
+/** Карта квартала генератора: тот же путь, что у главы 10 — `expandCity` → нормализатор → `JsonMap`. */
+function cityMap() {
+  if (!cityBuilt) {
+    cityBuilt = createJsonMap(normalizeLevel(expandCity(structuredClone(CITY_RAW), {})).map);
+    cityBuilt.build(new THREE.Scene());
+  }
+  return cityBuilt;
+}
+
+/** Узлы графа, до которых можно дойти от точки появления. */
+function reachableFromSpawn(map) {
+  const nav = map.nav;
+  const start = nav.nearestNode(map.spawn.x, map.spawn.y, map.spawn.z);
+  const seen = new Uint8Array(nav.pos.length);
+  if (start < 0) return seen;
+  const q = [start];
+  seen[start] = 1;
+  for (let h = 0; h < q.length; h++) for (const nb of nav.adj[q[h]]) if (!seen[nb]) { seen[nb] = 1; q.push(nb); }
+  return seen;
+}
+
+function testCityHousesReachable() {
+  const map = cityMap();
+  const nav = map.nav;
+  const seen = reachableFromSpawn(map);
+  const bad = [];
+  let houses = 0, roofed = 0;
+  for (const b of map.buildings) {
+    if (!b.isEnterable) continue;
+    houses++;
+    const own = [];
+    for (let i = 0; i < nav.pos.length; i++) {
+      const p = nav.pos[i];
+      if (p.x >= b.bounds.minX - 0.01 && p.x <= b.bounds.maxX + 0.01
+        && p.z >= b.bounds.minZ - 0.01 && p.z <= b.bounds.maxZ + 0.01) own.push(i);
+    }
+    // этаж без узла — это не «дом без верхних этажей», а отрезанный интерьер:
+    // картинка и дверь обещают лестницу, а ногами по ней никто не ходит
+    for (const room of b.rooms) {
+      if (!own.some(i => Math.abs(nav.pos[i].y - room.y) < 0.35 && seen[i])) {
+        bad.push(`${b.id}: этаж ${room.floor} (${room.y} м) без достижимых узлов`);
+      }
+    }
+    if (b.roof?.walkable) {
+      roofed++;
+      if (!own.some(i => Math.abs(nav.pos[i].y - b.roofY) < 0.35 && seen[i])) {
+        bad.push(`${b.id}: ходовая кровля на ${b.roofY} м недостижима`);
+      }
+    }
+    if (!own.some(i => seen[i])) bad.push(`${b.id}: дом целиком отрезан (${own.length} узлов)`);
+  }
+  const dead = nav.pos.filter((_, i) => !seen[i]).length;
+  return {
+    name: 'Кварталы генератора: каждый этаж вводимого дома и каждая ходовая кровля достижимы',
+    passed: houses >= 8 && roofed >= 3 && dead === 0 && bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${houses} вводимых домов, ${roofed} кровель, узлов ${nav.pos.length}, недостижимых ${dead}`,
+  };
+}
+
+function testCityDoorReachesStreet() {
+  const map = cityMap();
+  const nav = map.nav;
+  const bad = [];
+  let doors = 0;
+  for (const b of map.buildings) {
+    for (const d of b.doors) {
+      doors++;
+      // наружный узел двери обязан иметь соседа ВНЕ плана дома: три самых
+      // ближих кандидата легко оказываются полом той же комнаты (решётка стоит
+      // в 0,5 м от стены, а фасад — ближе всего), и тогда дом связен внутри,
+      // но отрезан от улицы
+      const out = nav.nearestNode(d.outside.x, d.y, d.outside.z);
+      if (out < 0) { bad.push(`${d.id}: у наружной точки нет узла вообще`); continue; }      const outsidePlan = nav.adj[out].filter(i => !b.rects.some(r => {
+        const p = nav.pos[i];
+        return p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ;
+      }));
+      if (!outsidePlan.length) bad.push(`${d.id}: у наружного узла только ${nav.adj[out].length} соседей, все в плане дома`);
+    }
+  }
+  return {
+    name: 'Наружный узел каждой двери ведёт на решётку улицы, а не только в пол своей комнаты',
+    passed: doors >= 8 && bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ') : `${doors} дверей генератора, у всех есть сосед снаружи плана`,
+  };
+}
+
+/**
  * Прогоняет тесты JSON-главы и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
@@ -1343,6 +1461,8 @@ export async function runJsonTests() {
     testVertPaths,
     testVertIdsAndMinimap,
     testVertDeterminism,
+    testCityHousesReachable,
+    testCityDoorReachesStreet,
     testMeshAndLights,
     testMinimap,
     testOpenPositions,
