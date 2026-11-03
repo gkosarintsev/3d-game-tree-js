@@ -5,10 +5,12 @@ import { SolidField, circleHitsBox } from './solids.js';
 import { NavGraph } from './nav-graph.js';
 import {
   r3, subtractRect, frameAt, frameOf, obbOf, obbHitsRect, rotatePoint, rotatedBounds, unrotatePoint,
+  arcDelta,
 } from './geo2d.js';
 import { buildProps } from './props.js';
 
 const J = CONFIG.jsonMap;
+const DEG = Math.PI / 180;
 
 /** Нормаль грани по обходу (правая рука), единичная. */
 function faceNormal(p0, p1, p2) {
@@ -128,6 +130,8 @@ export class JsonMap extends SolidField {
     this.deckPlates = [];
     /** кадры повёрнутых пластин настила: считаются один раз на запись */
     this._deckFrames = new Map();
+    /** дуги полотна (v2): отметка и коллизия считаются по кольцевому сектору */
+    this.sweeps = [];
     /** наклонные твёрдости: пролёты настилов и откосы насыпи — призмы профиля (u, y) */
     this.prisms = [];
     /** планы, где грунт уровня прорезан руслом: в них нет «пола мира — ноль» */
@@ -319,7 +323,7 @@ export class JsonMap extends SolidField {
     // кровли можно только по габариту этой пластины, а это дыра в парапете там,
     // где перехода нет, то есть сход с крыши в никуда
     const arrivals = frame ? [] : this.roads.filter(r => r.type !== 'ground').flatMap(r => r.decks).filter(d =>
-      !d.yaw && d.frame === undefined
+      !d.yaw && !d.arc && d.frame === undefined
       && (Math.abs(d.topAtMin - b.roofY) <= J.skybridgeFit || Math.abs(d.topAtMax - b.roofY) <= J.skybridgeFit));
     // чужое здание, выросшее из этой плиты (подиум + башня), марш, выведенный
     // на кровлю, и план примыкающего настила оставляют в ней проём: иначе плита
@@ -507,6 +511,13 @@ export class JsonMap extends SolidField {
   _collectRoads() {
     for (const road of this.roads) {
       for (const d of road.decks) {
+        // дуга: ни коробки, ни призмы — её верх и коллизию держит sweep, а
+        // габарит остаётся только фильтром индексов и миникарты
+        if (d.arc) {
+          this.sweeps.push({ ...d, road: road.id, roadType: road.type, a0r: d.a0 * DEG, spanr: d.span * DEG });
+          this.deckPlates.push({ ...d, road: road.id, roadType: road.type });
+          continue;
+        }
         const frame = this._deckFrame(d);
         // знак разницы — направление подъёма: спуск с пролёта тоже наклонный
         if (Math.abs(d.topAtMax - d.topAtMin) > 0.01) this._incline(d, frame);
@@ -697,13 +708,37 @@ export class JsonMap extends SolidField {
   }
 
   /**
+   * Точная отметка верха дуги под точкой; null — точка вне её сектора. Это
+   * публичный член для будущих машин (`roadFrameAt`): опора ноги считается той
+   * же формулой, второй копии «верха полотна» в коде быть не должно.
+   */
+  topAt(x, z) {
+    let best = null;
+    for (const s of this.sweeps) {
+      const y = sweepTopAt(s, x, z);
+      if (y !== null && (best === null || y > best)) best = y;
+    }
+    return best;
+  }
+
+  _sweepTopAt(x, z) {
+    return this.topAt(x, z);
+  }
+
+  /**
    * Опора: плоские плиты как у базового механизма, плюс верх наклонных призм —
    * у них нет одной отметки на весь план, поэтому в `surfaces` они не стоят.
    */
   groundHeightAt(x, z, fromY = 0) {
     const base = super.groundHeightAt(x, z, fromY);
-    const top = this._prismTopAt(x, z);
-    if (top === null || top > fromY + this.stepUp) return base;
+    // берётся высшая опора в пределах шага ноги, а не просто высшая: на развязке
+    // полотно дуги висит над улицей, и её 8 м не должны прятать асфальт под ногой
+    const lim = fromY + this.stepUp;
+    let top = null;
+    for (const t of [this._prismTopAt(x, z), this._sweepTopAt(x, z)]) {
+      if (t !== null && t <= lim && (top === null || t > top)) top = t;
+    }
+    if (top === null) return base;
     // в русле «пол мира — ноль» ноги не держит: дно и склон лежат ниже нуля, и
     // опора там ровно та, что отдаёт призма. Над водой настил моста остаётся
     // опорой — его отметка приходит в `base` и она выше дна
@@ -760,7 +795,13 @@ export class JsonMap extends SolidField {
     for (const w of this.prisms) {
       if (pushOutWedge(c, r, w)) fromWedge = true;
     }
-    return moved || fromWedge;
+    // дуги: та же логика «точное расстояние до поверхности», только сектор
+    // кольцевой, поэтому планарная и вертикальная части складываются через hypot
+    let fromSweep = false;
+    for (const s of this.sweeps) {
+      if (pushOutSweep(c, r, s)) fromSweep = true;
+    }
+    return moved || fromWedge || fromSweep;
   }
 
   // -------------------------------------------------- коллизии габарита и опоры
@@ -823,7 +864,9 @@ export class JsonMap extends SolidField {
       push((p.minX + p.maxX) / 2, p.y, (p.minZ + p.maxZ) / 2);
     }
     for (const d of this.deckPlates) {
-      if (d.ramp) continue;
+      // у дуги центр габарита лежит вне полотна: опорную точку ставят по её
+      // осевой линии на середине развёртки, а не по AABB
+      if (d.ramp || d.arc) continue;
       push((d.minX + d.maxX) / 2, d.topY, (d.minZ + d.maxZ) / 2);
     }
     const step = J.navStep * 2;
@@ -891,9 +934,19 @@ export class JsonMap extends SolidField {
         top: Math.max(a.top, d.topAtMin, d.topAtMax),
       }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity, top: -Infinity });
       put(`${road.id} · ${road.type}`, cx(plan), plan.top + 1.3, cz(plan));
-      road.decks.forEach((d, i) => put(`${road.id} · пл ${i + 1}`
-        + `${d.yaw ? ` · yaw ${d.yaw}°` : ''}${d.ramp ? ' · наклон' : ''}`,
-        cx(d), (d.topAtMin + d.topAtMax) / 2 + 0.6, cz(d)));
+      road.decks.forEach((d, i) => {
+        if (d.arc) {
+          // центр габарита у дуги лежит в центре кольца — метка встала бы в
+          // газон; точка берётся на осевой линии посередине развёртки
+          const a = (d.a0 + d.span / 2) * DEG;
+          put(`${road.id} · дуга ${i + 1} · ${r3(d.span)}°`,
+            d.cx + Math.cos(a) * d.R, (d.topAtMin + d.topAtMax) / 2 + 0.6, d.cz + Math.sin(a) * d.R);
+          return;
+        }
+        put(`${road.id} · пл ${i + 1}`
+          + `${d.yaw ? ` · yaw ${d.yaw}°` : ''}${d.ramp ? ' · наклон' : ''}`,
+          cx(d), (d.topAtMin + d.topAtMax) / 2 + 0.6, cz(d));
+      });
       road.fill.forEach((f, i) => put(`${road.id} · тело насыпи ${i + 1}`, cx(f), f.topY + 0.6, cz(f)));
       road.aprons.forEach((a, i) => {
         const toe = a.cross + a.dir * Math.abs(a.run);
@@ -1354,6 +1407,9 @@ export class JsonMap extends SolidField {
       if (road.type === 'ground') continue;
       let prevEnd, firstEnd;
       for (const [di, d] of road.decks.entries()) {
+        // навигация вдоль дуги — узлы по её осевой линии; пока дуги держит
+        // `topAt` для тела, граф по ним не прокладывается
+        if (d.arc) continue;
         // цепочка идёт по оси полотна: у косой пластины узлы стоят вдоль её
         // длины, а не вдоль мировой оси, иначе маршрут по мосту шёл бы зигзагом
         // от края до края его габарита
@@ -1950,6 +2006,9 @@ export class JsonMap extends SolidField {
       // проход — контейнер посреди пролёта выглядел бы стеной, которой нет
       if (road.type !== 'ground') continue;
       for (const d of road.decks) {
+        // у дуги нет оси: слоты вдоль неё ставятся по tangent-рамке, а по AABB
+        // предмет попал бы в газон под кольцом, а не на асфальт
+        if (d.arc) continue;
         // у косой улицы слоты лежат в осях полотна, а мир получается поворотом:
         // предмет, поставленный по габариту, оказался бы на встречной полосе
         const frame = this._deckFrame(d);
@@ -2270,7 +2329,7 @@ export class JsonMap extends SolidField {
     ctx.fillStyle = 'rgba(30,86,120,.9)';
     fill(this.waterRects);
     ctx.fillStyle = 'rgba(90,100,116,.5)';
-    fill(this.deckPlates, d => !d.ramp && Math.abs(d.topY - y) <= 1);
+    fill(this.deckPlates, d => !d.ramp && !d.arc && Math.abs(d.topY - y) <= 1);
     ctx.fillStyle = 'rgba(196,212,232,.5)';
     fill(this.floorPlates, p => p.y === level);
     // плита кровли на плане — тот же пол: с неё и ведут маршруты, и миникарта
@@ -2490,5 +2549,91 @@ function pushOutWedgeLocal(c, r, w) {
   }
   if (isX) { c.x += du; c.y += dy; c.z += dvPush; }
   else { c.z += du; c.y += dy; c.x += dvPush; }
+  return true;
+}
+
+/**
+ * Верх полотна дуги под мировой точкой: null — точка вне сектора. Угол считается
+ * `atan2(dz, dx)` — тем же обходом, что у `yaw` пластин, поэтому и развёртка
+ * назад (`span < 0`) читается `arcDelta` без второй ветки арифметики.
+ *
+ * Подъём линеен по длине дуги, то есть по углу; крен — по отступу от осевой.
+ */
+function sweepTopAt(s, x, z) {
+  const dx = x - s.cx, dz = z - s.cz;
+  const delta = arcDelta(Math.atan2(dz, dx), s.a0r, s.spanr);
+  if (delta === null) return null;
+  const rho = Math.hypot(dx, dz);
+  if (Math.abs(rho - s.R) > s.halfW + 1e-9) return null;
+  return s.y0 + (s.y1 - s.y0) * delta / s.spanr + s.tanBank * (rho - s.R);
+}
+
+/**
+ * Ближайшая к точке часть кольцевой плиты: планарное расстояние до сектора, верх
+ * в этой точке и её план. Внутри сектора `dp = 0`; дальше — до радиальной кромки
+ * (радиус прижат к полосе) или до торца развёртки, смотря что ближе.
+ */
+function sweepNear(s, x, z) {
+  const dx = x - s.cx, dz = z - s.cz;
+  const rho = Math.hypot(dx, dz);
+  const rMin = s.R - s.halfW, rMax = s.R + s.halfW;
+  const delta = arcDelta(Math.atan2(dz, dx), s.a0r, s.spanr);
+  if (delta !== null) {
+    const rc = Math.min(rMax, Math.max(rMin, rho));
+    const k = rho > 1e-9 ? rc / rho : 1;
+    return {
+      dp: Math.max(0, Math.abs(rho - s.R) - s.halfW),
+      top: s.y0 + (s.y1 - s.y0) * delta / s.spanr + s.tanBank * (rc - s.R),
+      px: s.cx + dx * k, pz: s.cz + dz * k,
+    };
+  }
+  // вне развёртки: ближайший торец — отрезок от внутреннего радиуса к внешнему
+  let best = null;
+  for (const [a, yEnd] of [[s.a0r, s.y0], [s.a0r + s.spanr, s.y1]]) {
+    const ux = Math.cos(a), uz = Math.sin(a);
+    const t = Math.min(rMax, Math.max(rMin, dx * ux + dz * uz));
+    const px = s.cx + ux * t, pz = s.cz + uz * t;
+    const dp = Math.hypot(x - px, z - pz);
+    if (!best || dp < best.dp) {
+      best = { dp, top: yEnd + s.tanBank * (t - s.R), px, pz };
+    }
+  }
+  return best;
+}
+
+/**
+ * Выталкивание сферы из кольцевой плиты по точному расстоянию до её поверхности:
+ * центр снаружи сектора — по `hypot(планарное, вертикальное)`, внутри плиты — по
+ * наименьшей из трёх глубин (вверх, вниз, к радиальной кромке). Пустой угол
+ * габарита при этом не трогается вовсе: решает сектор, а не AABB.
+ *
+ * @param {{x,y,z}} c центр (мутабельно)
+ * @returns {boolean} сдвинули ли
+ */
+function pushOutSweep(c, r, s) {
+  const n = sweepNear(s, c.x, c.z);
+  const bot = n.top - J.deckThickness;
+  const above = c.y > n.top, below = c.y < bot;
+  if (n.dp === 0 && !above && !below) {
+    // центр внутри объёма плиты: разводимся через наименьшую глубину
+    const penUp = n.top - c.y + r;
+    const penDown = c.y - bot + r;
+    const rho = Math.hypot(c.x - s.cx, c.z - s.cz);
+    const penSide = s.halfW - Math.abs(rho - s.R) + r;
+    if (penUp <= penDown && penUp <= penSide) { c.y += penUp; return true; }
+    if (penDown <= penSide) { c.y -= penDown; return true; }
+    const dir = rho >= s.R ? 1 : -1;
+    const k = rho > 1e-9 ? dir / rho : 0;
+    c.x += (c.x - s.cx) * k * penSide;
+    c.z += (c.z - s.cz) * k * penSide;
+    return true;
+  }
+  const dy = above ? c.y - n.top : below ? bot - c.y : 0;
+  const d = Math.hypot(n.dp, dy);
+  if (d >= r || d < 1e-9) return false;
+  const push = r - d;
+  c.x += (c.x - n.px) / d * push;
+  c.z += (c.z - n.pz) / d * push;
+  c.y += (above ? 1 : below ? -1 : 0) * dy / d * push;
   return true;
 }

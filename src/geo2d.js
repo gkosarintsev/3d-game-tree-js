@@ -325,6 +325,54 @@ export function obbHitsObb(aBox, bBox, margin = 0) {
   return satOverlap(a, b, axes, margin);
 }
 
+// ------------------------------------------------------ sweep: кольцевой сектор (v2)
+// Дуга дороги — не полилиния: у неё непрерывны касательная и кривизна, и только
+// поэтому по ней сможет ехать машина. Планарная арифметика живёт здесь одна на
+// валидатор, парсер и движок: разойдись они в знаке угла, и «точка B на настиле»
+// окажется вне полотна, которое видно.
+
+/**
+ * Угол точки в секторе: `dth` со знаком (в радианах) от `a0` вдоль обхода, или
+ * `null`, если угол вне `span`. `span` — знаковый размах: положительный обход
+ * против часовой стрелки в плане (x, z), отрицательный — по ней.
+ */
+export function arcDelta(angle, a0, span) {
+  const TAU = Math.PI * 2, EPS = 1e-12;
+  if (span >= 0) {
+    let d = (angle - a0) % TAU;
+    if (d < 0) d += TAU;
+    return d <= span + EPS ? d : null;
+  }
+  let d = (a0 - angle) % TAU;
+  if (d < 0) d += TAU;
+  return d <= -span + EPS ? -d : null;
+}
+
+/**
+ * Габарит кольцевого сектора для broadphase и валидатора (радианы). Экстремумы
+ * x и z у окружности бывают только на осях, поэтому достаточно концов сектора
+ * и тех четырёх направлений, что попали внутрь обхода.
+ */
+export function arcBounds(cx, cz, R, halfW, a0, a1) {
+  const span = a1 - a0;
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const push = (r, a) => {
+    const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  };
+  const radii = [R - halfW, R + halfW];
+  for (const a of [a0, a1]) for (const r of radii) push(r, a);
+  for (let k = 0; k < 4; k++) {
+    const a = (k * Math.PI) / 2;
+    if (arcDelta(a, a0, span) === null) continue;
+    for (const r of radii) push(r, a);
+  }
+  return { minX, maxX, minZ, maxZ };
+}
+
 /** Рёбра полигона как отрезки в плане: {x0,z0,x1,z1,axis}. */
 export function polyEdges(poly) {
   const out = [];

@@ -10,7 +10,7 @@
  */
 import { CONFIG } from '../src/config.js';
 import {
-  AXIS_EPS, cellKey, frameAt, frameOf, normalizePolygon, obbHitsObb, obbHitsRect, obbOf,
+  AXIS_EPS, arcBounds, cellKey, frameAt, frameOf, normalizePolygon, obbHitsObb, obbHitsRect, obbOf,
   polyBounds, polyEdges, polyRects, r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
   rotatedBounds,
 } from '../src/geo2d.js';
@@ -18,6 +18,7 @@ import { normalizeBuilding, normalizeWaterway, toWorld } from './normalize-level
 import { ARCHETYPE_NAMES } from './city.js';
 
 const J = CONFIG.jsonMap;
+const DEG = Math.PI / 180;
 // тип комнаты — подпись назначения: парсер и JsonMap его не читают (пол, солид и
 // граф от него не зависят), но автору главы 10 он нужен, чтобы по id и типу
 // различать вестибюль, рынок и склад — и чтобы этап неона мог вешать витрины
@@ -222,6 +223,23 @@ const V2_PLATE = obj({
   rise: num(),
 });
 
+// Дуга-настил v2: кольцевой сектор с продольным подъёмом и поперечным наклоном.
+// Углы — градусы (как `yaw` и `rotation`), обход от `from` к `to`; `y` — верх на
+// начале и конце дуги, `bank` — крен: положительный поднимает внешний край.
+// Дуга, а не цепочка пластин: касательная и кривизна у неё непрерывны, и по ней
+// поедет машина; у полилинии рамка рвётся на каждом стыке.
+const V2_ARC = obj({
+  cx: num({ req: true }),
+  cz: num({ req: true }),
+  radius: num({ min: 2, req: true }),
+  from: num({ min: -360, max: 360, req: true }),
+  to: num({ min: -360, max: 360, req: true }),
+  width: num({ min: 2, max: 30, req: true }),
+  y: arr(num(), { minItems: 2, maxItems: 2, req: true }),
+  bank: num({ min: -30, max: 30 }),
+  rails: bool(),
+});
+
 export const LEVEL_SPEC_V2 = {
   ...LEVEL_SPEC,
   fields: {
@@ -238,7 +256,7 @@ export const LEVEL_SPEC_V2 = {
           // им разойтись при первой правке
           width: num({ min: 2, max: 30 }),
           points: arr(V3XYZ, { minItems: 2 }),
-          elements: arr(obj({ plate: { ...V2_PLATE, req: true } }), { minItems: 1 }),
+          elements: arr(obj({ plate: V2_PLATE, arc: V2_ARC }), { minItems: 1 }),
         },
       },
     },
@@ -759,11 +777,11 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
 }
 
 /**
- * Дорога из прямых пластин (v2): у каждой свой центр, длина, ширина и угол к
- * северу — полотно развязки законно расширяется, а цепочка пластин идёт не по
+ * Дорога из пластин и дуг (v2): у каждой свой центр, длина, ширина и угол к
+ * северу — полотно развязки законно расширяется, а цепочка элементов идёт не по
  * мировой оси. Проверки те же, что у осевых сегментов v1: уклон, ширина, земля,
- * высота моста; отличие одно — план считается по осям полотна, а не по габариту,
- * и торцы пластины совпадают с концами её оси.
+ * высота моста; отличие одно — план считается по осям полотна (у дуги — по её
+ * кольцевому сектору), а не по габариту.
  */
 function checkRoadElements(road, label, half, groundY, warnings) {
   const errors = [];
@@ -776,15 +794,55 @@ function checkRoadElements(road, label, half, groundY, warnings) {
       + 'из осевых points (опоры и примыкание торцов считаются по ним)');
     return errors;
   }
+  const TAU = Math.PI * 2;
   let top = -Infinity;
   for (const [i, el] of road.elements.entries()) {
-    const pl = el?.plate;
-    if (!pl) {
-      errors.push(`${label}.elements[${i}]: элемент без plate — в схеме v2 описана только пластина`);
+    const pl = el?.plate, ar = el?.arc;
+    const elabel = `${label}.elements[${i}]`;
+    if (pl && ar) {
+      errors.push(`${elabel}: plate и arc одновременно — у элемента одна форма`);
+      continue;
+    }
+    if (!pl && !ar) {
+      errors.push(`${elabel}: элемент без plate или arc — в схеме v2 описаны две формы`);
+      continue;
+    }
+    if (ar) {
+      const span = (ar.to - ar.from) * DEG;
+      if (Math.abs(span) < 1e-6 || Math.abs(span) > TAU + 1e-9) {
+        errors.push(`${elabel}: размах дуги ${r3(ar.to - ar.from)}° — нужен отличный от нуля и не больше 360°`);
+        continue;
+      }
+      const halfW = ar.width / 2;
+      if (ar.radius - halfW <= 0.5) {
+        errors.push(`${elabel}: внутренний радиус ${r3(ar.radius - halfW)} м при радиусе ${ar.radius}`
+          + ` и ширине ${ar.width} — полотно выворачивается через центр`);
+        continue;
+      }
+      const len = ar.radius * Math.abs(span);
+      const rise = (ar.y[1] ?? 0) - (ar.y[0] ?? 0);
+      if (Math.abs(rise) / len > J.maxSlope + 1e-9) {
+        errors.push(`${elabel}: уклон дуги ${(Math.abs(rise) / len).toFixed(2)} м/м — круче ${J.maxSlope}`
+          + ` (подъём ${Math.abs(rise).toFixed(2)} м на ${r3(len)} м неперешагиваем)`);
+      }
+      const box = arcBounds(ar.cx, ar.cz, ar.radius, halfW, ar.from * DEG, ar.to * DEG);
+      for (const [x, z] of [[box.minX, box.minZ], [box.maxX, box.minZ], [box.minX, box.maxZ], [box.maxX, box.maxZ]]) {
+        if (Math.abs(x) > half || Math.abs(z) > half) {
+          errors.push(`${elabel}: дуга выходит за землю (${half * 2} м): точка ${r3(x)}, ${r3(z)}`);
+          break;
+        }
+      }
+      // крен поднимает внешний край: маяк и зазор под мостом обязан видеть
+      // именно его, а не среднюю отметку полотна
+      const bank = Math.abs(Math.tan((ar.bank ?? 0) * DEG)) * halfW;
+      const lo = Math.min(ar.y[0], ar.y[1]) - bank, hi = Math.max(ar.y[0], ar.y[1]) + bank;
+      if (road.type !== 'ground' && hi - groundY < J.bridgeMinHeight) {
+        warnings.push(`${elabel}: настил на ${road.id} ниже ${J.bridgeMinHeight} м над землёй — под ним не пройти`);
+      }
+      top = Math.max(top, hi);
       continue;
     }
     const rise = pl.rise ?? 0;
-    const elabel = `${label}.elements[${i}]`;
     if (Math.abs(rise) / pl.length > J.maxSlope + 1e-9) {
       errors.push(`${elabel}: уклон ${(Math.abs(rise) / pl.length).toFixed(2)} м/м — круче ${J.maxSlope}`
         + ` (подъём ${Math.abs(rise).toFixed(2)} м на ${pl.length.toFixed(2)} м неперешагиваем)`);
@@ -818,6 +876,17 @@ function roadRectsOf(road) {
   if (!road.points) {
     for (const el of road.elements ?? []) {
       const pl = el?.plate;
+      if (el?.arc) {
+        const ar = el.arc, halfW = ar.width / 2;
+        const bank = Math.abs(Math.tan((ar.bank ?? 0) * DEG)) * halfW;
+        out.push({
+          id: road.id, ground: road.type === 'ground',
+          rect: arcBounds(ar.cx, ar.cz, ar.radius, halfW, ar.from * DEG, ar.to * DEG),
+          topLo: Math.min(ar.y[0], ar.y[1]) - bank,
+          topHi: Math.max(ar.y[0], ar.y[1]) + bank,
+        });
+        continue;
+      }
       if (!pl) continue;
       const plan = {
         minX: pl.x - pl.length / 2, maxX: pl.x + pl.length / 2,

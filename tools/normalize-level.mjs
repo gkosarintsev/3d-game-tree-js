@@ -16,9 +16,11 @@ import { CONFIG } from '../src/config.js';
 import {
   normalizePolygon, pointInPoly, polyBounds, polyEdges, polyRects, r3, rectsIntersect,
   subtractRect, unionBounds, frameOf, frameAt, obbHitsRect, obbHitsObb, obbOf, unrotatePoint, rotatePoint,
+  arcBounds, arcDelta,
 } from '../src/geo2d.js';
 
 const J = CONFIG.jsonMap;
+const DEG = Math.PI / 180;
 const ROTATIONS = [0, 90, 180, 270];
 
 /**
@@ -566,8 +568,45 @@ function normalizeRoad(road, ground) {
 }
 
 /**
- * Дорога из прямых пластин (v2): полотно под углом к северу, а значит и
- * твёрдость, и меш живут в собственных осях пластины.
+ * Дуга полотна (v2): кольцевой сектор с продольным уклоном и поперечным креном.
+ *
+ * Углы остаются в **градусах** — в тех же единицах, что `yaw` пластины: поворот
+ * с округлением до 1/1000 рад сдвинул бы конец дуги на 4 см при R = 40 м, а
+ * авторские градусы переживают запись в модуль без потерь. Косинусы углов никто
+ * не хранит: их считает потребитель по той же паре чисел.
+ *
+ * `topAtMin/topAtMax` — крайние отметки **верхней** поверхности с учётом крена:
+ * внешний край выше среднего на `tan(bank) · halfW`, и валидатор обязан видеть
+ * именно его, иначе мост над рекой проходил бы проверку по заниженной отметке.
+ * Сам верх над точкой считает `deckTopAt` по углу и радиусу.
+ */
+function normalizeArc(a) {
+  const span = a.to - a.from;
+  const halfW = a.width / 2;
+  const y0 = r3(a.y[0]), y1 = r3(a.y[1]);
+  const tanBank = r3(Math.tan((a.bank ?? 0) * DEG));
+  const bank = Math.abs(tanBank) * halfW;
+  const lo = Math.min(y0, y1), hi = Math.max(y0, y1);
+  return {
+    ...rectOut(arcBounds(a.cx, a.cz, a.radius, halfW, a.from * DEG, a.to * DEG)),
+    arc: true,
+    cx: r3(a.cx), cz: r3(a.cz),
+    R: r3(a.radius), halfW: r3(halfW),
+    a0: a.from, a1: a.to, span,
+    y0, y1, tanBank,
+    width: r3(a.width),
+    topY: r3(lo - bank),
+    bottomY: r3(lo - bank - J.deckThickness),
+    topAtMin: r3(lo - bank),
+    topAtMax: r3(hi + bank),
+    ramp: Math.abs(y1 - y0) > 0.01,
+    rails: !!a.rails,
+  };
+}
+
+/**
+ * Дорога из прямых пластин и дуг (v2): полотно под углом к северу, а значит и
+ * твёрдость, и меш живут в собственных осях элемента.
  *
  * Пластина задана центром, длиной и шириной; `y` — верх на её начале (локальное
  * `u = -length/2`), `rise` — перепад до конца. Отметки верха пишутся теми же
@@ -579,6 +618,10 @@ function normalizeRoad(road, ground) {
 function normalizeRoadElements(road) {
   const decks = [];
   for (const el of road.elements) {
+    if (el.arc) {
+      decks.push(normalizeArc(el.arc));
+      continue;
+    }
     const pl = el.plate;
     const halfL = pl.length / 2, halfW = pl.width / 2;
     // кадр поворачивает вокруг центра пластины; при yaw 0 его нет вовсе, и
@@ -642,6 +685,9 @@ function normalizeRoadElements(road) {
 function bridgePillars(road, ground, obstacles, warnings, water) {
   const out = [];
   for (const d of road.decks) {
+    // у дуги нет прямой оси: ряды опор вдоль её хорды встали бы поперёк полотна,
+    // а шаг по углу считается по tangent-рамке — это отдельный проход
+    if (d.arc) continue;
     if (d.ramp || d.grounded || d.bottomY - ground.y <= 1.0) continue;
     // у повёрнутой пластины опоры стоят в её осях: ряд идёт вдоль полотна, а не
     // вдоль мировой оси, иначе колонны выстроились бы поперёк косой эстакады
@@ -687,6 +733,9 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
 function roadLamps(road, obstacles, warnings, water) {
   const out = [];
   for (const d of road.decks) {
+    // фонари дуги ставятся по tangent-рамке (иначе борт «уходит» из-под столба
+    // на кривой) — это тот же отдельный проход, что и опоры вдоль дуги
+    if (d.arc) continue;
     if (d.ramp) continue;
     const frame = deckFrame(d);
     const from = frame ? d.cx - d.length / 2 : (d.axis === 'x' ? d.minX : d.minZ);
@@ -929,6 +978,13 @@ const deckFrame = d => (d.yaw ? frameAt(d.cx, d.cz, d.yaw) : null);
  * нему, висел бы над землёй, а точка B в «настиле» не имела бы опоры.
  */
 function deckHolds(d, x, z) {
+  if (d.arc) {
+    const dx = x - d.cx, dz = z - d.cz;
+    // угол берётся тем же `atan2(dz, dx)`, что у потребителей, а обход сектора
+    // умеет считать назад (span < 0): развязка права и лева — одна арифметика
+    const delta = arcDelta(Math.atan2(dz, dx), d.a0 * DEG, d.span * DEG);
+    return delta !== null && Math.abs(Math.hypot(dx, dz) - d.R) <= d.halfW + 1e-9;
+  }
   const frame = deckFrame(d);
   if (!frame) return inRect(x, z, d);
   const l = unrotatePoint(frame, x, z);
@@ -938,6 +994,13 @@ function deckHolds(d, x, z) {
 
 /** Верх настила над мировой точкой: у наклонной пластины — её плоскость. */
 function deckTopAt(d, x, z) {
+  if (d.arc) {
+    const dx = x - d.cx, dz = z - d.cz;
+    const delta = arcDelta(Math.atan2(dz, dx), d.a0 * DEG, d.span * DEG) ?? 0;
+    const span = d.span * DEG;
+    // подъём линеен по длине дуги, то есть по углу; крен — по отступу от осевой
+    return d.y0 + (d.y1 - d.y0) * delta / span + d.tanBank * (Math.hypot(dx, dz) - d.R);
+  }
   if (d.topAtMax === d.topAtMin) return d.topAtMin;
   let u, lo, hi;
   const frame = deckFrame(d);

@@ -1258,7 +1258,132 @@ t('предмет на косом уклоне встаёт на плоскос�
   eq(offEnd.position.y, 0, 'предмет за торцом удержан габаритом пластины');
 });
 
-// ---------------------------------------------------------------- генератор кварталов
+// ------------------------------------------------------- дуги полотна (v2, этап 4)
+
+/**
+ * Дуга — кольцевой сектор с продольным уклоном и поперечным креном. Проверки
+ * держат три свойства, на которых стоит вся развязка: углы живут в градусах, как
+ * `yaw` пластины; верх над точкой — функция угла и радиуса, а не AABB; опора
+ * предмета и точка B видят сектор, а не его пустой угол.
+ */
+const arcRoad = (id, arc, extra = {}) => ({ id, type: 'ground', ...extra, elements: [{ arc }] });
+const ARC = {
+  cx: 0, cz: 0, radius: 40, from: 0, to: 215,
+  width: 8, y: [0.12, 12], bank: 6, rails: true,
+};
+/** Точка сектора в мире по независимой арифметике теста. */
+const arcPoint = (arc, deg, rho = arc.radius) => ({
+  x: arc.cx + Math.cos(deg * Math.PI / 180) * rho,
+  z: arc.cz + Math.sin(deg * Math.PI / 180) * rho,
+});
+/** Верх полотна на угле `deg` и радиусе `rho` (уклон по длине дуги + крен). */
+const arcTop = (arc, deg, rho = arc.radius) => {
+  const t = (deg - arc.from) / (arc.to - arc.from);
+  return arc.y[0] + (arc.y[1] - arc.y[0]) * t + Math.tan(arc.bank * Math.PI / 180) * (rho - arc.radius);
+};
+const arcExit = arc => arcPoint(arc, arc.from + (arc.to - arc.from) * 0.5);
+
+t('v2: дуга настила принимается и доносит до модуля сектор, уклон и крен', () => {
+  const raw = v2Raw(r => {
+    r.roads = [arcRoad('rp_arc', ARC, { type: 'bridge' })];
+    r.gameplay.exit = arcExit(ARC);
+  });
+  eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял дугу');
+  const level = normalizeLevel(raw);
+  const d = level.map.roads[0].decks[0];
+  eq(d.arc, true, 'дуга не помечена в данных карты');
+  eq(d.R, 40, 'радиус');
+  eq(d.halfW, 4, 'полуширина');
+  eq(d.a0, 0, 'начальный угол');
+  eq(d.a1, 215, 'конечный угол');
+  eq(d.span, 215, 'размах');
+  eq(d.y0, 0.12, 'верх в начале');
+  eq(d.y1, 12, 'верх в конце');
+  eq(d.rails, true, 'перила');
+  assert(Math.abs(d.tanBank - Math.tan(6 * Math.PI / 180)) < 1e-3, `крен ${d.tanBank}`);
+  // AABB — только фильтр: он шире сектора и не смеет решать, где полотно
+  assert(Math.abs(d.maxX - 44) < 1e-6 && Math.abs(d.minX + 44) < 1e-6, `габарит по X: ${d.minX}…${d.maxX}`);
+  assert(d.maxZ > 40 && d.minZ < -20, `габарит по Z не покрывает дугу: ${d.minZ}…${d.maxZ}`);
+  const code = generateModule(raw, 'src/levels/level-11.json').code;
+  assert(code.includes('"arc": true'), 'модуль главы не донёс дугу');
+  assert(code.includes('"span": 215'), 'модуль главы не донёс размах дуги');
+});
+
+t('v2: крутая дуга, нулевой размах и выворот через центр — ошибки', () => {
+  const steep = v2Raw(r => {
+    r.roads = [arcRoad('rp_steep', { ...ARC, from: 0, to: 90, y: [0.12, 30] }, { type: 'bridge' })];
+    r.gameplay.exit = arcPoint({ ...ARC, from: 0, to: 90 }, 45);
+  });
+  hasError(validateLevel(steep, LEVEL_SPEC_V2).errors, 'rp_steep', 'уклон дуги');
+  // тот же размах с подъёмом 12 м на ~150 м дуги — норма
+  const ok = v2Raw(r => {
+    r.roads = [arcRoad('rp_ok', ARC, { type: 'bridge' })];
+    r.gameplay.exit = arcExit(ARC);
+  });
+  eq(validateLevel(ok, LEVEL_SPEC_V2).errors.length, 0, 'пологий подъём дуги отбракован');
+  for (const [name, arc] of [
+    ['нулевой', { ...ARC, from: 30, to: 30 }],
+    ['сверх 360°', { ...ARC, from: -360, to: 360 }],
+    ['выворот', { ...ARC, radius: 3, width: 8 }],
+  ]) {
+    const raw = v2Raw(r => {
+      r.roads = [arcRoad('rp_bad', arc, { type: 'bridge' })];
+      r.gameplay.exit = { x: 0, z: 34 };
+    });
+    const errors = validateLevel(raw, LEVEL_SPEC_V2).errors;
+    assert(errors.length > 0, `дуга (${name}) прошла валидатор`);
+  }
+});
+
+t('v2: дуга не смешивается с пластиной в элементе и не выходит за землю', () => {
+  const both = v2Raw(r => {
+    r.roads = [{
+      id: 'rp_both', type: 'bridge',
+      elements: [{ plate: { x: 0, z: 10, length: 20, width: 6, y: 6 }, arc: ARC }],
+    }];
+    r.gameplay.exit = arcExit(ARC);
+  });
+  hasError(validateLevel(both, LEVEL_SPEC_V2).errors, 'plate и arc одновременно');
+  const neither = v2Raw(r => {
+    r.roads = [{ id: 'rp_none', type: 'ground', elements: [{}] }];
+  });
+  hasError(validateLevel(neither, LEVEL_SPEC_V2).errors, 'без plate или arc');
+  // дуга целиком внутри земли 120 м, но её сектор 0…90° от cx = 30 уходит на 70
+  const out = v2Raw(r => {
+    r.roads = [arcRoad('rp_out', { ...ARC, cx: 30, from: 0, to: 90 }, { type: 'bridge' })];
+    r.gameplay.exit = { x: 0, z: 34 };
+  });
+  hasError(validateLevel(out, LEVEL_SPEC_V2).errors, 'rp_out', 'выходит за землю');
+});
+
+t('предмет на дуге встаёт на её плоскость с креном, а вне развёртки — на грунт', () => {
+  const arc = { ...ARC, from: 0, to: 90, y: [0.12, 6] };
+  const on = arcPoint(arc, 45, 38);
+  const off = arcPoint(arc, 120, 40);
+  const top = arcTop(arc, 45, 38);
+  const raw = v2Raw(r => {
+    r.roads = [arcRoad('rp_props', arc)];
+    // дом из фикстуры стоит в центре кольца, а его план попал бы в AABB сектора:
+    // проверка «дом в улице» консервативна по габариту, и предметный тест к ней
+    // отношения не имеет
+    r.buildings = [];
+    r.landscapeObjects = [
+      { id: 'on_arc', model: 'container', position: { x: on.x, y: Number(top.toFixed(3)), z: on.z } },
+      { id: 'off_arc', model: 'container', position: { x: off.x, y: 0, z: off.z } },
+    ];
+    r.gameplay.exit = arcExit(arc);
+  });
+  const { errors } = validateLevel(raw, LEVEL_SPEC_V2);
+  eq(errors.length, 0, `валидатор не принял предметы на дуге: ${errors.join(' | ')}`);
+  const level = normalizeLevel(raw);
+  const onArc = level.map.props.find(p => p.id === 'on_arc');
+  const offArc = level.map.props.find(p => p.id === 'off_arc');
+  assert(Math.abs(onArc.position.y - top) < 1e-2,
+    `предмет на дуге встал на ${onArc.position.y}, а не на ${top.toFixed(3)}`);
+  eq(offArc.position.y, 0, 'предмет вне развёртки удержан габаритом сектора');
+  assert(!level.warnings.some(w => w.includes('on_arc')),
+    `верный предмет на дуге отмечен: ${level.warnings.join(' | ')}`);
+});
 
 // Компактный бриф с секцией `city`: два района по 120 × 120 м в земле 300 × 300.
 // Проверяет сам разворот (детерминизм, формы, вытеснение авторской записью) и
