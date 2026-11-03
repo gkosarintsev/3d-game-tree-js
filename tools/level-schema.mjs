@@ -10,7 +10,7 @@
  */
 import { CONFIG } from '../src/config.js';
 import {
-  AXIS_EPS, cellKey, frameOf, normalizePolygon, obbHitsObb, obbHitsRect, obbOf,
+  AXIS_EPS, cellKey, frameAt, frameOf, normalizePolygon, obbHitsObb, obbHitsRect, obbOf,
   polyBounds, polyEdges, polyRects, r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
   rotatedBounds,
 } from '../src/geo2d.js';
@@ -208,11 +208,40 @@ export const LEVEL_SPEC = obj({
  * собственных осях (поэтому осевая арифметика парсера к ним применяется как
  * раньше), а в мировом плане их поворачивает один угол.
  */
+// Прямая пластина настила v2: центр, длина вдоль собственной оси и угол к
+// северу. `y` — верх на начале оси (`u = -length/2`), `rise` — перепад до её
+// конца; так пластины стыкуются цепочкой (верх конца = `y + rise` следующей), а
+// «наклон» остаётся тем же одним пролётом, что и в v1, только повёрнутым.
+const V2_PLATE = obj({
+  x: num({ req: true }),
+  z: num({ req: true }),
+  yaw: num({ min: -360, max: 360 }),
+  length: num({ min: 1, req: true }),
+  width: num({ min: 2, max: 30, req: true }),
+  y: num({ req: true }),
+  rise: num(),
+});
+
 export const LEVEL_SPEC_V2 = {
   ...LEVEL_SPEC,
   fields: {
     ...LEVEL_SPEC.fields,
     kind: str({ enum: ['json2'], req: true }),
+    roads: {
+      ...LEVEL_SPEC.fields.roads,
+      items: {
+        ...LEVEL_SPEC.fields.roads.items,
+        fields: {
+          ...LEVEL_SPEC.fields.roads.items.fields,
+          // у дороги из пластин ширина живёт в каждой пластине: полотно развязки
+          // законно расширяется, и дублировать его в двух местах — значит дать
+          // им разойтись при первой правке
+          width: num({ min: 2, max: 30 }),
+          points: arr(V3XYZ, { minItems: 2 }),
+          elements: arr(obj({ plate: { ...V2_PLATE, req: true } }), { minItems: 1 }),
+        },
+      },
+    },
     buildings: {
       ...LEVEL_SPEC.fields.buildings,
       items: {
@@ -322,6 +351,15 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
   const roadRects = [];
   for (const [n, road] of (raw.roads ?? []).entries()) {
     const label = `roads[${n}] (${road.id})`;
+    if (road.elements) {
+      errors.push(...checkRoadElements(road, label, half, groundY, warnings));
+      roadRects.push(...roadRectsOf(road));
+      continue;
+    }
+    if (!road.points) {
+      errors.push(`${label}: ни points, ни elements — у дороги нет осевой линии`);
+      continue;
+    }
     for (let i = 0; i + 1 < road.points.length; i++) {
       const a = road.points[i], b = road.points[i + 1];
       const dx = Math.abs(a.x - b.x), dz = Math.abs(a.z - b.z);
@@ -419,7 +457,10 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
   for (const rr of roadRects) {
     if (!rr.ground) continue;
     for (const c of channelRects) {
-      if (rectsIntersect(rr.rect, c.rect, 0.05)) {
+      // план улицы из пластин повёрнут: его габарит заходит в воду углами, где
+      // асфальта нет, и `rectsIntersect` браковал бы улицу, ни разу не коснувшуюся
+      // русла. SAT по собственным осям полотна — та же проверка, что у парсера
+      if (obbHitsRect(rr.rect, c.rect, 0.05)) {
         errors.push(`roads (${rr.id}): план наземной улицы пересёкся с руслом ${c.id} — дорогу через воду делает мост`);
       }
     }
@@ -469,7 +510,10 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
     for (const rect of polyRects(fp)) {
       const o = obbOf(rect, frame);
       for (const rr of groundRects) {
-        if (obbHitsRect(o, rr.rect, 0.05)) {
+        // у повёрнутой улицы план — тоже OBB: дом, вставший в её габаритный угол,
+        // стоит на свободном асфальте, а `obbHitsRect` сравнивал бы корпус с
+        // прямоугольником мировой сетки и браковал бы именно такой угол
+        if (obbHitsObb(o, rr.rect, 0.05)) {
           errors.push(`${label}: часть footprint ${fmtRect(rotatedBounds(rect, frame))} легла на план наземной дороги ${rr.id} — дом стоит в улице`);
         }
       }
@@ -614,7 +658,7 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
   // фасад приходят ровно в черту торца, и строгая пересечённость браковала бы
   // примыкание в ноль.
   for (const [n, road] of (raw.roads ?? []).entries()) {
-    if (road.type !== 'skybridge') continue;
+    if (road.type !== 'skybridge' || !road.points) continue;
     const label = `roads[${n}] (${road.id})`;
     const plans = roadRectsOf(road);
     const ends = [[0, road.points[0], 'начальный'], [plans.length - 1, road.points[road.points.length - 1], 'конечный']];
@@ -653,12 +697,13 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
     const outline = obbOf(b.bounds, frameOf(b.bounds, b.rotation));
     for (const [n, road] of (raw.roads ?? []).entries()) {
       if (road.type === 'ground') continue;
-      const plates = roadRectsOf(road);
-      for (const [i, pl] of plates.entries()) {
-        const [a, c] = [road.points[i], road.points[i + 1]];
-        if (!a || !c) continue;
-        const level = Math.abs(a.y - b.roofY) <= J.skybridgeFit || Math.abs(c.y - b.roofY) <= J.skybridgeFit;
-        if (level && obbHitsRect(outline, pl.rect, 0.05)) {
+      for (const pl of roadRectsOf(road)) {
+        // торцы пластины лежат на её концах: у повёрнутой пластины проверяются
+        // собственные пределы верха, а не точки осевой линии, которой у элементов
+        // нет вовсе
+        const level = Math.abs(pl.topLo - b.roofY) <= J.skybridgeFit
+          || Math.abs(pl.topHi - b.roofY) <= J.skybridgeFit;
+        if (level && obbHitsObb(outline, pl.rect, 0.05)) {
           errors.push(`roads[${n}] (${road.id}) и ${b.id}: настил лег на косую кровлю `
             + `(кровля ${b.roofY}, rotation ${b.rotation}°) — проём в плите под углом не вырезать; `
             + 'поставь дому rotation 0 или уведи настил');
@@ -696,7 +741,7 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
     if (o.model !== 'concrete_pillar') continue;
     const rect = rectAround(o.position.x, o.position.z, J.pillarSection, J.pillarSection);
     for (const rr of roadRects) {
-      if (rr.ground && rectsIntersect(rect, rr.rect, 0.05)) {
+      if (rr.ground && obbHitsRect(rr.rect, rect, 0.05)) {
         errors.push(`landscapeObjects (${o.id}): опора стоит в плане наземной дороги ${rr.id} — по улице она преградой не станет, но визуально закопана в асфальт`);
       }
     }
@@ -713,9 +758,80 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
   return { errors, warnings, geometryOnly: true };
 }
 
+/**
+ * Дорога из прямых пластин (v2): у каждой свой центр, длина, ширина и угол к
+ * северу — полотно развязки законно расширяется, а цепочка пластин идёт не по
+ * мировой оси. Проверки те же, что у осевых сегментов v1: уклон, ширина, земля,
+ * высота моста; отличие одно — план считается по осям полотна, а не по габариту,
+ * и торцы пластины совпадают с концами её оси.
+ */
+function checkRoadElements(road, label, half, groundY, warnings) {
+  const errors = [];
+  if (road.points) {
+    errors.push(`${label}: points и elements одновременно — у дороги одна осевая модель`);
+    return errors;
+  }
+  if (road.type === 'embankment' || road.type === 'skybridge') {
+    errors.push(`${label}: ${road.type} из пластин не поддержан — насыпь и переход собираются `
+      + 'из осевых points (опоры и примыкание торцов считаются по ним)');
+    return errors;
+  }
+  let top = -Infinity;
+  for (const [i, el] of road.elements.entries()) {
+    const pl = el?.plate;
+    if (!pl) {
+      errors.push(`${label}.elements[${i}]: элемент без plate — в схеме v2 описана только пластина`);
+      continue;
+    }
+    const rise = pl.rise ?? 0;
+    const elabel = `${label}.elements[${i}]`;
+    if (Math.abs(rise) / pl.length > J.maxSlope + 1e-9) {
+      errors.push(`${elabel}: уклон ${(Math.abs(rise) / pl.length).toFixed(2)} м/м — круче ${J.maxSlope}`
+        + ` (подъём ${Math.abs(rise).toFixed(2)} м на ${pl.length.toFixed(2)} м неперешагиваем)`);
+    }
+    const plan = {
+      minX: pl.x - pl.length / 2, maxX: pl.x + pl.length / 2,
+      minZ: pl.z - pl.width / 2, maxZ: pl.z + pl.width / 2,
+    };
+    const box = rotatedBounds(plan, frameAt(pl.x, pl.z, pl.yaw ?? 0));
+    for (const [x, z] of [[box.minX, box.minZ], [box.maxX, box.maxZ]]) {
+      if (Math.abs(x) > half || Math.abs(z) > half) {
+        errors.push(`${elabel}: пластина выходит за землю (${half * 2} м): точка ${r3(x)}, ${r3(z)}`);
+        break;
+      }
+    }
+    const lo = Math.min(pl.y, pl.y + rise), hi = Math.max(pl.y, pl.y + rise);
+    if (road.type !== 'ground' && hi - groundY < J.bridgeMinHeight) {
+      warnings.push(`${elabel}: настил на ${road.id} ниже ${J.bridgeMinHeight} м над землёй — под ним не пройти`);
+    }
+    top = Math.max(top, hi);
+  }
+  if (road.type !== 'ground' && top - groundY < J.bridgeMinHeight) {
+    errors.push(`${label}: ${road.type} с верхом ${top} не поднимается над землёй на ${J.bridgeMinHeight} м`);
+  }
+  return errors;
+}
+
 /** План полосы дороги (для проверки «опора не посреди улицы»). */
 function roadRectsOf(road) {
   const out = [];
+  if (!road.points) {
+    for (const el of road.elements ?? []) {
+      const pl = el?.plate;
+      if (!pl) continue;
+      const plan = {
+        minX: pl.x - pl.length / 2, maxX: pl.x + pl.length / 2,
+        minZ: pl.z - pl.width / 2, maxZ: pl.z + pl.width / 2,
+      };
+      out.push({
+        id: road.id, ground: road.type === 'ground',
+        rect: obbOf(plan, frameAt(pl.x, pl.z, pl.yaw ?? 0)),
+        topLo: Math.min(pl.y, pl.y + (pl.rise ?? 0)),
+        topHi: Math.max(pl.y, pl.y + (pl.rise ?? 0)),
+      });
+    }
+    return out;
+  }
   const halfW = road.width / 2;
   for (let i = 0; i + 1 < road.points.length; i++) {
     const a = road.points[i], b = road.points[i + 1];
@@ -727,7 +843,10 @@ function roadRectsOf(road) {
     const maxX = horiz ? Math.max(a.x, b.x) : a.x + halfW;
     const minZ = horiz ? a.z - halfW : Math.min(a.z, b.z);
     const maxZ = horiz ? a.z + halfW : Math.max(a.z, b.z);
-    out.push({ id: road.id, ground: road.type === 'ground', rect: { minX, maxX, minZ, maxZ } });
+    out.push({
+      id: road.id, ground: road.type === 'ground', rect: { minX, maxX, minZ, maxZ },
+      topLo: Math.min(a.y, b.y), topHi: Math.max(a.y, b.y),
+    });
   }
   return out;
 }

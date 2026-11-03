@@ -4,7 +4,7 @@ import { CONFIG } from './config.js';
 import { SolidField, circleHitsBox } from './solids.js';
 import { NavGraph } from './nav-graph.js';
 import {
-  r3, subtractRect, frameOf, obbOf, obbHitsRect, rotatePoint, unrotatePoint,
+  r3, subtractRect, frameAt, frameOf, obbOf, obbHitsRect, rotatePoint, rotatedBounds, unrotatePoint,
 } from './geo2d.js';
 import { buildProps } from './props.js';
 
@@ -126,6 +126,8 @@ export class JsonMap extends SolidField {
     /** плиты ходовых кровель (`roof.walkable`): опора уровня roofY и её решётка узлов */
     this.roofPlates = [];
     this.deckPlates = [];
+    /** кадры повёрнутых пластин настила: считаются один раз на запись */
+    this._deckFrames = new Map();
     /** наклонные твёрдости: пролёты настилов и откосы насыпи — призмы профиля (u, y) */
     this.prisms = [];
     /** планы, где грунт уровня прорезан руслом: в них нет «пола мира — ноль» */
@@ -317,7 +319,8 @@ export class JsonMap extends SolidField {
     // кровли можно только по габариту этой пластины, а это дыра в парапете там,
     // где перехода нет, то есть сход с крыши в никуда
     const arrivals = frame ? [] : this.roads.filter(r => r.type !== 'ground').flatMap(r => r.decks).filter(d =>
-      Math.abs(d.topAtMin - b.roofY) <= J.skybridgeFit || Math.abs(d.topAtMax - b.roofY) <= J.skybridgeFit);
+      !d.yaw && d.frame === undefined
+      && (Math.abs(d.topAtMin - b.roofY) <= J.skybridgeFit || Math.abs(d.topAtMax - b.roofY) <= J.skybridgeFit));
     // чужое здание, выросшее из этой плиты (подиум + башня), марш, выведенный
     // на кровлю, и план примыкающего настила оставляют в ней проём: иначе плита
     // легла бы внутрь первого этажа соседа, а решётка узлов встала бы под ним, и
@@ -470,12 +473,44 @@ export class JsonMap extends SolidField {
     }
   }
 
+  /**
+   * Кадр поворота полотна (v2): пластина задана центром и углом, а не парой
+   * точек. Кэш — по самой записи: `_collectRoads`, навигация и мусор спрашивают
+   * один и тот же кадр, а `Math.cos` на каждый вызов стоил бы в цикле слотов.
+   */
+  _deckFrame(d) {
+    if (d.frame !== undefined) return d.frame;
+    if (!d.yaw) return null;
+    let f = this._deckFrames.get(d);
+    if (!f) {
+      f = frameAt(d.cx, d.cz, d.yaw);
+      this._deckFrames.set(d, f);
+    }
+    return f;
+  }
+
+  /**
+   * План пластины в её осях. Кадр поворачивает **мировые до поворота** точки
+   * вокруг центра пластины (то же соглашение, что у домов), поэтому у повёрнутой
+   * пластины план — её прямоугольник с центром `(cx, cz)`, а не центрированный в
+   * нуле: иначе `_box`, призмы и луч развернули бы её вокруг чужой точки.
+   */
+  _deckPlan(d, frame) {
+    return frame
+      ? {
+        minX: d.cx - d.length / 2, maxX: d.cx + d.length / 2,
+        minZ: d.cz - d.width / 2, maxZ: d.cz + d.width / 2,
+      }
+      : d;
+  }
+
   _collectRoads() {
     for (const road of this.roads) {
       for (const d of road.decks) {
+        const frame = this._deckFrame(d);
         // знак разницы — направление подъёма: спуск с пролёта тоже наклонный
-        if (Math.abs(d.topAtMax - d.topAtMin) > 0.01) this._incline(d);
-        else this._box(d, d.bottomY, d.topY, 'decks', { surface: true });
+        if (Math.abs(d.topAtMax - d.topAtMin) > 0.01) this._incline(d, frame);
+        else this._box(this._deckPlan(d, frame), d.bottomY, d.topY, 'decks', { surface: true, frame });
         this.deckPlates.push({ ...d, road: road.id, roadType: road.type });
       }
       // насыпь: грунт под настилом — и опора быть не может, и идти сквозь него нельзя
@@ -495,16 +530,17 @@ export class JsonMap extends SolidField {
    * обязана совпадать с картинкой», ровно как у аналитического верха рельефа).
    * Его держат `groundHeightAt`, `raySolid` и `resolveSphere` по аналитике.
    */
-  _incline(d) {
-    const lo = d.axis === 'x' ? d.minX : d.minZ;
-    const hi = d.axis === 'x' ? d.maxX : d.maxZ;
-    const v0 = d.axis === 'x' ? d.minZ : d.minX;
-    const v1 = d.axis === 'x' ? d.maxZ : d.maxX;
+  _incline(d, frame = null) {
+    const plan = this._deckPlan(d, frame);
+    const lo = d.axis === 'x' ? plan.minX : plan.minZ;
+    const hi = d.axis === 'x' ? plan.maxX : plan.maxZ;
+    const v0 = d.axis === 'x' ? plan.minZ : plan.minX;
+    const v1 = d.axis === 'x' ? plan.maxZ : plan.maxX;
     if (hi - lo <= 1e-6 || v1 - v0 <= 1e-6) return;
     const k = (d.topAtMax - d.topAtMin) / (hi - lo);
     const c = d.topAtMin - k * lo;
     const t = J.deckThickness;
-    const w = makePrism(d.axis, v0, v1, [[lo, k * lo + c], [hi, k * hi + c], [hi, k * hi + c - t], [lo, k * lo + c - t]]);
+    const w = makePrism(d.axis, v0, v1, [[lo, k * lo + c], [hi, k * hi + c], [hi, k * hi + c - t], [lo, k * lo + c - t]], frame);
     this.prisms.push(w);
     this.geo.decks.push(this._prismGeo(w));
   }
@@ -517,10 +553,12 @@ export class JsonMap extends SolidField {
    * соседние коробки в смеси отказались бы сливаться.
    */
   _prismGeo(w) {
-    const P = (u, y, v) => (w.axis === 'x' ? [u, y, v] : [v, y, u]);
+    const P = w.frame
+      ? (u, y, v) => { const p = rotatePoint(w.frame, u, v); return [p.x, y, p.z]; }
+      : (u, y, v) => (w.axis === 'x' ? [u, y, v] : [v, y, u]);
     const pc = [0, 1].map(i => w.poly.reduce((a, p) => a + p[i], 0) / w.poly.length);
     const mid = (w.v0 + w.v1) / 2;
-    const vol = w.axis === 'x' ? [pc[0], pc[1], mid] : [mid, pc[1], pc[0]];
+    const vol = P(pc[0], pc[1], mid);
     const pos = [], nor = [], uv = [], idx = [];
     const face = pts => {
       const n = faceNormal(pts[0], pts[1], pts[2]);
@@ -646,9 +684,13 @@ export class JsonMap extends SolidField {
       const w = this.prisms[idx];
       // клетка индекса (24 м) гораздо шире плана призмы: без проверки
       // попадания в сам прямоугольник верх настила протекал бы на точки
-      // в десятках метров поперёк дороги
-      if (x < w.minX || x > w.maxX || z < w.minZ || z > w.maxZ) continue;
-      const t = w.topAt(w.axis === 'x' ? x : z);
+      // в десятках метров поперёк дороги. У повёрнутой призмы проверка идёт в
+      // её осях: габарит за её торцами — не настил
+      const l = w.frame ? unrotatePoint(w.frame, x, z) : null;
+      const u = l ? l.x : (w.axis === 'x' ? x : z);
+      const v = l ? l.z : (w.axis === 'x' ? z : x);
+      if (u < w.lo || u > w.hi || v < w.v0 || v > w.v1) continue;
+      const t = w.topAt(u);
       if (t !== null && (best === null || t > best)) best = t;
     }
     return best;
@@ -849,7 +891,8 @@ export class JsonMap extends SolidField {
         top: Math.max(a.top, d.topAtMin, d.topAtMax),
       }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity, top: -Infinity });
       put(`${road.id} · ${road.type}`, cx(plan), plan.top + 1.3, cz(plan));
-      road.decks.forEach((d, i) => put(`${road.id} · пл ${i + 1}${d.ramp ? ' · наклон' : ''}`,
+      road.decks.forEach((d, i) => put(`${road.id} · пл ${i + 1}`
+        + `${d.yaw ? ` · yaw ${d.yaw}°` : ''}${d.ramp ? ' · наклон' : ''}`,
         cx(d), (d.topAtMin + d.topAtMax) / 2 + 0.6, cz(d)));
       road.fill.forEach((f, i) => put(`${road.id} · тело насыпи ${i + 1}`, cx(f), f.topY + 0.6, cz(f)));
       road.aprons.forEach((a, i) => {
@@ -905,7 +948,7 @@ export class JsonMap extends SolidField {
     this._prismCells = new Map();
     this._holeCells = new Map();
     this.buildings.forEach((b, idx) => put(this._buildingCells, this._buildingBoxes[idx], idx));
-    this.prisms.forEach((w, idx) => put(this._prismCells, w, idx));
+    this.prisms.forEach((w, idx) => put(this._prismCells, w.world ?? w, idx));
     this.holes.forEach((r, idx) => put(this._holeCells, r, idx));
     this._planGrid = g;
   }
@@ -1311,19 +1354,25 @@ export class JsonMap extends SolidField {
       if (road.type === 'ground') continue;
       let prevEnd, firstEnd;
       for (const [di, d] of road.decks.entries()) {
-        const along = d.axis === 'x' ? ['minX', 'maxX'] : ['minZ', 'maxZ'];
-        const cross = d.axis === 'x' ? (d.minZ + d.maxZ) / 2 : (d.minX + d.maxX) / 2;
-        const span = d[along[1]] - d[along[0]];
+        // цепочка идёт по оси полотна: у косой пластины узлы стоят вдоль её
+        // длины, а не вдоль мировой оси, иначе маршрут по мосту шёл бы зигзагом
+        // от края до края его габарита
+        const frame = this._deckFrame(d);
+        const u0 = frame ? d.cx - d.length / 2 : (d.axis === 'x' ? d.minX : d.minZ);
+        const u1 = frame ? d.cx + d.length / 2 : (d.axis === 'x' ? d.maxX : d.maxZ);
+        const cross = frame ? d.cz : (d.axis === 'x' ? (d.minZ + d.maxZ) / 2 : (d.minX + d.maxX) / 2);
+        const span = u1 - u0;
         const rise = Math.abs(d.topAtMax - d.topAtMin);
         const perNode = rise > 0.01 ? Math.min(step, this.stepUp * 0.8 * span / rise) : step;
         const count = Math.max(1, Math.ceil(span / perNode));
         const yAt = k => d.topAtMin + (d.topAtMax - d.topAtMin) * (k / count);
         let first, last;
         for (let k = 0; k <= count; k++) {
-          const a = d[along[0]] + (span * k) / count;
-          const x = d.axis === 'x' ? a : cross;
-          const z = d.axis === 'x' ? cross : a;
-          const id = nav.add(x, yAt(k), z, `d:${road.id}:${di}:${k}`);
+          const a = u0 + (span * k) / count;
+          const p = frame
+            ? rotatePoint(frame, a, cross)
+            : (d.axis === 'x' ? { x: a, z: cross } : { x: cross, z: a });
+          const id = nav.add(p.x, yAt(k), p.z, `d:${road.id}:${di}:${k}`);
           if (first === undefined) first = id;
           else this._link(nav, last, id);
           last = id;
@@ -1901,9 +1950,12 @@ export class JsonMap extends SolidField {
       // проход — контейнер посреди пролёта выглядел бы стеной, которой нет
       if (road.type !== 'ground') continue;
       for (const d of road.decks) {
+        // у косой улицы слоты лежат в осях полотна, а мир получается поворотом:
+        // предмет, поставленный по габариту, оказался бы на встречной полосе
+        const frame = this._deckFrame(d);
         const alongX = d.axis === 'x';
-        const lo = alongX ? d.minX : d.minZ;
-        const hi = alongX ? d.maxX : d.maxZ;
+        const lo = frame ? d.cx - d.length / 2 : (alongX ? d.minX : d.minZ);
+        const hi = frame ? d.cx + d.length / 2 : (alongX ? d.maxX : d.maxZ);
         const len = hi - lo;
         if (len < C.street.every) continue;
         const hs = fnvStr(2166136261, `${road.id}|${Math.round(lo * 10)}|${Math.round(hi * 10)}`);
@@ -1912,9 +1964,14 @@ export class JsonMap extends SolidField {
           for (const side of [-1, 1]) {
             const draw = makeDraw(fnvMix(hs, (k * 2 + side + 2) * 7919));
             if (draw() >= C.street.keep) continue;
-            const cross = (side < 0 ? (alongX ? d.minZ : d.minX) : (alongX ? d.maxZ : d.maxX)) - side * C.street.inset;
-            const x = alongX ? u : cross;
-            const z = alongX ? cross : u;
+            const cross = frame
+              ? d.cz + side * (d.width / 2 - C.street.inset)
+              : (side < 0 ? (alongX ? d.minZ : d.minX) : (alongX ? d.maxZ : d.maxX)) - side * C.street.inset;
+            const p = frame ? rotatePoint(frame, u, cross) : {
+              x: alongX ? u : cross,
+              z: alongX ? cross : u,
+            };
+            const x = p.x, z = p.z;
             if (this._planHolds(x, z)) continue;
             if (nearProp(x, z, C.street.minLamp)) continue;
             const top = d.ramp
@@ -1923,7 +1980,7 @@ export class JsonMap extends SolidField {
             const g = this.groundHeightAt(x, z, r3(top) + 0.4);
             if (Math.abs(g - top) > 0.25) continue;
             if (!clearAbove(x, g, z)) continue;
-            add(pick(draw(), C.streetModels), r3(x), g, r3(z), draw);
+            add(pick(draw(), C.streetModels), r3(x), g, r3(z), draw, d.yaw ?? 0);
           }
         }
       }
@@ -2251,7 +2308,7 @@ export function createJsonMap(spec) {
  * Грани считаются один раз: наружные нормали профиля, они же полупространства
  * луча, и границы плана.
  */
-function makePrism(axis, v0, v1, poly) {
+function makePrism(axis, v0, v1, poly, frame = null) {
   const isX = axis === 'x';
   const us = poly.map(p => p[0]), ys = poly.map(p => p[1]);
   const edges = poly.map((p, i) => {
@@ -2273,8 +2330,8 @@ function makePrism(axis, v0, v1, poly) {
   }));
   planes.push({ n: isX ? [0, 0, -1] : [-1, 0, 0], d: -v0 });
   planes.push({ n: isX ? [0, 0, 1] : [1, 0, 0], d: v1 });
-  return {
-    axis, v0, v1, poly, edges, planes,
+  const prism = {
+    axis, v0, v1, poly, edges, planes, frame: frame ?? null,
     lo: Math.min(...us), hi: Math.max(...us), yLo: Math.min(...ys), yHi: Math.max(...ys),
     minX: isX ? Math.min(...us) : v0, maxX: isX ? Math.max(...us) : v1,
     minZ: isX ? v0 : Math.min(...us), maxZ: isX ? v1 : Math.max(...us),
@@ -2293,6 +2350,13 @@ function makePrism(axis, v0, v1, poly) {
       return best;
     },
   };
+  // мировой габарит нужен сетке планов: она отбирает кандидатов по клеткам и
+  // обязана видеть, где призма лежит на карте, а узкая фаза всё равно считает
+  // в осях профиля (`frame`)
+  prism.world = frame
+    ? rotatedBounds({ minX: prism.minX, maxX: prism.maxX, minZ: prism.minZ, maxZ: prism.maxZ }, frame)
+    : null;
+  return prism;
 }
 
 /**
@@ -2329,6 +2393,24 @@ function rayWedge(w, ox, oy, oz, dx, dy, dz) {
   const len = Math.hypot(dx, dy, dz);
   if (len < 1e-9) return null;
   dx /= len; dy /= len; dz /= len;
+  // повёрнутая призма: луч переводится в её оси, а попадание и нормаль — обратно.
+  // Поворот не меняет длин, поэтому `t` остаётся расстоянием в метрах
+  if (w.frame) {
+    const f = w.frame, o = unrotatePoint(f, ox, oz);
+    const nx = dx * f.c + dz * f.s, nz = -dx * f.s + dz * f.c;
+    const h = rayWedgeLocal(w, o.x, oy, o.z, nx, dy, nz);
+    if (!h) return null;
+    const p = rotatePoint(f, h.x, h.z);
+    return {
+      t: h.t, x: p.x, y: h.y, z: p.z,
+      nx: h.nx * f.c - h.nz * f.s, ny: h.ny, nz: h.nx * f.s + h.nz * f.c,
+    };
+  }
+  return rayWedgeLocal(w, ox, oy, oz, dx, dy, dz);
+}
+
+/** Пересечение луча с призмой в её собственных осях (слэбы по граням). */
+function rayWedgeLocal(w, ox, oy, oz, dx, dy, dz) {
   let tmin = -Infinity, tmax = Infinity, entry = null;
   for (const p of w.planes) {
     const nd = p.n[0] * dx + p.n[1] * dy + p.n[2] * dz;
@@ -2365,6 +2447,20 @@ function rayWedge(w, ox, oy, oz, dx, dy, dz) {
  * @returns {boolean} сдвинули ли
  */
 function pushOutWedge(c, r, w) {
+  if (w.frame) {
+    // центр переводится в оси призмы, выталкивание считается там же (профиль и
+    // ширина — её собственные), а результат — обратно
+    const l = unrotatePoint(w.frame, c.x, c.z);
+    const p = { x: l.x, y: c.y, z: l.z };
+    if (!pushOutWedgeLocal(p, r, w)) return false;
+    const q = rotatePoint(w.frame, p.x, p.z);
+    c.x = q.x; c.z = q.z; c.y = p.y;
+    return true;
+  }
+  return pushOutWedgeLocal(c, r, w);
+}
+
+function pushOutWedgeLocal(c, r, w) {
   const isX = w.axis === 'x';
   const u = isX ? c.x : c.z;
   const v = isX ? c.z : c.x;

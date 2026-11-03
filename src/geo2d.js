@@ -220,16 +220,18 @@ export function unionBounds(a, b) {
  * ни одна проверка не платит за поворот.
  */
 export function frameOf(bounds, rotationDeg) {
+  return frameAt((bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2, rotationDeg);
+}
+
+/**
+ * Кадр поворота по центру: пластина настила задана центром, длиной, шириной и
+ * углом, а не парой точек, и собирать её габарит ради `frameOf` значило бы
+ * округлять центр там, где он и так известен.
+ */
+export function frameAt(cx, cz, rotationDeg) {
   if (!rotationDeg) return null;
   const rad = rotationDeg * Math.PI / 180;
-  return {
-    cx: (bounds.minX + bounds.maxX) / 2,
-    cz: (bounds.minZ + bounds.maxZ) / 2,
-    deg: rotationDeg,
-    rad,
-    c: Math.cos(rad),
-    s: Math.sin(rad),
-  };
+  return { cx, cz, deg: rotationDeg, rad, c: Math.cos(rad), s: Math.sin(rad) };
 }
 
 /** Неразвёрнутая мировая точка → точка повёрнутого объекта. */

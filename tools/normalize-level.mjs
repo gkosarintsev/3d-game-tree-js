@@ -15,7 +15,7 @@
 import { CONFIG } from '../src/config.js';
 import {
   normalizePolygon, pointInPoly, polyBounds, polyEdges, polyRects, r3, rectsIntersect,
-  subtractRect, unionBounds, frameOf, obbHitsRect, obbOf, unrotatePoint, rotatePoint,
+  subtractRect, unionBounds, frameOf, frameAt, obbHitsRect, obbHitsObb, obbOf, unrotatePoint, rotatePoint,
 } from '../src/geo2d.js';
 
 const J = CONFIG.jsonMap;
@@ -499,6 +499,7 @@ function toWorld(rect, rotation, cx, cz, L, W) {
  * сфера Чужого такой подъём не перешагнут.
  */
 function normalizeRoad(road, ground) {
+  if (road.elements) return normalizeRoadElements(road);
   const halfW = road.width / 2;
   const decks = [];
   for (let i = 0; i + 1 < road.points.length; i++) {
@@ -565,6 +566,67 @@ function normalizeRoad(road, ground) {
 }
 
 /**
+ * Дорога из прямых пластин (v2): полотно под углом к северу, а значит и
+ * твёрдость, и меш живут в собственных осях пластины.
+ *
+ * Пластина задана центром, длиной и шириной; `y` — верх на её начале (локальное
+ * `u = -length/2`), `rise` — перепад до конца. Отметки верха пишутся теми же
+ * `topAtMin/topAtMax`, что у осевой пластины v1, поэтому наклон по-прежнему
+ * держит одна аналитическая призма, а не лестница коробок. Мировой габарит и
+ * `obb` — только для сеток-индексов и миникарты; решение о высоте и твёрдости
+ * принимает узкая фаза по осям полотна.
+ */
+function normalizeRoadElements(road) {
+  const decks = [];
+  for (const el of road.elements) {
+    const pl = el.plate;
+    const halfL = pl.length / 2, halfW = pl.width / 2;
+    // кадр поворачивает вокруг центра пластины; при yaw 0 его нет вовсе, и
+    // пластина идёт прежним быстрым путём AABB. План в её осях — тот же
+    // прямоугольник, что и до поворота (центр `(x, z)`), потому что кадр, как и у
+    // домов, принимает мировые до поворота координаты
+    const frame = frameAt(pl.x, pl.z, pl.yaw ?? 0);
+    const local = {
+      minX: pl.x - halfL, maxX: pl.x + halfL, minZ: pl.z - halfW, maxZ: pl.z + halfW,
+    };
+    const topLo = r3(pl.y), topHi = r3(pl.y + (pl.rise ?? 0));
+    const top = Math.min(topLo, topHi);
+    const world = frame ? obbOf(local, frame) : {
+      minX: pl.x - halfL, maxX: pl.x + halfL, minZ: pl.z - halfW, maxZ: pl.z + halfW,
+    };
+    decks.push({
+      ...rectOut(world),
+      ...(world.obb ? {
+        obb: {
+          cx: r3(world.obb.cx), cz: r3(world.obb.cz),
+          hx: r3(world.obb.hx), hz: r3(world.obb.hz), c: world.obb.c, s: world.obb.s,
+        },
+      } : {}),
+      ...(frame ? { cx: r3(frame.cx), cz: r3(frame.cz), yaw: pl.yaw } : {}),
+      length: r3(pl.length), width: r3(pl.width),
+      axis: 'x',
+      topY: top,
+      bottomY: r3(top - J.deckThickness),
+      topAtMin: topLo,
+      topAtMax: topHi,
+      ramp: Math.abs(topHi - topLo) > 0.01,
+    });
+  }
+  const width = road.width ?? Math.max(...decks.map(d => d.width));
+  return {
+    id: road.id,
+    type: road.type,
+    width: r3(width),
+    withLamps: !!road.lamps,
+    decks,
+    fill: [],
+    aprons: [],
+    pillars: [],
+    lamps: [],
+  };
+}
+
+/**
  * Опоры эстакады: два ряда ПОД настилом с шагом J.pillarSpacing, сечением
  * J.pillarSection, от грунта до низа настила. Наружная грань опоры отступлена от
  * края плиты на J.pillarEdge — стойка обязана держать полотно, а не стоять в
@@ -581,22 +643,31 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
   const out = [];
   for (const d of road.decks) {
     if (d.ramp || d.grounded || d.bottomY - ground.y <= 1.0) continue;
-    const from = d.axis === 'x' ? d.minX : d.minZ;
-    const to = d.axis === 'x' ? d.maxX : d.maxZ;
-    const cross = d.axis === 'x' ? (d.minZ + d.maxZ) / 2 : (d.minX + d.maxX) / 2;
-    const halfW = (d.axis === 'x' ? d.maxZ - d.minZ : d.maxX - d.minX) / 2;
+    // у повёрнутой пластины опоры стоят в её осях: ряд идёт вдоль полотна, а не
+    // вдоль мировой оси, иначе колонны выстроились бы поперёк косой эстакады
+    const frame = deckFrame(d);
+    const from = frame ? d.cx - d.length / 2 : (d.axis === 'x' ? d.minX : d.minZ);
+    const to = frame ? d.cx + d.length / 2 : (d.axis === 'x' ? d.maxX : d.maxZ);
+    const cross = frame ? d.cz : (d.axis === 'x' ? (d.minZ + d.maxZ) / 2 : (d.minX + d.maxX) / 2);
+    const halfW = frame ? d.width / 2 : (d.axis === 'x' ? d.maxZ - d.minZ : d.maxX - d.minX) / 2;
     const inset = halfW - J.pillarSection / 2 - J.pillarEdge;
     const offs = inset >= J.pillarSection ? [-inset, inset] : [0];
     for (let t = from + J.pillarSpacing / 2; t < to - 0.01; t += J.pillarSpacing) {
-      const sides = d.axis === 'x'
-        ? offs.map(o => ({ x: t, z: r3(cross + o) }))
-        : offs.map(o => ({ x: r3(cross + o), z: t }));
-      for (const p of sides) {
-        const rect = {
-          minX: p.x - J.pillarSection / 2, maxX: p.x + J.pillarSection / 2,
-          minZ: p.z - J.pillarSection / 2, maxZ: p.z + J.pillarSection / 2,
-        };
-        const hit = obstacles.find(o => obbHitsRect(o.rect, rect, 0.05));
+      for (const o of offs) {
+        const p = frame
+          ? rotatePoint(frame, t, cross + o)
+          : (d.axis === 'x' ? { x: t, z: r3(cross + o) } : { x: r3(cross + o), z: t });
+        // план опоры — тоже в осях полотна: квадрат сечения, повёрнутый с ним
+        const half = J.pillarSection / 2;
+        const plan = frame
+          ? obbOf({ minX: t - half, maxX: t + half, minZ: cross + o - half, maxZ: cross + o + half }, frame)
+          : {
+            minX: p.x - half, maxX: p.x + half,
+            minZ: p.z - half, maxZ: p.z + half,
+          };
+        const hit = frame
+          ? obstacles.find(ob => obbHitsObb(ob.rect, plan, 0.05))
+          : obstacles.find(ob => obbHitsRect(ob.rect, plan, 0.05));
         if (hit) {
           warnings.push(`${road.id}: опора в ${r3(p.x)}, ${r3(p.z)} попала в ${hit.id} — пропущена`);
           continue;
@@ -604,7 +675,8 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
         const footY = water ? (water(p.x, p.z) ?? ground.y) : ground.y;
         out.push(makeProp(`pillar_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'concrete_pillar',
           p.x, footY, p.z,
-          { x: J.pillarSection, y: r3(d.bottomY - footY), z: J.pillarSection }, 'bridge_pillar'));
+          { x: J.pillarSection, y: r3(d.bottomY - footY), z: J.pillarSection }, 'bridge_pillar',
+          frame ? -d.yaw : 0));
       }
     }
   }
@@ -616,12 +688,20 @@ function roadLamps(road, obstacles, warnings, water) {
   const out = [];
   for (const d of road.decks) {
     if (d.ramp) continue;
-    const from = d.axis === 'x' ? d.minX : d.minZ;
-    const to = d.axis === 'x' ? d.maxX : d.maxZ;
+    const frame = deckFrame(d);
+    const from = frame ? d.cx - d.length / 2 : (d.axis === 'x' ? d.minX : d.minZ);
+    const to = frame ? d.cx + d.length / 2 : (d.axis === 'x' ? d.maxX : d.maxZ);
     for (let t = from + J.lampSpacing / 2; t < to - 0.01; t += J.lampSpacing) {
-      const sides = d.axis === 'x'
-        ? [{ x: t, z: d.minZ - J.lampOffset }, { x: t, z: d.maxZ + J.lampOffset }]
-        : [{ x: d.minX - J.lampOffset, z: t }, { x: d.maxX + J.lampOffset, z: t }];
+      // фонари стоят по бортам полотна: у косой улицы борта тоже косые, поэтому
+      // смещение берётся в её осях и поворачивается вместе с настилом
+      const sides = frame
+        ? [
+          rotatePoint(frame, t, d.cz - d.width / 2 - J.lampOffset),
+          rotatePoint(frame, t, d.cz + d.width / 2 + J.lampOffset),
+        ]
+        : d.axis === 'x'
+          ? [{ x: t, z: d.minZ - J.lampOffset }, { x: t, z: d.maxZ + J.lampOffset }]
+          : [{ x: d.minX - J.lampOffset, z: t }, { x: d.maxX + J.lampOffset, z: t }];
       for (const p of sides) {
         const hit = obstacles.find(o => o.kind === 'building' && obbHitsRect(o.rect, pointRect(p), 0.05));
         if (hit) {
@@ -636,7 +716,7 @@ function roadLamps(road, obstacles, warnings, water) {
           continue;
         }
         out.push(makeProp(`lamp_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'lamp_post', p.x, d.topY, p.z,
-          { x: 1, y: 1, z: 1 }, 'road_lamp'));
+          { x: 1, y: 1, z: 1 }, 'road_lamp', frame ? -d.yaw : 0));
       }
     }
   }
@@ -822,22 +902,53 @@ export function waterwayFoot(channels) {
  * поставленный на отметку ниже своей опоры, утонул бы в асфальте, а выше — висел.
  */
 function makeSupport(ground, roads, buildings, water) {
-  const plates = roads.flatMap(r => r.decks.map(d => ({
-    rect: d, axis: d.axis, lo: d.axis === 'x' ? d.minX : d.minZ,
-    hi: d.axis === 'x' ? d.maxX : d.maxZ, y: d.topAtMin, y1: d.topAtMax,
-  })));
+  const plates = roads.flatMap(r => r.decks);
   const plots = buildings.map(b => ({ box: buildingBox(b), y: b.baseY }));
   return (x, z) => {
     let y = water ? (water(x, z) ?? ground.y) : ground.y;
-    for (const p of plates) {
-      if (!inRect(x, z, p.rect)) continue;
-      const u = p.axis === 'x' ? x : z;
-      const top = p.y1 === p.y ? p.y : p.y + (p.y1 - p.y) * (u - p.lo) / (p.hi - p.lo);
+    for (const d of plates) {
+      if (!deckHolds(d, x, z)) continue;
+      const top = deckTopAt(d, x, z);
       if (top > y) y = top;
     }
     for (const p of plots) if (inBox(x, z, p.box) && p.y > y) y = p.y;
     return r3(y);
   };
+}
+
+/**
+ * Кадр повёрнутой пластины. В модуль главы пишутся только `cx/cz/yaw`, а
+ * косинус с синусом восстанавливаются здесь: второй копии угла в файле не нужно,
+ * а расходиться с ним ей негде.
+ */
+const deckFrame = d => (d.yaw ? frameAt(d.cx, d.cz, d.yaw) : null);
+
+/**
+ * Точка в плане настила: у повёрнутой пластины — по её осям, а не по габариту.
+ * Габарит здесь ошибся бы в углу, где асфальта нет: предмет, поставленный по
+ * нему, висел бы над землёй, а точка B в «настиле» не имела бы опоры.
+ */
+function deckHolds(d, x, z) {
+  const frame = deckFrame(d);
+  if (!frame) return inRect(x, z, d);
+  const l = unrotatePoint(frame, x, z);
+  return Math.abs(l.x - d.cx) <= d.length / 2 + 1e-9
+    && Math.abs(l.z - d.cz) <= d.width / 2 + 1e-9;
+}
+
+/** Верх настила над мировой точкой: у наклонной пластины — её плоскость. */
+function deckTopAt(d, x, z) {
+  if (d.topAtMax === d.topAtMin) return d.topAtMin;
+  let u, lo, hi;
+  const frame = deckFrame(d);
+  if (frame) {
+    u = unrotatePoint(frame, x, z).x;
+    [lo, hi] = [d.cx - d.length / 2, d.cx + d.length / 2];
+  } else {
+    u = d.axis === 'x' ? x : z;
+    [lo, hi] = d.axis === 'x' ? [d.minX, d.maxX] : [d.minZ, d.maxZ];
+  }
+  return d.topAtMin + (d.topAtMax - d.topAtMin) * (u - lo) / (hi - lo);
 }
 
 const inRect = (x, z, r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ;
@@ -873,7 +984,7 @@ function checkPoints(gp, buildings, roads, channels, warnings) {
     return b.walls.some(w => inRect(p.x, p.z, w));
   });
   const onSomething = (x, z) => buildings.some(b => inBox(x, z, buildingBox(b))) ||
-    roads.some(r => r.decks.some(d => inRect(x, z, d)));
+    roads.some(r => r.decks.some(d => deckHolds(d, x, z)));
   // русло режет грунт, поэтому точка над ним стоит только если её держит
   // настил моста или здание: иначе маяк или игрок повиснут над водой
   const inWater = (x, z) => channels.some(c => c.holes.some(h => inRect(x, z, h)));

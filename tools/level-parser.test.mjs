@@ -15,7 +15,7 @@ import { validateLevel, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel, waterwayFoot } from './normalize-level.mjs';
 import { generateModule } from './build-level.mjs';
 import { expandCity, ARCHETYPE_NAMES } from './city.js';
-import { frameOf, obbHitsRect, obbOf, rectsIntersect, rotatedBounds } from '../src/geo2d.js';
+import { frameOf, frameAt, rotatePoint, unrotatePoint, obbHitsRect, obbHitsObb, obbOf, rectsIntersect, rotatedBounds } from '../src/geo2d.js';
 import { CONFIG } from '../src/config.js';
 
 const J = CONFIG.jsonMap;
@@ -1086,6 +1086,176 @@ t('автогенерация видит косой дом его планом, 
     `пустой угол габарита косого дома был принят за дом: ${level.warnings.join(' | ')}`);
   eq(corner.position.y, 0, 'предмет в пустом углу габарита встал на отметку дома');
   eq(body.position.y, 1, 'предмет на грунте у угла корпуса не встал на пол дома');
+});
+
+// ------------------------------------------------------- прямые настилы (v2, этап 3)
+
+/**
+ * Дорога из пластин: у каждой свой центр, длина, ширина и угол к северу. Проверки
+ * здесь держат два свойства, на которых стоит и валидатор, и нормализатор:
+ * план считается по осям полотна, а не по габариту, и весь автоген (опоры,
+ * фонари, опора предмета) ставится в этих же осях.
+ */
+const plateRoad = (id, plate, extra = {}) => ({ id, type: 'ground', ...extra, elements: [{ plate }] });
+const v2Raw = mutate => {
+  const raw = structuredClone(V2_RAW);
+  mutate(raw);
+  return raw;
+};
+
+t('v2: косая пластина настила принимается и доносит до модуля yaw, obb и размеры', () => {
+  const raw = v2Raw(r => {
+    r.roads = [plateRoad('st_yaw', { x: 0, z: 10, yaw: 30, length: 40, width: 6, y: 0.12 })];
+  });
+  eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял косую пластину');
+  const level = normalizeLevel(raw);
+  const d = level.map.roads[0].decks[0];
+  eq(d.yaw, 30, 'yaw пластины');
+  eq(d.length, 40, 'длина');
+  eq(d.width, 6, 'ширина');
+  eq(d.cx, 0, 'центр x');
+  eq(d.cz, 10, 'центр z');
+  assert(d.obb && Math.abs(d.obb.hx - 20) < 1e-9 && Math.abs(d.obb.hz - 3) < 1e-9,
+    'obb не той полуоси');
+  // габарит повёрнутой пластины — AABB: он шире полотна, и держать по нему ногу
+  // или ставить точку B нельзя
+  assert(Math.abs(d.maxX - (20 * Math.cos(Math.PI / 6) + 3 * Math.sin(Math.PI / 6))) < 0.01,
+    `габарит по X: ${d.maxX}`);
+  assert(Math.abs(d.maxZ - (10 + 20 * Math.sin(Math.PI / 6) + 3 * Math.cos(Math.PI / 6))) < 0.01,
+    `габарит по Z: ${d.maxZ}`);
+  assert(d.maxX > d.width / 2 + 1, 'габарит не шире самой пластины');
+  const code = generateModule(raw, 'src/levels/level-11.json').code;
+  assert(code.includes('"yaw": 30'), 'модуль главы не донёс угол пластины');
+  assert(code.includes('"obb"'), 'модуль главы не донёс OBB пластины');
+});
+
+t('v2: пластина круче maxSlope — ошибка, перепад в пределах — норма', () => {
+  const steep = v2Raw(r => {
+    r.roads = [plateRoad('st_ramp', { x: 0, z: 10, yaw: 30, length: 10, width: 6, y: 0.12, rise: 5 })];
+  });
+  hasError(validateLevel(steep, LEVEL_SPEC_V2).errors, 'st_ramp', 'уклон');
+  const ok = v2Raw(r => {
+    r.roads = [plateRoad('st_ramp', { x: 0, z: 10, yaw: 30, length: 20, width: 6, y: 0.12, rise: 3 })];
+  });
+  eq(validateLevel(ok, LEVEL_SPEC_V2).errors.length, 0, 'пологий косой уклон отбракован');
+});
+
+t('габарит косой улицы не бракует дом в своём пустом углу', () => {
+  const plate = { x: 0, z: 30, yaw: 45, length: 60, width: 6, y: 0.12 };
+  const houseRect = { minX: 16, maxX: 24, minZ: 16, maxZ: 24 };
+  // довод, что тест не пустой: габарит пластины в дом заходит, а само полотно —
+  // нет, потому что дом стоит в углу его AABB
+  const f = frameAt(plate.x, plate.z, plate.yaw);
+  const local = {
+    minX: plate.x - plate.length / 2, maxX: plate.x + plate.length / 2,
+    minZ: plate.z - plate.width / 2, maxZ: plate.z + plate.width / 2,
+  };
+  assert(rectsIntersect(rotatedBounds(local, f), houseRect, 0.05),
+    'габарит косой улицы не заходит в дом — тест ничего не доказывает');
+  assert(!obbHitsObb(obbOf(local, f), houseRect, 0.05),
+    'полотно реально пересекает дом — проверка стала бы бессмысленной');
+  const raw = v2Raw(r => {
+    r.roads = [plateRoad('st_diag', plate)];
+    r.buildings = [{
+      id: 'h_corner', isEnterable: false, floorsCount: 2, floorHeight: 3.4,
+      footprint: [{ x: 16, z: 16 }, { x: 24, z: 16 }, { x: 24, z: 24 }, { x: 16, z: 24 }],
+      rooms: [],
+    }];
+  });
+  const errors = validateLevel(raw, LEVEL_SPEC_V2).errors;
+  eq(errors.length, 0, `дом в пустом углу габарита отбракован: ${errors.join(' | ')}`);
+});
+
+t('v2: elements и points не совмещаются; насыпь и переход из пластин не поддержаны', () => {
+  const both = v2Raw(r => {
+    r.roads[0].elements = [{ plate: { x: 0, z: 10, yaw: 0, length: 20, width: 6, y: 0.12 } }];
+  });
+  hasError(validateLevel(both, LEVEL_SPEC_V2).errors, 'points и elements одновременно');
+  for (const type of ['embankment', 'skybridge']) {
+    const raw = v2Raw(r => {
+      r.roads = [{
+        id: `r_${type}`, type,
+        elements: [{ plate: { x: 0, z: 10, yaw: 0, length: 20, width: 6, y: 6 } }],
+      }];
+    });
+    hasError(validateLevel(raw, LEVEL_SPEC_V2).errors, type, 'не поддержан');
+  }
+});
+
+t('поворот выбрасывает пластину за землю, хотя неразвёрнутая помещается', () => {
+  const plate = yaw => v2Raw(r => {
+    r.roads = [plateRoad('st_edge', { x: 48, z: 48, yaw, length: 20, width: 20, y: 0.12 })];
+  });
+  eq(validateLevel(plate(0), LEVEL_SPEC_V2).errors.length, 0,
+    'неразвёрнутая пластина 20 × 20 в (48, 48) не поместилась в землю 120 м');
+  // ex = 10·cos45° + 10·sin45° ≈ 14,14 ⇒ дальний край на 62,1 м при половине земли 60
+  hasError(validateLevel(plate(45), LEVEL_SPEC_V2).errors, 'st_edge', 'выходит за землю');
+});
+
+t('опоры косой эстакады стоят вдоль полотна и повёрнуты с ним', () => {
+  const raw = v2Raw(r => {
+    r.roads = [{
+      id: 'br_yaw', type: 'bridge',
+      elements: [{ plate: { x: 0, z: 45, yaw: 30, length: 40, width: 8, y: 6 } }],
+    }];
+  });
+  eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял косую эстакаду');
+  const level = normalizeLevel(raw);
+  const pillars = level.map.props.filter(p => p.model === 'concrete_pillar');
+  // J.pillarSpacing = 12 ⇒ t ∈ {−14, −2, 10}; два ряда на ширине 8 (отступ 2,8 м)
+  eq(pillars.length, 6, `опор ${pillars.length}, ожидалось 6`);
+  const f = frameAt(0, 45, 30);
+  for (const p of pillars) {
+    const l = unrotatePoint(f, p.position.x, p.position.z);
+    assert(Math.abs(l.x) <= 20.001,
+      `опора вышла за торец полотна: локальное u = ${l.x}`);
+    assert(Math.abs(Math.abs(l.z - 45) - 2.8) < 2e-3,
+      `опора не на борту полотна: поперёк ${l.z - 45}`);
+    eq(p.rotationY, -30, 'опора не повёрнута с полотном');
+  }
+});
+
+t('фонари косой улицы стоят на её бортах и повёрнуты с полотном', () => {
+  const raw = v2Raw(r => {
+    r.roads = [plateRoad('st_lamps',
+      { x: 0, z: 40, yaw: 30, length: 40, width: 6, y: 0.12 }, { width: 6, lamps: true })];
+  });
+  eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял улицу с фонарями');
+  const level = normalizeLevel(raw);
+  const lamps = level.map.props.filter(p => p.model === 'lamp_post');
+  // J.lampSpacing = 20 ⇒ t ∈ {−10, 10}, по обе стороны на ширину/2 + 1,4 м
+  eq(lamps.length, 4, `фонарей ${lamps.length}, ожидалось 4`);
+  const f = frameAt(0, 40, 30);
+  for (const l of lamps) {
+    const p = unrotatePoint(f, l.position.x, l.position.z);
+    assert(Math.abs(Math.abs(p.z - 40) - 4.4) < 2e-3, 'фонарь не на борту полотна');
+    assert(Math.abs(p.x) <= 20.001, 'фонарь за торцом полотна');
+    eq(l.rotationY, -30, 'фонарь не повёрнут с полотном');
+  }
+});
+
+t('предмет на косом уклоне встаёт на плоскость полотна, а за торцом — на грунт', () => {
+  const f = frameAt(20, 40, 30);
+  // верх полотна 0,5 м на u = 0 и 6,5 м на u = 40 (уклон 0,15); предмет на
+  // u = 30 обязан встать на 0,5 + 6·30/40 = 5,0, а тот же участок за торцом
+  // (u = 45) держит только земля
+  const on = rotatePoint(f, 30, 41);
+  const off = rotatePoint(f, 45, 40);
+  const raw = v2Raw(r => {
+    r.roads = [plateRoad('st_ramp',
+      { x: 20, z: 40, yaw: 30, length: 40, width: 6, y: 0.5, rise: 6 })];
+    r.landscapeObjects = [
+      { id: 'on_deck', model: 'container', position: { x: on.x, y: 5, z: on.z } },
+      { id: 'off_end', model: 'container', position: { x: off.x, y: 0, z: off.z } },
+    ];
+  });
+  eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял предметы у уклона');
+  const level = normalizeLevel(raw);
+  const onDeck = level.map.props.find(p => p.id === 'on_deck');
+  assert(Math.abs(onDeck.position.y - 5) < 1e-6,
+    `предмет на уклоне встал на ${onDeck.position.y}, а не на 5`);
+  const offEnd = level.map.props.find(p => p.id === 'off_end');
+  eq(offEnd.position.y, 0, 'предмет за торцом удержан габаритом пластины');
 });
 
 // ---------------------------------------------------------------- генератор кварталов
