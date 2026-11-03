@@ -30,7 +30,13 @@
  *   5. Сфера на дуге выходит по точной грани, в плите — по наименьшей глубине, а
  *      в пустом углу габарита и в отверстии кольца её не трогают;
  *   6. Тело-сфера самоходом проходит подъём и спуск дуги, не уходя с полотна;
- *   7. Главы 9 и 10 не вошли в ветку дуг: sweeps пуст, topAt отвечает null.
+ *   7. Главы 9 и 10 не вошли в ветку дуг: sweeps пуст, topAt отвечает null;
+ *   8. Луч бьёт в ту же ленту, что нарисована: вертикальные пробы сверху
+ *      сходятся с аналитическим верхом в пределах хорды нарезки (≤ 0,05 м);
+ *      подземные пробы у начала (крен топит внутренний край) не сверяются;
+ *   9. Луч снизу попадает в низ плиты, а не проваливается сквозь полотно;
+ *  10. Перила `rails` бракуют край полотна, но не мешают идти по осевой;
+ *  11. Миникарта печатает дугу кольцевым сектором (два `ctx.arc`), а не габаритом.
  */
 import { createJsonMap } from '../src/json-map.js';
 import { LEVEL_09 } from '../src/levels/level-09.js';
@@ -120,6 +126,8 @@ function testBrief() {
   if (d.halfW !== ARC.width / 2) bad.push(`полуширина ${d.halfW}`);
   if (d.a0 !== ARC.from || d.a1 !== ARC.to) bad.push(`углы ${d.a0}→${d.a1}`);
   if (map.sweeps.length !== 1) bad.push(`sweeps: ${map.sweeps.length}`);
+  if (!map.sweeps[0]?.tris?.length) bad.push('лента дуги не построена');
+  if (map.geo.decks.length !== 1) bad.push(`мешей настила: ${map.geo.decks.length}`);
   const mid = P(ARC, 90);
   const top = map.topAt(mid.x, mid.z);
   if (top === null || Math.abs(top - surfaceOf(d, 90)) > 1e-9) bad.push(`topAt на середине: ${top}`);
@@ -300,6 +308,124 @@ function testSphereTravels() {
   };
 }
 
+/**
+ * Луч против ленты: 200 проб сверху сходятся с аналитическим верхом в пределах
+ * хорды нарезки (5° при R 40 м — 3,8 см), потому что меш и луч — одни и те же
+ * треугольники; проба на осевой в стороне от перил.
+ */
+function testRayHitsRibbon() {
+  const map = builtMap();
+  const d = deckInfo();
+  const bad = [];
+  let probes = 0, worst = 0;
+  for (let i = 0; i < 200; i++) {
+    const deg = 3 + (207 * i) / 199;
+    // крайние 0,35 м — под перилами: луч сверху попадёт в отбойник, а не в настил
+    const rho = d.R - d.halfW + 0.35 + ((d.halfW * 2 - 0.7) * ((i * 37) % 199)) / 199;
+    const p = P(ARC, deg, rho);
+    const want = surfaceOf(d, deg, rho);
+    // у самого начала крен 6° кладёт внутренний край полотна ниже улицы: там
+    // первым луч встречает асфальт земли, и это свойство данных (bриф задаёт
+    // y0 = 0,12), а не ошибка ленты. Подземные пробы не сверяются
+    if (want < 0.25) continue;
+    const hit = map.raySolid(p.x, want + 5, p.z, 0, -1, 0, 12);
+    if (!hit) { bad.push(`угол ${deg.toFixed(1)}, радиус ${rho.toFixed(1)}: луч не попал`); continue; }
+    const err = Math.abs(hit.y - want);
+    worst = Math.max(worst, err);
+    probes++;
+    if (err > 0.05) bad.push(`угол ${deg.toFixed(1)}: ${hit.y.toFixed(3)} вместо ${want.toFixed(3)} (${err.toFixed(3)} м)`);
+    if (hit.ny < 0.9) bad.push(`угол ${deg.toFixed(1)}: нормаль вниз (ny ${hit.ny.toFixed(2)})`);
+  }
+  if (probes < 150) bad.push(`сверено всего ${probes} проб`);
+  return {
+    name: 'Луч бьёт в нарисованную ленту: вертикальные пробы сходятся с опорой ≤ 0,05 м',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${probes} проб, худшее расхождение ${worst.toFixed(3)} м — в пределах хорды 5°`,
+  };
+}
+
+function testRayUnderside() {
+  const map = builtMap();
+  const d = deckInfo();
+  const p = P(ARC, 90);
+  const top = surfaceOf(d, 90);
+  const bad = [];
+  const hit = map.raySolid(p.x, 0.4, p.z, 0, 1, 0, 20);
+  if (!hit) bad.push('луч снизу не нашёл низ плиты');
+  else {
+    const want = top - J.deckThickness;
+    if (Math.abs(hit.y - want) > 0.05) bad.push(`низ ${hit.y.toFixed(3)} вместо ${want.toFixed(3)}`);
+    if (hit.ny > -0.9) bad.push(`нормаль низа смотрит вверх (ny ${hit.ny.toFixed(2)})`);
+  }
+  return {
+    name: 'Луч снизу попадает в низ плиты: полотно не прозрачно для выстрела',
+    passed: bad.length === 0,
+    info: bad.length ? bad.join('; ')
+      : `низ ${hit.y.toFixed(3)} м (верх ${top.toFixed(3)} − ${J.deckThickness})`,
+  };
+}
+
+function testRailsBlockEdge() {
+  const map = builtMap();
+  const d = deckInfo();
+  const bad = [];
+  const mid = 90;
+  const top = surfaceOf(d, mid);
+  const r = CONFIG.radius;
+  const edge = P(ARC, mid, d.R + d.halfW - 0.15);
+  const centerP = P(ARC, mid, d.R);
+  if (!map.isBlocked(edge.x, edge.z, r, top, CONFIG.eyeHeight)) {
+    bad.push('на краю полотна тело не встречает перила');
+  }
+  if (map.isBlocked(centerP.x, centerP.z, r, top, CONFIG.eyeHeight)) {
+    bad.push('перила перекрыли осевую полотна');
+  }
+  // перила идут вдоль всей дуги: та же проверка на другом угле
+  const e2 = P(ARC, 180, d.R - d.halfW + 0.15);
+  const t2 = surfaceOf(d, 180);
+  if (!map.isBlocked(e2.x, e2.z, r, t2, CONFIG.eyeHeight)) bad.push('на внутренней кромке 180° перил нет');
+  return {
+    name: 'Перила бракуют край полотна, но не перекрывают осевую',
+    passed: bad.length === 0,
+    info: bad.length ? bad.join('; ')
+      : `кромки ${(d.R + d.halfW).toFixed(1)} и ${(d.R - d.halfW).toFixed(1)} м перекрыты, осевая ${d.R} м свободна`,
+  };
+}
+
+function testMinimapArc() {
+  const map = builtMap();
+  const d = deckInfo();
+  const bad = [];
+  const arcs = [];
+  const ctx = new Proxy({}, {
+    get: (o, key) => {
+      if (key === 'arc') return (...a) => arcs.push(a);
+      return o[key] ?? (() => {});
+    },
+    set: (o, key, v) => { o[key] = v; return true; },
+  });
+  const size = 200;
+  map.drawMinimap(ctx, size, { x: EXIT.x, y: 6, z: EXIT.z });
+  if (arcs.length < 2) bad.push(`ctx.arc вызван ${arcs.length} раз`);
+  else {
+    const [xo, zo, ro, a0, a1] = arcs[0];
+    const [xi, zi, ri] = arcs[1];
+    if (Math.abs(xo - xi) > 1e-9 || Math.abs(zo - zi) > 1e-9) bad.push('центры колец разъехались');
+    const k = size / (2 * Math.min(J.minimapRange, Math.max(map.width, map.depth) / 2));
+    if (Math.abs((ro - ri) - (d.halfW * 2) * k) > 1e-9) {
+      bad.push(`ширина кольца ${(ro - ri).toFixed(2)} px вместо ${(d.halfW * 2 * k).toFixed(2)}`);
+    }
+    if (Math.abs(a0) > 1e-9 || Math.abs(a1 - d.a0r - d.spanr) > 1e-9) bad.push('углы дуги на плане не те');
+  }
+  return {
+    name: 'Миникарта печатает дугу кольцевым сектором, а не габаритом',
+    passed: bad.length === 0,
+    info: bad.length ? bad.join('; ')
+      : `два ctx.arc: ширина кольца ${(d.halfW * 2 * (size / (2 * Math.min(J.minimapRange, Math.max(map.width, map.depth) / 2)))).toFixed(1)} px`,
+  };
+}
+
 function testFrozenChapters() {
   const bad = [];
   for (const [name, spec] of [['глава 9', LEVEL_09.map], ['глава 10', LEVEL_10.map]]) {
@@ -325,6 +451,10 @@ export async function runRotatedSweepTests() {
     testOverpassBelow,
     testSphereOnSweep,
     testSphereTravels,
+    testRayHitsRibbon,
+    testRayUnderside,
+    testRailsBlockEdge,
+    testMinimapArc,
     testFrozenChapters,
   ];
   const results = [];
