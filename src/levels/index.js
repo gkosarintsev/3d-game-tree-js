@@ -11,6 +11,9 @@
  * Глава 10 — тот же механизм на 600 м: кварталы разворачивает генератор из секции
  * `city` (её сид в `level-10.json`), реку, мосты, доминанты и переходы между
  * башнями автор описывает руками. Правки — тоже через парсер.
+ * Глава 11 — v2 того же формата (`kind: 'json2'`): дома и улицы под углом к северу,
+ * настил дугой с подъёмом и поперечным наклоном, развязка. Механизм тот же —
+ * `JsonMap`; различие только в полях брифа, которые схема v2 разрешает.
  */
 import { LEVEL_01 } from './level-01.js';
 import { LEVEL_02 } from './level-02.js';
@@ -22,9 +25,10 @@ import { LEVEL_07 } from './level-07.js';
 import { LEVEL_08 } from './level-08.js';
 import { LEVEL_09 } from './level-09.js';
 import { LEVEL_10 } from './level-10.js';
+import { LEVEL_11 } from './level-11.js';
 
 export const LEVELS = [
   LEVEL_01, LEVEL_02, LEVEL_03, LEVEL_04,
   LEVEL_05, LEVEL_06, LEVEL_07, LEVEL_08,
-  LEVEL_09, LEVEL_10,
+  LEVEL_09, LEVEL_10, LEVEL_11,
 ];

@@ -27,6 +27,7 @@ const MAP_KINDS = {
   stream: createStreamedMap,
   town: createTownMap,
   json: createJsonMap,
+  json2: createJsonMap,
 };
 
 /**

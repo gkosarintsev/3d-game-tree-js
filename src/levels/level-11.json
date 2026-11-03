@@ -1,0 +1,211 @@
+{
+  "kind": "json2",
+  "metadata": {
+    "levelName": "level-11",
+    "name": "Глава 11. Развязка",
+    "hint": "Маленький район со всеми элементами поворотного города: два косых дома, наклонные улицы, мост через реку и развязка — дорога поднимается по окружности на эстакаду и выходит на мост. Дойдите от точки A на восточной авеню до маяка на настиле моста.",
+    "engine": "AI-First Three.js Pipeline",
+    "units": "meters"
+  },
+  "ground": {
+    "y": 0,
+    "size": 200,
+    "color": "#1a1d22"
+  },
+  "windows": {
+    "lit": 0.5
+  },
+  "clutter": {
+    "roof": { "perHouse": 3 },
+    "street": { "every": 28 }
+  },
+  "signage": {
+    "keep": 0.7,
+    "width": [3, 7]
+  },
+  "waterways": [
+    {
+      "id": "river", "width": 24, "bedY": -3, "surfaceY": -0.5,
+      "bank": "quay", "wade": false,
+      "points": [{ "x": 0, "z": -100 }, { "x": 0, "z": 100 }]
+    },
+    {
+      "id": "canal", "width": 8, "bedY": -2.5, "surfaceY": -0.4,
+      "bank": "quay", "wade": true,
+      "ramps": [
+        { "at": { "x": -36, "z": -85 }, "width": 6 },
+        { "at": { "x": -80, "z": -85 }, "width": 6 }
+      ],
+      "points": [{ "x": -96, "z": -90 }, { "x": -20, "z": -90 }]
+    }
+  ],
+  "roads": [
+    {
+      "id": "rd_interchange", "type": "bridge", "width": 8, "lamps": true,
+      "elements": [
+        { "arc": { "cx": 50, "cz": 22, "radius": 40, "from": -128.68, "to": 90,
+          "width": 8, "y": [0.12, 12], "bank": 6, "rails": true } },
+        { "connect": "tangent" },
+        { "plate": { "x": 3, "z": 62, "length": 94, "width": 8, "y": 12 } },
+        { "connect": "tangent" },
+        { "plate": { "x": -64, "z": 62, "length": 40, "width": 8, "y": 12, "rise": -11.88 } }
+      ]
+    },
+    { "id": "rd_east_ave", "type": "ground", "width": 10, "lamps": true,
+      "points": [{ "x": 20, "y": 0.12, "z": -96 }, { "x": 20, "y": 0.12, "z": -8 }] },
+    { "id": "rd_east_south", "type": "ground", "width": 9, "lamps": true,
+      "points": [{ "x": 25, "y": 0.12, "z": -76 }, { "x": 97, "y": 0.12, "z": -76 }] },
+    { "id": "rd_east_north", "type": "ground", "width": 9, "lamps": true,
+      "points": [{ "x": 25, "y": 0.12, "z": 50 }, { "x": 62, "y": 0.12, "z": 50 }] },
+    { "id": "rd_north_ave", "type": "ground", "width": 9,
+      "points": [{ "x": 26, "y": 0.12, "z": 54.5 }, { "x": 26, "y": 0.12, "z": 74 }] },
+    { "id": "rd_west_ave", "type": "ground", "width": 9, "lamps": true,
+      "points": [{ "x": -50, "y": 0.12, "z": -74 }, { "x": -50, "y": 0.12, "z": 91 }] },
+    { "id": "rd_west_cross_s", "type": "ground", "width": 9, "lamps": true,
+      "points": [{ "x": -97, "y": 0.12, "z": -56 }, { "x": -54.5, "y": 0.12, "z": -56 }] },
+    { "id": "rd_west_cross_n", "type": "ground", "width": 9, "lamps": true,
+      "points": [{ "x": -97, "y": 0.12, "z": 50 }, { "x": -54.5, "y": 0.12, "z": 50 }] },
+    { "id": "rd_west_stub", "type": "ground", "width": 8,
+      "points": [{ "x": -99, "y": 0.12, "z": 62 }, { "x": -84, "y": 0.12, "z": 62 }] },
+    { "id": "rd_yaw225", "type": "ground", "width": 8, "lamps": true,
+      "elements": [{ "plate": { "x": 70, "z": -70, "length": 26, "width": 8, "yaw": 22.5, "y": 0.14 } }] },
+    { "id": "rd_yaw30", "type": "ground", "width": 8, "lamps": true,
+      "elements": [{ "plate": { "x": -62, "z": 88, "length": 32, "width": 8, "yaw": 30, "y": 0.14 } }] },
+    { "id": "sb_west", "type": "skybridge", "width": 3.4,
+      "points": [{ "x": -70, "y": 3.6, "z": 20 }, { "x": -70, "y": 3.6, "z": 28 }] }
+  ],
+  "buildings": [
+    {
+      "id": "b_west", "name": "Западный дом", "floorsCount": 2, "floorHeight": 3.6,
+      "facadeMaterial": "painted_brick",
+      "footprint": [{ "x": -78, "z": 0 }, { "x": -62, "z": 0 }, { "x": -62, "z": 20 }, { "x": -78, "z": 20 }],
+      "roof": { "walkable": true, "parapet": 0.9 },
+      "rooms": [
+        { "id": "bw_r0", "floor": 0, "type": "lobby",
+          "polygon": [{ "x": -78, "z": 0 }, { "x": -62, "z": 0 }, { "x": -62, "z": 20 }, { "x": -78, "z": 20 }],
+          "connections": [{ "target": "rd_west_ave", "portalPosition": { "x": -62, "y": 0, "z": 10 }, "linkType": "main_entrance" }] },
+        { "id": "bw_r1", "floor": 1, "type": "room",
+          "polygon": [{ "x": -78, "z": 0 }, { "x": -62, "z": 0 }, { "x": -62, "z": 20 }, { "x": -78, "z": 20 }],
+          "connections": [{ "target": "sb_west", "portalPosition": { "x": -70, "y": 3.6, "z": 20 }, "linkType": "door" }] }
+      ],
+      "stairs": [
+        { "id": "bw_s0", "type": "straight", "connectsFloors": [0, 1], "position": { "x": -74, "z": 12 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "bw_roof", "type": "ladder", "connectsFloors": [1, 2], "position": { "x": -76.5, "z": 2 } }
+      ]
+    },
+    {
+      "id": "b_west_b", "name": "Дом у перехода", "floorsCount": 2, "floorHeight": 3.6,
+      "facadeMaterial": "stone_base",
+      "footprint": [{ "x": -78, "z": 28 }, { "x": -66, "z": 28 }, { "x": -66, "z": 43.5 }, { "x": -78, "z": 43.5 }],
+      "roof": { "walkable": true, "parapet": 0.9 },
+      "rooms": [
+        { "id": "bwb_r0", "floor": 0, "type": "lobby",
+          "polygon": [{ "x": -78, "z": 28 }, { "x": -66, "z": 28 }, { "x": -66, "z": 43.5 }, { "x": -78, "z": 43.5 }],
+          "connections": [{ "target": "rd_west_ave", "portalPosition": { "x": -66, "y": 0, "z": 35 }, "linkType": "main_entrance" }] },
+        { "id": "bwb_r1", "floor": 1, "type": "room",
+          "polygon": [{ "x": -78, "z": 28 }, { "x": -66, "z": 28 }, { "x": -66, "z": 43.5 }, { "x": -78, "z": 43.5 }],
+          "connections": [{ "target": "sb_west", "portalPosition": { "x": -70, "y": 3.6, "z": 28 }, "linkType": "door" }] }
+      ],
+      "stairs": [
+        { "id": "bwb_s0", "type": "spiral", "connectsFloors": [0, 1], "position": { "x": -72, "z": 32 }, "dimensions": { "width": 6, "length": 6 } },
+        { "id": "bwb_roof", "type": "ladder", "connectsFloors": [1, 2], "position": { "x": -76.5, "z": 42 } }
+      ]
+    },
+    {
+      "id": "b_east", "name": "Восточный дом", "floorsCount": 3, "floorHeight": 3.2,
+      "facadeMaterial": "rusted_metal",
+      "footprint": [{ "x": 38, "z": -68 }, { "x": 56, "z": -68 }, { "x": 56, "z": -54 }, { "x": 38, "z": -54 }],
+      "roof": { "walkable": true, "parapet": 0.9 },
+      "rooms": [
+        { "id": "be_r0", "floor": 0, "type": "lobby",
+          "polygon": [{ "x": 38, "z": -68 }, { "x": 56, "z": -68 }, { "x": 56, "z": -54 }, { "x": 38, "z": -54 }],
+          "connections": [{ "target": "rd_east_south", "portalPosition": { "x": 47, "y": 0, "z": -68 }, "linkType": "main_entrance" }] },
+        { "id": "be_r1", "floor": 1, "type": "office",
+          "polygon": [{ "x": 38, "z": -68 }, { "x": 56, "z": -68 }, { "x": 56, "z": -54 }, { "x": 38, "z": -54 }] },
+        { "id": "be_r2", "floor": 2, "type": "warehouse",
+          "polygon": [{ "x": 38, "z": -68 }, { "x": 56, "z": -68 }, { "x": 56, "z": -54 }, { "x": 38, "z": -54 }] }
+      ],
+      "stairs": [
+        { "id": "be_s0", "type": "spiral", "connectsFloors": [0, 1], "position": { "x": 49, "z": -64 }, "dimensions": { "width": 6, "length": 6 } },
+        { "id": "be_s1", "type": "straight", "connectsFloors": [1, 2], "position": { "x": 42, "z": -65 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "be_roof", "type": "ladder", "connectsFloors": [2, 3], "position": { "x": 54.5, "z": -66.5 } }
+      ]
+    },
+    {
+      "id": "house_yaw30", "name": "Косой дом 30°", "isEnterable": false,
+      "rotation": 30, "floorsCount": 3, "floorHeight": 3.4,
+      "facadeMaterial": "painted_brick",
+      "footprint": [{ "x": -97, "z": 72 }, { "x": -79, "z": 72 }, { "x": -79, "z": 84 }, { "x": -97, "z": 84 }],
+      "rooms": []
+    },
+    {
+      "id": "house_yaw225", "name": "Косой дом 22,5°", "isEnterable": false,
+      "rotation": 22.5, "floorsCount": 3, "floorHeight": 3.4,
+      "facadeMaterial": "neon_panel",
+      "footprint": [{ "x": 60, "z": -63.5 }, { "x": 76, "z": -63.5 }, { "x": 76, "z": -53.5 }, { "x": 60, "z": -53.5 }],
+      "rooms": []
+    },
+    {
+      "id": "podium", "name": "Подиум башни", "isEnterable": false,
+      "floorsCount": 3, "floorHeight": 3,
+      "facadeMaterial": "concrete",
+      "footprint": [{ "x": 52, "z": 68 }, { "x": 76, "z": 68 }, { "x": 76, "z": 92 }, { "x": 52, "z": 92 }],
+      "roof": { "walkable": true, "parapet": 0.9 },
+      "rooms": []
+    },
+    {
+      "id": "tower", "name": "Башня на подиуме", "isEnterable": false,
+      "floorsCount": 8, "floorHeight": 3, "baseY": 9,
+      "facadeMaterial": "neon_panel",
+      "footprint": [{ "x": 58, "z": 74 }, { "x": 72, "z": 74 }, { "x": 72, "z": 86 }, { "x": 58, "z": 86 }],
+      "roof": { "walkable": true, "parapet": 1 },
+      "rooms": []
+    },
+    {
+      "id": "b_west_shop", "name": "Западная лавка", "isEnterable": false,
+      "floorsCount": 2, "floorHeight": 3.5,
+      "facadeMaterial": "stone_base",
+      "footprint": [{ "x": -92, "z": -48 }, { "x": -76, "z": -48 }, { "x": -76, "z": -36 }, { "x": -92, "z": -36 }],
+      "rooms": []
+    },
+    {
+      "id": "b_east_shop", "name": "Восточный склад", "isEnterable": false,
+      "floorsCount": 2, "floorHeight": 3.5,
+      "facadeMaterial": "rusted_metal",
+      "footprint": [{ "x": 60, "z": -98 }, { "x": 76, "z": -98 }, { "x": 76, "z": -86 }, { "x": 60, "z": -86 }],
+      "rooms": []
+    }
+  ],
+  "landscapeObjects": [
+    { "id": "mkt_1", "model": "market_stall", "position": { "x": 26, "y": 0, "z": -60 }, "rotation": { "y": 20 } },
+    { "id": "mkt_2", "model": "market_stall", "position": { "x": 27, "y": 0, "z": -56 } },
+    { "id": "bar_1", "model": "barrier", "position": { "x": 26, "y": 0, "z": -40 } },
+    { "id": "cont_1", "model": "container", "position": { "x": -78, "y": 0, "z": -30 } },
+    { "id": "bench_1", "model": "bench", "position": { "x": -20, "y": 0, "z": 70 } },
+    { "id": "tree_1", "model": "tree", "position": { "x": 30, "y": 0, "z": 80 } },
+    { "id": "av_1", "model": "av_pad", "position": { "x": 80, "y": 0, "z": 96 } },
+    { "id": "boll_1", "model": "bollard", "position": { "x": -56, "y": 0, "z": 10 } }
+  ],
+  "lights": [
+    { "id": "moon", "type": "directional", "position": { "x": 80, "y": 220, "z": 60 },
+      "color": "#bcd0ff", "intensity": 0.55 },
+    { "id": "bridge_lamp", "type": "point", "position": { "x": 10, "y": 14, "z": 62 },
+      "color": "#ffcf9a", "intensity": 55, "distance": 45 },
+    { "id": "plaza_lamp", "type": "point", "position": { "x": 20, "y": 7, "z": -40 },
+      "color": "#cfe0ff", "intensity": 30, "distance": 35 }
+  ],
+  "sky": {
+    "sky": "#0b1020",
+    "fog": { "color": "#0e1424", "near": 30, "far": 200 },
+    "hemi": { "sky": "#1b2a44", "ground": "#0a0d12", "intensity": 0.4 },
+    "lights": { "count": 6, "reach": 55, "height": 5.4, "spacing": 18, "intensity": 70 }
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": { "x": 20, "z": -84 },
+    "exit": { "x": 10, "z": 62 },
+    "exitRadius": 4,
+    "enemies": { "count": 6 },
+    "alienEnemies": { "count": 1 }
+  }
+}
