@@ -1129,12 +1129,16 @@ export const LEVEL_11 = {
       {
         "id": "house_yaw30",
         "name": "Косой дом 30°",
-        "isEnterable": false,
+        "isEnterable": true,
         "baseY": 0,
         "floorHeight": 3.4,
         "floorsCount": 3,
         "roofY": 10.2,
         "facadeMaterial": "painted_brick",
+        "roof": {
+          "walkable": true,
+          "parapet": 0.9
+        },
         "footprint": [
           {
             "x": -97,
@@ -1202,9 +1206,357 @@ export const LEVEL_11 = {
             "facade": true
           }
         ],
-        "rooms": [],
-        "stairs": [],
-        "doors": []
+        "rooms": [
+          {
+            "id": "hy_r0",
+            "type": "lobby",
+            "floor": 0,
+            "rect": {
+              "minX": -97,
+              "maxX": -79,
+              "minZ": 72,
+              "maxZ": 84
+            },
+            "y": 0
+          },
+          {
+            "id": "hy_r1",
+            "type": "office",
+            "floor": 1,
+            "rect": {
+              "minX": -97,
+              "maxX": -79,
+              "minZ": 72,
+              "maxZ": 84
+            },
+            "y": 3.4
+          },
+          {
+            "id": "hy_r2",
+            "type": "warehouse",
+            "floor": 2,
+            "rect": {
+              "minX": -97,
+              "maxX": -79,
+              "minZ": 72,
+              "maxZ": 84
+            },
+            "y": 6.8
+          }
+        ],
+        "stairs": [
+          {
+            "id": "hy_roof",
+            "type": "ladder",
+            "connectsFloors": [
+              2,
+              3
+            ],
+            "y0": 6.8,
+            "y1": 10.2,
+            "height": 3.4,
+            "rotation": 0,
+            "rect": {
+              "minX": -96.2,
+              "maxX": -94.8,
+              "minZ": 81.8,
+              "maxZ": 83.2
+            },
+            "steps": [
+              {
+                "minX": -96.2,
+                "maxX": -94.8,
+                "minZ": 81.8,
+                "maxZ": 83.2,
+                "top": 7.286
+              },
+              {
+                "minX": -96.2,
+                "maxX": -94.8,
+                "minZ": 81.8,
+                "maxZ": 83.2,
+                "top": 7.771
+              },
+              {
+                "minX": -96.2,
+                "maxX": -94.8,
+                "minZ": 81.8,
+                "maxZ": 83.2,
+                "top": 8.257
+              },
+              {
+                "minX": -96.2,
+                "maxX": -94.8,
+                "minZ": 81.8,
+                "maxZ": 83.2,
+                "top": 8.743
+              },
+              {
+                "minX": -96.2,
+                "maxX": -94.8,
+                "minZ": 81.8,
+                "maxZ": 83.2,
+                "top": 9.229
+              },
+              {
+                "minX": -96.2,
+                "maxX": -94.8,
+                "minZ": 81.8,
+                "maxZ": 83.2,
+                "top": 9.714
+              }
+            ],
+            "bottom": {
+              "x": -95.5,
+              "z": 82.5,
+              "y": 7.286
+            },
+            "top": {
+              "x": -95.5,
+              "z": 82.5,
+              "y": 9.714
+            }
+          },
+          {
+            "id": "hy_s0",
+            "type": "spiral",
+            "connectsFloors": [
+              0,
+              1
+            ],
+            "y0": 0,
+            "y1": 3.4,
+            "height": 3.4,
+            "rotation": 0,
+            "rect": {
+              "minX": -86,
+              "maxX": -80,
+              "minZ": 77,
+              "maxZ": 83
+            },
+            "steps": [
+              {
+                "minX": -82.452,
+                "maxX": -80,
+                "minZ": 80,
+                "maxZ": 81.22,
+                "top": 0.227
+              },
+              {
+                "minX": -82.599,
+                "maxX": -80.259,
+                "minZ": 80.244,
+                "maxZ": 82.229,
+                "top": 0.453
+              },
+              {
+                "minX": -82.815,
+                "maxX": -80.993,
+                "minZ": 80.446,
+                "maxZ": 82.853,
+                "top": 0.68
+              },
+              {
+                "minX": -83.314,
+                "maxX": -82.073,
+                "minZ": 80.571,
+                "maxZ": 82.984,
+                "top": 0.907
+              },
+              {
+                "minX": -84.5,
+                "maxX": -83.063,
+                "minZ": 80.52,
+                "maxZ": 82.984,
+                "top": 1.133
+              },
+              {
+                "minX": -85.427,
+                "maxX": -83.3,
+                "minZ": 80.353,
+                "maxZ": 82.598,
+                "top": 1.36
+              },
+              {
+                "minX": -85.934,
+                "maxX": -83.485,
+                "minZ": 80.125,
+                "maxZ": 81.763,
+                "top": 1.587
+              },
+              {
+                "minX": -85.934,
+                "maxX": -83.587,
+                "minZ": 79.376,
+                "maxZ": 80.624,
+                "top": 1.813
+              },
+              {
+                "minX": -85.934,
+                "maxX": -83.485,
+                "minZ": 78.237,
+                "maxZ": 79.875,
+                "top": 2.04
+              },
+              {
+                "minX": -85.427,
+                "maxX": -83.3,
+                "minZ": 77.402,
+                "maxZ": 79.647,
+                "top": 2.267
+              },
+              {
+                "minX": -84.5,
+                "maxX": -83.063,
+                "minZ": 77.016,
+                "maxZ": 79.48,
+                "top": 2.493
+              },
+              {
+                "minX": -83.314,
+                "maxX": -82.073,
+                "minZ": 77.016,
+                "maxZ": 79.429,
+                "top": 2.72
+              },
+              {
+                "minX": -82.815,
+                "maxX": -80.993,
+                "minZ": 77.147,
+                "maxZ": 79.554,
+                "top": 2.947
+              },
+              {
+                "minX": -82.599,
+                "maxX": -80.259,
+                "minZ": 77.771,
+                "maxZ": 79.756,
+                "top": 3.173
+              },
+              {
+                "minX": -82.452,
+                "maxX": -80,
+                "minZ": 78.78,
+                "maxZ": 80,
+                "top": 3.4
+              }
+            ],
+            "bottom": {
+              "x": -81.226,
+              "z": 80.61,
+              "y": 0.227
+            },
+            "top": {
+              "x": -81.226,
+              "z": 79.39,
+              "y": 3.4
+            }
+          },
+          {
+            "id": "hy_s1",
+            "type": "straight",
+            "connectsFloors": [
+              1,
+              2
+            ],
+            "y0": 3.4,
+            "y1": 6.8,
+            "height": 3.4,
+            "rotation": 0,
+            "rect": {
+              "minX": -93,
+              "maxX": -87,
+              "minZ": 74,
+              "maxZ": 78
+            },
+            "steps": [
+              {
+                "minX": -93,
+                "maxX": -92.143,
+                "minZ": 74,
+                "maxZ": 78,
+                "top": 3.886
+              },
+              {
+                "minX": -92.143,
+                "maxX": -91.286,
+                "minZ": 74,
+                "maxZ": 78,
+                "top": 4.371
+              },
+              {
+                "minX": -91.286,
+                "maxX": -90.429,
+                "minZ": 74,
+                "maxZ": 78,
+                "top": 4.857
+              },
+              {
+                "minX": -90.429,
+                "maxX": -89.571,
+                "minZ": 74,
+                "maxZ": 78,
+                "top": 5.343
+              },
+              {
+                "minX": -89.571,
+                "maxX": -88.714,
+                "minZ": 74,
+                "maxZ": 78,
+                "top": 5.829
+              },
+              {
+                "minX": -88.714,
+                "maxX": -87.857,
+                "minZ": 74,
+                "maxZ": 78,
+                "top": 6.314
+              },
+              {
+                "minX": -87.857,
+                "maxX": -87,
+                "minZ": 74,
+                "maxZ": 78,
+                "top": 6.8
+              }
+            ],
+            "bottom": {
+              "x": -92.571,
+              "z": 76,
+              "y": 3.886
+            },
+            "top": {
+              "x": -87.428,
+              "z": 76,
+              "y": 6.8
+            }
+          }
+        ],
+        "doors": [
+          {
+            "id": "hy_r0→rd_west_stub",
+            "room": "hy_r0",
+            "target": "rd_west_stub",
+            "linkType": "main_entrance",
+            "axis": "x",
+            "y": 0,
+            "height": 2.1,
+            "rect": {
+              "minX": -92.9,
+              "maxX": -91.1,
+              "minZ": 71.815,
+              "maxZ": 72.185
+            },
+            "inside": {
+              "x": -89.164,
+              "z": 72.016
+            },
+            "outside": {
+              "x": -87.764,
+              "z": 69.591
+            }
+          }
+        ]
       },
       {
         "id": "house_yaw225",

@@ -32,13 +32,15 @@
  *      опускаются на дно;
  *  12. Интерьеры: все этажи и ходовые кровли вводимых домов достижимы от A, а
  *      наружный узел каждой наземной двери связан с улицей;
- *  13. Люк кровли: плита над шахтой не опора, с кровли можно сойти, подъём
+ *  13. Косые марши: каждый шов соседних проступей держит опору и связан ребром
+ *      (на повороте проба опоры стоит ровно на общей грани коробок);
+ *  14. Люк кровли: плита над шахтой не опора, с кровли можно сойти, подъём
  *      остаётся, и выход из шахты ведёт на пол этажа;
- *  14. Окна, мусор и неон — счётчики есть, а твёрдость, опоры и маршрут те же,
+ *  15. Окна, мусор и неон — счётчики есть, а твёрдость, опоры и маршрут те же,
  *      что без секций;
- *  15. Метки id (`?debug=1`) покрывают объекты данных, различают дугу, угол и
+ *  16. Метки id (`?debug=1`) покрывают объекты данных, различают дугу, угол и
  *      кровлю; миникарта печатает дугу кольцом и не падает;
- *  16. Детерминизм и бюджет сцены: узлы и солиды совпадают, NaN нет, свет — из
+ *  17. Детерминизм и бюджет сцены: узлы и солиды совпадают, NaN нет, свет — из
  *      данных и в пределах пула.
  */
 import * as THREE from 'three';
@@ -140,6 +142,28 @@ function arcSurface(d, deg, rho = d.R) {
 function inObb(o, x, z, m = 1e-6) {
   const dx = x - o.cx, dz = z - o.cz;
   return Math.abs(dx * o.c + dz * o.s) <= o.hx + m && Math.abs(-dx * o.s + dz * o.c) <= o.hz + m;
+}
+
+/** Косой дом: его локальный план как OBB в мире — центр поворота общий. */
+function houseObb(b, pad = 0) {
+  const cx = (b.bounds.minX + b.bounds.maxX) / 2;
+  const cz = (b.bounds.minZ + b.bounds.maxZ) / 2;
+  const t = (b.rotation ?? 0) * DEG;
+  return {
+    cx, cz,
+    hx: (b.bounds.maxX - b.bounds.minX) / 2 + pad,
+    hz: (b.bounds.maxZ - b.bounds.minZ) / 2 + pad,
+    c: Math.cos(t), s: Math.sin(t),
+  };
+}
+
+/** Локальная точка повёрнутого дома в мире (обратный ход `toLocal`). */
+function toWorld(b, x, z) {
+  const cx = (b.bounds.minX + b.bounds.maxX) / 2;
+  const cz = (b.bounds.minZ + b.bounds.maxZ) / 2;
+  const t = (b.rotation ?? 0) * DEG, c = Math.cos(t), s = Math.sin(t);
+  const dx = x - cx, dz = z - cz;
+  return { x: cx + dx * c - dz * s, z: cz + dx * s + dz * c };
 }
 
 /** Габарит повёрнутого корпуса в мире — своей арифметикой, по локальному плану. */
@@ -542,10 +566,17 @@ function testRotatedHouses() {
       const fromTop = map.raySolid(corner.x, 30, corner.z, 0, -1, 0, 40);
       if (!fromTop || Math.abs(fromTop.y - map.groundY) > 0.05) bad.push(`${b.id}: луч сверху в пустом углу дал ${fromTop ? fromTop.y.toFixed(2) : '—'}`);
     }
-    // в плане корпуса нет наземных узлов: дом непроходим, а решётка идёт вокруг
-    const inside = map.nav.pos.filter(p => p.y < 1 && inObb(
-      { cx, cz, hx: hx + J.wallThickness, hz: hz + J.wallThickness, c, s }, p.x, p.z));
-    if (inside.length) bad.push(`${b.id}: ${inside.length} узлов внутри плана`);
+    // в плане корпуса нет наземных узлов УЛИЧНОЙ решётки: дом либо непроходим
+    // (решётка идёт вокруг), либо вводимый — и тогда на его грунтовом уровне
+    // стоят только клетки собственного пола, приподнятые на `J.floorRise`
+    const obb = houseObb(b, J.wallThickness);
+    const inside = map.nav.pos.filter(p => p.y < 1 && inObb(obb, p.x, p.z));
+    if (!b.isEnterable) {
+      if (inside.length) bad.push(`${b.id}: ${inside.length} узлов внутри плана`);
+    } else {
+      const street = inside.filter(p => p.y < J.floorRise / 2);
+      if (street.length) bad.push(`${b.id}: ${street.length} узлов уличной решётки в плане дома`);
+    }
     // метка дома стоит над его центром в мире
     const label = map.debugIds().find(l => l.text === b.id);
     if (!label || Math.hypot(label.x - cx, label.z - cz) > 0.01) bad.push(`${b.id}: метка не над центром`);
@@ -555,7 +586,8 @@ function testRotatedHouses() {
     name: 'Косые дома: фасад и кровля в своих осях, пустой угол габарита без фантома',
     passed: bad.length === 0 && checked.length >= 2,
     info: bad.length ? bad.slice(0, 3).join('; ')
-      : `${checked.join(', ')}: фасады на аналитике, кровля, пустой угол свободен, узлов в плане 0`,
+      : `${checked.join(', ')}: фасады на аналитике, кровля, пустой угол свободен, `
+        + 'уличных узлов в плане 0 (у вводимого — только свой пол)',
   };
 }
 
@@ -732,15 +764,18 @@ function testInteriors() {
   const nav = map.nav;
   const seen = reachableFromSpawn(map);
   const bad = [];
-  let houses = 0, roofs = 0, rooms = 0;
+  let houses = 0, roofs = 0, rooms = 0, slant = 0;
   for (const b of map.buildings) {
     if (!b.isEnterable) continue;
     houses++;
+    if (b.rotation) slant++;
+    // узлы дома ищем в его СОБСТВЕННЫХ осях: для косого корпуса мировые клетки
+    // пола поворачиваются, и локальный прямоугольник их не накрывает
+    const obb = houseObb(b, 0.01);
     const own = [];
     for (let i = 0; i < nav.pos.length; i++) {
       const p = nav.pos[i];
-      if (p.x >= b.bounds.minX - 0.01 && p.x <= b.bounds.maxX + 0.01
-        && p.z >= b.bounds.minZ - 0.01 && p.z <= b.bounds.maxZ + 0.01) own.push(i);
+      if (inObb(obb, p.x, p.z)) own.push(i);
     }
     for (const room of b.rooms) {
       rooms++;
@@ -759,18 +794,57 @@ function testInteriors() {
     for (const d of b.doors.filter(x => x.y < 0.5)) {
       const out = nav.nearestNode(d.outside.x, d.y, d.outside.z);
       if (out < 0) { bad.push(`${d.id}: у наружной точки нет узла`); continue; }
-      const outside = nav.adj[out].filter(i => {
-        const p = nav.pos[i];
-        return !(p.x >= b.bounds.minX && p.x <= b.bounds.maxX && p.z >= b.bounds.minZ && p.z <= b.bounds.maxZ);
-      });
+      const outside = nav.adj[out].filter(i => !inObb(houseObb(b), nav.pos[i].x, nav.pos[i].z));
       if (!outside.length) bad.push(`${d.id}: наружный узел связан только с полом дома`);
     }
   }
   return {
     name: 'Интерьеры: все этажи и кровли вводимых домов достижимы от A, двери выводят на улицу',
-    passed: bad.length === 0 && houses >= 3 && roofs >= 3,
+    passed: bad.length === 0 && houses >= 3 && roofs >= 3 && slant >= 1,
     info: bad.length ? bad.slice(0, 3).join('; ')
-      : `${houses} вводимых домов, ${rooms} этажей, ${roofs} кровель — все в сети из A`,
+      : `${houses} вводимых домов (${slant} под углом), ${rooms} этажей, ${roofs} кровель — все в сети из A`,
+  };
+}
+
+/**
+ * Шов между соседними проступями повёрнутого марша. Ребро «ступень → ступень»
+ * держит опора: проба идёт по мировому отрезку между центрами проступей, и его
+ * середина лежит ровно на ОБЩЕЙ грани двух коробок. Обратный ход мир → свои оси
+ * даёт на такой грани шум порядка 1e-14 м, и точечная проверка «в коробке» без
+ * допуска выбрасывает её из обеих проступей — под ногой оказывается плита этажа
+ * (провал 1,417 м глубже `J.navEdgeDrop`), ребро бракуется, и верхний этаж вместе
+ * с кровлей отрезаются `_pruneToSpawn` (замер на `hy_s1`: 2 ребра из 6, при этом
+ * `bodyClearLine` и подъём 0,486 м ≤ шага — всё в порядке, терялось ровно то,
+ * чего не видно). У плоского марша те же швы не пропадают: там сравнение
+ * инклюзивно и без шума.
+ */
+function testRotatedStairChain() {
+  const map = map11();
+  const nav = map.nav;
+  const bad = [];
+  let runs = 0, joined = 0;
+  for (const b of map.buildings.filter(x => x.rotation && x.isEnterable)) {
+    for (const s of b.stairs) {
+      if (s.steps.length < 2) continue;
+      runs++;
+      const nodes = s.steps.map(st => {
+        const w = toWorld(b, (st.minX + st.maxX) / 2, (st.minZ + st.maxZ) / 2);
+        return nav.nearestNode(w.x, st.top, w.z);
+      });
+      for (let k = 0; k + 1 < nodes.length; k++) {
+        if (nodes[k] < 0 || nodes[k + 1] < 0) { bad.push(`${s.id}: проступь ${k} потеряла узел`); continue; }
+        joined++;
+        if (!nav.adj[nodes[k]].includes(nodes[k + 1])) {
+          bad.push(`${s.id}: шов ${k}→${k + 1} (${s.steps[k].top}→${s.steps[k + 1].top} м) без ребра`);
+        }
+      }
+    }
+  }
+  return {
+    name: 'Косые марши: каждый шов соседних проступей держит опору и связан ребром',
+    passed: bad.length === 0 && runs >= 3,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${runs} маршей под углом, ${joined} швов прочитаны рёбрами (подъём проступей ≤ ${STEP} м)`,
   };
 }
 
@@ -792,7 +866,10 @@ function testRoofHatch() {
     for (const s of b.stairs) {
       if (s.type !== 'ladder' || s.connectsFloors[1] !== b.floorsCount) continue;
       hatches++;
-      const cx = (s.rect.minX + s.rect.maxX) / 2, cz = (s.rect.minZ + s.rect.maxZ) / 2;
+      // шахта марша живёт в осях дома, а опору и тело меряют в мире: для
+      // невёрнутого корпуса это один и тот же прямоугольник, для косого — нет
+      const shaft = toWorld(b, (s.rect.minX + s.rect.maxX) / 2, (s.rect.minZ + s.rect.maxZ) / 2);
+      const cx = shaft.x, cz = shaft.z;
       const top = s.steps[s.steps.length - 1].top;
       // 1) над шахтой плитой кровли не отвечает: опора — верхняя проступь
       const over = map.groundHeightAt(cx, cz, b.roofY);
@@ -996,6 +1073,7 @@ export async function runJson2Tests() {
     testSkybridge,
     testWaterways,
     testInteriors,
+    testRotatedStairChain,
     testRoofHatch,
     testPicture,
     testIdsAndMinimap,

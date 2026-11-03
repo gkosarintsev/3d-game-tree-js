@@ -132,11 +132,33 @@
       ]
     },
     {
-      "id": "house_yaw30", "name": "Косой дом 30°", "isEnterable": false,
+      "id": "house_yaw30", "name": "Косой дом 30°", "isEnterable": true,
       "rotation": 30, "floorsCount": 3, "floorHeight": 3.4,
       "facadeMaterial": "painted_brick",
       "footprint": [{ "x": -97, "z": 72 }, { "x": -79, "z": 72 }, { "x": -79, "z": 84 }, { "x": -97, "z": 84 }],
-      "rooms": []
+      "roof": { "walkable": true, "parapet": 0.9 },
+      "rooms": [
+        {
+          "id": "hy_r0", "floor": 0, "type": "lobby",
+          "polygon": [{ "x": -97, "z": 72 }, { "x": -79, "z": 72 }, { "x": -79, "z": 84 }, { "x": -97, "z": 84 }],
+          "connections": [
+            { "target": "rd_west_stub", "portalPosition": { "x": -92, "y": 0, "z": 72 }, "linkType": "main_entrance" }
+          ]
+        },
+        {
+          "id": "hy_r1", "floor": 1, "type": "office",
+          "polygon": [{ "x": -97, "z": 72 }, { "x": -79, "z": 72 }, { "x": -79, "z": 84 }, { "x": -97, "z": 84 }]
+        },
+        {
+          "id": "hy_r2", "floor": 2, "type": "warehouse",
+          "polygon": [{ "x": -97, "z": 72 }, { "x": -79, "z": 72 }, { "x": -79, "z": 84 }, { "x": -97, "z": 84 }]
+        }
+      ],
+      "stairs": [
+        { "id": "hy_s0", "type": "spiral", "connectsFloors": [0, 1], "position": { "x": -83, "z": 80 }, "dimensions": { "width": 6, "length": 6 } },
+        { "id": "hy_s1", "type": "straight", "connectsFloors": [1, 2], "position": { "x": -90, "z": 76 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "hy_roof", "type": "ladder", "connectsFloors": [2, 3], "position": { "x": -95.5, "z": 82.5 } }
+      ]
     },
     {
       "id": "house_yaw225", "name": "Косой дом 22,5°", "isEnterable": false,
