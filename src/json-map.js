@@ -973,7 +973,12 @@ export class JsonMap extends SolidField {
     for (const d of this.deckPlates) {
       // у дуги центр габарита лежит вне полотна: опорную точку ставят по её
       // осевой линии на середине развёртки, а не по AABB
-      if (d.ramp || d.arc) continue;
+      if (d.arc) {
+        const a = (d.a0 + d.span / 2) * DEG;
+        push(d.cx + Math.cos(a) * d.R, (d.y0 + d.y1) / 2, d.cz + Math.sin(a) * d.R);
+        continue;
+      }
+      if (d.ramp) continue;
       push((d.minX + d.maxX) / 2, d.topY, (d.minZ + d.maxZ) / 2);
     }
     const step = J.navStep * 2;
@@ -1514,9 +1519,36 @@ export class JsonMap extends SolidField {
       if (road.type === 'ground') continue;
       let prevEnd, firstEnd;
       for (const [di, d] of road.decks.entries()) {
-        // навигация вдоль дуги — узлы по её осевой линии; пока дуги держит
-        // `topAt` для тела, граф по ним не прокладывается
-        if (d.arc) continue;
+        // Дуга: цепочка по осевой линии, шаг по углу подбирают под перепад — как
+        // у наклонной пластины. Узлы стоят на самой плоскости полотна (на
+        // осевой крен нулевой), поэтому `_edgeSupported` и `_link` проверяют ту
+        // же опору, что держит ноги; узел на краю полотна не нужен — к краю
+        // ведёт сплошная опора, а перила ребро всё равно бы забраковали.
+        if (d.arc) {
+          const a0r = d.a0 * DEG, spanr = d.span * DEG;
+          const len = d.R * Math.abs(spanr);
+          const rise = Math.abs(d.y1 - d.y0);
+          const perNode = rise > 0.01 ? Math.min(step, this.stepUp * 0.8 * len / rise) : step;
+          const count = Math.max(1, Math.ceil(len / perNode));
+          let first, last;
+          for (let k = 0; k <= count; k++) {
+            const t = k / count;
+            const ang = a0r + spanr * t;
+            const id = nav.add(
+              d.cx + Math.cos(ang) * d.R,
+              d.y0 + (d.y1 - d.y0) * t,
+              d.cz + Math.sin(ang) * d.R,
+              `d:${road.id}:${di}:${k}`,
+            );
+            if (first === undefined) first = id;
+            else this._link(nav, last, id);
+            last = id;
+          }
+          if (firstEnd === undefined) firstEnd = first;
+          if (prevEnd !== undefined) this._link(nav, prevEnd, first);
+          prevEnd = last;
+          continue;
+        }
         // цепочка идёт по оси полотна: у косой пластины узлы стоят вдоль её
         // длины, а не вдоль мировой оси, иначе маршрут по мосту шёл бы зигзагом
         // от края до края его габарита

@@ -36,7 +36,9 @@
  *      подземные пробы у начала (крен топит внутренний край) не сверяются;
  *   9. Луч снизу попадает в низ плиты, а не проваливается сквозь полотно;
  *  10. Перила `rails` бракуют край полотна, но не мешают идти по осевой;
- *  11. Миникарта печатает дугу кольцевым сектором (два `ctx.arc`), а не габаритом.
+ *  11. Миникарта печатает дугу кольцевым сектором (два `ctx.arc`), а не габаритом;
+ *  12. Граф навигации идёт по осевой дуги: маршрут с земли доводит до точки B на
+ *      полотне, а узлы на нём стоят на плоскости дуги и не выброшены как карман.
  */
 import { createJsonMap } from '../src/json-map.js';
 import { LEVEL_09 } from '../src/levels/level-09.js';
@@ -426,6 +428,56 @@ function testMinimapArc() {
   };
 }
 
+/**
+ * Навигация по дуге: граф обязан подняться на полотно с земли и довести до точки
+ * B по осевой. Проверяется маршрут, а не наличие узлов: `_pruneToSpawn` выбрасывает
+ * изолированные карманы, и цепочка, оторванная от улицы, исчезла бы из графа
+ * вместе с целью. Отметка узла — плоскость дуги (на осевой крен нулевой).
+ */
+function testNavAlongArc() {
+  const map = builtMap();
+  const d = deckInfo();
+  const bad = [];
+  const exitY = surfaceOf(d, 107.5);
+  const path = map.findPath(
+    { x: RAW.gameplay.spawn.x, y: 0, z: RAW.gameplay.spawn.z },
+    { x: EXIT.x, y: exitY, z: EXIT.z },
+  );
+  if (!path) bad.push('маршрута с земли до точки B на полотне нет');
+  else {
+    // точка B стоит на середине развёртки: маршрут обязан подняться до неё, а не
+    // до верхнего конца дуги — там его никто не ждёт
+    const top = Math.max(...path.map(p => p.y));
+    if (top < exitY - 1) bad.push(`маршрут поднялся только на ${top.toFixed(2)} м из ${exitY.toFixed(2)}`);
+    const last = path[path.length - 1];
+    if (Math.hypot(last.x - EXIT.x, last.z - EXIT.z) > J.navStep) {
+      bad.push(`маршрут кончился в ${last.x.toFixed(1)}, ${last.z.toFixed(1)} — не у точки B`);
+    }
+  }
+  let onDeck = 0;
+  for (const p of map.nav.pos) {
+    const rho = Math.hypot(p.x, p.z);
+    if (Math.abs(rho - d.R) > 0.05) continue;
+    const deg = (Math.atan2(p.z, p.x) / DEG + 360) % 360;
+    if (deg < d.a0 || deg > d.a1) continue;
+    if (Math.abs(p.y - surfaceOf(d, deg)) > 0.02) continue;
+    onDeck++;
+  }
+  if (onDeck < 20) bad.push(`узлов на полотне ${onDeck}, ожидалось ≥ 20`);
+  const lastNode = map.nav.pos
+    .filter(p => Math.abs(Math.hypot(p.x, p.z) - d.R) < 0.05)
+    .reduce((a, p) => (a === null || p.y > a.y ? p : a), null);
+  if (!lastNode || lastNode.y < d.y1 - 0.5) {
+    bad.push(`верхний узел полотна на ${lastNode ? lastNode.y.toFixed(2) : '—'} м, а не у ${d.y1}`);
+  }
+  return {
+    name: 'Граф идёт по осевой дуги: маршрут с земли доводит до полотна, узлы не отрезаны',
+    passed: bad.length === 0,
+    info: bad.length ? bad.join('; ')
+      : `${onDeck} узлов на полотне, маршрут с земли до точки B ${path.length} узлов, верх ${lastNode.y.toFixed(2)} м`,
+  };
+}
+
 function testFrozenChapters() {
   const bad = [];
   for (const [name, spec] of [['глава 9', LEVEL_09.map], ['глава 10', LEVEL_10.map]]) {
@@ -455,6 +507,7 @@ export async function runRotatedSweepTests() {
     testRayUnderside,
     testRailsBlockEdge,
     testMinimapArc,
+    testNavAlongArc,
     testFrozenChapters,
   ];
   const results = [];

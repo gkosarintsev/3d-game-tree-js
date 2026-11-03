@@ -1385,6 +1385,128 @@ t('предмет на дуге встаёт на её плоскость с к�
     `верный предмет на дуге отмечен: ${level.warnings.join(' | ')}`);
 });
 
+// ------------------------------------------------------ развязка (v2, этап 6)
+
+/**
+ * `connect: 'tangent'` не несёт угла сам: он велит следующей пластине принять
+ * касательную предыдущего элемента. Проверяется оба направления обхода — у дуги,
+ * развёрнутой назад, касательная смотрит противоположно, — и то, что позицию
+ * автор задаёт сам: парсер доводит только угол (G1 по направлению).
+ */
+t("v2: connect:'tangent' даёт пластине касательную дуги в обоих направлениях обхода", () => {
+  const fwd = { ...ARC, from: 0, to: 90, y: [6, 6], bank: 0 };
+  const rev = { ...ARC, from: 90, to: 0, y: [6, 6], bank: 0 };
+  const end = arcPoint(fwd, 90), start = arcPoint(rev, 0);
+  const raw = v2Raw(r => {
+    r.roads = [
+      { id: 'rp_fwd', type: 'bridge', elements: [
+        { arc: fwd },
+        { connect: 'tangent' },
+        { plate: { x: end.x - 5, z: end.z, length: 10, width: 8, y: 6 } },
+      ] },
+      { id: 'rp_rev', type: 'bridge', elements: [
+        { arc: rev },
+        { connect: 'tangent' },
+        { plate: { x: start.x, z: start.z - 5, length: 10, width: 8, y: 6 } },
+      ] },
+    ];
+    r.gameplay.exit = arcPoint(fwd, 45);
+  });
+  const { errors } = validateLevel(raw, LEVEL_SPEC_V2);
+  eq(errors.length, 0, `валидатор не принял tangent-стык: ${errors.join(' | ')}`);
+  const level = normalizeLevel(raw);
+  const fwdPlate = level.map.roads[0].decks[1];
+  const revPlate = level.map.roads[1].decks[1];
+  eq(fwdPlate.yaw, -180, 'пластина после дуги 0→90 не продолжила касательную (+90°)');
+  eq(revPlate.yaw, -90, 'пластина после дуги 90→0 не развернулась по касательной (−90°)');
+  // продолжение оси: начало пластины совпало с концом дуги
+  const back = { x: fwdPlate.cx - Math.cos(fwdPlate.yaw * Math.PI / 180) * fwdPlate.length / 2,
+    z: fwdPlate.cz - Math.sin(fwdPlate.yaw * Math.PI / 180) * fwdPlate.length / 2 };
+  assert(Math.abs(back.x - end.x) < 1e-6 && Math.abs(back.z - end.z) < 1e-6,
+    `пластина не примкнула к концу дуги: ${back.x}, ${back.z}`);
+  const code = generateModule(raw, 'src/levels/level-11.json').code;
+  assert(!code.includes('"connect"'), 'маркер касательной доехал до модуля главы');
+});
+
+t("v2: connect:'tangent' без соседа, перед дугой и с явным yaw — ошибки", () => {
+  const plate = { x: 0, z: 10, length: 20, width: 6, y: 0.12 };
+  const cases = [
+    ['первым', [{ connect: 'tangent' }, { plate }], 'первым'],
+    ['дважды', [{ plate }, { connect: 'tangent' }, { connect: 'tangent' }, { plate }], 'дважды подряд'],
+    ['перед дугой', [{ plate }, { connect: 'tangent' }, { arc: { ...ARC, from: 0, to: 90 } }], 'перед дугой'],
+    ['в конце', [{ plate }, { connect: 'tangent' }], 'в конце'],
+    ['с yaw', [{ plate }, { connect: 'tangent' }, { plate: { ...plate, yaw: 30 } }], 'одновременно'],
+    ['с формой', [{ plate }, { connect: 'tangent', plate }], 'одновременно'],
+  ];
+  for (const [name, elements, needle] of cases) {
+    const raw = v2Raw(r => { r.roads = [{ id: 'rp_bad', type: 'ground', elements }]; });
+    const hit = hasError(validateLevel(raw, LEVEL_SPEC_V2).errors, 'rp_bad', needle);
+    assert(hit.includes('connect'), `${name}: ошибка не про маркер: ${hit}`);
+  }
+});
+
+/**
+ * Опоры дуги: шаг отмеряется по длине осевой, а не по мировым осям, колонны стоят
+ * на двух рядах у бортов (тот же отступ `pillarEdge`), низ — по верхней плоскости
+ * дуги в её точке, а не по общему `bottomY` кольца. Обход назад даёт те же опоры:
+ * угол считается по знаковому размаху.
+ */
+t('v2: опоры дуги стоят двумя рядами по tangent-рамке и растут от грунта до её низа', () => {
+  const arc = { ...ARC, from: 0, to: 90, y: [0.12, 6] };
+  const raw = v2Raw(r => {
+    r.buildings = [];
+    r.roads = [arcRoad('rp_pil', arc, { type: 'bridge' })];
+    r.gameplay.exit = arcExit(arc);
+  });
+  const { errors } = validateLevel(raw, LEVEL_SPEC_V2);
+  eq(errors.length, 0, `валидатор не принял дугу: ${errors.join(' | ')}`);
+  const level = normalizeLevel(raw);
+  const pillars = level.map.props.filter(p => p.model === 'concrete_pillar');
+  const len = arc.radius * (arc.to - arc.from) * Math.PI / 180;
+  const inset = arc.width / 2 - J.pillarSection / 2 - J.pillarEdge;
+  let want = 0;
+  for (let s = J.pillarSpacing / 2; s < len - 0.01; s += J.pillarSpacing) {
+    const deg = arc.from + (arc.to - arc.from) * (s / len);
+    for (const o of (inset >= J.pillarSection ? [-inset, inset] : [0])) {
+      if (arcTop(arc, deg, arc.radius + o) - J.deckThickness > 1.0) want++;
+    }
+  }
+  eq(pillars.length, want, `опор ${pillars.length}, по шагу дуги ожидалось ${want}`);
+  for (const p of pillars) {
+    const rho = Math.hypot(p.position.x - arc.cx, p.position.z - arc.cz);
+    assert(Math.abs(Math.abs(rho - arc.radius) - inset) < 2e-3, `опора не на борту: радиус ${rho}`);
+    eq(p.position.y, 0, 'опора не встала на грунт');
+    const deg = Math.atan2(p.position.z - arc.cz, p.position.x - arc.cx) * 180 / Math.PI;
+    assert(Math.abs(p.rotationY + deg + 90) < 0.01, `опора не повёрнута по касательной: ${p.rotationY} при ${deg}`);
+    assert(Math.abs(p.position.y + p.scale.y + J.deckThickness - arcTop(arc, deg, rho)) < 2e-3,
+      `опора ${p.id} не доросла до низа полотна`);
+  }
+});
+
+t('v2: фонари дуги стоят на бортах по tangent-рамке', () => {
+  const arc = { ...ARC, from: 0, to: 90, y: [6, 6], bank: 0 };
+  const raw = v2Raw(r => {
+    r.buildings = [];
+    r.roads = [arcRoad('rp_lamps', arc, { type: 'bridge', lamps: true })];
+    r.gameplay.exit = arcExit(arc);
+  });
+  eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял дугу с фонарями');
+  const level = normalizeLevel(raw);
+  const lamps = level.map.props.filter(p => p.model === 'lamp_post');
+  const len = arc.radius * (arc.to - arc.from) * Math.PI / 180;
+  let want = 0;
+  for (let s = J.lampSpacing / 2; s < len - 0.01; s += J.lampSpacing) want += 2;
+  eq(lamps.length, want, `фонарей ${lamps.length}, ожидалось ${want}`);
+  const edge = arc.width / 2 + J.lampOffset;
+  for (const l of lamps) {
+    const rho = Math.hypot(l.position.x - arc.cx, l.position.z - arc.cz);
+    assert(Math.abs(Math.abs(rho - arc.radius) - edge) < 2e-3, `фонарь не на борту: радиус ${rho}`);
+    eq(l.position.y, 6, 'фонарь не встал на полотно');
+    const deg = Math.atan2(l.position.z - arc.cz, l.position.x - arc.cx) * 180 / Math.PI;
+    assert(Math.abs(l.rotationY + deg + 90) < 0.01, `фонарь не повёрнут по касательной: ${l.rotationY} при ${deg}`);
+  }
+});
+
 // Компактный бриф с секцией `city`: два района по 120 × 120 м в земле 300 × 300.
 // Проверяет сам разворот (детерминизм, формы, вытеснение авторской записью) и
 // то, что его выход проходит валидатор и не оставляет служебных полей в модуле.

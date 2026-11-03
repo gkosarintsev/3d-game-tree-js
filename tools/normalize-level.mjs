@@ -605,6 +605,77 @@ function normalizeArc(a) {
 }
 
 /**
+ * Верх дуги в точке её сектора — та же формула, что отдаёт движок (`topAt`).
+ * Опоры и фонари стоят на краю полотна, где крен добавляет к отметке оси
+ * `tanBank · отступ`; брать `topY` (минимум по всему сектору) значило бы утопить
+ * их в настиле на внешнем краю и подвесить на внутреннем.
+ */
+function arcTopAt(d, ang, rho) {
+  return d.y0 + (d.y1 - d.y0) * (ang - d.a0 * DEG) / (d.span * DEG) + d.tanBank * (rho - d.R);
+}
+
+/** Угол в (−180, 180]: производная касательная не обязана попадать в тот же круг. */
+const wrapDeg = d => {
+  const w = ((d + 180) % 360 + 360) % 360 - 180;
+  return Math.abs(w) < 1e-9 ? 0 : w;
+};
+
+/**
+ * Касательная в конце элемента — угол оси, которую обязан принять следующий
+ * элемент после `connect: 'tangent'`. У пластины это её собственный `yaw`
+ * (локальная +X идёт вдоль полотна), у дуги — радиус, повёрнутый на 90° в
+ * сторону обхода: при развёртке назад касательная смотрит противоположно.
+ */
+export function endTangentDeg(el) {
+  if (!el.arc) return wrapDeg(el.plate.yaw ?? 0);
+  const sign = Math.sign(el.arc.to - el.arc.from) || 1;
+  return wrapDeg(el.arc.to + sign * 90);
+}
+
+/**
+ * Разворот маркеров `connect: 'tangent'`: маркер угла не несёт, он велит
+ * следующей пластине принять касательную предыдущего элемента. Позицию
+ * следующей пластины автор задаёт сам — парсер доводит только угол (G1 по
+ * направлению), а не переносит центр: у маркера нет координат, и выдумывать их
+ * значило бы строить геометрию из ничего.
+ *
+ * `i` в результате — адрес в брифе: маркеры из списка выброшены, и без него
+ * сообщение валидатора указывало бы на соседнюю строку.
+ *
+ * @param {object[]} elements сырые элементы полотна
+ * @returns {{el:object, i:number}[]}
+ */
+export function resolveRoadElements(elements) {
+  const out = [];
+  let prev = null;
+  let pending = false;
+  for (const [i, el] of elements.entries()) {
+    if (el.connect !== undefined) {
+      if (el.plate || el.arc) throw new Error(`elements[${i}]: connect и элемент одновременно — маркер только велит, а форму задаёт сосед`);
+      if (pending) throw new Error(`elements[${i}]: connect:'tangent' дважды подряд`);
+      if (!prev) throw new Error(`elements[${i}]: connect:'tangent' первым — примыкать не к чему`);
+      pending = true;
+      continue;
+    }
+    if (pending && el.arc) {
+      throw new Error(`elements[${i}]: connect:'tangent' перед дугой — у дуги углы заданы центром и развёрткой`);
+    }
+    let resolved = el;
+    if (pending) {
+      if (el.plate.yaw !== undefined) {
+        throw new Error(`elements[${i}].plate: yaw и connect:'tangent' одновременно — угол даёт касательная`);
+      }
+      resolved = { ...el, plate: { ...el.plate, yaw: endTangentDeg(prev) } };
+    }
+    out.push({ el: resolved, i });
+    prev = el;
+    pending = false;
+  }
+  if (pending) throw new Error(`elements[${elements.length - 1}]: connect:'tangent' в конце — примыкающего элемента нет`);
+  return out;
+}
+
+/**
  * Дорога из прямых пластин и дуг (v2): полотно под углом к северу, а значит и
  * твёрдость, и меш живут в собственных осях элемента.
  *
@@ -617,7 +688,7 @@ function normalizeArc(a) {
  */
 function normalizeRoadElements(road) {
   const decks = [];
-  for (const el of road.elements) {
+  for (const { el } of resolveRoadElements(road.elements)) {
     if (el.arc) {
       decks.push(normalizeArc(el.arc));
       continue;
@@ -685,9 +756,45 @@ function normalizeRoadElements(road) {
 function bridgePillars(road, ground, obstacles, warnings, water) {
   const out = [];
   for (const d of road.decks) {
-    // у дуги нет прямой оси: ряды опор вдоль её хорды встали бы поперёк полотна,
-    // а шаг по углу считается по tangent-рамке — это отдельный проход
-    if (d.arc) continue;
+    // У дуги нет прямой оси: ряды идут по её собственной (tangent) рамке, шаг
+    // отмеряется по длине осевой, а низ колонны — по верхней плоскости дуги в её
+    // точке. Уклон не повод пропускать опоры: подъём на 12 м держат именно они, а
+    // `ramp` у пластин остаётся прежним правилом (пролёт опирается торцами).
+    if (d.arc) {
+      const spanr = d.span * DEG;
+      const len = d.R * Math.abs(spanr);
+      if (len < 0.01) continue;
+      const inset = d.halfW - J.pillarSection / 2 - J.pillarEdge;
+      const offs = inset >= J.pillarSection ? [-inset, inset] : [0];
+      const half = J.pillarSection / 2;
+      for (let s = J.pillarSpacing / 2; s < len - 0.01; s += J.pillarSpacing) {
+        const am = d.a0 * DEG + spanr * (s / len);
+        // касательная к осевой: ось колонны смотрит вдоль полотна, как у пластины
+        const yaw = am / DEG + 90;
+        for (const o of offs) {
+          const rho = d.R + o;
+          const px = d.cx + Math.cos(am) * rho;
+          const pz = d.cz + Math.sin(am) * rho;
+          const bottom = arcTopAt(d, am, rho) - J.deckThickness;
+          const footY = water ? (water(px, pz) ?? ground.y) : ground.y;
+          // у начала подъёма настил ещё у земли: колонны там некуда расти
+          if (bottom - footY <= 1.0) continue;
+          const plan = obbOf({
+            minX: px - half, maxX: px + half, minZ: pz - half, maxZ: pz + half,
+          }, frameAt(px, pz, yaw));
+          const hit = obstacles.find(ob => obbHitsObb(ob.rect, plan, 0.05));
+          if (hit) {
+            warnings.push(`${road.id}: опора в ${r3(px)}, ${r3(pz)} попала в ${hit.id} — пропущена`);
+            continue;
+          }
+          out.push(makeProp(`pillar_${road.id}_${r3(px)}_${r3(pz)}`, 'concrete_pillar',
+            px, footY, pz,
+            { x: J.pillarSection, y: r3(bottom - footY), z: J.pillarSection }, 'bridge_pillar',
+            -yaw));
+        }
+      }
+      continue;
+    }
     if (d.ramp || d.grounded || d.bottomY - ground.y <= 1.0) continue;
     // у повёрнутой пластины опоры стоят в её осях: ряд идёт вдоль полотна, а не
     // вдоль мировой оси, иначе колонны выстроились бы поперёк косой эстакады
@@ -733,9 +840,34 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
 function roadLamps(road, obstacles, warnings, water) {
   const out = [];
   for (const d of road.decks) {
-    // фонари дуги ставятся по tangent-рамке (иначе борт «уходит» из-под столба
-    // на кривой) — это тот же отдельный проход, что и опоры вдоль дуги
-    if (d.arc) continue;
+    // Фонари дуги — по tangent-рамке: на кривой борт поворачивается, и столб,
+    // поставленный в мировых осях, «уходил» бы из-под края полотна. Уклонный
+    // настил фонарей не носит — то же правило, что у пластин.
+    if (d.arc) {
+      if (d.ramp) continue;
+      const spanr = d.span * DEG;
+      const len = d.R * Math.abs(spanr);
+      for (let s = J.lampSpacing / 2; s < len - 0.01; s += J.lampSpacing) {
+        const am = d.a0 * DEG + spanr * (s / len);
+        const yaw = am / DEG + 90;
+        for (const side of [-1, 1]) {
+          const rho = d.R + side * (d.halfW + J.lampOffset);
+          const p = { x: d.cx + Math.cos(am) * rho, z: d.cz + Math.sin(am) * rho };
+          const hit = obstacles.find(o => o.kind === 'building' && obbHitsRect(o.rect, pointRect(p), 0.05));
+          if (hit) {
+            warnings.push(`${road.id}: фонарь в ${r3(p.x)}, ${r3(p.z)} попал в ${hit.id} — пропущен`);
+            continue;
+          }
+          if (water && road.type === 'ground' && water(p.x, p.z) !== null) {
+            warnings.push(`${road.id}: фонарь в ${r3(p.x)}, ${r3(p.z)} встал в русло — пропущен`);
+            continue;
+          }
+          out.push(makeProp(`lamp_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'lamp_post',
+            p.x, arcTopAt(d, am, rho), p.z, { x: 1, y: 1, z: 1 }, 'road_lamp', -yaw));
+        }
+      }
+      continue;
+    }
     if (d.ramp) continue;
     const frame = deckFrame(d);
     const from = frame ? d.cx - d.length / 2 : (d.axis === 'x' ? d.minX : d.minZ);

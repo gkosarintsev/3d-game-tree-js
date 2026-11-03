@@ -14,7 +14,7 @@ import {
   polyBounds, polyEdges, polyRects, r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
   rotatedBounds,
 } from '../src/geo2d.js';
-import { normalizeBuilding, normalizeWaterway, toWorld } from './normalize-level.mjs';
+import { normalizeBuilding, normalizeWaterway, resolveRoadElements, toWorld } from './normalize-level.mjs';
 import { ARCHETYPE_NAMES } from './city.js';
 
 const J = CONFIG.jsonMap;
@@ -256,7 +256,9 @@ export const LEVEL_SPEC_V2 = {
           // им разойтись при первой правке
           width: num({ min: 2, max: 30 }),
           points: arr(V3XYZ, { minItems: 2 }),
-          elements: arr(obj({ plate: V2_PLATE, arc: V2_ARC }), { minItems: 1 }),
+          // `connect:'tangent'` — маркер, а не форма: следующий элемент обязан
+          // быть пластиной, чей `yaw` даст касательная предыдущего
+          elements: arr(obj({ plate: V2_PLATE, arc: V2_ARC, connect: str({ enum: ['tangent'] }) }), { minItems: 1 }),
         },
       },
     },
@@ -795,8 +797,17 @@ function checkRoadElements(road, label, half, groundY, warnings) {
     return errors;
   }
   const TAU = Math.PI * 2;
+  // маркеры касательной разворачиваются до покомпонентных проверок: план
+  // повёрнутой пластины и её угол считаются по тому же `yaw`, что увидит движок
+  let elements;
+  try {
+    elements = resolveRoadElements(road.elements);
+  } catch (e) {
+    errors.push(`${label}.${e.message}`);
+    return errors;
+  }
   let top = -Infinity;
-  for (const [i, el] of road.elements.entries()) {
+  for (const { el, i } of elements) {
     const pl = el?.plate, ar = el?.arc;
     const elabel = `${label}.elements[${i}]`;
     if (pl && ar) {
@@ -874,7 +885,11 @@ function checkRoadElements(road, label, half, groundY, warnings) {
 function roadRectsOf(road) {
   const out = [];
   if (!road.points) {
-    for (const el of road.elements ?? []) {
+    // негодный маркер уже назван `checkRoadElements`: здесь он не должен ронять
+    // геометрический проход стеком, потому что ошибки собираются, а не бросаются
+    let elements = [];
+    try { elements = resolveRoadElements(road.elements ?? []); } catch { /* ошибка уже в списке */ }
+    for (const { el } of elements) {
       const pl = el?.plate;
       if (el?.arc) {
         const ar = el.arc, halfW = ar.width / 2;
