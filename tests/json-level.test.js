@@ -48,7 +48,8 @@
  *      планами;
  *  25. Детерминизм: два сбора дают побитово равные отметки узлов;
  *  26. Квартал генератора (`tools/city.js`): все этажи вводимых домов и ходовые
- *      кровли достижимы, недостижимых узлов нет;
+ *      кровли достижимы, недостижимых узлов нет, и у каждого конца марша есть
+ *      посадка, связанная с полом этажа;
  *  27. Наружный узел двери связан с решёткой улицы, а не только с полом дома;
  *  28. Глава 10 целиком (`level-10.js`): маршрут A→B через русло — по мосту или
  *      вброд, и каждое его ребро проходимо шагом;
@@ -1428,6 +1429,46 @@ function testCityHousesReachable() {
   };
 }
 
+/**
+ * Марши города: у каждого конца марша есть посадка, связанная с полом этажа.
+ * Винт ставит первую проступь на дугу, и ближайшая к плану клетка пола лежит
+ * через весь проём перекрытия — `_edgeSupported` бракует такое ребро, марш
+ * остаётся тупиком, и `_pruneToSpawn` срезает весь верх дома. Тест про
+ * посадку по данным генератора, а не только авторской главы 9: у генератора
+ * план марша съедает решётку комнаты.
+ */
+function testCityStairLandings() {
+  const map = cityMap();
+  const nav = map.nav;
+  const bad = [];
+  let ends = 0;
+  for (const [b, s] of allStairs(map)) {
+    if (!b.isEnterable || s.type === 'ladder') continue;
+    for (const [end, level] of [[s.bottom, s.y0], [s.top, s.y1]]) {
+      ends++;
+      let tread = -1, best = 1.2;
+      for (const i of nav.nearby(end.x, end.z, 1.2)) {
+        const q = nav.pos[i];
+        const d = Math.hypot(q.x - end.x, q.z - end.z);
+        if (d >= best || Math.abs(q.y - end.y) > J.floorRise + 0.02) continue;
+        best = d; tread = i;
+      }
+      const outside = tread < 0 ? [] : nav.adj[tread].filter(i => {
+        const p = nav.pos[i];
+        return Math.abs(p.y - level) <= J.floorRise + 0.02
+          && (p.x < s.rect.minX || p.x > s.rect.maxX || p.z < s.rect.minZ || p.z > s.rect.maxZ);
+      });
+      if (!outside.length) bad.push(`${s.id} ${level === s.y0 ? 'низ' : 'верх'}`);
+    }
+  }
+  return {
+    name: 'Марши города: у каждого конца марша есть посадка, связанная с полом',
+    passed: ends >= 40 && bad.length === 0,
+    info: bad.length ? `нет посадки у: ${bad.slice(0, 4).join(', ')} (концов ${ends})`
+      : `${ends} концов маршей имеют сосед на этаже`,
+  };
+}
+
 function testCityDoorReachesStreet() {
   const map = cityMap();
   const nav = map.nav;
@@ -2023,6 +2064,7 @@ export async function runJsonTests() {
     testVertIdsAndMinimap,
     testVertDeterminism,
     testCityHousesReachable,
+    testCityStairLandings,
     testCityDoorReachesStreet,
     testChapter10Route,
     testChapter10Interiors,

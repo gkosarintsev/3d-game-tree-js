@@ -1311,6 +1311,26 @@ export class JsonMap extends SolidField {
     this._linkClosest(nav, land, rstep * 1.2, 3);
   }
 
+  /**
+   * Есть ли у посадки сосед — пол этажа, а не ступень своего марша. Число
+   * соседей для этого слишком грубый признак: `_linkClosest` охотно берёт
+   * предпоследнюю проступь, «всего два ребра» становится «оба на лестнице», и
+   * `adj.length <= 1` не замечает, что решётка комнаты к посадке не приросла.
+   * Узел того же уровня, что и посадка, стоит на полу, если его точка не в
+   * плане марша: клетки решётки над шахтой бракует `_inStair`, поэтому за
+   * габаритом лестницы на этой отметке остаётся только пол.
+   */
+  _landingHasFloor(nav, b, land, floor, level) {
+    for (const i of nav.adj[land]) {
+      const p = nav.pos[i];
+      if (Math.abs(p.y - level) > J.floorRise + 0.02) continue;
+      const l = this._toLocal(b, p.x, p.z);
+      if (this._inStair(b, l.x, l.z, floor)) continue;
+      return true;
+    }
+    return false;
+  }
+
   _inStair(b, x, z, floor) {
     return b.stairs.some(s => floor >= s.connectsFloors[0] && floor <= s.connectsFloors[1]
       && x > s.rect.minX && x < s.rect.maxX && z > s.rect.minZ && z < s.rect.maxZ);
@@ -1419,8 +1439,12 @@ export class JsonMap extends SolidField {
           // комнате генератора единственная клетка решётки лежит за проёмом
           // марша, и ребро через него бракуется — этаж с кровлей отрезались бы
           // целиком. Сетка этажа повторяется шагом вдвое мельче
-          if (!(isTop && roofTop) && nav.adj[land].length <= 1) {
-            this._refineFloor(nav, b, isTop ? s.connectsFloors[1] : s.connectsFloors[0], land, rstep);
+          if (!(isTop && roofTop)) {
+            const landFloor = isTop ? s.connectsFloors[1] : s.connectsFloors[0];
+            const landLevel = isTop ? s.y1 : s.y0;
+            if (!this._landingHasFloor(nav, b, land, landFloor, landLevel)) {
+              this._refineFloor(nav, b, landFloor, land, rstep);
+            }
           }
         }
       }
@@ -1463,6 +1487,13 @@ export class JsonMap extends SolidField {
       const y = this._floorSupport(p.x, p.z, level);
       if (y === null) continue;
       if (this.isBlocked(p.x, p.z, CONFIG.radius, level, CONFIG.eyeHeight)) continue;
+      // посадка обязана не просто найтись: от неё нога дотягивается до своей
+      // проступи. У винта первая ступень стоит на дуге, и ближайшее направление
+      // по большей из осей даёт точку в полутора метрах от неё через весь проём
+      // перекрытия — `_edgeSupported` такое ребро бракует, и весь верх дома
+      // отрезает `_pruneToSpawn`
+      const w = this._toWorld(b, tread.x, tread.z);
+      if (!this._edgeSupported({ x: p.x, y, z: p.z }, { x: w.x, y: tread.y, z: w.z })) continue;
       const id = nav.add(p.x, y, p.z, `p:${s.id}:${sign > 0 ? 't' : 'b'}`);
       return id;
     }

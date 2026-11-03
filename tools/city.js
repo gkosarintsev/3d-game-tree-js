@@ -745,17 +745,24 @@ function stairPlan(home, fh, rng) {
   // подъём марша парсер считает вдоль большей из сторон (L = max(width,length)),
   // поэтому беговая длина никогда не должна становиться меньше поперечной:
   // иначе при низком потолке «прямой» марш развернётся на 90° и встанет поперёк дома
-  const straightL = r3(Math.max(n * TREAD_MIN, STAIR_DEPTH));
+  const minRun = r3(fh / J.maxStairSlope);
+  const straightL = r3(Math.max(n * TREAD_MIN, STAIR_DEPTH, minRun));
   if (long >= straightL + 2 * LANDING && short >= STAIR_DEPTH + 2 * LANDING) {
     cands.push({ type: 'straight', width: straightL, length: STAIR_DEPTH, weight: 3 });
   }
-  const lL = r3(Math.max(2 * STAIR_DEPTH, (TREAD_MIN * Math.ceil(n / 2)) / 0.6));
+  const lL = r3(Math.max(2 * STAIR_DEPTH, (TREAD_MIN * Math.ceil(n / 2)) / 0.6, (minRun - STAIR_DEPTH) / 0.6));
   if (long >= lL + 2 * LANDING && short >= 2 * STAIR_DEPTH + 2 * LANDING) {
     cands.push({ type: 'l_shape', width: lL, length: 2 * STAIR_DEPTH, weight: 2 });
   }
   const d = r3(Math.min(long, short) - 2 * LANDING);
-  if (d >= 2.2) cands.push({ type: 'spiral', width: d, length: d, weight: 1 });
-  if (!cands.length) return null;
+  if (d >= Math.max(2.2, minRun / Math.PI)) cands.push({ type: 'spiral', width: d, length: d, weight: 1 });
+  if (!cands.length) {
+    // расход ГПСЧ обязан совпасть с удачным подбором (выбор из пула и два
+    // сдвига позиции), иначе отказ одного лота сдвигает счётчик всех
+    // последующих районов и город пересобирается целиком
+    for (let k = 0; k < 3; k++) rng();
+    return null;
+  }
 
   const pool = [];
   for (const c of cands) for (let k = 0; k < c.weight; k++) pool.push(c);

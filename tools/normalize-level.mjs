@@ -179,7 +179,7 @@ function normalizeBuilding(b, ground, warnings) {
     };
   }).sort(byId);
 
-  const stairs = (b.stairs ?? []).map(s => normalizeStair(s, baseY, floorHeight, b.id, errors)).sort(byId);
+  const stairs = (b.stairs ?? []).map(s => normalizeStair(s, baseY, floorHeight, b.id, errors, warnings)).sort(byId);
   if (errors.length) throw new Error(errors.join('\n'));
 
   const doors = [];
@@ -338,6 +338,17 @@ function edgeDistance(e, x, z) {
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
 /**
+ * Беговая длина марша — путь тела по проступям снизу до верха. По ней считают
+ * уклон: раскрой тот же, что у `stairLayout` (у Г-образного — прогон по X до
+ * изгиба плюс прогон по Z после площадки, у винта — длина витка).
+ */
+function stairRun(type, L, W) {
+  if (type === 'l_shape') return 0.6 * L + 0.5 * W;
+  if (type === 'spiral') return Math.PI * Math.min(L, W);
+  return L;
+}
+
+/**
  * Лестница → проступи в мировых координатах + проём. Марш считается в локальной
  * системе (X — направление подъёма, низ при X = 0, Y вверх, вправо — Z), затем
  * поворачивается на rotation и переносится в position: косых маршей схема не
@@ -347,7 +358,7 @@ const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
  * его верхняя отметка ровно `roofY`, а проём в плите кровли режет клиент (там же,
  * где он режет проём в перекрытии этажа).
  */
-function normalizeStair(s, baseY, floorHeight, buildingId, errors) {
+function normalizeStair(s, baseY, floorHeight, buildingId, errors, warnings = []) {
   const [k0, k1] = s.connectsFloors;
   const y0 = r3(baseY + k0 * floorHeight);
   const y1 = r3(baseY + k1 * floorHeight);
@@ -367,6 +378,13 @@ function normalizeStair(s, baseY, floorHeight, buildingId, errors) {
   const steps = s.type === 'spiral'
     ? spiralSteps(cx, cz, Math.min(L, W) / 2, y0, height, rotation)
     : stairSteps(s.type, L, W, y0, height, world);
+
+  if (s.type !== 'ladder') {
+    const slope = r3(height / stairRun(s.type, L, W));
+    if (slope > J.maxStairSlope) {
+      warnings.push(`${buildingId}.${s.id}: уклон марша ${slope} круче J.maxStairSlope ${J.maxStairSlope} — подъём читается стеной, а не ходьбой`);
+    }
+  }
 
   const first = steps[0], last = steps[steps.length - 1];
   return {
@@ -1207,4 +1225,4 @@ function worldBounds(buildings, roads, channels, ground) {
   return rectOut(out);
 }
 
-export { normalizeBuilding, normalizeRoad, normalizeStair, normalizeWaterway, toWorld, edgeRect, inRect };
+export { normalizeBuilding, normalizeRoad, normalizeStair, normalizeWaterway, toWorld, edgeRect, inRect, stairRun };

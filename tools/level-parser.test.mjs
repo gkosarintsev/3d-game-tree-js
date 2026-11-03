@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validateLevel, LEVEL_SPEC_V2 } from './level-schema.mjs';
-import { normalizeLevel, waterwayFoot } from './normalize-level.mjs';
+import { normalizeLevel, waterwayFoot, stairRun } from './normalize-level.mjs';
 import { generateModule } from './build-level.mjs';
 import { expandCity, ARCHETYPE_NAMES } from './city.js';
 import { frameOf, frameAt, rotatePoint, unrotatePoint, obbHitsRect, obbHitsObb, obbOf, rectsIntersect, rotatedBounds } from '../src/geo2d.js';
@@ -1552,6 +1552,16 @@ t('генератор детерминирован: сид задаёт квар
 t('разворот даёт кварталы, которые принимает валидатор', () => {
   const expanded = expandCity(structuredClone(CITY_RAW));
   const { errors, warnings } = validateLevel(expanded);
+  const steep = (expanded.buildings ?? []).flatMap(b => (b.stairs ?? [])
+    .filter(s => s.type !== 'ladder' && s.dimensions)
+    .map(s => {
+      const L = Math.max(s.dimensions.width, s.dimensions.length);
+      const W = Math.min(s.dimensions.width, s.dimensions.length);
+      const height = (s.connectsFloors[1] - s.connectsFloors[0]) * b.floorHeight;
+      return { b, s, slope: height / stairRun(s.type, L, W) };
+    })
+    .filter(({ slope }) => slope > CONFIG.jsonMap.maxStairSlope + 1e-6));
+  eq(steep.length, 0, `марши круче J.maxStairSlope: ${steep.map(({ b, s }) => `${b.id}/${s.id}`).join(' ')}`);
   eq(errors.length, 0, `ошибки: ${errors.join(' | ')}`);
   eq(warnings.length, 0, `предупреждения: ${warnings.join(' | ')}`);
   assert(expanded.buildings.length >= 35, `домов ${expanded.buildings.length}, ожидалось не меньше 35`);
@@ -1583,9 +1593,9 @@ t('формы домов: архетипы представлены, id уник
 
 t('авторская запись вытесняет сгенерированный лот вместе с его надстройками', () => {
   const generated = expandCity(structuredClone(CITY_RAW)).buildings;
-  const victim = generated.find(b => b.id.endsWith('_a') || b.id.endsWith('_b'));
+  const victim = generated.find(b => /_(a|b|top)$/.test(b.id));
   assert(victim, 'генератор не дал составного лота — проверять вытеснение нечего');
-  const stem = victim.id.replace(/_[ab]$/, '');
+  const stem = victim.id.replace(/_(a|b|top)$/, '');
   const raw = structuredClone(CITY_RAW);
   raw.buildings = [{
     id: stem, name: 'Авторский дом', isEnterable: false, floorsCount: 3, floorHeight: 3.4,
