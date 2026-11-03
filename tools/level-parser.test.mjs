@@ -910,6 +910,37 @@ t('ошибка валидации не оставляет частичного 
   assert(!/\bexport const/.test(thrown.message), 'текст модуля попал в сообщение об ошибке');
 });
 
+// -------------------------------------------------- заморозка v1 (docs/city-v2-plan.md)
+
+/**
+ * Глава 10 и её генератор — v1: права на поворотные дома и кривые настилы у них нет,
+ * и поля v2 обязаны отбраковываться здесь, а не молча игнорироваться нормализатором.
+ * Иначе побайтовая сверка `level-10.js` перестаёт быть защитой: бриф с `rotation`
+ * собрался бы, но собрался бы прямоугольником, и автор косого города получил бы
+ * тихую подмену вместо ошибки.
+ */
+t('v1 заморожен: rotation у дома и elements у дороги — чужие поля для главы 9-10', () => {
+  const rot = structuredClone(rawLevel);
+  rot.buildings[0].rotation = 30;
+  const e1 = validateLevel(rot).errors;
+  assert(e1.some(x => /buildings\[0\]\.rotation: поле не описано в схеме/.test(x)),
+    `rotation принят v1-схемой: ${e1[0] || 'ошибок нет'}`);
+
+  const el = structuredClone(rawLevel);
+  el.roads[0].elements = [{ plate: { x: 0, z: 0, length: 40, width: 12, yaw: 30 } }];
+  const e2 = validateLevel(el).errors;
+  assert(e2.some(x => /roads\[0\]\.elements: поле не описано в схеме/.test(x)),
+    `elements принят v1-схемой: ${e2[0] || 'ошибок нет'}`);
+});
+
+t('v1 заморожен: служебные поля metadata не попадают в модуль главы', () => {
+  const base = generateModule(structuredClone(rawLevel), 'src/levels/level-09.json').code;
+  const withFlag = structuredClone(rawLevel);
+  withFlag.metadata.engine = 'city-v1';
+  assert(generateModule(withFlag, 'src/levels/level-09.json').code === base,
+    'модуль главы изменился от служебной строки метаданных');
+});
+
 // ---------------------------------------------------------------- генератор кварталов
 
 // Компактный бриф с секцией `city`: два района по 120 × 120 м в земле 300 × 300.
