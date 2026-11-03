@@ -1,0 +1,221 @@
+{
+  "metadata": {
+    "levelName": "level-10",
+    "name": "Глава 10. Неоновый мегаполис",
+    "hint": "Гигантский город из генератора кварталов плюс авторские доминанты: река делит его пополам, три моста и два брода дают переправу, у многих домов есть ходовые кровли и переходы между башнями. Дойдите от точки A на северном берегу до маяка на южном.",
+    "engine": "AI-First Three.js Pipeline",
+    "units": "meters"
+  },
+  "ground": {
+    "y": 0,
+    "size": 600,
+    "color": "#1a1d22"
+  },
+  "city": {
+    "seed": 20261103,
+    "districts": [
+      { "id": "ncc", "name": "Корпоративный центр", "style": "corporate",
+        "block": { "minX": -292, "maxX": 26, "minZ": 60, "maxZ": 292 },
+        "street": { "pitch": 44, "width": 14 }, "lot": { "pitch": 10, "inset": 1.5, "merge": 0.5 },
+        "height": { "minFloors": 4, "maxFloors": 16, "floorHeight": 3.8 },
+        "tower": { "chance": 0.14, "floors": [24, 52], "floorHeight": 4.4 },
+        "archetypes": ["box", "slab", "l", "u", "t", "cross", "stepped2", "stepped3", "podium_tower"],
+        "enterableEvery": 3, "skip": 0.02, "courtyard": 0.16,
+        "roofs": { "walkable": true, "access": 0.45, "parapet": 0.9 } },
+      { "id": "nkab", "name": "Кабуки", "style": "slum",
+        "block": { "minX": 44, "maxX": 292, "minZ": 60, "maxZ": 292 },
+        "street": { "pitch": 32, "width": 10 }, "lot": { "pitch": 9, "inset": 1.5, "merge": 0.5 },
+        "height": { "minFloors": 2, "maxFloors": 7, "floorHeight": 3.1 },
+        "tower": { "chance": 0.03, "floors": [10, 18], "floorHeight": 3.4 },
+        "archetypes": ["box", "l", "u", "bar_pair", "stepped2", "podium_tower"],
+        "enterableEvery": 2, "skip": 0.03, "courtyard": 0.2,
+        "roofs": { "walkable": true, "access": 0.4, "parapet": 0.9 } },
+      { "id": "sind", "name": "Северная промзона", "style": "industrial",
+        "block": { "minX": -292, "maxX": -44, "minZ": -292, "maxZ": -60 },
+        "street": { "pitch": 50, "width": 16 }, "lot": { "pitch": 13, "inset": 2, "merge": 0.45 },
+        "height": { "minFloors": 1, "maxFloors": 5, "floorHeight": 4.6 },
+        "tower": { "chance": 0.05, "floors": [12, 20], "floorHeight": 5 },
+        "archetypes": ["box", "slab", "bar_pair", "cross", "stepped2"],
+        "enterableEvery": 3, "skip": 0.05, "courtyard": 0.1,
+        "roofs": { "walkable": true, "access": 0.5, "parapet": 0.9 } },
+      { "id": "skit", "name": "Трущобы Ист-сайда", "style": "kitsch",
+        "block": { "minX": 26, "maxX": 292, "minZ": -292, "maxZ": -60 },
+        "street": { "pitch": 38, "width": 12 }, "lot": { "pitch": 10, "inset": 1.5, "merge": 0.5 },
+        "height": { "minFloors": 3, "maxFloors": 12, "floorHeight": 3.4 },
+        "tower": { "chance": 0.08, "floors": [16, 34], "floorHeight": 3.9 },
+        "archetypes": ["box", "slab", "l", "u", "t", "cross", "stepped2", "bar_pair"],
+        "enterableEvery": 2, "skip": 0.02, "courtyard": 0.14,
+        "roofs": { "walkable": true, "access": 0.45, "parapet": 0.9 } }
+    ]
+  },
+  "waterways": [
+    { "id": "river", "width": 70, "bedY": -4, "surfaceY": -1.5, "bank": "quay", "wade": true,
+      "points": [{ "x": -300, "z": 0 }, { "x": 300, "z": 0 }],
+      "ramps": [{ "at": { "x": -220, "z": 0 }, "width": 6 }, { "at": { "x": 230, "z": 0 }, "width": 6 }] }
+  ],
+  "roads": [
+    { "id": "bridge_west", "type": "bridge", "width": 8, "lamps": true,
+      "points": [{ "x": -120, "y": 0.12, "z": -80 }, { "x": -120, "y": 6, "z": -46 },
+                  { "x": -120, "y": 6, "z": 46 }, { "x": -120, "y": 0.12, "z": 80 }] },
+    { "id": "bridge_mid", "type": "bridge", "width": 8, "lamps": true,
+      "points": [{ "x": 15, "y": 0.12, "z": -80 }, { "x": 15, "y": 6, "z": -46 },
+                  { "x": 15, "y": 6, "z": 46 }, { "x": 15, "y": 0.12, "z": 80 }] },
+    { "id": "bridge_east", "type": "bridge", "width": 8, "lamps": true,
+      "points": [{ "x": 150, "y": 0.12, "z": -80 }, { "x": 150, "y": 6, "z": -46 },
+                  { "x": 150, "y": 6, "z": 46 }, { "x": 150, "y": 0.12, "z": 80 }] },
+    { "id": "sb_spire", "type": "skybridge", "width": 3.4, "lamps": true,
+      "points": [{ "x": -51, "y": 8, "z": 130 }, { "x": -51, "y": 8, "z": 146 }] },
+    { "id": "sb_kabuki", "type": "skybridge", "width": 3.2, "lamps": true,
+      "points": [{ "x": 87, "y": 6.4, "z": 176 }, { "x": 87, "y": 6.4, "z": 194 }] }
+  ],
+  "buildings": [
+    {
+      "id": "corp_podium", "name": "Подиум корпорации", "floorsCount": 2, "floorHeight": 4,
+      "footprint": [{ "x": -64, "z": 106 }, { "x": -38, "z": 106 }, { "x": -38, "z": 130 }, { "x": -64, "z": 130 }],
+      "roof": { "walkable": true, "parapet": 1 },
+      "rooms": [
+        { "id": "cp_r0", "floor": 0, "type": "lobby",
+          "polygon": [{ "x": -64, "z": 106 }, { "x": -38, "z": 106 }, { "x": -38, "z": 130 }, { "x": -64, "z": 130 }],
+          "connections": [{ "target": "ncc_s_v5_0", "portalPosition": { "x": -60, "y": 0, "z": 106 }, "linkType": "main_entrance" }] },
+        { "id": "cp_r1", "floor": 1, "type": "office",
+          "polygon": [{ "x": -64, "z": 106 }, { "x": -38, "z": 106 }, { "x": -38, "z": 130 }, { "x": -64, "z": 130 }] }
+      ],
+      "stairs": [
+        { "id": "cp_s0", "type": "straight", "connectsFloors": [0, 1], "position": { "x": -58, "z": 112 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "cp_roof", "type": "ladder", "connectsFloors": [1, 2], "position": { "x": -44, "z": 126 } }
+      ]
+    },
+    {
+      "id": "corp_spire", "name": "Игла корпорации", "floorsCount": 8, "floorHeight": 4,
+      "footprint": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }],
+      "roof": { "walkable": true, "parapet": 1.1 },
+      "rooms": [
+        { "id": "cs_r0", "floor": 0, "type": "lobby",
+          "polygon": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }],
+          "connections": [{ "target": "ncc_s_v5_1", "portalPosition": { "x": -60, "y": 0, "z": 146 }, "linkType": "main_entrance" }] },
+        { "id": "cs_r1", "floor": 1, "type": "office",
+          "polygon": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }] },
+        { "id": "cs_r2", "floor": 2, "type": "office",
+          "polygon": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }],
+          "connections": [{ "target": "sb_spire", "portalPosition": { "x": -51, "y": 8, "z": 146 }, "linkType": "door" }] },
+        { "id": "cs_r3", "floor": 3, "type": "office",
+          "polygon": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }] },
+        { "id": "cs_r4", "floor": 4, "type": "utility",
+          "polygon": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }] },
+        { "id": "cs_r5", "floor": 5, "type": "office",
+          "polygon": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }] },
+        { "id": "cs_r6", "floor": 6, "type": "office",
+          "polygon": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }] },
+        { "id": "cs_r7", "floor": 7, "type": "utility",
+          "polygon": [{ "x": -64, "z": 146 }, { "x": -38, "z": 146 }, { "x": -38, "z": 172 }, { "x": -64, "z": 172 }] }
+      ],
+      "stairs": [
+        { "id": "cs_s0", "type": "straight", "connectsFloors": [0, 1], "position": { "x": -58, "z": 166 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "cs_s1", "type": "straight", "connectsFloors": [1, 2], "position": { "x": -58, "z": 166 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "cs_s2", "type": "straight", "connectsFloors": [2, 3], "position": { "x": -58, "z": 152 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "cs_s3", "type": "straight", "connectsFloors": [3, 4], "position": { "x": -58, "z": 152 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "cs_s4", "type": "straight", "connectsFloors": [4, 5], "position": { "x": -44, "z": 152 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "cs_s5", "type": "straight", "connectsFloors": [5, 6], "position": { "x": -44, "z": 152 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "cs_s6", "type": "straight", "connectsFloors": [6, 7], "position": { "x": -44, "z": 166 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "cs_roof", "type": "ladder", "connectsFloors": [7, 8], "position": { "x": -51, "z": 160 } }
+      ]
+    },
+    {
+      "id": "kab_market", "name": "Блок рынка", "floorsCount": 3, "floorHeight": 3.2,
+      "footprint": [{ "x": 70, "z": 150 }, { "x": 104, "z": 150 }, { "x": 104, "z": 176 }, { "x": 70, "z": 176 }],
+      "roof": { "walkable": true, "parapet": 0.9 },
+      "rooms": [
+        { "id": "km_r0", "floor": 0, "type": "market",
+          "polygon": [{ "x": 70, "z": 150 }, { "x": 104, "z": 150 }, { "x": 104, "z": 176 }, { "x": 70, "z": 176 }],
+          "connections": [{ "target": "nkab_s_h3_0", "portalPosition": { "x": 70, "y": 0, "z": 163 }, "linkType": "main_entrance" }] },
+        { "id": "km_r1", "floor": 1, "type": "office",
+          "polygon": [{ "x": 70, "z": 150 }, { "x": 104, "z": 150 }, { "x": 104, "z": 176 }, { "x": 70, "z": 176 }] },
+        { "id": "km_r2", "floor": 2, "type": "utility",
+          "polygon": [{ "x": 70, "z": 150 }, { "x": 104, "z": 150 }, { "x": 104, "z": 176 }, { "x": 70, "z": 176 }],
+          "connections": [{ "target": "sb_kabuki", "portalPosition": { "x": 87, "y": 6.4, "z": 176 }, "linkType": "door" }] }
+      ],
+      "stairs": [
+        { "id": "km_s0", "type": "straight", "connectsFloors": [0, 1], "position": { "x": 78, "z": 158 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "km_s1", "type": "straight", "connectsFloors": [1, 2], "position": { "x": 78, "z": 158 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "km_roof", "type": "ladder", "connectsFloors": [2, 3], "position": { "x": 98, "z": 168 } }
+      ]
+    },
+    {
+      "id": "kab_tower", "name": "Жилая башня Кабуки", "floorsCount": 3, "floorHeight": 3.2,
+      "footprint": [{ "x": 70, "z": 194 }, { "x": 104, "z": 194 }, { "x": 104, "z": 220 }, { "x": 70, "z": 220 }],
+      "roof": { "walkable": true, "parapet": 1 },
+      "rooms": [
+        { "id": "kt_r0", "floor": 0, "type": "hall",
+          "polygon": [{ "x": 70, "z": 194 }, { "x": 104, "z": 194 }, { "x": 104, "z": 220 }, { "x": 70, "z": 220 }],
+          "connections": [{ "target": "nkab_s_h4_0", "portalPosition": { "x": 70, "y": 0, "z": 196 }, "linkType": "main_entrance" }] },
+        { "id": "kt_r1", "floor": 1, "type": "office",
+          "polygon": [{ "x": 70, "z": 194 }, { "x": 104, "z": 194 }, { "x": 104, "z": 220 }, { "x": 70, "z": 220 }] },
+        { "id": "kt_r2", "floor": 2, "type": "utility",
+          "polygon": [{ "x": 70, "z": 194 }, { "x": 104, "z": 194 }, { "x": 104, "z": 220 }, { "x": 70, "z": 220 }],
+          "connections": [{ "target": "sb_kabuki", "portalPosition": { "x": 87, "y": 6.4, "z": 194 }, "linkType": "door" }] }
+      ],
+      "stairs": [
+        { "id": "kt_s0", "type": "straight", "connectsFloors": [0, 1], "position": { "x": 96, "z": 212 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "kt_s1", "type": "straight", "connectsFloors": [1, 2], "position": { "x": 96, "z": 212 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "kt_roof", "type": "ladder", "connectsFloors": [2, 3], "position": { "x": 76, "z": 200 } }
+      ]
+    },
+    {
+      "id": "sind_depot", "name": "Депо", "floorsCount": 2, "floorHeight": 4.6,
+      "footprint": [{ "x": -150, "z": -160 }, { "x": -90, "z": -160 }, { "x": -90, "z": -130 }, { "x": -150, "z": -130 }],
+      "roof": { "walkable": true, "parapet": 0.9 },
+      "rooms": [
+        { "id": "sd_r0", "floor": 0, "type": "warehouse",
+          "polygon": [{ "x": -150, "z": -160 }, { "x": -90, "z": -160 }, { "x": -90, "z": -130 }, { "x": -150, "z": -130 }],
+          "connections": [{ "target": "sind_s_v3_0", "portalPosition": { "x": -132, "y": 0, "z": -160 }, "linkType": "main_entrance" }] },
+        { "id": "sd_r1", "floor": 1, "type": "utility",
+          "polygon": [{ "x": -150, "z": -160 }, { "x": -90, "z": -160 }, { "x": -90, "z": -130 }, { "x": -150, "z": -130 }] }
+      ],
+      "stairs": [
+        { "id": "sd_s0", "type": "straight", "connectsFloors": [0, 1], "position": { "x": -140, "z": -140 }, "dimensions": { "width": 7, "length": 4 } },
+        { "id": "sd_roof", "type": "ladder", "connectsFloors": [1, 2], "position": { "x": -100, "z": -150 } }
+      ]
+    },
+    {
+      "id": "skit_stack", "name": "Стек трущоб", "floorsCount": 4, "floorHeight": 3.6,
+      "footprint": [{ "x": 120, "z": -140 }, { "x": 150, "z": -140 }, { "x": 150, "z": -110 }, { "x": 120, "z": -110 }],
+      "roof": { "walkable": true, "parapet": 1 },
+      "rooms": [
+        { "id": "ss_r0", "floor": 0, "type": "hall",
+          "polygon": [{ "x": 120, "z": -140 }, { "x": 150, "z": -140 }, { "x": 150, "z": -110 }, { "x": 120, "z": -110 }],
+          "connections": [{ "target": "skit_s_h4_1", "portalPosition": { "x": 150, "y": 0, "z": -132 }, "linkType": "main_entrance" }] },
+        { "id": "ss_r1", "floor": 1, "type": "office",
+          "polygon": [{ "x": 120, "z": -140 }, { "x": 150, "z": -140 }, { "x": 150, "z": -110 }, { "x": 120, "z": -110 }] },
+        { "id": "ss_r2", "floor": 2, "type": "office",
+          "polygon": [{ "x": 120, "z": -140 }, { "x": 150, "z": -140 }, { "x": 150, "z": -110 }, { "x": 120, "z": -110 }] },
+        { "id": "ss_r3", "floor": 3, "type": "utility",
+          "polygon": [{ "x": 120, "z": -140 }, { "x": 150, "z": -140 }, { "x": 150, "z": -110 }, { "x": 120, "z": -110 }] }
+      ],
+      "stairs": [
+        { "id": "ss_s0", "type": "straight", "connectsFloors": [0, 1], "position": { "x": 128, "z": -132 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "ss_s1", "type": "straight", "connectsFloors": [1, 2], "position": { "x": 128, "z": -118 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "ss_s2", "type": "straight", "connectsFloors": [2, 3], "position": { "x": 142, "z": -118 }, "dimensions": { "width": 6, "length": 4 } },
+        { "id": "ss_roof", "type": "ladder", "connectsFloors": [3, 4], "position": { "x": 142, "z": -132 } }
+      ]
+    }
+  ],
+  "landscapeObjects": [],
+  "lights": [
+    { "id": "moon", "type": "directional", "position": { "x": 120, "y": 220, "z": 80 },
+      "color": "#bcd0ff", "intensity": 0.55 }
+  ],
+  "sky": {
+    "sky": "#0b1020",
+    "fog": { "color": "#0e1424", "near": 40, "far": 320 },
+    "hemi": { "sky": "#1b2a44", "ground": "#0a0d12", "intensity": 0.4 },
+    "lights": { "count": 8, "reach": 60, "height": 5.4, "spacing": 20, "intensity": 70 }
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": { "x": -120, "z": 96 },
+    "exit": { "x": 150, "z": -96 },
+    "exitRadius": 4,
+    "enemies": { "count": 8 },
+    "alienEnemies": { "count": 2 }
+  }
+}

@@ -588,7 +588,10 @@ function roadLamps(road, obstacles, warnings, water) {
           warnings.push(`${road.id}: фонарь в ${r3(p.x)}, ${r3(p.z)} попал в ${hit.id} — пропущен`);
           continue;
         }
-        if (water && water(p.x, p.z) !== null) {
+        // в воду уходит только фонарь наземной улицы: настил моста и эстакады сам
+        // держит свою опору света над руслом, и сбрасывать такие фонари значило бы
+        // темнить на переправе — самом нужном для ночного перехода месте
+        if (water && road.type === 'ground' && water(p.x, p.z) !== null) {
           warnings.push(`${road.id}: фонарь в ${r3(p.x)}, ${r3(p.z)} встал в русло — пропущен`);
           continue;
         }

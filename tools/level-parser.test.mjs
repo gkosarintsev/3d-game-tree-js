@@ -472,6 +472,27 @@ t('полигон воды проходит валидатор и нормали
   eq(level.map.channels[0].holes.length, 7, 'планов прорези у канала (дно + 2 схода + 4 куска стенки)');
 });
 
+/**
+ * В русло сбрасывается только фонарь наземной улицы: настил моста и эстакады
+ * сам держит свою опору света над водой, и фонарь на нём — не ошибка. Прежнее
+ * правило, одинаковое для всех типов дороги, молчало на главе 10 восемнадцатью
+ * «фонарь встал в русло» на трёх мостах, то есть браковало законные огни.
+ */
+t('фонарь моста над руслом остаётся, фонарь наземной улицы в русло не ставится', () => {
+  const level = normalizeLevel(waterLevel(r => {
+    r.roads[1].lamps = true;                       // мост через канал
+    r.roads.push({
+      id: 'road_quay', type: 'ground', width: 8, lamps: true,
+      points: [{ x: -40, y: 0, z: 24 }, { x: 40, y: 0, z: 24 }],
+    });
+  }));
+  const dropped = level.warnings.filter(w => w.includes('встал в русло'));
+  eq(dropped.length, 1, `сброшенных фонарей не один: ${dropped.join(' | ')}`);
+  assert(dropped[0].startsWith('road_quay'), `сброшен не наземный фонарь: ${dropped[0]}`);
+  const bridge = level.map.roads.find(rod => rod.id === 'road_bridge');
+  assert(bridge.lamps.length > 0, 'фонари настила моста пропали');
+});
+
 t('схема бракует косую ось русла, мелкое дно и воду выше земли', () => {
   hasError(waterErrors(r => { r.waterways[0].points[1] = { x: 78, z: 44 }; }), 'косой');
   hasError(waterErrors(r => { r.waterways[0].bedY = -0.1; }), 'мельче 0,2');
@@ -774,6 +795,53 @@ t('свисяющий торец skybridge — ошибка; торец у дв�
   assert(noRoof.some(e => e.includes('начальный')), 'бракуется не кровля-опора: ' + noRoof.join(' | '));
 });
 
+/**
+ * План наземной улицы кончается концом пластины, а не выступает за него на
+ * полширины: дом, приставленный вровень с торцом, стоит на земле рядом с
+ * асфальтом, а не на асфальте. Заодно это чинит 24 ложных «дома в улице» на
+ * развёрнутом городе главы 10, где тупики улиц обрамлены кварталами.
+ */
+t('план дороги — конец пластины: дом вровень с её торцом не «в улице»', () => {
+  const level = normalizeLevel(vertLevel());
+  const street = vertRoad(level, 'street_0');
+  eq(street.decks[0].minX, -70, 'план улицы выступает за её начало');
+  eq(street.decks[0].maxX, 70, 'план улицы выступает за её конец');
+  const kerb = (minX, maxX) => ({
+    id: 'kerb', name: 'Пристройка у торца', floorsCount: 1, floorHeight: 4,
+    footprint: [{ x: minX, z: -48 }, { x: maxX, z: -48 }, { x: maxX, z: -40 }, { x: minX, z: -40 }],
+    rooms: [{
+      id: 'kerb_r0', floor: 0, type: 'utility',
+      polygon: [{ x: minX, z: -48 }, { x: maxX, z: -48 }, { x: maxX, z: -40 }, { x: minX, z: -40 }],
+    }],
+  });
+  const flush = vertErrors(r => { r.buildings.push(kerb(70, 78)); })
+    .filter(e => e.includes('в улице'));
+  eq(flush.length, 0, `дом вровень с торцом улицы бракуется: ${flush.join(' | ')}`);
+  const inside = vertErrors(r => { r.buildings.push(kerb(67, 75)); })
+    .filter(e => e.includes('в улице'));
+  eq(inside.length, 1, `дом, наехавший на торец пластины, не забракован: ${inside.join(' | ')}`);
+});
+
+/**
+ * Торец перехода опирается в план с допуском `J.skybridgeFit` и симметрично по
+ * высоте: главу 10 сборка отвергала на стыке «ровно в ноль» — кровля подиума
+ * заканчивается там же, где начинается пластина перехода, и строгое пересечение
+ * с габаритом не прощало нулевой нахлёст. Дверь при этом меряется проёмом
+ * (`door.rect`), а не точкой портала, вынесенной на 1,4 м за фасад.
+ */
+t('торец перехода держит кровля вровень; щель больше допуска — опора теряется', () => {
+  eq(vertErrors(() => {}).filter(e => e.includes('не имеет опоры')).length, 0,
+    'чистый полигон вертикали уже бракуется торцами перехода');
+  const gap = vertErrors(r => {
+    const pull = p => { if (p.x === -10) p.x = -11; };
+    r.buildings[0].footprint.forEach(pull);
+    for (const room of r.buildings[0].rooms) room.polygon.forEach(pull);
+  });
+  const lost = gap.filter(e => e.includes('не имеет опоры'));
+  eq(lost.length, 1, `щель в 1 м не стоила перехода опоры: ${gap.join(' | ')}`);
+  assert(lost[0].includes('начальный'), `бракуется не западный ворот: ${gap.join(' | ')}`);
+});
+
 t('под skybridge опор нет, под мостом — есть; фонари разрешены и там, и там', () => {
   const level = normalizeLevel(vertLevel());
   eq(vertRoad(level, 'sb_podium').pillars.length, 0, 'колонны под переходом');
@@ -800,6 +868,30 @@ t('закоммиченный level-09.js совпадает с тем, что �
   const fresh = generateModule(rawLevel, 'src/levels/level-09.json').code;
   assert(committed === fresh,
     `level-09.js устарел на ${(committed.length - fresh.length)} символов — перезапустите node tools/build-level.mjs src/levels/level-09.json`);
+});
+
+// Глава 10 несёт то, чего глава 9 не проверяла: развёрнутый парсером город
+// (секция `city`) плюс русло, мосты и авторские доминанты в одном брифе. Здесь
+// пайплайн обязан сойтись побайтово И не оставить предупреждений: расхождение
+// модуля с парсером значит, что глава в репозитории собрана из другого брифа,
+// а предупреждение — что геометрия отдана на откуп обходному пути (пропущенный
+// фонарь, бракованный торец перехода), и в браузере её уже не видно.
+const LEVEL10_PATH = resolve(ROOT, 'src/levels/level-10.json');
+
+t('закоммиченный level-10.js совпадает с парсером и собран без предупреждений', () => {
+  const raw = JSON.parse(readFileSync(LEVEL10_PATH, 'utf8'));
+  const fresh = generateModule(raw, 'src/levels/level-10.json');
+  eq(fresh.warnings.length, 0, `парсер дал предупреждения: ${fresh.warnings.slice(0, 3).join(' | ')}`);
+  const committed = readFileSync(resolve(ROOT, 'src/levels/level-10.js'), 'utf8').replace(/\r\n/g, '\n');
+  assert(committed === fresh.code,
+    `level-10.js расходится с парсером на ${committed.length - fresh.code.length} символов — перезапустите node tools/build-level.mjs src/levels/level-10.json`);
+});
+
+t('модуль главы 10 — валидный ES-модуль с экспортом LEVEL_10', async () => {
+  const mod = await import(new URL('../src/levels/level-10.js', import.meta.url).href);
+  assert(mod.LEVEL_10?.map?.kind === 'json', 'экспорт LEVEL_10 с kind=json не найден');
+  assert(mod.LEVEL_10.gameplay.goal === 'exit', 'цель главы 10 не exit');
+  assert(mod.LEVEL_10.map.buildings.length > 200, `домов ${mod.LEVEL_10.map.buildings.length}`);
 });
 
 t('модуль главы — валидный ES-модуль с экспортом LEVEL_09', async () => {

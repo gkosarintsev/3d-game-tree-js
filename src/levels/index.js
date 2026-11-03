@@ -8,6 +8,9 @@
  * Глава 9 — переход из JSON-брифа (`kind: 'json'`): дома с комнатами, три типа
  * дорог и три вида лестниц на одной площади. Модуль сгенерирован парсером —
  * правят level-09.json, затем `node tools/build-level.mjs src/levels/level-09.json`.
+ * Глава 10 — тот же механизм на 600 м: кварталы разворачивает генератор из секции
+ * `city` (её сид в `level-10.json`), реку, мосты, доминанты и переходы между
+ * башнями автор описывает руками. Правки — тоже через парсер.
  */
 import { LEVEL_01 } from './level-01.js';
 import { LEVEL_02 } from './level-02.js';
@@ -18,9 +21,10 @@ import { LEVEL_06 } from './level-06.js';
 import { LEVEL_07 } from './level-07.js';
 import { LEVEL_08 } from './level-08.js';
 import { LEVEL_09 } from './level-09.js';
+import { LEVEL_10 } from './level-10.js';
 
 export const LEVELS = [
   LEVEL_01, LEVEL_02, LEVEL_03, LEVEL_04,
   LEVEL_05, LEVEL_06, LEVEL_07, LEVEL_08,
-  LEVEL_09,
+  LEVEL_09, LEVEL_10,
 ];

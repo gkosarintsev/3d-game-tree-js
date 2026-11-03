@@ -13,11 +13,15 @@ import {
   AXIS_EPS, cellKey, normalizePolygon, polyBounds, polyEdges, polyRects,
   r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
 } from '../src/geo2d.js';
-import { inRect, normalizeBuilding, normalizeWaterway, toWorld } from './normalize-level.mjs';
+import { normalizeBuilding, normalizeWaterway, toWorld } from './normalize-level.mjs';
 import { ARCHETYPE_NAMES } from './city.js';
 
 const J = CONFIG.jsonMap;
-const ROOM_TYPES = ['office', 'corridor', 'hall', 'room', 'cafe', 'utility'];
+// тип комнаты — подпись назначения: парсер и JsonMap его не читают (пол, солид и
+// граф от него не зависят), но автору главы 10 он нужен, чтобы по id и типу
+// различать вестибюль, рынок и склад — и чтобы этап неона мог вешать витрины
+// на торговые, а не на первые попавшиеся
+const ROOM_TYPES = ['office', 'corridor', 'hall', 'room', 'cafe', 'utility', 'lobby', 'market', 'warehouse'];
 // skybridge — не-наземный настил без опор: его держат здания, поэтому у каждого
 // его торца обязана быть дверь или ходовая кровля на той же отметке
 const ROAD_TYPES = ['ground', 'bridge', 'embankment', 'skybridge'];
@@ -492,6 +496,9 @@ export function validateLevel(raw) {
   // Проверяется не вся пластина, а её конец глубиной в ширину настила: прямолинейный
   // переход — одна пластина на оба торца, и проверка ею целиком пропускала бы
   // висячий конец, стоило бы другому концу зацепить здание.
+  // Конец отпускается на J.skybridgeFit и в плане, как по высоте: плита кровли и
+  // фасад приходят ровно в черту торца, и строгая пересечённость браковала бы
+  // примыкание в ноль.
   for (const [n, road] of (raw.roads ?? []).entries()) {
     if (road.type !== 'skybridge') continue;
     const label = `roads[${n}] (${road.id})`;
@@ -500,10 +507,13 @@ export function validateLevel(raw) {
     for (const [pi, p, name] of ends) {
       const plate = plans[pi]?.rect;
       if (!plate) { errors.push(`${label}: настил не разложен на пластины — торцу негде проверять опору`); continue; }
-      const cap = endCap(plate, p, road.width);
+      const cap = grown(endCap(plate, p, road.width), J.skybridgeFit);
       const elabel = `${label}: торец ${name} (${p.x}, ${p.z}) на отметке ${p.y}`;
+      // примыкание меряется проёмом двери, а не её наружным узлом: узел парсер
+      // выносит на 1,4 м за фасад (там нога входит в дверь), а пластина кончается
+      // у стены — проверять по узлу значило бы требовать перехода длиннее дома
       const door = normBuildings.some(b => b.doors.some(d => Math.abs(d.y - p.y) <= J.skybridgeFit
-        && inRect(d.outside.x, d.outside.z, cap)));
+        && rectsIntersect(cap, d.rect, 0.05)));
       const roof = normBuildings.some(b => b.roof?.walkable === true
         && Math.abs(b.roofY - p.y) <= J.skybridgeFit
         && rectsIntersect(cap, b.bounds, 0.05));
@@ -567,13 +577,21 @@ function roadRectsOf(road) {
   for (let i = 0; i + 1 < road.points.length; i++) {
     const a = road.points[i], b = road.points[i + 1];
     const horiz = Math.abs(a.x - b.x) >= Math.abs(a.z - b.z);
-    const minX = horiz ? Math.min(a.x, b.x) - halfW : a.x - halfW;
-    const maxX = horiz ? Math.max(a.x, b.x) + halfW : a.x + halfW;
-    const minZ = horiz ? a.z - halfW : Math.min(a.z, b.z) - halfW;
-    const maxZ = horiz ? a.z + halfW : Math.max(a.z, b.z) + halfW;
+    // вдоль оси план кончается концом пластины, как его считает нормализатор:
+    // наращивать его на полwidth «на случай стыка» значило бы браковать дом,
+    // вставший в метре от торца улицы, — генератор как раз обрывает её у его фасада
+    const minX = horiz ? Math.min(a.x, b.x) : a.x - halfW;
+    const maxX = horiz ? Math.max(a.x, b.x) : a.x + halfW;
+    const minZ = horiz ? a.z - halfW : Math.min(a.z, b.z);
+    const maxZ = horiz ? a.z + halfW : Math.max(a.z, b.z);
     out.push({ id: road.id, ground: road.type === 'ground', rect: { minX, maxX, minZ, maxZ } });
   }
   return out;
+}
+
+/** Прямоугольник, отпущенный во все стороны на `d` — допуск примыкания в плане. */
+function grown(rect, d) {
+  return { minX: rect.minX - d, maxX: rect.maxX + d, minZ: rect.minZ - d, maxZ: rect.maxZ + d };
 }
 
 /** Конец пластины в плане: полоса глубиной `depth` у той границы, к которой ближе точка. */

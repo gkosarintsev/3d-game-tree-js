@@ -49,11 +49,16 @@
  *  25. Детерминизм: два сбора дают побитово равные отметки узлов;
  *  26. Квартал генератора (`tools/city.js`): все этажи вводимых домов и ходовые
  *      кровли достижимы, недостижимых узлов нет;
- *  27. Наружный узел двери связан с решёткой улицы, а не только с полом дома.
+ *  27. Наружный узел двери связан с решёткой улицы, а не только с полом дома;
+ *  28. Глава 10 целиком (`level-10.js`): маршрут A→B через русло — по мосту или
+ *      вброд, и каждое его ребро проходимо шагом;
+ *  29. Глава 10: авторские доминанты открыты на всех этажах и кровлях, а
+ *      генератор дал кварталы с достижимыми интерьерами на обоих берегах.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
 import { LEVEL_09 } from '../src/levels/level-09.js';
+import { LEVEL_10 } from '../src/levels/level-10.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { expandCity } from '../tools/city.js';
 import { CONFIG } from '../src/config.js';
@@ -1414,7 +1419,8 @@ function testCityDoorReachesStreet() {
       // в 0,5 м от стены, а фасад — ближе всего), и тогда дом связен внутри,
       // но отрезан от улицы
       const out = nav.nearestNode(d.outside.x, d.y, d.outside.z);
-      if (out < 0) { bad.push(`${d.id}: у наружной точки нет узла вообще`); continue; }      const outsidePlan = nav.adj[out].filter(i => !b.rects.some(r => {
+      if (out < 0) { bad.push(`${d.id}: у наружной точки нет узла вообще`); continue; }
+      const outsidePlan = nav.adj[out].filter(i => !b.rects.some(r => {
         const p = nav.pos[i];
         return p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ;
       }));
@@ -1425,6 +1431,99 @@ function testCityDoorReachesStreet() {
     name: 'Наружный узел каждой двери ведёт на решётку улицы, а не только в пол своей комнаты',
     passed: doors >= 8 && bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ') : `${doors} дверей генератора, у всех есть сосед снаружи плана`,
+  };
+}
+
+// ----------------------------------------------------------- глава 10: город из брифа
+
+let city10 = null;
+
+/**
+ * Глава 10 целиком: `LEVEL_10.js` взят как он лежит в репозитории, поэтому тест
+ * проверяет и генератор, и схему, и нормализатор разом — расходится любой из
+ * трёх, и маршрут или интерьер перестанет быть достижимым.
+ */
+function chapter10() {
+  if (!city10) {
+    city10 = createJsonMap(LEVEL_10.map);
+    city10.build(new THREE.Scene());
+  }
+  return city10;
+}
+
+const AUTHORED_10 = ['corp_podium', 'corp_spire', 'kab_market', 'kab_tower', 'sind_depot', 'skit_stack'];
+
+function testChapter10Route() {
+  const map = chapter10();
+  const e = LEVEL_10.gameplay.exit;
+  const exit = { x: e.x, y: map.groundHeightAt(e.x, e.z, 500), z: e.z };
+  const path = map.findPath(map.spawn, exit);
+  const name = 'Глава 10: маршрут A→B существует, проходим ногами и пересекает русло';
+  if (!Array.isArray(path)) return { name, passed: false, info: 'маршрута нет' };
+  const last = path[path.length - 1];
+  for (let i = 0; i + 1 < path.length; i++) {
+    const fail = walkEdge(map, path[i], path[i + 1]);
+    if (fail) return { name, passed: false, info: `ребро ${i} в ${fail.x.toFixed(1)}, ${fail.z.toFixed(1)}: ${fail.reason}` };
+  }
+  const ch = map.channels.find(c => c.id === 'river');
+  const half = ch.width / 2;
+  const inBed = path.filter(p => Math.abs(p.z) <= half);
+  // переправа обязана быть видна по отметкам: либо настил моста выше земли, либо
+  // дно брода ниже — узел «на уровне берега» посреди русла означал бы, что маршрут
+  // идёт по воде
+  const onDeck = inBed.some(p => p.y > 1);
+  const wading = inBed.some(p => p.y < -0.5);
+  return {
+    name,
+    passed: Math.hypot(last.x - exit.x, last.z - exit.z) <= LEVEL_10.gameplay.exitRadius + 4
+      && Math.abs(last.y - exit.y) <= 0.02 && inBed.length > 0 && (onDeck || wading),
+    info: `${path.length} узлов, ${Math.round(path.reduce((s, p, i) => i ? s + Math.hypot(p.x - path[i - 1].x, p.z - path[i - 1].z) : 0, 0))} м, `
+      + `в русле ${inBed.length} узлов (мост ${onDeck ? 'есть' : 'нет'}, вброд ${wading ? 'есть' : 'нет'})`,
+  };
+}
+
+function testChapter10Interiors() {
+  const map = chapter10();
+  const nav = map.nav;
+  const seen = reachableFromSpawn(map);
+  const bad = [];
+  let enterable = 0, roofed = 0, generated = 0;
+  const authored = new Set(AUTHORED_10);
+  for (const b of map.buildings) {
+    if (!authored.has(b.id)) generated++;
+    if (!b.isEnterable) continue;
+    enterable++;
+    const own = [];
+    for (let i = 0; i < nav.pos.length; i++) {
+      const p = nav.pos[i];
+      if (p.x >= b.bounds.minX - 0.01 && p.x <= b.bounds.maxX + 0.01
+        && p.z >= b.bounds.minZ - 0.01 && p.z <= b.bounds.maxZ + 0.01) own.push(i);
+    }
+    for (const room of b.rooms) {
+      if (!own.some(i => Math.abs(nav.pos[i].y - room.y) < 0.35 && seen[i])) {
+        bad.push(`${b.id}: этаж ${room.floor} (${room.y} м) без достижимых узлов`);
+      }
+    }
+    if (b.roof?.walkable) {
+      roofed++;
+      if (!own.some(i => Math.abs(nav.pos[i].y - b.roofY) < 0.35 && seen[i])) {
+        bad.push(`${b.id}: кровля на ${b.roofY} м недостижима`);
+      }
+    }
+  }
+  const missAuthor = AUTHORED_10.filter(id => {
+    const b = map.buildings.find(x => x.id === id);
+    return !b || !b.isEnterable;
+  });
+  const dead = nav.pos.filter((_, i) => !seen[i]).length;
+  return {
+    name: 'Глава 10: авторские доминанты и все вводимые дома открыты ногами на своих берегах',
+    passed: missAuthor.length === 0 && generated >= 250 && enterable >= 25 && roofed >= 10
+      && dead === 0 && bad.length === 0,
+    info: bad.length || missAuthor.length
+      ? [...missAuthor.map(id => `${id}: нет вводимого дома`), ...bad].slice(0, 3).join('; ')
+      : `${generated} домов генератора, ${enterable} вводимых (${roofed} с кровлей), авторских ${AUTHORED_10.length}, `
+        + `узлов ${nav.pos.length}, недостижимых ${dead}`,
   };
 }
 
@@ -1463,6 +1562,8 @@ export async function runJsonTests() {
     testVertDeterminism,
     testCityHousesReachable,
     testCityDoorReachesStreet,
+    testChapter10Route,
+    testChapter10Interiors,
     testMeshAndLights,
     testMinimap,
     testOpenPositions,
