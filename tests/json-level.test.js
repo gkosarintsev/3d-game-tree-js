@@ -54,6 +54,17 @@
  *      вброд, и каждое его ребро проходимо шагом;
  *  29. Глава 10: авторские доминанты открыты на всех этажах и кровлях, а
  *      генератор дал кварталы с достижимыми интерьерами на обоих берегах.
+ *  30. Окна фасадов (секция `windows`): без неё окон нет, с ней — инстансы
+ *      палитры, собранные детерминированно;
+ *  31. Окна — только картинка: солиды, блокеры, опоры, узлы графа и маршрут
+ *      A→B совпадают с картой без окон;
+ *  32. Каждый квад висит снаружи своей стены и смотрит наружу: рейкаст назад
+ *      даёт стену на ≤ 0,12 м, вперёд — воздух не ближе 0,5 м;
+ *  33. Доля горящих окон держит настройку `lit`, все цвета палитры в сцене;
+ *  34. Бюджет района с окнами: отрисовки, экземпляры и треугольники в пределах
+ *      замера главы 10;
+ *  35. `dispose()` убирает меши окон и их материалы, общие материалы пропов
+ *      остаются живыми.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
@@ -1437,6 +1448,8 @@ function testCityDoorReachesStreet() {
 // ----------------------------------------------------------- глава 10: город из брифа
 
 let city10 = null;
+/** Сцена, в которую собран глава-10-`JsonMap`: меши окон нужны живьём, а не только счётчик. */
+let city10Scene = null;
 
 /**
  * Глава 10 целиком: `LEVEL_10.js` взят как он лежит в репозитории, поэтому тест
@@ -1446,7 +1459,8 @@ let city10 = null;
 function chapter10() {
   if (!city10) {
     city10 = createJsonMap(LEVEL_10.map);
-    city10.build(new THREE.Scene());
+    city10Scene = new THREE.Scene();
+    city10.build(city10Scene);
   }
   return city10;
 }
@@ -1527,6 +1541,233 @@ function testChapter10Interiors() {
   };
 }
 
+// ------------------------------------------------------------ окна фасадов
+
+/**
+ * Светящиеся окна — картинка, собранная картой из её же данных фасада
+ * (`spec.windows` включает механизм). Проверяется ровно то, из-за чего иначе
+ * пострадал бы геймплей или загрузка: главы без секции обязаны остаться как
+ * раньше, окна не смеют трогать твёрдость и граф, квад обязан висеть снаружи
+ * своей стены и смотреть наружу (иначе стекло прячется в солид или торчит в
+ * соседний дом), а `dispose()` — убрать их меши и материалы, но не общие
+ * материалы пропов.
+ */
+
+/** Меши окон в сцене: инстансы с `MeshBasicMaterial` — окно не освещается, оно и есть свет. */
+function windowMeshes(scene) {
+  return scene.children.filter(o => o.isInstancedMesh && o.material.isMeshBasicMaterial);
+}
+
+let winBuilt = null;
+
+/** Глава 10 в своей сцене: нужны не только счётчики, но и буферы экземпляров. */
+function windowsInScene() {
+  if (!winBuilt) {
+    winBuilt = { map: chapter10(), scene: city10Scene, meshes: windowMeshes(city10Scene) };
+  }
+  return winBuilt;
+}
+
+function testWindowsNeedSection() {
+  const scene = new THREE.Scene();
+  const map = createJsonMap(LEVEL_09.map);
+  map.build(scene);
+  const win = windowMeshes(scene);
+  const ok = map.winCfg === null && map.windowCount === 0 && win.length === 0;
+  map.dispose();
+  return {
+    name: 'Без секции `windows` окон нет: глава 9 собирается как раньше',
+    passed: ok,
+    info: ok ? `глава 9: окон ${map.windowCount}, мешей окон ${win.length}, солидов ${map.solids.length}`
+      : `окон ${map.windowCount}, мешей ${win.length} при отсутствующей секции`,
+  };
+}
+
+function testWindowMeshes() {
+  const { map, meshes } = windowsInScene();
+  const cfg = map.winCfg;
+  const palette = new Set([...cfg.litColors, cfg.darkColor]);
+  const offPalette = meshes.filter(m => !palette.has(m.material.color.getHex()));
+  const instances = meshes.reduce((n, m) => n + m.count, 0);
+  const nan = meshes.filter(m => Array.from(m.instanceMatrix.array).some(v => !Number.isFinite(v))).length;
+  return {
+    name: 'Окна — инстансы палитры: счётчик, меши и матрицы без NaN',
+    passed: map.windowCount >= 20000 && instances === map.windowCount && meshes.length <= 4
+      && offPalette.length === 0 && nan === 0,
+    info: `${map.windowCount} окон на ${meshes.length} мешах палитры (инстансов ${instances}), `
+      + `вне палитры ${offPalette.length}, матриц с NaN ${nan}`,
+  };
+}
+
+function testWindowDeterminism() {
+  const scenes = [new THREE.Scene(), new THREE.Scene()];
+  const maps = scenes.map(s => {
+    const m = createJsonMap(LEVEL_10.map);
+    m.build(s);
+    return m;
+  });
+  const lists = scenes.map(s => windowMeshes(s)
+    .sort((a, b) => a.material.color.getHex() - b.material.color.getHex()));
+  let diff = 0;
+  if (maps[0].windowCount !== maps[1].windowCount || lists[0].length !== lists[1].length) {
+    diff = Infinity;
+  } else {
+    for (let i = 0; i < lists[0].length; i++) {
+      const A = lists[0][i].instanceMatrix.array;
+      const B = lists[1][i].instanceMatrix.array;
+      if (A.length !== B.length) { diff = Infinity; break; }
+      for (let k = 0; k < A.length; k++) if (A[k] !== B[k]) diff++;
+    }
+  }
+  for (const m of maps) m.dispose();
+  return {
+    name: 'Детерминизм окон: два сбора дают побитово равные матрицы экземпляров',
+    passed: diff === 0 && maps[0].windowCount > 0,
+    info: diff === 0 ? `${maps[0].windowCount} окон, ${lists[0].length} меша — матрицы совпали побитово`
+      : `различий в матрицах — ${diff}`,
+  };
+}
+
+function testWindowNeutral() {
+  const withW = windowsInScene().map;
+  const raw = structuredClone(LEVEL_10.map);
+  delete raw.windows;
+  const plain = createJsonMap(raw);
+  plain.build(new THREE.Scene());
+  const e = LEVEL_10.gameplay.exit;
+  const target = { x: e.x, y: plain.groundHeightAt(e.x, e.z, 500), z: e.z };
+  const a = withW.findPath(withW.spawn, target);
+  const b = plain.findPath(plain.spawn, target);
+  const same = (u, v) => u.length === v.length && u.every((p, i) => p.x === v[i].x && p.y === v[i].y && p.z === v[i].z);
+  const bad = [];
+  if (!a || !b) bad.push(`маршрута нет: ${a ? 'есть' : 'нет'} против ${b ? 'есть' : 'нет'}`);
+  else if (!same(a, b)) bad.push(`маршрут A→B разный: ${a.length} шагов против ${b.length}`);
+  if (plain.winCfg) bad.push('секции нет, а настройка осталась');
+  if (plain.windowCount) bad.push(`без секции собрано ${plain.windowCount} окон`);
+  if (withW.solids.length !== plain.solids.length) bad.push(`солидов ${withW.solids.length} против ${plain.solids.length}`);
+  if (withW.blockers.length !== plain.blockers.length) bad.push(`блокиров ${withW.blockers.length} против ${plain.blockers.length}`);
+  if (withW.surfaces.length !== plain.surfaces.length) bad.push(`опор ${withW.surfaces.length} против ${plain.surfaces.length}`);
+  if (withW.nav.pos.length !== plain.nav.pos.length) bad.push(`узлов ${withW.nav.pos.length} против ${plain.nav.pos.length}`);
+  plain.dispose();
+  return {
+    name: 'Окна — только картинка: твёрдость, опоры, граф и маршрут A→B не меняются',
+    passed: bad.length === 0 && !!a && a.length > 10,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${withW.windowCount} окон против 0: солидов ${withW.solids.length}, опор ${withW.surfaces.length}, `
+        + `узлов ${withW.nav.pos.length}, маршрут ${a.length} шагов — совпали`,
+  };
+}
+
+function testWindowFacesOutward() {
+  const { map, meshes } = windowsInScene();
+  const step = Math.max(1, Math.floor(meshes.reduce((n, m) => n + m.count, 0) / 200));
+  let checked = 0, bad = 0;
+  const first = [];
+  for (const m of meshes) {
+    const a = m.instanceMatrix.array;
+    for (let i = 0; i < m.count; i += step) {
+      const o = i * 16;
+      // колонка 2 матрицы — нормаль квада (s, 0, c), колонка 3 — его центр
+      const nx = a[o + 8], nz = a[o + 10];
+      const x = a[o + 12], y = a[o + 13], z = a[o + 14];
+      const inward = map.raySolid(x, y, z, -nx, 0, -nz, 0.5);
+      const outward = map.raySolid(x, y, z, nx, 0, nz, 1.5);
+      checked++;
+      // стекло висит на `offset` наружу от грани стены: позади него обязана быть
+      // именно эта стена, а спереди — воздух хотя бы в полметра
+      const why = !inward ? 'за стеклом нет стены'
+        : inward.dist > 0.12 ? `стена в ${inward.dist.toFixed(2)} м за стеклом`
+        : outward && outward.dist < 0.5 ? `стена в ${outward.dist.toFixed(2)} м перед стеклом` : null;
+      if (why) {
+        bad++;
+        if (first.length < 3) first.push(`${why} (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`);
+      }
+    }
+  }
+  return {
+    name: 'Квад окна сидит снаружи своей стены и смотрит наружу',
+    passed: checked > 150 && bad === 0,
+    info: bad ? `${bad} из ${checked}: ${first.join('; ')}`
+      : `${checked} квадов: стена за каждым на ≤ 0,12 м, перед каждым — воздух ≥ 0,5 м`,
+  };
+}
+
+function testWindowLitRatio() {
+  const { map, meshes } = windowsInScene();
+  const cfg = map.winCfg;
+  const lit = new Set(cfg.litColors);
+  let litCount = 0;
+  const seenLit = new Set();
+  for (const m of meshes) {
+    const hex = m.material.color.getHex();
+    if (!lit.has(hex)) continue;
+    litCount += m.count;
+    seenLit.add(hex);
+  }
+  const ratio = litCount / map.windowCount;
+  return {
+    name: 'Доля горящих окон держит настройку `lit`, цвета палитры используются все',
+    passed: ratio > 0.35 && ratio < 0.55 && seenLit.size === cfg.litColors.length,
+    info: `горящих ${litCount} из ${map.windowCount} (${(ratio * 100).toFixed(1)} % при базе ${cfg.lit}), `
+      + `цветов палитры в сцене ${seenLit.size} из ${cfg.litColors.length}`,
+  };
+}
+
+/**
+ * Бюджет района: узкое место — не треугольники геометрии, а число отрисовок и
+ * экземпляров (один меш на цвет палитры + один на тип пропа), поэтому окна
+ * инстансятся. Верхние границы — замер главы 10 с запасом: `build` без окон даёт
+ * 10 мешей, с окнами — 14.
+ */
+function testWindowBudget() {
+  const { map, scene } = windowsInScene();
+  let meshes = 0, geoTris = 0, instTris = 0, instances = 0;
+  for (const o of scene.children) {
+    if (!o.isMesh && !o.isInstancedMesh) continue;
+    meshes++;
+    const g = o.geometry;
+    const t = (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+    geoTris += t;
+    const n = o.isInstancedMesh ? o.count : 1;
+    instances += n;
+    instTris += t * n;
+  }
+  const ok = meshes <= 20 && map.windowCount <= 40000 && instTris <= 250000 && instances <= 45000;
+  return {
+    name: 'Бюджет района: отрисовки, экземпляры и треугольники вместе с окнами',
+    passed: ok,
+    info: `${meshes} мешей (отрисовок), ${map.windowCount} окон, ${instances} экземпляров, `
+      + `${(Math.round(instTris) / 1000).toFixed(1)} тыс. треугов с инстансами `
+      + `(сумма геометрий — ${(Math.round(geoTris) / 1000).toFixed(1)} тыс.)`,
+  };
+}
+
+function testWindowDispose() {
+  const scene = new THREE.Scene();
+  const map = createJsonMap(LEVEL_10.map);
+  map.build(scene);
+  const win = windowMeshes(scene);
+  const shared = scene.children.filter(o => o.isInstancedMesh && o.userData.sharedMaterial);
+  let winDisposed = 0, sharedDisposed = 0;
+  for (const m of win) {
+    const d = m.material.dispose.bind(m.material);
+    m.material.dispose = () => { winDisposed++; d(); };
+  }
+  for (const m of shared) {
+    const d = m.material.dispose.bind(m.material);
+    m.material.dispose = () => { sharedDisposed++; d(); };
+  }
+  map.dispose();
+  const leftMeshes = scene.children.filter(o => o.isMesh || o.isInstancedMesh).length;
+  return {
+    name: 'dispose() убирает меши окон и их материалы, но не общие материалы пропов',
+    passed: win.length > 0 && shared.length > 0 && leftMeshes === 0
+      && winDisposed === win.length && sharedDisposed === 0,
+    info: `${win.length} мешей окон убрано из сцены, их материалов disposed — ${winDisposed}, `
+      + `общих материалов пропов тронуто ${sharedDisposed} из ${shared.length}; меши в сцене: ${leftMeshes}`,
+  };
+}
+
 /**
  * Прогоняет тесты JSON-главы и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
@@ -1564,6 +1805,14 @@ export async function runJsonTests() {
     testCityDoorReachesStreet,
     testChapter10Route,
     testChapter10Interiors,
+    testWindowsNeedSection,
+    testWindowMeshes,
+    testWindowDeterminism,
+    testWindowNeutral,
+    testWindowFacesOutward,
+    testWindowLitRatio,
+    testWindowBudget,
+    testWindowDispose,
     testMeshAndLights,
     testMinimap,
     testOpenPositions,

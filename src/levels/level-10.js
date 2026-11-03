@@ -81858,7 +81858,10 @@ export const LEVEL_10 = {
         }
       }
     ],
-    "lights": []
+    "lights": [],
+    "windows": {
+      "lit": 0.42
+    }
   },
   "sky": {
     "sky": "#0b1020",

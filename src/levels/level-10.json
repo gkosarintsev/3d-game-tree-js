@@ -11,6 +11,9 @@
     "size": 600,
     "color": "#1a1d22"
   },
+  "windows": {
+    "lit": 0.42
+  },
   "city": {
     "seed": 20261103,
     "districts": [

@@ -123,6 +123,10 @@ export function normalizeLevel(raw) {
       ...(channels.length ? { channels } : {}),
       props,
       lights,
+      // переопределение ритма окон (src/json-map.js `_windowItems`): числа едут в
+      // модуль как есть, потому что позиции считает карта, а не парсер, — список
+      // из 34 тыс. квадов удвоил бы файл главы
+      ...(raw.windows ? { windows: raw.windows } : {}),
     },
     warnings,
   };

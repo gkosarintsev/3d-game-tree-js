@@ -18,6 +18,28 @@ function faceNormal(p0, p1, p2) {
 }
 
 /**
+ * Числовой FNV-1a для ритма фасада. Хеш id дома считается один раз на дом, а
+ * этаж, грань и номер слота подмешиваются в него числами: строковый ключ на
+ * каждое окно (32 тыс. шаблонных литералов на главу) стоил четверть времени
+ * вывода, а адрес слота и так целочисленный.
+ *
+ * По адресу, а не по счёту в обходе, — иначе добавка одного дома сдвигала бы
+ * «зажжённые» окна у соседей и ночной кадр главы пересобирался целиком от правки
+ * в другом районе.
+ */
+const FNV_PRIME = 16777619;
+function fnvMix(h, v) {
+  return Math.imul(h ^ v, FNV_PRIME) >>> 0;
+}
+function fnvStr(h, s) {
+  let x = h;
+  for (let i = 0; i < s.length; i++) x = fnvMix(x, s.charCodeAt(i));
+  return x;
+}
+/** Хеш в [0, 1). */
+const fnvUnit = h => (h >>> 0) / 4294967296;
+
+/**
  * Карта уровня, собранного из брифа (глава 9): дома с комнатами и этажами, три
  * типа дорог, лестницы трёх видов, двери, насыпи и откосы.
  *
@@ -56,6 +78,9 @@ export class JsonMap extends SolidField {
     this.channels = spec.channels ?? [];
     this.props = spec.props ?? [];
     this.lightSpecs = spec.lights ?? [];
+    // окна фасадов включаются секцией `windows` в брифе: главы без неё собираются
+    // ровно как раньше. Числа — из `J.windows`, переопределение — из брифа.
+    this.winCfg = spec.windows ? { ...J.windows, ...spec.windows } : null;
 
     /** @type {{minX,maxX,minZ,maxZ,y0,y1}[]} стены, насыпь, откосы и дно там, где в него нельзя */
     this.blockers = [];
@@ -1364,6 +1389,204 @@ export class JsonMap extends SolidField {
     this.sceneObjects.push(water);
   }
 
+  /**
+   * Окна фасадов: квады-эмиссия по фасадным полосам и этажам.
+   *
+   * Так, а не списком в брифе, потому что цена: 34 тыс. окон по 40 байт текста
+   * удвоили бы `level-10.js` (и без того 1,8 МБ), а выводятся они из того, что
+   * парсер уже посчитал, — габарита стены, высоты этажа и материала фасада.
+   * Горит окно или нет решает хеш адреса слота (см. `hash01`), поэтому правка
+   * одного дома не перекрашивает соседний квартал.
+   *
+   * Окно — картинка: ни `solids`, ни `blockers`, ни узлов графа. Пуля проходит
+   * сквозь квад, потому что стекло стоит снаружи стены, а решение о проходимости
+   * принимает та стена (AGENTS.md о декоре).
+   *
+   * @returns {Map<number, {x,y,z,c,s,w,h}[]>} цвет → экземпляры; `c`/`s` — косинус
+   *   и синус поворота квада (кратные 90°), `w`/`h` — его размеры
+   */
+  _windowItems() {
+    const W = this.winCfg;
+    const groups = new Map();
+    const put = (color, it) => {
+      if (!groups.has(color)) groups.set(color, []);
+      groups.get(color).push(it);
+    };
+    for (const b of this.buildings) {
+      const style = W.byMaterial?.[b.facadeMaterial];
+      const cfg = style ? { ...W, ...style } : W;
+      if (!(cfg.spacing > 0) || !b.floorsCount) continue;
+      const h = Math.min(cfg.height, b.floorHeight - cfg.sill - 0.1);
+      if (h < 0.5) continue;
+      // двери этажа трогает только тот этаж, где они есть: у дома в 40 этажей
+      // проёмов не больше четырёх, а слотов — тысячи
+      const doorFloors = new Set(b.doors.map(d => Math.round((d.y - b.baseY) / b.floorHeight)));
+      const hb = fnvStr(2166136261, b.id);
+      for (const w of b.walls) {
+        if (!w.facade) continue;
+        const face = this._outerFace(b, w);
+        if (!face) continue;
+        const buried = this._buriedRuns(b, face, cfg.offset);
+        const line = face.coord + face.dir * cfg.offset;
+        const hf = fnvMix(fnvMix(hb, Math.round(face.coord * 100)), face.axis === 'x' ? 1 : 2);
+        for (let k = 0; k < b.floorsCount; k++) {
+          const floorY = b.baseY + k * b.floorHeight;
+          const cy = floorY + cfg.sill + h / 2;
+          if (cy + h / 2 > b.roofY - 0.05) continue;
+          let slot = 0;
+          for (let p = face.lo + cfg.spacing / 2; p + cfg.width / 2 <= face.hi - 0.1; p += cfg.spacing, slot++) {
+            if (doorFloors.has(k) && this._doorOverlaps(b, face, p, floorY, b.floorHeight, cfg.width)) continue;
+            if (buried.length && buried.some(r => p > r[0] && p < r[1] && cy > r[2] && cy < r[3])) continue;
+            const r = fnvUnit(fnvMix(fnvMix(hf, k), slot));
+            const lit = r < cfg.lit;
+            put(lit ? W.litColors[Math.min(W.litColors.length - 1, Math.floor(r / cfg.lit * W.litColors.length))]
+              : W.darkColor, {
+              x: face.axis === 'x' ? p : line,
+              y: cy,
+              z: face.axis === 'x' ? line : p,
+              c: face.c, s: face.s, w: cfg.width, h,
+            });
+          }
+        }
+      }
+    }
+    return groups;
+  }
+
+  /**
+   * Участки фасада, где окно оказалось бы внутри соседнего здания: башня,
+   * выросшая из подиума, фасад дома, впритык поставленного к соседу.
+   *
+   * Считается один раз на грань, а не на окно, и только по кандидатам с трёх
+   * проб вдоль полосы: на 32 тыс. окон проба индекса плана стоила 117 мс из 180
+   * всего вывода окон, — а перекрывают фасад единицы зданий, их список короткий.
+   *
+   * @returns {[lo, hi, y0, y1][]} интервалы вдоль бега стены и по высоте, где
+   *   окно не видно
+   */
+  _buriedRuns(b, face, offset) {
+    const line = face.coord + face.dir * offset;
+    const out = [];
+    const seen = new Set();
+    for (const t of [face.lo + 0.5, (face.lo + face.hi) / 2, face.hi - 0.5]) {
+      const x = face.axis === 'x' ? t : line;
+      const z = face.axis === 'x' ? line : t;
+      for (const idx of this._planAt(this._buildingCells, x, z)) {
+        if (seen.has(idx)) continue;
+        seen.add(idx);
+        const o = this.buildings[idx];
+        if (o === b || o.baseY >= b.roofY - 0.01 || o.roofY <= b.baseY + 0.01) continue;
+        for (const r of o.rects) {
+          if (line <= (face.axis === 'x' ? r.minZ : r.minX)
+            || line >= (face.axis === 'x' ? r.maxZ : r.maxX)) continue;
+          const a = Math.max(face.lo, face.axis === 'x' ? r.minX : r.minZ);
+          const c = Math.min(face.hi, face.axis === 'x' ? r.maxX : r.maxZ);
+          if (c - a > 0.05) out.push([a, c, o.baseY, o.roofY]);
+        }
+      }
+    }
+    return out.sort((p, q) => p[0] - q[0]);
+  }
+
+  /**
+   * Какая из двух граней фасадной полосы смотрит наружу. Полоса стоит серединой
+   * на линии плана, поэтому наружная грань на половину толщины дальше от
+   * полигона, и проба за неё обязана остаться вне планов дома.
+   *
+   * @returns {{axis:'x'|'z', lo:number, hi:number, coord:number, dir:number, c:number, s:number}|null}
+   *   `axis` — ось бега стены, `coord` — грань по поперечной оси, `dir` — её
+   *   нормаль (−1 или +1), `c`/`s` — косинус и синус поворота квада; null — полоса
+   *   не фасад (перегородка между двумя планами, например внутренний двор-щель)
+   */
+  _outerFace(b, w) {
+    const alongX = w.axis === 'x';
+    const lo = alongX ? w.minX : w.minZ;
+    const hi = alongX ? w.maxX : w.maxZ;
+    if (hi - lo < J.windows.width) return null;
+    const mid = (lo + hi) / 2;
+    const near = alongX ? w.minZ : w.minX;
+    const far = alongX ? w.maxZ : w.maxX;
+    const d = J.wallThickness / 2 + 0.05;
+    const out = (coord, dir) => {
+      const x = alongX ? mid : coord + dir * d;
+      const z = alongX ? coord + dir * d : mid;
+      return !this._rectsHold(b, x, z);
+    };
+    const a = out(near, -1), c = out(far, 1);
+    // обе наружу — вырожденная полоса (дом-лента): выбираем дальнюю от центра
+    // габарита, чтобы квады не легли с двух сторон одной стены
+    let coord, dir;
+    if (a && !c) { coord = near; dir = -1; } else if (c && !a) { coord = far; dir = 1; }
+    else if (a && c) {
+      const cx = (b.bounds.minX + b.bounds.maxX) / 2, cz = (b.bounds.minZ + b.bounds.maxZ) / 2;
+      const mine = alongX ? cz : cx;
+      coord = Math.abs(near - mine) >= Math.abs(far - mine) ? near : far;
+      dir = coord === near ? -1 : 1;
+    } else return null;
+    return {
+      axis: alongX ? 'x' : 'z', lo, hi, coord, dir,
+      // квад лежит в XY и смотрит вдоль +Z: поворот вокруг Y выводит его нормаль
+      // на нужную сторону. Точные ±1/0, а не cos(π/2) — матрицы пишутся руками
+      c: dir < 0 ? (alongX ? -1 : 0) : (alongX ? 1 : 0),
+      s: dir < 0 ? (alongX ? 0 : -1) : (alongX ? 0 : 1),
+    };
+  }
+
+  /** Есть ли план дома в точке (строгое вхождение: граница плана не считается). */
+  _rectsHold(b, x, z) {
+    for (const r of b.rects) {
+      if (x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ) return true;
+    }
+    return false;
+  }
+
+  /** Попадает ли слот на дверной проём своего этажа: окно в двери выглядело бы вторым проёмом. */
+  _doorOverlaps(b, face, p, floorY, floorHeight, width) {
+    for (const d of b.doors) {
+      if (d.y < floorY - 0.01 || d.y >= floorY + floorHeight) continue;
+      const lo = face.axis === 'x' ? d.rect.minX : d.rect.minZ;
+      const hi = face.axis === 'x' ? d.rect.maxX : d.rect.maxZ;
+      if (p + width / 2 > lo - 0.1 && p - width / 2 < hi + 0.1) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Меши окон: по одному `InstancedMesh` на цвет палитры, а не на окно, и общая
+   * геометрия квада. Материал — `MeshBasicMaterial`: окну не нужен свет сцены,
+   * оно и есть свет, поэтому горящее окно читается ровно своим цветом независимо
+   * от пула огней и остаётся видимым сквозь туман района.
+   *
+   * Матрица экземпляра пишется в буфер руками: повороты здесь только кратные 90°,
+   * и на 32 тыс. окон `Matrix4.compose` с кватернионом стоил больше, чем вся
+   * выводимая позиция.
+   */
+  _buildWindows(scene) {
+    this.windowCount = 0;
+    if (!this.winCfg) return;
+    const groups = this._windowItems();
+    if (!groups.size) return;
+    const geo = new THREE.PlaneGeometry(1, 1);
+    for (const [color, items] of groups) {
+      const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color }), items.length);
+      const a = mesh.instanceMatrix.array;
+      items.forEach((it, i) => {
+        const o = i * 16;
+        a[o] = it.c * it.w; a[o + 1] = 0; a[o + 2] = -it.s * it.w; a[o + 3] = 0;
+        a[o + 4] = 0; a[o + 5] = it.h; a[o + 6] = 0; a[o + 7] = 0;
+        a[o + 8] = it.s; a[o + 9] = 0; a[o + 10] = it.c; a[o + 11] = 0;
+        a[o + 12] = it.x; a[o + 13] = it.y; a[o + 14] = it.z; a[o + 15] = 1;
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      // сфера по экземплярам: без неё frustum culling меряет единичный квад в
+      // центре мира и окно исчезает, как только начало координат уходит за экран
+      mesh.computeBoundingSphere();
+      scene.add(mesh);
+      this.sceneObjects.push(mesh);
+      this.windowCount += items.length;
+    }
+  }
+
   build(scene) {
     this.sceneObjects = [];
     const ground = new THREE.Mesh(
@@ -1394,7 +1617,13 @@ export class JsonMap extends SolidField {
       this.sceneObjects.push(mesh);
     }
 
-    this.sceneObjects.push(...buildProps(scene, this.props));
+    for (const mesh of buildProps(scene, this.props)) {
+      // материалы пропов общие на модуль (src/props.js) и переживают загрузку
+      // следующей главы — dispose() обязан снимать геометрию, но не их
+      mesh.userData.sharedMaterial = true;
+      this.sceneObjects.push(mesh);
+    }
+    this._buildWindows(scene);
     this._buildLights(scene);
   }
 
@@ -1409,8 +1638,8 @@ export class JsonMap extends SolidField {
       o.parent?.remove(o);
       o.geometry?.dispose?.();
       // материалы пропов (src/props.js) модульные и переиспользуются следующей
-      // главой — их не убираем; все меши `build` держат свои собственные
-      if (o.material && !o.isInstancedMesh) {
+      // главой — их не убираем; всё, что создал `build` для себя, — свои
+      if (o.material && !o.userData.sharedMaterial) {
         (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose?.());
       }
     }

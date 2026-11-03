@@ -130,6 +130,17 @@ export const LEVEL_SPEC = obj({
     distance: num({ min: 0 }),
     angle: num({ min: 0, max: 1.57 }),
   })),
+  // светящиеся окна фасадов: само наличие секции включает ритм, числа — это
+  // переопределение `CONFIG.jsonMap.windows` (включатель по той же причине, что у
+  // `waterways`: глава 9 обязана собраться ровно как раньше)
+  windows: obj({
+    spacing: num({ min: 0, max: 12 }),   // 0 — дому окна не рисуются вовсе
+    width: num({ min: 0.2, max: 6 }),
+    height: num({ min: 0.2, max: 6 }),
+    sill: num({ min: 0, max: 3 }),
+    offset: num({ min: 0.01, max: 1 }),
+    lit: num({ min: 0, max: 1 }),
+  }),
   sky: obj({
     sky: color(),
     fog: obj({ color: color(), near: num({ min: 1 }), far: num({ min: 2 }) }),
