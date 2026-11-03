@@ -13,7 +13,8 @@ import {
   AXIS_EPS, cellKey, normalizePolygon, polyBounds, polyEdges, polyRects,
   r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
 } from '../src/geo2d.js';
-import { inRect, normalizeBuilding, normalizeWaterway } from './normalize-level.mjs';
+import { inRect, normalizeBuilding, normalizeWaterway, toWorld } from './normalize-level.mjs';
+import { ARCHETYPE_NAMES } from './city.js';
 
 const J = CONFIG.jsonMap;
 const ROOM_TYPES = ['office', 'corridor', 'hall', 'room', 'cafe', 'utility'];
@@ -73,10 +74,13 @@ export const LEVEL_SPEC = obj({
   buildings: arr(obj({
     id: str({ req: true }),
     name: str(),
+    // «чем построен этот корпус» — поле брифа и генератора (tools/city.js);
+    // нормализатор его не читает, в модуль главы он не доезжает
+    archetype: str({ enum: ARCHETYPE_NAMES }),
     isEnterable: bool(),
-    // потолок этажей — 60 только для невводимых башен (их этажи — ритм фасада,
-    // плит нет); вводимый дом ограничен J.enterableFloors — проверется геометрией
-    floorsCount: num({ min: 1, max: 60, req: true }),
+    // потолок этажей — J.shellFloorsMax только для невводимых башен (их этажи —
+    // ритм фасада, плит нет); вводимый дом ограничен J.enterableFloors — проверется геометрией
+    floorsCount: num({ min: 1, max: J.shellFloorsMax, req: true }),
     floorHeight: num({ min: 2.4, max: 8, req: true }),
     baseY: num(),
     facadeMaterial: str(),
@@ -445,7 +449,10 @@ export function validateLevel(raw) {
       }
       const dd = d ?? { width: J.ladderShaft, length: J.ladderShaft };
       const along = Math.max(dd.width, dd.length), across = Math.min(dd.width, dd.length);
-      const rect = rectAround(st.position.x, st.position.z, along, across);
+      // план марша поворачивает тот же toWorld, что и парсер: своя арифметика
+      // «габарит вдоль X» проверила бы не тот проём, который режется в плите
+      const rect = toWorld({ minX: 0, maxX: along, minZ: 0, maxZ: across },
+        st.rotation ?? 0, st.position.x, st.position.z, along, across);
       const sc = rasterRect(rect, cell);
       for (const key of sc) {
         if (!fpCells.has(key)) { errors.push(`${slabel}: лестница вне footprint (клетка ${key})`); break; }

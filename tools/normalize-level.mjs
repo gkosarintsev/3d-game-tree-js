@@ -26,6 +26,10 @@ const ROTATIONS = [0, 90, 180, 270];
  * @returns {{name:string, hint:string, sky:object, gameplay:object, map:object, warnings:string[]}}
  */
 export function normalizeLevel(raw) {
+  // секцию `city` обязан развернуть вызывающий (tools/build-level.mjs зовёт
+  // expandCity): нормализатор ГПСЧ не знает, и молча пройдя мимо живой секции,
+  // он выдал бы главу без единого генераторного дома
+  if (raw.city) throw new Error('normalizeLevel: секция city не развёрнута — вызовите expandCity');
   const warnings = [];
   const ground = {
     y: r3(raw.ground?.y ?? 0),

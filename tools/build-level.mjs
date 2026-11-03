@@ -3,10 +3,12 @@
  *
  *   node tools/build-level.mjs src/levels/level-09.json [--check] [--out path]
  *
- * Читает сырой бриф, валлидирует его (`tools/level-schema.mjs`), нормализует
- * (`tools/normalize-level.mjs`) и пишет JS-модуль главы рядом с JSON. Браузер
- * JSON не грузит: `createMap` обязан оставаться синхронным (AGENTS.md), поэтому
- * результат парсера — обычный файл-определение главы, как у всех остальных.
+ * Читает сырой бриф, разворачивает из него секцию `city` в улицы и дома
+ * (`tools/city.js`), валлидирует результат (`tools/level-schema.mjs`),
+ * нормализует (`tools/normalize-level.mjs`) и пишет JS-модуль главы рядом с
+ * JSON. Браузер JSON не грузит: `createMap` обязан оставаться синхронным
+ * (AGENTS.md), поэтому результат парсера — обычный файл-определение главы, как
+ * у всех остальных.
  *
  * `--check` ничего не пишет: сравнивает с существующим модулем и уходит с кодом 2
  * при расхождении — так детерминизм парсера проверяется в автотесте.
@@ -16,18 +18,27 @@ import { basename, dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateLevel } from './level-schema.mjs';
 import { normalizeLevel } from './normalize-level.mjs';
+import { expandCity } from './city.js';
 
 /**
- * @param {object} raw сырой уровень (уже прочитанный JSON)
+ * @param {object} raw сырой уровень (уже прочитанный JSON, может содержать `city`)
  * @param {string} sourceName имя исходника для шапки (src/levels/level-09.json)
  * @returns {{name:string, code:string, warnings:string[]}} текст модуля главы
  */
 export function generateModule(raw, sourceName) {
-  const { errors, warnings: geoWarnings } = validateLevel(raw);
+  let expanded;
+  try {
+    // разворот ДО валидации: геометрический проход схемы тогда бесплатно
+    // проверяет всё, что нарисовал генератор, а сам валидатор остаётся глух к `city`
+    expanded = expandCity(raw);
+  } catch (e) {
+    throw new ValidationError([String(e?.message ?? e)], []);
+  }
+  const { errors, warnings: geoWarnings } = validateLevel(expanded);
   if (errors.length) throw new ValidationError(errors, geoWarnings);
   let level;
   try {
-    level = normalizeLevel(raw);
+    level = normalizeLevel(expanded);
   } catch (e) {
     // полигон, отвергнутый уже после валидации: оформляем тем же
     // ValidationError, чтобы CLI печатал список, а не стек
@@ -42,12 +53,17 @@ export function generateModule(raw, sourceName) {
   const notice = warnings.length
     ? `\n * Предупреждения парсера:\n${warnings.map(w => ` *   — ${w}`).join('\n')}\n *`
     : '';
+  // строка появляется только у брифа с секцией `city` — глава 9 от этого
+  // текста не меняется и остаётся байт в байт прежней
+  const seeded = raw.city
+    ? `\n *\n * Секцию \`city\* развернул генератор кварталов (tools/city.js): его ГПСЧ сидит\n * в \`city.seed\`, поэтому и этот файл детерминирован — правка района в брифе\n * меняет дома, а правка сида меняет весь район целиком.`
+    : '';
   const code = `/**
  * СГЕНЕРИРОВАННО — руками не править.
  *
  * Источник правки: ${sourceName}. После его изменения запуск
  * \`node tools/build-level.mjs ${sourceName}\` перезаписывает этот файл
- * побайтово одинаково (ГПСЧ в парсере нет, ключи объектов отсортированы).
+ * побайтово одинаково (ГПСЧ в парсере нет, ключи объектов отсортированы).${seeded}
  *
  * Тип карты — \`kind: 'json'\`: числа и топологию готовит Node-парсер
  * (замкнутые полигоны, союз прямоугольников footprint, абсолютные высоты

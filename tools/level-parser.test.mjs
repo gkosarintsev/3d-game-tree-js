@@ -14,6 +14,7 @@ import { resolve } from 'node:path';
 import { validateLevel } from './level-schema.mjs';
 import { normalizeLevel, waterwayFoot } from './normalize-level.mjs';
 import { generateModule } from './build-level.mjs';
+import { expandCity, ARCHETYPE_NAMES } from './city.js';
 import { CONFIG } from '../src/config.js';
 
 const J = CONFIG.jsonMap;
@@ -815,6 +816,136 @@ t('ошибка валидации не оставляет частичного 
   try { generateModule(raw, 'src/levels/level-09.json'); } catch (e) { thrown = e; }
   assert(thrown && thrown.errors.length > 0, 'кривой уровень прошёл');
   assert(!/\bexport const/.test(thrown.message), 'текст модуля попал в сообщение об ошибке');
+});
+
+// ---------------------------------------------------------------- генератор кварталов
+
+// Компактный бриф с секцией `city`: два района по 120 × 120 м в земле 300 × 300.
+// Проверяет сам разворот (детерминизм, формы, вытеснение авторской записью) и
+// то, что его выход проходит валидатор и не оставляет служебных полей в модуле.
+const CITY_RAW = {
+  metadata: { levelName: 'cityGen', name: 'Кварталы', hint: '—', units: 'meters' },
+  ground: { y: 0, size: 300 },
+  city: {
+    seed: 70707,
+    districts: [
+      {
+        id: 'a', block: { minX: -140, maxX: -20, minZ: -140, maxZ: -20 }, style: 'corporate',
+        street: { pitch: 40, width: 12 }, lot: { pitch: 10, inset: 1.5, merge: 0.4 },
+        height: { minFloors: 2, maxFloors: 8, floorHeight: 3.4 }, enterableEvery: 5,
+      },
+      {
+        id: 'b', block: { minX: 20, maxX: 140, minZ: 20, maxZ: 140 }, style: 'kitsch',
+        street: { pitch: 34, width: 12 }, lot: { pitch: 9, inset: 1.5, merge: 0.45 },
+        height: { minFloors: 2, maxFloors: 6, floorHeight: 3.2 }, enterableEvery: 6,
+        roofs: { walkable: true, access: 0.5, parapet: 0.9 },
+      },
+    ],
+  },
+  roads: [], buildings: [], landscapeObjects: [], lights: [],
+  gameplay: { goal: 'exit', spawn: { x: -100, z: -100 }, exit: { x: 100, z: 100 }, exitRadius: 4,
+    enemies: { count: 2 }, alienEnemies: { count: 1 } },
+};
+
+const cityErrors = mutate => {
+  const raw = structuredClone(CITY_RAW);
+  mutate(raw);
+  let message = null;
+  try { expandCity(raw); } catch (e) { message = String(e.message); }
+  assert(message, 'генератор принял невозможную конфигурацию района');
+  return message;
+};
+
+t('генератор детерминирован: сид задаёт кварталы целиком', () => {
+  const a = JSON.stringify(expandCity(structuredClone(CITY_RAW)));
+  const b = JSON.stringify(expandCity(structuredClone(CITY_RAW)));
+  eq(a, b, 'два разворота одного сида разошлись');
+});
+
+t('разворот даёт кварталы, которые принимает валидатор', () => {
+  const expanded = expandCity(structuredClone(CITY_RAW));
+  const { errors, warnings } = validateLevel(expanded);
+  eq(errors.length, 0, `ошибки: ${errors.join(' | ')}`);
+  eq(warnings.length, 0, `предупреждения: ${warnings.join(' | ')}`);
+  assert(expanded.buildings.length >= 35, `домов ${expanded.buildings.length}, ожидалось не меньше 35`);
+  assert(expanded.roads.length >= 8, `улиц ${expanded.roads.length}`);
+  assert(!expanded.city, 'секция city осталась в развёрнутом брифе');
+});
+
+t('формы домов: архетипы представлены, id уникальны, дворы не залиты коробкой', () => {
+  const expanded = expandCity(structuredClone(CITY_RAW));
+  const ids = expanded.buildings.map(b => b.id);
+  eq(new Set(ids).size, ids.length, 'id домов повторяются');
+  const kinds = new Set(expanded.buildings.map(b => b.archetype));
+  assert(kinds.size >= 5, `архетипов ${kinds.size} (${[...kinds].join(',')}), ожидалось не меньше пяти`);
+  for (const name of kinds) assert(ARCHETYPE_NAMES.includes(name), `архетип '${name}' вне списка схемы`);
+  // вводимый дом обязан быть прямоугольником: плиту пола парсер режет по её AABB,
+  // и Г-образная комната залила бы полвесь двор
+  for (const b of expanded.buildings.filter(x => x.isEnterable)) {
+    const xs = b.footprint.map(p => p.x), zs = b.footprint.map(p => p.z);
+    const area = b.footprint.reduce((acc, p, i) => {
+      const q = b.footprint[(i + 1) % b.footprint.length];
+      return acc + (p.x * q.z - q.x * p.z);
+    }, 0) / 2;
+    const box = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...zs) - Math.min(...zs));
+    assert(Math.abs(area) >= box - 0.01, `${b.id}: вводимый дом не прямоугольник (площадь ${Math.abs(area).toFixed(1)} против охвата ${box.toFixed(1)})`);
+    assert(b.rooms.length === b.floorsCount, `${b.id}: этажей ${b.floorsCount}, комнат ${b.rooms.length}`);
+    assert(b.stairs.length >= 1, `${b.id}: вводимый дом без марша`);
+  }
+});
+
+t('авторская запись вытесняет сгенерированный лот вместе с его надстройками', () => {
+  const generated = expandCity(structuredClone(CITY_RAW)).buildings;
+  const victim = generated.find(b => b.id.endsWith('_a') || b.id.endsWith('_b'));
+  assert(victim, 'генератор не дал составного лота — проверять вытеснение нечего');
+  const stem = victim.id.replace(/_[ab]$/, '');
+  const raw = structuredClone(CITY_RAW);
+  raw.buildings = [{
+    id: stem, name: 'Авторский дом', isEnterable: false, floorsCount: 3, floorHeight: 3.4,
+    footprint: [{ x: -140, z: -140 }, { x: -132, z: -140 }, { x: -132, z: -132 }, { x: -140, z: -132 }],
+    rooms: [],
+  }];
+  const out = expandCity(raw).buildings.filter(b => b.id === stem || b.id.startsWith(`${stem}_`));
+  eq(out.length, 1, `от лота '${stem}' осталось ${out.length} записей: ${out.map(b => b.id).join(',')}`);
+  eq(out[0].name, 'Авторский дом', 'вместо автора встал генератор');
+});
+
+t('невозможная конфигурация района отбракована до первого вызова ГПСЧ', () => {
+  hasError(cityErrors(raw => { raw.city.districts[0].street.pitch = 14; }).split('\n'),
+    'street.pitch', 'пересеклись');
+  hasError(cityErrors(raw => { raw.city.districts[0].block.maxX = 200; }).split('\n'),
+    'вне земли');
+  hasError(cityErrors(raw => { raw.city.districts[0].archetypes = ['not_a_house']; }).split('\n'),
+    'архетип', 'не описан');
+  hasError(cityErrors(raw => { raw.city.districts.push(structuredClone(raw.city.districts[0])); }).split('\n'),
+    'id района', 'уже занят');
+  hasError(cityErrors(raw => { raw.city.districts[1].block = { minX: -100, maxX: -20, minZ: -60, maxZ: 140 }; }).split('\n'),
+    'пересекаются');
+  hasError(cityErrors(raw => { raw.city.seed = 1.5; }).split('\n'), 'seed', 'не целое');
+  const empty = (() => {
+    const raw = structuredClone(CITY_RAW);
+    raw.city.districts = [];
+    try { expandCity(raw); } catch (e) { return String(e.message); }
+    return '';
+  })();
+  hasError(empty.split('\n'), 'districts пуст');
+});
+
+t('развёрнутый город нормализуется и не несёт служебных полей в модуле', () => {
+  const level = normalizeLevel(expandCity(structuredClone(CITY_RAW)));
+  assert(level.map.buildings.length > 0, 'нормализатор не собрал домов');
+  assert(level.map.buildings.every(b => b.archetype === undefined), 'в модуль попало поле архетипа');
+  assert(level.map.roads.every(r => r.archetype === undefined), 'в модуль попало поле архетипа улицы');
+  let thrown = null;
+  try { normalizeLevel(structuredClone(CITY_RAW)); } catch (e) { thrown = e; }
+  assert(thrown && /expandCity/.test(thrown.message), 'нормализатор принял неравёрнутую секцию city');
+});
+
+t('глава без секции city разворачивается без изменений', () => {
+  const without = structuredClone(rawLevel);
+  const out = expandCity(without);
+  eq(out.buildings.length, without.buildings.length, 'генератор тронул главу без city');
+  eq(JSON.stringify(out), JSON.stringify(without), 'разворот без city изменил бриф');
 });
 
 // ---------------------------------------------------------------- служебное
