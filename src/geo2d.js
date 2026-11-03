@@ -226,6 +226,7 @@ export function frameOf(bounds, rotationDeg) {
     cx: (bounds.minX + bounds.maxX) / 2,
     cz: (bounds.minZ + bounds.maxZ) / 2,
     deg: rotationDeg,
+    rad,
     c: Math.cos(rad),
     s: Math.sin(rad),
   };

@@ -641,6 +641,32 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
     }
   }
 
+  // --- косая кровля не принимает настил ---
+  // Плита примыкающего настила режет ходовую плиту и парапет в осях дома. У
+  // повёрнутого корпуса мировая пластина в этих осях не прямоугольник, поэтому
+  // её габарит вырезал бы дыру шире перехода — сход с крыши в никуда. `JsonMap`
+  // у косого дома примыканий не рассматривает вовсе, и схема бракует такую
+  // стыковку явно: иначе глава молча получила бы кровлю без проёма там, где
+  // автор перехода рисовал мост.
+  for (const b of normBuildings) {
+    if (!b.rotation) continue;
+    const outline = obbOf(b.bounds, frameOf(b.bounds, b.rotation));
+    for (const [n, road] of (raw.roads ?? []).entries()) {
+      if (road.type === 'ground') continue;
+      const plates = roadRectsOf(road);
+      for (const [i, pl] of plates.entries()) {
+        const [a, c] = [road.points[i], road.points[i + 1]];
+        if (!a || !c) continue;
+        const level = Math.abs(a.y - b.roofY) <= J.skybridgeFit || Math.abs(c.y - b.roofY) <= J.skybridgeFit;
+        if (level && obbHitsRect(outline, pl.rect, 0.05)) {
+          errors.push(`roads[${n}] (${road.id}) и ${b.id}: настил лег на косую кровлю `
+            + `(кровля ${b.roofY}, rotation ${b.rotation}°) — проём в плите под углом не вырезать; `
+            + 'поставь дому rotation 0 или уведи настил');
+        }
+      }
+    }
+  }
+
   // --- уникальность идентификаторов ---
   const ids = new Set();
   const addId = (v, where) => {

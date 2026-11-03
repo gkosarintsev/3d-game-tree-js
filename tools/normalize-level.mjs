@@ -15,7 +15,7 @@
 import { CONFIG } from '../src/config.js';
 import {
   normalizePolygon, pointInPoly, polyBounds, polyEdges, polyRects, r3, rectsIntersect,
-  subtractRect, unionBounds, frameOf, obbHitsRect, obbOf, unrotatePoint,
+  subtractRect, unionBounds, frameOf, obbHitsRect, obbOf, unrotatePoint, rotatePoint,
 } from '../src/geo2d.js';
 
 const J = CONFIG.jsonMap;
@@ -181,6 +181,18 @@ function normalizeBuilding(b, ground, warnings) {
   if (errors.length) throw new Error(errors.join('\n'));
 
   const doors = [];
+  // Точки портала живут в мире, а план проёма — в осях дома: движок ставит
+  // наружный узел двери на улицу (мировой граф) и режет им стену (локальный
+  // прямоугольник). Кадр считается по тем же округлённым `bounds` и `rotation`,
+  // что уезжают в модуль, — карта восстанавливает его из них же и обязана
+  // получить тот же центр поворота до миллиметра, иначе порог разъедётся с фасадом.
+  const boundsOut = { minX: r3(bb.minX), maxX: r3(bb.maxX), minZ: r3(bb.minZ), maxZ: r3(bb.maxZ) };
+  const doorFrame = frameOf(boundsOut, r3(b.rotation ?? 0));
+  const worldPt = p => {
+    if (!doorFrame) return p;
+    const w = rotatePoint(doorFrame, p.x, p.z);
+    return { x: r3(w.x), z: r3(w.z) };
+  };
   for (const raw of b.rooms) {
     const room = rooms.find(r => r.id === raw.id);
     if (!raw.connections?.length) continue;
@@ -207,8 +219,8 @@ function normalizeBuilding(b, ground, warnings) {
         y: room.y,
         height: r3(Math.min(J.doorHeight, floorHeight - J.slabThickness - 0.1)),
         rect,
-        inside: { x: mid.x - out.x * 1.4, z: mid.z - out.z * 1.4 },
-        outside: { x: mid.x + out.x * 1.4, z: mid.z + out.z * 1.4 },
+        inside: worldPt({ x: mid.x - out.x * 1.4, z: mid.z - out.z * 1.4 }),
+        outside: worldPt({ x: mid.x + out.x * 1.4, z: mid.z + out.z * 1.4 }),
       });
     }
   }

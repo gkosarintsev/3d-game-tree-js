@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
-import { SolidField, circleHitsRect } from './solids.js';
+import { SolidField, circleHitsBox } from './solids.js';
 import { NavGraph } from './nav-graph.js';
-import { r3, subtractRect } from './geo2d.js';
+import {
+  r3, subtractRect, frameOf, obbOf, obbHitsRect, rotatePoint, unrotatePoint,
+} from './geo2d.js';
 import { buildProps } from './props.js';
 
 const J = CONFIG.jsonMap;
@@ -70,7 +72,10 @@ export class JsonMap extends SolidField {
   /** @param {object} spec map-секция определения главы (LEVEL_09.map) */
   constructor(spec) {
     super(J.solidBucket);
-    this.kind = 'json';
+    // `json2` — карта с поворотными домами (v2): тот же класс, тот же контракт,
+    // только у зданий появляется угол. При `kind: 'json'` угол absent и каждый
+    // путь ниже идёт прежней арифметикой — главы 9 и 10 собираются побитово.
+    this.kind = spec.kind ?? 'json';
     this.spec = spec;
 
     const ground = spec.ground;
@@ -88,6 +93,15 @@ export class JsonMap extends SolidField {
     this.groundPlane = { y: this.groundY, half: this.half };
 
     this.buildings = spec.buildings ?? [];
+    // Кадр поворота каждого дома (`buildings[].rotation`, v2): null у дома без
+    // угла, поэтому весь код ниже для глав 9 и 10 идёт ровно прежней веткой.
+    // Считается один раз на дом — `cos`/`sin` нужны и картинке, и твёрдости, и
+    // навигации, и выводить их дважды значило бы держать два разных угла.
+    this._frames = new Map(this.buildings.map(b => [b, frameOf(b.bounds, b.rotation ?? 0)]));
+    // мировой план каждого дома: габарит повёрнутого корпуса плюс `obb`. По нему
+    // раскладываются клетки `_buildingCells` (индекс — broadphase, консервативно),
+    // а точку «внутри плана» решает `obbHitsRect` уже по своим осям
+    this._buildingBoxes = this.buildings.map(b => obbOf(b.bounds, this._frames.get(b)));
     this.roads = spec.roads ?? [];
     this.channels = spec.channels ?? [];
     this.props = spec.props ?? [];
@@ -137,6 +151,81 @@ export class JsonMap extends SolidField {
     this.nav = this._buildNav();
   }
 
+  // ------------------------------------------------- поворотный кадр дома (v2)
+
+  /** Кадр поворота дома; null — дом стоит по осям мира (все главы v1). */
+  _frame(b) {
+    return this._frames.get(b) ?? null;
+  }
+
+  /** Точка локальных осей дома → мир; при угле 0 — ровно те же числа. */
+  _toWorld(b, x, z) {
+    const f = this._frame(b);
+    return f ? rotatePoint(f, x, z) : { x, z };
+  }
+
+  /** Мир → локальные оси дома: только в них его стены, комнаты и марши прямоугольны. */
+  _toLocal(b, x, z) {
+    const f = this._frame(b);
+    return f ? unrotatePoint(f, x, z) : { x, z };
+  }
+
+  /**
+   * Чужой прямоугольник в осях этого дома. У соосной пары (одинаковый `rotation`
+   * — единственно разрешённое валидатором пересечение планов) четыре угла
+   * переходят в тот же прямоугольник, сдвинутый на разность центров, поэтому
+   * прорезание кровли и отсев «окно внутри соседа» остаются точными. У разных
+   * углов план в локальных осях уже не прямоугольник и берётся его охват: такой
+   * случай валидатор бракует как пересечение, и здесь он может лишь чуть
+   * осторожнее убрать окна у стоящего рядом косого дома.
+   */
+  _rectIn(o, rect, b) {
+    if (!this._frame(o) && !this._frame(b)) return rect;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [px, pz] of [[rect.minX, rect.minZ], [rect.maxX, rect.minZ],
+      [rect.maxX, rect.maxZ], [rect.minX, rect.maxZ]]) {
+      const w = this._toWorld(o, px, pz);
+      const l = this._toLocal(b, w.x, w.z);
+      if (l.x < minX) minX = l.x;
+      if (l.x > maxX) maxX = l.x;
+      if (l.z < minZ) minZ = l.z;
+      if (l.z > maxZ) maxZ = l.z;
+    }
+    return { minX, maxX, minZ, maxZ };
+  }
+
+  /** Все планы чужого дома в осях этого (см. `_rectIn`). */
+  _rectsIn(o, b) {
+    return o.rects.map(r => this._rectIn(o, r, b));
+  }
+
+  /**
+   * Квад фасада (`_windowItems`, `_signageItems`) из осей дома в мир: центр —
+   * поворотом, а угол поворота самого квада сдвигается на угол корпуса, поэтому
+   * окно лежит ровно в своей грани и смотрит наружу при любом угле корпуса. Без
+   * угла возвращается та же четвёрка чисел, что и пришла.
+   */
+  _quadToWorld(b, x, z, c, s) {
+    const f = this._frame(b);
+    if (!f) return { x, z, c, s };
+    const p = rotatePoint(f, x, z);
+    // (c, s) — не мировой вектор, а косинус с синусом угла поворота квада: его
+    // нормаль есть (s, 0, c), ширина — (c, 0, −s). Поворот корпуса на rad поэтому
+    // сдвигает сам угол на −rad, а не вращает пару как стрелку; перепутать знак
+    // здесь значило бы поставить окно тылом к стене
+    return { x: p.x, z: p.z, c: c * f.c + s * f.s, s: s * f.c - c * f.s };
+  }
+
+  /**
+   * План дома → мировая запись для списков плит и маршей: габарит повёрнутого
+   * прямоугольника плюс `obb`. Угла нет — тот же объект, что и раньше, поэтому
+   * миникарта и `_collectAnchors` для глав 9–10 видят ровно прежние числа.
+   */
+  _worldRect(b, rect) {
+    const f = this._frame(b);
+    return f ? obbOf(rect, f) : rect;
+  }
+
   // ------------------------------------------------------------- твёрдость уровня
 
   /**
@@ -146,23 +235,43 @@ export class JsonMap extends SolidField {
    * со-плоскостные грани мигают в глубине; сдвиг в 3 см не виден, а коллизия
    * обязана остаться на месте — срезанный солид пропустил бы идущего с крыши
    * сквозь парапет.
+   *
+   * `frame` — поворотный кадр дома (v2): план остаётся его локальным
+   * прямоугольником, картинка доворачивается вокруг центра кадра, а в `solids`,
+   * `blockers` и `surfaces` идёт габарит повёрнутого прямоугольника плюс `obb` —
+   * узкая фаза (`SolidField`) по ней и решает луч, сфера и опора. Габарит сам
+   * решения не принимает ни о чём: это фильтр сетки-индекса, а не стена и не
+   * высота (AGENTS о фантомах).
    */
-  _box(plan, y0, y1, group, { collide = false, surface = false, geoTop = null } = {}) {
+  _box(plan, y0, y1, group, { collide = false, surface = false, geoTop = null, frame = null } = {}) {
     if (plan.maxX - plan.minX <= 1e-6 || plan.maxZ - plan.minZ <= 1e-6 || y1 - y0 <= 1e-6) return;
     const g1 = Math.max(y0 + 1e-6, geoTop ?? y1);
-    this.geo[group].push(new THREE.BoxGeometry(
-      plan.maxX - plan.minX, g1 - y0, plan.maxZ - plan.minZ,
-    ).translate(
-      (plan.minX + plan.maxX) / 2, (y0 + g1) / 2, (plan.minZ + plan.maxZ) / 2,
-    ));
+    const cx = (plan.minX + plan.maxX) / 2, cz = (plan.minZ + plan.maxZ) / 2;
+    const geo = new THREE.BoxGeometry(plan.maxX - plan.minX, g1 - y0, plan.maxZ - plan.minZ);
+    if (frame) {
+      // знак — то же соглашение, что у `rotatePoint` и у `obb`: мировой вектор
+      // (dx, dz) переходит в (dx·c − dz·s, dx·s + dz·c), а `rotateY(θ)` делает
+      // (x·cosθ + z·sinθ, −x·sinθ + z·cosθ), значит θ = −rad
+      geo.translate(cx - frame.cx, (y0 + g1) / 2, cz - frame.cz);
+      geo.rotateY(-frame.rad);
+      geo.translate(frame.cx, 0, frame.cz);
+    } else {
+      geo.translate(cx, (y0 + g1) / 2, cz);
+    }
+    this.geo[group].push(geo);
+    const world = frame ? obbOf(plan, frame) : plan;
     this.solids.push({
-      minX: plan.minX, maxX: plan.maxX, minY: y0, maxY: y1, minZ: plan.minZ, maxZ: plan.maxZ,
+      minX: world.minX, maxX: world.maxX, minY: y0, maxY: y1, minZ: world.minZ, maxZ: world.maxZ,
+      ...(world.obb ? { obb: world.obb } : {}),
     });
     if (collide) {
-      this.blockers.push({ ...plan, y0, y1 });
+      this.blockers.push({ ...world, y0, y1 });
     }
     if (surface) {
-      this.surfaces.push({ minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ, y: y1 });
+      this.surfaces.push({
+        minX: world.minX, maxX: world.maxX, minZ: world.minZ, maxZ: world.maxZ, y: y1,
+        ...(world.obb ? { obb: world.obb } : {}),
+      });
     }
   }
 
@@ -175,10 +284,11 @@ export class JsonMap extends SolidField {
 
   _collectBuildings() {
     for (const b of this.buildings) {
-      for (const w of b.walls) this._wall(w, b);
-      for (const r of b.rooms) this._floorPlate(b, r);
-      for (const s of b.stairs) this._stair(s);
-      this._roof(b);
+      const frame = this._frame(b);
+      for (const w of b.walls) this._wall(w, b, frame);
+      for (const r of b.rooms) this._floorPlate(b, r, frame);
+      this._stair(b, frame);
+      this._roof(b, frame);
     }
   }
 
@@ -195,14 +305,18 @@ export class JsonMap extends SolidField {
    * Парапет — блокер от `roofY` до `roofY + parapet`: идущему по кровле он не
    * препятствие ниже его верха, но у края бракует и узел графа, и сход с плиты
    * (`isBlocked` меряет тело от отметки ног). Где к кровле примыкает настил
-   * перехода, в паравете остаёт проём, иначе переход упирался бы в ограждение.
+   * перехода, в парапете остаётся проём, иначе переход упирался бы в ограждение.
    */
-  _roof(b) {
+  _roof(b, frame) {
     const walk = b.roof?.walkable === true;
     // настил, чей верх совпал с отметкой кровли (допуск схемы): ему расступаются
     // и плита, и парапет. Берём до `pierce`, пока `walk` не проверено, — у
-    // невходимой кровли настил всё равно не должен ложиться на её плиту
-    const arrivals = this.roads.filter(r => r.type !== 'ground').flatMap(r => r.decks).filter(d =>
+    // невходимой кровли настил всё равно не должен ложиться на её плиту.
+    // У повёрнутого дома примыкающих настилов нет вовсе — такую стыковку бракует
+    // валидатор: вырезать плиту мировой пластиной настила в локальных осях косой
+    // кровли можно только по габариту этой пластины, а это дыра в парапете там,
+    // где перехода нет, то есть сход с крыши в никуда
+    const arrivals = frame ? [] : this.roads.filter(r => r.type !== 'ground').flatMap(r => r.decks).filter(d =>
       Math.abs(d.topAtMin - b.roofY) <= J.skybridgeFit || Math.abs(d.topAtMax - b.roofY) <= J.skybridgeFit);
     // чужое здание, выросшее из этой плиты (подиум + башня), марш, выведенный
     // на кровлю, и план примыкающего настила оставляют в ней проём: иначе плита
@@ -211,14 +325,14 @@ export class JsonMap extends SolidField {
     const pierce = [
       ...b.stairs.filter(s => s.connectsFloors[1] === b.floorsCount).map(s => s.rect),
       ...this.buildings.filter(o => o !== b && o.baseY > b.roofY - 0.5 && o.baseY < b.roofY + 1)
-        .map(o => o.bounds),
+        .map(o => this._rectIn(o, o.bounds, b)),
       ...arrivals,
     ];
     for (const rect of b.rects) {
       const pieces = pierce.reduce((list, hole) => list.flatMap(p => subtractRect(p, hole)), [rect]);
       for (const p of pieces) {
-        this._box(p, b.roofY - J.slabThickness, b.roofY, 'slabs', { surface: walk });
-        if (walk) this.roofPlates.push({ ...p, y: b.roofY, building: b.id });
+        this._box(p, b.roofY - J.slabThickness, b.roofY, 'slabs', { surface: walk, frame });
+        if (walk) this.roofPlates.push({ ...this._worldRect(b, p), y: b.roofY, building: b.id });
       }
     }
     if (!walk || !(b.roof.parapet > 0)) return;
@@ -232,7 +346,9 @@ export class JsonMap extends SolidField {
     for (const w of b.walls) {
       if (!w.facade) continue;
       const pieces = gaps.reduce((list, d) => list.flatMap(p => subtractRect(p, d)), [w]);
-      for (const p of pieces) this._box(p, b.roofY, r3(b.roofY + b.roof.parapet), 'walls', { collide: true });
+      for (const p of pieces) {
+        this._box(p, b.roofY, r3(b.roofY + b.roof.parapet), 'walls', { collide: true, frame });
+      }
     }
   }
 
@@ -241,10 +357,10 @@ export class JsonMap extends SolidField {
    * высоты, а план режется на участки только там, где эта граница есть. Иначе
    * на этаже со свободным пространством выросла бы невидимая перегородка.
    */
-  _wall(w, b) {
+  _wall(w, b, frame) {
     const plan = { minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ };
     if (!b.rooms.length) {
-      this._wallBand({ ...plan, y0: b.baseY, y1: b.roofY }, b.doors, b.roofY - J.roofSeam);
+      this._wallBand({ ...plan, y0: b.baseY, y1: b.roofY }, b.doors, b.roofY - J.roofSeam, frame);
       return;
     }
     const byLevel = new Map();
@@ -276,7 +392,7 @@ export class JsonMap extends SolidField {
         // поэтому верх последней полосы совпадает с верхом её плиты — картинку
         // полосы опускаем на шов, солид остаётся до кровли
         const seam = Math.abs(y1 - b.roofY) < 1e-6 ? y1 - J.roofSeam : null;
-        this._wallBand({ ...plan, ...band, y0: Number(y), y1 }, b.doors, seam);
+        this._wallBand({ ...plan, ...band, y0: Number(y), y1 }, b.doors, seam, frame);
       }
     }
   }
@@ -300,19 +416,19 @@ export class JsonMap extends SolidField {
    * остаёт свой блок — перемычка (до потолка этажа) и подоконник, если дверь
    * не на уровне пола.
    */
-  _wallBand(band, doors, geoTop = null) {
+  _wallBand(band, doors, geoTop = null, frame = null) {
     const inBand = doors.filter(d =>
       d.y >= band.y0 - 0.01 && d.y < band.y1 - 0.01 && this._clip(band, d.rect));
     let pieces = [{ minX: band.minX, maxX: band.maxX, minZ: band.minZ, maxZ: band.maxZ }];
     for (const d of inBand) {
       const gap = this._clip(band, d.rect);
       pieces = pieces.flatMap(p => subtractRect(p, gap));
-      if (d.y - band.y0 > 0.02) this._box(gap, band.y0, d.y, 'walls', { collide: true });
+      if (d.y - band.y0 > 0.02) this._box(gap, band.y0, d.y, 'walls', { collide: true, frame });
       const head = d.y + (d.height ?? J.doorHeight);
       // перемычка доходит до верха полосы — шов только у той, что упирается в кровлю
-      if (band.y1 - head > 0.02) this._box(gap, head, band.y1, 'walls', { collide: true, geoTop });
+      if (band.y1 - head > 0.02) this._box(gap, head, band.y1, 'walls', { collide: true, geoTop, frame });
     }
-    for (const p of pieces) this._box(p, band.y0, band.y1, 'walls', { collide: true, geoTop });
+    for (const p of pieces) this._box(p, band.y0, band.y1, 'walls', { collide: true, geoTop, frame });
   }
 
   /**
@@ -320,7 +436,7 @@ export class JsonMap extends SolidField {
    * этот уровень, — проём. Без проёма перекрытие легло бы на лестницу, и
    * поднявшийся уткнулся бы в пол.
    */
-  _floorPlate(b, r) {
+  _floorPlate(b, r, frame) {
     let pieces = [{ ...r.rect }];
     for (const s of b.stairs) {
       const [k0, k1] = s.connectsFloors;
@@ -331,21 +447,27 @@ export class JsonMap extends SolidField {
     // равна земле уровня, и верх плиты лёг бы с её mesh в одну плоскость
     const top = r.y + J.floorRise;
     for (const p of pieces) {
-      this._box(p, top - J.slabThickness, top, 'slabs', { surface: true });
-      this.floorPlates.push({ ...p, y: top, room: r.id, floor: r.floor, building: b.id });
+      this._box(p, top - J.slabThickness, top, 'slabs', { surface: true, frame });
+      this.floorPlates.push({
+        ...this._worldRect(b, p), y: top, room: r.id, floor: r.floor, building: b.id,
+      });
     }
   }
 
   /** Марш: коробки ступеней от пола, на котором он стоит, до каждой проступи. */
-  _stair(s) {
-    for (const st of s.steps) {
-      // вертикальный марш: проступь — пластина на СВОЁМ подъёме, а не столб от
-      // пола шахты до неё (иначе картинка — монолит, которого глаз не видит,
-      // а правило «твёрдость совпадает с картинкой» нарушено)
-      const y0 = s.type === 'ladder' ? r3(st.top - J.ladderRung) : s.y0;
-      this._box(st, y0, st.top, 'stairs', { surface: true });
+  _stair(b, frame) {
+    for (const s of b.stairs) {
+      for (const st of s.steps) {
+        // вертикальный марш: проступь — пластина на СВОЁМ подъёме, а не столб от
+        // пола шахты до неё (иначе картинка — монолит, которого глаз не видит,
+        // а правило «твёрдость совпадает с картинкой» нарушено)
+        const y0 = s.type === 'ladder' ? r3(st.top - J.ladderRung) : s.y0;
+        this._box(st, y0, st.top, 'stairs', { surface: true, frame });
+      }
+      this.stairCells.push({
+        ...this._worldRect(b, s.rect), k0: s.connectsFloors[0], k1: s.connectsFloors[1],
+      });
     }
-    this.stairCells.push({ ...s.rect, k0: s.connectsFloors[0], k1: s.connectsFloors[1] });
   }
 
   _collectRoads() {
@@ -601,7 +723,13 @@ export class JsonMap extends SolidField {
 
   // -------------------------------------------------- коллизии габарита и опоры
 
-  /** Коллизии габарита: стены этажей (с проёмами), грунт насыпи и откосы. */
+  /**
+   * Коллизии габарита: стены этажей (с проёмами), грунт насыпи и откосы.
+   * Сетка `_blockIndex` раскладывает блоки по габариту — она только отбирает
+   * кандидатов, а решение принимает `circleHitsBox`: у повёрнутого дома по его
+   * собственным граням, иначе тело стояло бы в метре от косой стены, где глаз
+   * видит свободный тротуар.
+   */
   isBlocked(x, z, radius = CONFIG.radius, feetY = 0, height = CONFIG.eyeHeight) {
     const half = this.half;
     if (x - radius < -half || x + radius > half || z - radius < -half || z + radius > half) return true;
@@ -616,7 +744,7 @@ export class JsonMap extends SolidField {
           const w = this.blockers[idx];
           // порог 0.05: ступень стоит ровно под ногами и телу не препятствие
           if (w.y1 <= feetY + 0.05 || w.y0 >= feetY + height - 0.05) continue;
-          if (circleHitsRect(x, z, w.minX, w.maxX, w.minZ, w.maxZ, radius)) return true;
+          if (circleHitsBox(x, z, w, radius)) return true;
         }
       }
     }
@@ -694,18 +822,23 @@ export class JsonMap extends SolidField {
     const put = (text, x, y, z) => out.push({ text, x, y, z });
 
     for (const b of this.buildings) {
-      put(b.id, cx(b.bounds), b.roofY + 1, cz(b.bounds));
-      for (const r of b.rooms) put(`${r.id} · эт ${r.floor}`, cx(r.rect), r.y + 1.2, cz(r.rect));
-      for (const s of b.stairs) put(`${s.id} · ${s.type}`, cx(s.rect), s.y1 + 0.7, cz(s.rect));
+      // центр мировой: у косого дома план лежит в его осях, а метка обязана
+      // стоять над корпусом, который видно в кадре (дверные узлы парсер уже
+      // выносит в мир, поэтому им разворот не нужен)
+      const mark = (text, rect, y) => {
+        const p = this._toWorld(b, cx(rect), cz(rect));
+        put(text, p.x, y, p.z);
+      };
+      mark(b.id, b.bounds, b.roofY + 1);
+      for (const r of b.rooms) mark(`${r.id} · эт ${r.floor}`, r.rect, r.y + 1.2);
+      for (const s of b.stairs) mark(`${s.id} · ${s.type}`, s.rect, s.y1 + 0.7);
       for (const d of b.doors) put(`${d.id} · ${d.linkType}`, d.outside.x, d.y + d.height + 0.4, d.outside.z);
       // кровля и её парапет подписываются только у дома с секцией roof: у главы 9
       // её нет, и меток стало бы меньше ровно на столько, сколько их не было
       if (b.roof) {
-        put(`${b.id} · кровля · ${b.roof.walkable ? 'ходовая' : 'невходима'}`,
-          cx(b.bounds), b.roofY + 1.8, cz(b.bounds));
+        mark(`${b.id} · кровля · ${b.roof.walkable ? 'ходовая' : 'невходима'}`, b.bounds, b.roofY + 1.8);
         if (b.roof.walkable && b.roof.parapet > 0) {
-          b.walls.filter(w => w.facade).forEach((w, i) => put(`${b.id} · парапет ${i + 1}`,
-            cx(w), b.roofY + b.roof.parapet + 0.4, cz(w)));
+          b.walls.filter(w => w.facade).forEach((w, i) => mark(`${b.id} · парапет ${i + 1}`, w, b.roofY + b.roof.parapet + 0.4));
         }
       }
     }
@@ -771,7 +904,7 @@ export class JsonMap extends SolidField {
     this._buildingCells = new Map();
     this._prismCells = new Map();
     this._holeCells = new Map();
-    this.buildings.forEach((b, idx) => put(this._buildingCells, b.bounds, idx));
+    this.buildings.forEach((b, idx) => put(this._buildingCells, this._buildingBoxes[idx], idx));
     this.prisms.forEach((w, idx) => put(this._prismCells, w, idx));
     this.holes.forEach((r, idx) => put(this._holeCells, r, idx));
     this._planGrid = g;
@@ -791,11 +924,15 @@ export class JsonMap extends SolidField {
     return out;
   }
 
+  /**
+   * Точка мира внутри плана дома. Тест — по мировой коробке (`obb` у косого
+   * корпуса, обычный прямоугольник у соосного), а не по его охвату: у дома под
+   * 30° габарит шире фасадов углами, и решётка улиц начала бы бракаться там,
+   * где глаз видит асфальт.
+   */
   _inBuilding(x, z, margin = 0.2) {
     for (const idx of this._planAt(this._buildingCells, x, z)) {
-      const b = this.buildings[idx];
-      if (x > b.bounds.minX - margin && x < b.bounds.maxX + margin
-        && z > b.bounds.minZ - margin && z < b.bounds.maxZ + margin) return true;
+      if (obbHitsRect(this._buildingBoxes[idx], { minX: x, maxX: x, minZ: z, maxZ: z }, -margin)) return true;
     }
     return false;
   }
@@ -924,11 +1061,14 @@ export class JsonMap extends SolidField {
       for (let i = 0; i < xs.length; i++) {
         const x = xs[i], z = zs[j];
         if (this._inStair(b, x, z, room.floor)) continue;
+        // клетка считается в осях дома (решётка прямоугольна именно в них, и план
+        // марша прямоуголен тоже), а в граф и в пробы тела идёт мировая точка
+        const p = this._toWorld(b, x, z);
         // клетка над проёмом перекрытия (шахта марша) опоры этой комнаты не имеет
-        const y = this._floorSupport(x, z, room.y);
+        const y = this._floorSupport(p.x, p.z, room.y);
         if (y === null) continue;
-        if (this.isBlocked(x, z, CONFIG.radius, room.y, CONFIG.eyeHeight)) continue;
-        const id = nav.add(x, y, z, `r:${room.id}:${Math.round(x * 100)}:${Math.round(z * 100)}`);
+        if (this.isBlocked(p.x, p.z, CONFIG.radius, room.y, CONFIG.eyeHeight)) continue;
+        const id = nav.add(p.x, y, p.z, `r:${room.id}:${Math.round(x * 100)}:${Math.round(z * 100)}`);
         row[i] = id;
         count++;
         if (fine) this._linkClosest(nav, id, step * 1.8, 3);
@@ -1011,10 +1151,13 @@ export class JsonMap extends SolidField {
           for (let i = 0; i <= nx; i++) {
             const x = b.bounds.minX + r + i * step;
             if (x > b.bounds.maxX - r + 1e-6) continue;
-            const y = this._floorSupport(x, z, b.roofY);
+            // решётка кровли — по осям дома: плита и парапет прямоугольны в них,
+            // а узел графа обязан стоять там, где его держит мировая опора
+            const p = this._toWorld(b, x, z);
+            const y = this._floorSupport(p.x, p.z, b.roofY);
             if (y === null) continue;
-            if (this.isBlocked(x, z, CONFIG.radius, b.roofY, CONFIG.eyeHeight)) continue;
-            row[i] = nav.add(x, y, z, `k:${b.id}:${i}:${j}`);
+            if (this.isBlocked(p.x, p.z, CONFIG.radius, b.roofY, CONFIG.eyeHeight)) continue;
+            row[i] = nav.add(p.x, y, p.z, `k:${b.id}:${i}:${j}`);
           }
         }
         lat.push(row);
@@ -1041,15 +1184,15 @@ export class JsonMap extends SolidField {
         let prev;
         const ids = [];
         s.steps.forEach((st, k) => {
-          const x = (st.minX + st.maxX) / 2, z = (st.minZ + st.maxZ) / 2;
-          const id = nav.add(x, st.top, z, `s:${s.id}:${k}`);
+          const w = this._toWorld(b, (st.minX + st.maxX) / 2, (st.minZ + st.maxZ) / 2);
+          const id = nav.add(w.x, st.top, w.z, `s:${s.id}:${k}`);
           if (prev !== undefined) this._link(nav, prev, id);
           prev = id;
           ids.push(id);
         });
         if (!ids.length) continue;
-        const bottom = this._landing(nav, s, -1);
-        const top = this._landing(nav, s, 1);
+        const bottom = this._landing(nav, b, s, -1);
+        const top = this._landing(nav, b, s, 1);
         for (const [land, tread, isTop] of [[bottom, ids[0], false], [top, ids[ids.length - 1], true]]) {
           if (land === undefined) continue;
           this._link(nav, land, tread);
@@ -1087,7 +1230,7 @@ export class JsonMap extends SolidField {
    *
    * @returns {number|undefined} индекс узла графа
    */
-  _landing(nav, s, sign) {
+  _landing(nav, b, s, sign) {
     const tread = sign > 0 ? s.top : s.bottom;
     const level = sign > 0 ? s.y1 : s.y0;
     const cx = (s.rect.minX + s.rect.maxX) / 2;
@@ -1100,12 +1243,15 @@ export class JsonMap extends SolidField {
       [0, -Math.sign(tread.z - cz) || -1],
     ];
     for (const [ax, az] of dirs) {
+      // направление — локальное: марш и его проступи прямоугольны в осях дома, а
+      // «есть ли здесь пол и свободно ли тело» спрашивает мир
       const x = ax ? (ax > 0 ? s.rect.maxX : s.rect.minX) + ax * pad : tread.x;
       const z = az ? (az > 0 ? s.rect.maxZ : s.rect.minZ) + az * pad : tread.z;
-      const y = this._floorSupport(x, z, level);
+      const p = this._toWorld(b, x, z);
+      const y = this._floorSupport(p.x, p.z, level);
       if (y === null) continue;
-      if (this.isBlocked(x, z, CONFIG.radius, level, CONFIG.eyeHeight)) continue;
-      const id = nav.add(x, y, z, `p:${s.id}:${sign > 0 ? 't' : 'b'}`);
+      if (this.isBlocked(p.x, p.z, CONFIG.radius, level, CONFIG.eyeHeight)) continue;
+      const id = nav.add(p.x, y, p.z, `p:${s.id}:${sign > 0 ? 't' : 'b'}`);
       return id;
     }
     return undefined;
@@ -1126,11 +1272,13 @@ export class JsonMap extends SolidField {
    */
   _roofChain(nav, b, s, land) {
     const from = nav.pos[land];
-    const len = Math.hypot(from.x - (s.rect.minX + s.rect.maxX) / 2,
-      from.z - (s.rect.minZ + s.rect.maxZ) / 2);
+    // центр шахты — в мир: посадка уже мировая точка, и направление цепочки
+    // обязана соединять две мировые, а не локальную с мировой
+    const c = this._toWorld(b, (s.rect.minX + s.rect.maxX) / 2, (s.rect.minZ + s.rect.maxZ) / 2);
+    const len = Math.hypot(from.x - c.x, from.z - c.z);
     if (len < 1e-6) return;
-    const dx = (from.x - (s.rect.minX + s.rect.maxX) / 2) / len;
-    const dz = (from.z - (s.rect.minZ + s.rect.maxZ) / 2) / len;
+    const dx = (from.x - c.x) / len;
+    const dz = (from.z - c.z) / len;
     let prev = land;
     let added = 0;
     for (let k = 1; k <= 8; k++) {
@@ -1252,9 +1400,13 @@ export class JsonMap extends SolidField {
   /**
    * Точка внутри плана здания — по прямоугольникам частей, а не по габариту:
    * Г-образный дом держит двор внутри своего охвата, и он не «комната».
+   *
+   * Точка мировая (ею меряют наружный узел двери), а планы частей лежат в осях
+   * дома, поэтому сначала разворот.
    */
   _inPlan(b, p) {
-    return b.rects.some(r => p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ);
+    const l = this._toLocal(b, p.x, p.z);
+    return b.rects.some(r => l.x >= r.minX && l.x <= r.maxX && l.z >= r.minZ && l.z <= r.maxZ);
   }
 
   /**
@@ -1459,12 +1611,13 @@ export class JsonMap extends SolidField {
             if (buried.length && buried.some(r => p > r[0] && p < r[1] && cy > r[2] && cy < r[3])) continue;
             const r = fnvUnit(fnvMix(fnvMix(hf, k), slot));
             const lit = r < cfg.lit;
+            const q = this._quadToWorld(b, face.axis === 'x' ? p : line, face.axis === 'x' ? line : p, face.c, face.s);
             put(lit ? W.litColors[Math.min(W.litColors.length - 1, Math.floor(r / cfg.lit * W.litColors.length))]
               : W.darkColor, {
-              x: face.axis === 'x' ? p : line,
+              x: q.x,
               y: cy,
-              z: face.axis === 'x' ? line : p,
-              c: face.c, s: face.s, w: cfg.width, h,
+              z: q.z,
+              c: q.c, s: q.s, w: cfg.width, h,
             });
           }
         }
@@ -1547,11 +1700,14 @@ export class JsonMap extends SolidField {
           // интервал панели по бегу и по высоте против интервалов чужого объёма
           if (buried.some(r => p - width / 2 < r[1] && p + width / 2 > r[0]
             && cy - h / 2 < r[3] && cy + h / 2 > r[2])) continue;
+          // квад живёт в осях дома, а экземпляр — в мире: тот же поворот, что у окна
+          const q = this._quadToWorld(b, face.axis === 'x' ? p : line,
+            face.axis === 'x' ? line : p, face.c, face.s);
           put(cfg.colors[Math.min(cfg.colors.length - 1, Math.floor(draw() * cfg.colors.length))], {
-            x: face.axis === 'x' ? p : line,
+            x: q.x,
             y: cy,
-            z: face.axis === 'x' ? line : p,
-            c: face.c, s: face.s, w: width, h,
+            z: q.z,
+            c: q.c, s: q.s, w: width, h,
           });
         }
       }
@@ -1577,12 +1733,17 @@ export class JsonMap extends SolidField {
     for (const t of [face.lo + 0.5, (face.lo + face.hi) / 2, face.hi - 0.5]) {
       const x = face.axis === 'x' ? t : line;
       const z = face.axis === 'x' ? line : t;
-      for (const idx of this._planAt(this._buildingCells, x, z)) {
+      // проба индекса — мировая: клетка `_buildingCells` раскладывает планы по
+      // габаритам повёрнутых корпусов
+      const probe = this._toWorld(b, x, z);
+      for (const idx of this._planAt(this._buildingCells, probe.x, probe.z)) {
         if (seen.has(idx)) continue;
         seen.add(idx);
         const o = this.buildings[idx];
         if (o === b || o.baseY >= b.roofY - 0.01 || o.roofY <= b.baseY + 0.01) continue;
-        for (const r of o.rects) {
+        // планы соседа — в осях этого дома: полоса и `line` локальные, а индекс
+        // `_buildingCells` расложен по мировым габаритам
+        for (const r of this._rectsIn(o, b)) {
           if (line <= (face.axis === 'x' ? r.minZ : r.minX)
             || line >= (face.axis === 'x' ? r.maxZ : r.maxX)) continue;
           const a = Math.max(face.lo, face.axis === 'x' ? r.minX : r.minZ);
@@ -1638,12 +1799,18 @@ export class JsonMap extends SolidField {
     };
   }
 
-  /** Есть ли план дома в точке (строгое вхождение: граница плана не считается). */
+  /** Есть ли план дома в точке его локальных осей (граница плана не считается). */
   _rectsHold(b, x, z) {
     for (const r of b.rects) {
       if (x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ) return true;
     }
     return false;
+  }
+
+  /** Тот же тест для мировой точки: планы частей лежат в осях дома, поэтому разворот. */
+  _rectsHoldAt(b, x, z) {
+    const l = this._toLocal(b, x, z);
+    return this._rectsHold(b, l.x, l.z);
   }
 
   /** Настройка мусора: `J.clutter` плюс переопределение ритмов из брифа. */
@@ -1685,12 +1852,17 @@ export class JsonMap extends SolidField {
     // над предметом обязано быть пусто: переход или пролёт моста, приходящийся
     // на уровень кровли, прятал бы бак внутри своей картинки
     const clearAbove = (x, y, z) => !this.raySolid(x, y + 0.2, z, 0, 1, 0, C.head);
-    const add = (model, x, y, z, draw) => {
+    const add = (model, x, y, z, draw, yaw = 0) => {
       const s = size(draw());
       items.push({
         model,
         source: 'generated',
-        rotationY: Math.floor(draw() * 4) * 90,
+        // косой дом поворачивает и свой мусор: сетка слотов лежит в его осях,
+        // и бак, провёрнутый на 90° относительно кровли, торчал бы по сторонам
+        // света. `rotationY` — угол `Object3D.rotation.y`, а `rotateY(θ)` крутит план
+        // на −θ по нашему соглашению, поэтому знак здесь обратный: картинка пропов
+        // обязана совпасть с поворотом стен
+        rotationY: r3(-yaw + Math.floor(draw() * 4) * 90),
         position: { x, y, z },
         scale: { x: s, y: s, z: s },
       });
@@ -1698,6 +1870,7 @@ export class JsonMap extends SolidField {
 
     for (const b of this.buildings) {
       if (!b.floorsCount) continue;
+      const frame = this._frame(b);
       const models = b.roofY >= C.tall ? C.tallModels : C.roofModels;
       const hb = fnvStr(2166136261, `${b.id}|roof`);
       let n = 0;
@@ -1711,9 +1884,12 @@ export class JsonMap extends SolidField {
             if (n >= C.roof.perHouse) { done = true; break; }
             const draw = makeDraw(fnvMix(hb, k * 7919));
             if (draw() >= C.roof.keep) continue;
-            if (this._roofCovered(b, x, z)) continue;
-            if (!clearAbove(x, b.roofY, z)) continue;
-            add(pick(draw(), models), r3(x), b.roofY, r3(z), draw);
+            // слот — в осях дома, а «накрыт ли он» и «есть ли над ним воздух»
+            // решает мир: чужой объём и луч живут в мировых координатах
+            const p = this._toWorld(b, x, z);
+            if (this._roofCovered(b, p.x, p.z)) continue;
+            if (!clearAbove(p.x, b.roofY, p.z)) continue;
+            add(pick(draw(), models), r3(p.x), b.roofY, r3(p.z), draw, frame?.deg ?? 0);
             n++;
           }
         }
@@ -1755,20 +1931,23 @@ export class JsonMap extends SolidField {
     return items;
   }
 
-  /** Через эту точку кровли проходит чужой объём: надстройка лота или соседний дом. */
+  /**
+   * Через эту мировую точку кровли проходит чужой объём: надстройка лота или
+   * соседний дом.
+   */
   _roofCovered(b, x, z) {
     for (const idx of this._planAt(this._buildingCells, x, z)) {
       const o = this.buildings[idx];
-      if (o === b || !this._rectsHold(o, x, z)) continue;
+      if (o === b || !this._rectsHoldAt(o, x, z)) continue;
       if (o.baseY < b.roofY + 0.05 && o.roofY > b.roofY + 0.05) return true;
     }
     return false;
   }
 
-  /** Есть ли план любого дома в точке (уличному предмету там не место). */
+  /** Есть ли план любого дома в мировой точке (уличному предмету там не место). */
   _planHolds(x, z) {
     for (const idx of this._planAt(this._buildingCells, x, z)) {
-      if (this._rectsHold(this.buildings[idx], x, z)) return true;
+      if (this._rectsHoldAt(this.buildings[idx], x, z)) return true;
     }
     return false;
   }
@@ -1831,9 +2010,10 @@ export class JsonMap extends SolidField {
    * есть свет, поэтому горящее окно и неон читаются ровно своим цветом независимо
    * от пула огней и остаются видимыми сквозь туман района.
    *
-   * Матрица экземпляра пишется в буфер руками: повороты здесь только кратные 90°,
-   * и на 32 тыс. окон `Matrix4.compose` с кватернионом стоил больше, чем вся
-   * выводимая позиция.
+   * Матрица экземпляра пишется в буфер руками: окна задают поворот косинусом с
+   * синусом напрямую, и на 32 тыс. окон `Matrix4.compose` с кватернионом стоил
+   * больше, чем вся выводимая позиция. Запись годится и для косого дома (v2) —
+   * угол в ней любой, а не только кратный 90°.
    *
    * @param {'windows'|'signage'} kind — чтобы `dispose()` и тесты отличали один
    *   выводимый ряд от другого: материалы у них одинаковые по классу.
@@ -1995,12 +2175,27 @@ export class JsonMap extends SolidField {
       if (x1 < 0 || z1 < 0 || x0 > size || z0 > size) return null;
       return [x0, z0, Math.max(x1 - x0, 1), Math.max(z1 - z0, 1)];
     };
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
     const fill = (list, pick) => {
       for (const it of list) {
         const p = pick ? pick(it) : true;
         if (!p) continue;
         const px = rectPx(it);
-        if (px) ctx.fillRect(...px);
+        if (!px) continue;
+        if (!it.obb) { ctx.fillRect(...px); continue; }
+        // косая плита — четырёхугольник по своим осям, а не его габарит: квадрат
+        // за углами повёрнутого дома рисовал бы стену там, где её нет, и прятал
+        // проём, через который человек как раз идёт
+        const o = it.obb;
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+          const [lx, lz] = corners[i];
+          const [x, z] = toPx(o.cx + lx * o.hx * o.c - lz * o.hz * o.s,
+            o.cz + lx * o.hx * o.s + lz * o.hz * o.c);
+          if (i) ctx.lineTo(x, z); else ctx.moveTo(x, z);
+        }
+        ctx.closePath();
+        ctx.fill();
       }
     };
 
