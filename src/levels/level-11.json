@@ -46,9 +46,9 @@
         { "arc": { "cx": 50, "cz": 22, "radius": 40, "from": -128.68, "to": 90,
           "width": 8, "y": [0.12, 12], "bank": 6, "rails": true } },
         { "connect": "tangent" },
-        { "plate": { "x": 3, "z": 62, "length": 94, "width": 8, "y": 12 } },
+        { "plate": { "x": 3, "z": 62, "length": 94, "width": 8, "y": 12, "rails": true } },
         { "connect": "tangent" },
-        { "plate": { "x": -64, "z": 62, "length": 40, "width": 8, "y": 12, "rise": -11.88 } }
+        { "plate": { "x": -64, "z": 62, "length": 40, "width": 8, "y": 12, "rise": -11.88, "rails": true } }
       ]
     },
     { "id": "rd_east_ave", "type": "ground", "width": 10, "lamps": true,

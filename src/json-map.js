@@ -134,6 +134,14 @@ export class JsonMap extends SolidField {
     this.sweeps = [];
     /** наклонные твёрдости: пролёты настилов и откосы насыпи — призмы профиля (u, y) */
     this.prisms = [];
+    /**
+     * Перила настилов: стенка-прямая (призма) у пластины и цилиндрическая стенка
+     * у дуги. Отдельно от `prisms`, потому что верх перила опорой не является —
+     * иначе `groundHeightAt` поднял бы узел графа и маяк точки B на ограждение.
+     */
+    this.railWedges = [];
+    /** перила для проходимости: и то, и другое с точной высотой края под точкой */
+    this.rails = [];
     /** планы, где грунт уровня прорезан руслом: в них нет «пола мира — ноль» */
     this.holes = [];
     /** сходы в русло и берега-склоны: узлы графа вдоль уклона */
@@ -529,6 +537,7 @@ export class JsonMap extends SolidField {
         // знак разницы — направление подъёма: спуск с пролёта тоже наклонный
         if (Math.abs(d.topAtMax - d.topAtMin) > 0.01) this._incline(d, frame);
         else this._box(this._deckPlan(d, frame), d.bottomY, d.topY, 'decks', { surface: true, frame });
+        if (d.rails) this._deckRails(d, frame);
         this.deckPlates.push({ ...d, road: road.id, roadType: road.type });
       }
       // насыпь: грунт под настилом — и опора быть не может, и идти сквозь него нельзя
@@ -595,7 +604,7 @@ export class JsonMap extends SolidField {
     cap(rings[rings.length - 1], t1);
     s.tris = tris;
     this.geo.decks.push(this._sweepGeo(tris));
-    if (s.rails) this._sweepRails(s);
+    if (s.rails) this._sweepRails(s, fr);
   }
 
   /** Меш ленты: плоские нормали граней — та же нарезка, что у луча. */
@@ -618,29 +627,92 @@ export class JsonMap extends SolidField {
   }
 
   /**
-   * Ограждение дуги: секции-отбойники вдоль касательной на обеих кромках.
-   * Ставятся `_box` с касательным кадром, поэтому картинка, солид и блокер —
-   * одна ориентированная коробка; по низу секция стартует от низкого конца
-   * (полотно под ней поднимается), по верху — на `J.railHeight` выше высокого,
-   * иначе на подъёме между низом перила и настилом оставался бы проём.
+   * Перила дуги — стенка как продолжение полотна: и её низ, и верх идут по
+   * фактической высоте **кромки** (с креном и его раскруткой), а не по осевой,
+   * поэтому ограждение — гладкая лента. Прежние секции-коробки мерили высоту по
+   * оси и на 8 м полотна с креном 6° висели над асфальтом / уходили в него на
+   * ±0,42 м, а по подъёму были лесенкой.
+   *
+   * Нарезка та же, что у полотна (`sweepFractions`): стенка стоит на тех же
+   * кольцах, что лента, и в зоне раскрутки крена не отстаёт от него. Грани идут в
+   * `s.hitTris` вместе с лентой — луч бьёт ровно в нарисованное, а опора и
+   * проходимость берут аналитику (`ρ = const`), как у настила.
    */
-  _sweepRails(s) {
-    const n = Math.max(1, Math.round(Math.abs(s.spanr) * s.R / J.railStep));
-    for (let i = 0; i < n; i++) {
-      const a0 = s.a0r + s.spanr * i / n, a1 = s.a0r + s.spanr * (i + 1) / n;
-      const am = (a0 + a1) / 2;
-      const chord = 2 * s.R * Math.abs(Math.sin((a1 - a0) / 2));
-      const lo = Math.min(sweepSurfaceAt(s, a0, s.R), sweepSurfaceAt(s, a1, s.R));
-      const hi = Math.max(sweepSurfaceAt(s, a0, s.R), sweepSurfaceAt(s, a1, s.R)) + J.railHeight;
-      const yaw = am / DEG + 90;
-      for (const side of [-1, 1]) {
-        const rho = s.R + side * s.halfW;
-        const px = s.cx + Math.cos(am) * rho, pz = s.cz + Math.sin(am) * rho;
-        this._box({
-          minX: px - chord / 2, maxX: px + chord / 2,
-          minZ: pz - J.railThickness / 2, maxZ: pz + J.railThickness / 2,
-        }, lo, hi, 'rails', { collide: true, frame: frameAt(px, pz, yaw) });
+  _sweepRails(s, fr) {
+    const t = J.railThickness, h = J.railHeight, sink = J.railSink;
+    const tris = [];
+    const add = (a, b, c, ref) => {
+      const nv = faceNormal(a, b, c);
+      if (nv[0] * ref[0] + nv[1] * ref[1] + nv[2] * ref[2] < 0) {
+        tris.push({ a, b: c, c: b, n: faceNormal(a, c, b) });
+      } else {
+        tris.push({ a, b, c, n: nv });
       }
+    };
+    const quad = (a, b, c, d, ref) => { add(a, b, c, ref); add(a, c, d, ref); };
+    // сечение стенки — прямоугольник в (ρ, y): толщиной t, высотой h, низ на
+    // `sink` ниже полотна, чтобы его нижняя грань не легла в одну плоскость с
+    // асфальтом (со-плоскостные грани мигают в z-buffer — правило швов)
+    const section = (ang, rhoEdge) => {
+      const y0 = sweepSurfaceAt(s, ang, rhoEdge) - sink;
+      const P = (rho, y) => [s.cx + Math.cos(ang) * rho, y, s.cz + Math.sin(ang) * rho];
+      return [
+        P(rhoEdge - t / 2, y0), P(rhoEdge + t / 2, y0),
+        P(rhoEdge + t / 2, y0 + h), P(rhoEdge - t / 2, y0 + h),
+      ];
+    };
+    const dir = Math.sign(s.spanr) || 1;
+    const tang = a => [-Math.sin(a) * dir, 0, Math.cos(a) * dir];
+    for (const side of [-1, 1]) {
+      const rhoEdge = s.R + side * s.halfW;
+      const rings = fr.map(f => section(s.a0r + s.spanr * f, rhoEdge));
+      for (let i = 0; i + 1 < rings.length; i++) {
+        const [p0, p1] = [rings[i], rings[i + 1]];
+        const ang = s.a0r + s.spanr * (fr[i] + fr[i + 1]) / 2;
+        const rad = [Math.cos(ang), 0, Math.sin(ang)];
+        quad(p0[0], p1[0], p1[1], p0[1], [0, -1, 0]);
+        quad(p0[1], p1[1], p1[2], p0[2], rad);
+        quad(p0[2], p1[2], p1[3], p0[3], [0, 1, 0]);
+        quad(p0[3], p1[3], p1[0], p0[0], [-rad[0], 0, -rad[2]]);
+      }
+      const t0 = tang(s.a0r), t1 = tang(s.a0r + s.spanr);
+      const cap = (ring, ref) => quad(ring[0], ring[1], ring[2], ring[3], ref);
+      cap(rings[0], [-t0[0], 0, -t0[2]]);
+      cap(rings[rings.length - 1], t1);
+    }
+    s.hitTris = s.tris.concat(tris);
+    this.geo.rails.push(this._sweepGeo(tris));
+    this.rails.push({ kind: 'arc', s });
+  }
+
+  /**
+   * Перила прямой пластины: две стенки-призмы по кромкам, чей профиль параллелен
+   * подъёму полотна, — поэтому у съезда ограждение идёт по наклону непрерывной
+   * стеной, а не лесенкой коробок. Призма лежит в осях пластины и поворачивается
+   * тем же кадром, что и настил, поэтому луч и сфера берут общий механизм
+   * `rayWedge`/`pushOutWedge` без новой арифметики.
+   */
+  _deckRails(d, frame) {
+    const plan = this._deckPlan(d, frame);
+    const t = J.railThickness, h = J.railHeight, sink = J.railSink;
+    const axis = d.axis ?? 'x';
+    const isX = axis === 'x';
+    const lo = isX ? plan.minX : plan.minZ, hi = isX ? plan.maxX : plan.maxZ;
+    const vMid = isX ? (plan.minZ + plan.maxZ) / 2 : (plan.minX + plan.maxX) / 2;
+    const halfV = (isX ? plan.maxZ - plan.minZ : plan.maxX - plan.minX) / 2;
+    if (hi - lo <= 1e-6 || halfV <= 0) return;
+    // подъём вдоль оси — та же прямая, что держит настил (`topAtMin` → `topAtMax`)
+    const k = (d.topAtMax - d.topAtMin) / (hi - lo);
+    const c = d.topAtMin - k * lo;
+    for (const side of [-1, 1]) {
+      const vEdge = vMid + side * halfV;
+      const y = u => k * u + c - sink;
+      const w = makePrism(axis, vEdge - t / 2, vEdge + t / 2, [
+        [lo, y(lo)], [hi, y(hi)], [hi, y(hi) + h], [lo, y(lo) + h],
+      ], frame);
+      this.railWedges.push(w);
+      this.rails.push({ kind: 'wedge', w });
+      this.geo.rails.push(this._prismGeo(w));
     }
   }
 
@@ -862,10 +934,10 @@ export class JsonMap extends SolidField {
 
   /**
    * Луч: сначала обычные солиды и земля (базовый механизм), затем — наклонные
-   * призмы. Их тел нет в `solids`, иначе коробка по низу пролёта спрятала бы под
-   * гладкой картинкой лестницу невидимых ступеней, а коробка откоса — невидимую
-   * стену там, где глаз видит склон: пуля и сфера тела Чужого опирались бы на
-   * них, а не на наклон.
+   * призмы и стенки перил. Их тел нет в `solids`, иначе коробка по низу пролёта
+   * спрятала бы под гладкой картинкой лестницу невидимых ступеней, а коробка
+   * откоса — невидимую стену там, где глаз видит склон: пуля и сфера тела Чужого
+   * опирались бы на них, а не на наклон.
    *
    * Земля-плоскость при этом отменяется для луча, вошедшего в русло: пол мира
    * лежит выше дна, и луч, уходящий в канал, обязан идти дальше — к стенке, дну
@@ -884,6 +956,10 @@ export class JsonMap extends SolidField {
     const limit = base ? base.dist : maxDist;
     let best = null;
     for (const w of this.prisms) {
+      const h = rayWedge(w, ox, oy, oz, dx, dy, dz);
+      if (h && h.t > 1e-6 && h.t < limit && (!best || h.t < best.dist)) best = { ...h, dist: h.t };
+    }
+    for (const w of this.railWedges) {
       const h = rayWedge(w, ox, oy, oz, dx, dy, dz);
       if (h && h.t > 1e-6 && h.t < limit && (!best || h.t < best.dist)) best = { ...h, dist: h.t };
     }
@@ -915,11 +991,17 @@ export class JsonMap extends SolidField {
     for (const w of this.prisms) {
       if (pushOutWedge(c, r, w)) fromWedge = true;
     }
+    for (const w of this.railWedges) {
+      if (pushOutWedge(c, r, w)) fromWedge = true;
+    }
     // дуги: та же логика «точное расстояние до поверхности», только сектор
     // кольцевой, поэтому планарная и вертикальная части складываются через hypot
     let fromSweep = false;
     for (const s of this.sweeps) {
       if (pushOutSweep(c, r, s)) fromSweep = true;
+      // кромка полотна с перилами: сфера обязана остановиться о стенку, а не
+      // соскользнуть за край — пояс берётся по фактической высоте края
+      if (s.rails && pushOutSweepRails(c, r, s)) fromSweep = true;
     }
     return moved || fromWedge || fromSweep;
   }
@@ -950,6 +1032,21 @@ export class JsonMap extends SolidField {
           if (circleHitsBox(x, z, w, radius)) return true;
         }
       }
+    }
+    return this._railsBlock(x, z, radius, feetY, height);
+  }
+
+  /**
+   * Перила настилов — блокер, но не в списке `blockers`: их пояс по высоте
+   * меняется вдоль полотна (у дуги — по крену, у съезда — по подъёму), и
+   * коробка-габарит отняла бы воздух под настилом. Решение принимает точная
+   * геометрия стенки: кольцевая полоса у дуги, призма — у пластины.
+   */
+  _railsBlock(x, z, radius, feetY, height) {
+    for (const rail of this.rails) {
+      if (rail.kind === 'arc') {
+        if (sweepRailsBlock(rail.s, x, z, radius, feetY, height)) return true;
+      } else if (railWedgeBlocks(rail.w, x, z, radius, feetY, height)) return true;
     }
     return false;
   }
@@ -2767,6 +2864,24 @@ function pushOutWedgeLocal(c, r, w) {
 }
 
 /**
+ * Бракуют ли перила пластины тело в точке: расстояние в плане — до стенки в её
+ * собственных осях, а пояс по высоте — из профиля **под ближайшей точкой**, а не
+ * из габарита: у съезда с перепадом 12 м коробка «от низа до верха» перекрыла бы
+ * улицу, идущую под его верхним концом.
+ */
+function railWedgeBlocks(w, x, z, r, feetY, height) {
+  const p = w.frame ? unrotatePoint(w.frame, x, z) : { x, z };
+  const isX = w.axis === 'x';
+  const u = isX ? p.x : p.z, v = isX ? p.z : p.x;
+  const d = Math.hypot(Math.max(0, w.lo - u, u - w.hi), Math.max(0, w.v0 - v, v - w.v1));
+  if (d >= r) return false;
+  const top = w.topAt(Math.min(w.hi, Math.max(w.lo, u)));
+  if (top === null) return false;
+  const bottom = top - J.railHeight;
+  return !(top <= feetY + 0.05 || bottom >= feetY + height - 0.05);
+}
+
+/**
  * Доли развёртки для нарезки ленты: ровная сетка ≤ `J.sweepSlice` плюс мелкие
  * полосы в обеих переходных зонах крена.
  *
@@ -2824,7 +2939,96 @@ function sweepSurfaceAt(s, ang, rho) {
 }
 
 /**
- * Пересечение луча с лентой дуги: те же треугольники, что у меша. Отклонение
+ * Пояс перила дуги у кромки: стенка стоит на **краю** полотна (там, где полотно
+ * уже ушло по крену), а не на осевой, и уходит в настил на `J.railSink` — иначе
+ * её нижняя грань легла бы в одну плоскость с асфальтом.
+ */
+function sweepRailBand(s, ang, rhoEdge) {
+  const bottom = sweepSurfaceAt(s, ang, rhoEdge) - J.railSink;
+  return { bottom, top: bottom + J.railHeight };
+}
+
+/** Ближайший торец развёртки: за её пределами стенка кончается плоским срезом. */
+function sweepEndAngle(s, x, z) {
+  const d = a => Math.hypot(x - (s.cx + Math.cos(a) * s.R), z - (s.cz + Math.sin(a) * s.R));
+  const a1 = s.a0r + s.spanr;
+  return d(s.a0r) <= d(a1) ? s.a0r : a1;
+}
+
+/**
+ * Бракуют ли перила дуги тело в точке. План стенки — кольцевая полоса, поэтому
+ * ближайшая к центру точка берётся прижатием угла к развёртке, а радиуса — к
+ * толщине; пояс по высоте — под этой точкой, а не «от низкого конца до высокого
+ * на всю дугу», как у прежних коробок: иначе под верхним краем подъёма стена
+ * отняла бы проход у того, кто идёт по земле под мостом.
+ */
+function sweepRailsBlock(s, x, z, r, feetY, height) {
+  const dx = x - s.cx, dz = z - s.cz;
+  const rho = Math.hypot(dx, dz);
+  const theta = Math.atan2(dz, dx);
+  const inside = arcDelta(theta, s.a0r, s.spanr) !== null;
+  const half = J.railThickness / 2;
+  for (const side of [-1, 1]) {
+    const rhoEdge = s.R + side * s.halfW;
+    const ang = inside ? theta : sweepEndAngle(s, x, z);
+    const rc = Math.min(rhoEdge + half, Math.max(rhoEdge - half, rho));
+    const d = Math.hypot(x - (s.cx + Math.cos(ang) * rc), z - (s.cz + Math.sin(ang) * rc));
+    if (d >= r) continue;
+    const band = sweepRailBand(s, ang, rhoEdge);
+    if (band.top <= feetY + 0.05 || band.bottom >= feetY + height - 0.05) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Выталкивание сферы из стенки перила: сечение — прямоугольник в `(ρ, y)`, значит
+ * расстояние раскладывается на радиальное и вертикальное, как у призмы
+ * (`pushOutWedge`). Обе кромки полотна отстоят на `2 · halfW`, и радиус тела до
+ * них не доходит, поэтому срабатывает не более одной стороны.
+ *
+ * @param {{x,y,z}} c центр (мутабельно)
+ * @returns {boolean} сдвинули ли
+ */
+function pushOutSweepRails(c, r, s) {
+  const dx = c.x - s.cx, dz = c.z - s.cz;
+  const rho = Math.hypot(dx, dz);
+  const theta = Math.atan2(dz, dx);
+  if (arcDelta(theta, s.a0r, s.spanr) === null) return false;
+  const half = J.railThickness / 2;
+  for (const side of [-1, 1]) {
+    const rhoEdge = s.R + side * s.halfW;
+    const band = sweepRailBand(s, theta, rhoEdge);
+    const rMin = rhoEdge - half, rMax = rhoEdge + half;
+    const dr = Math.max(0, rMin - rho, rho - rMax);
+    const dy = Math.max(0, band.bottom - c.y, c.y - band.top);
+    const k = rho > 1e-9 ? 1 / rho : 0;
+    if (dr === 0 && dy === 0) {
+      // центр внутри сечения: разводимся через наименьшую из двух глубин
+      const penR = Math.min(rho - rMin, rMax - rho);
+      const penY = Math.min(c.y - band.bottom, band.top - c.y);
+      if (penR <= penY) {
+        const shift = (r + penR) * (rho >= rhoEdge ? 1 : -1) * k;
+        c.x += dx * shift; c.z += dz * shift;
+      } else {
+        c.y += (c.y >= (band.bottom + band.top) / 2 ? 1 : -1) * (r + penY);
+      }
+      return true;
+    }
+    const d = Math.hypot(dr, dy);
+    if (d >= r) continue;
+    const push = r - d;
+    c.x += dx * (dr * push / d) * k;
+    c.z += dz * (dr * push / d) * k;
+    c.y += (c.y > band.top ? 1 : c.y < band.bottom ? -1 : 0) * push * dy / d;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Пересечение луча с лентой дуги: те же треугольники, что у меша, плюс грани
+ * перил, если они у дуги есть (`hitTris`). Отклонение
  * от точной поверхности — хорда нарезки (≤ 3,8 см при 5° и R 40), поэтому луч
  * без трансцендентного `atan2` совпадает с картинкой, а опора ноги остаётся по
  * `topAt`. Направление обязано быть единичным — `t` и есть метры.
@@ -2834,7 +3038,7 @@ function raySweep(s, ox, oy, oz, dx, dy, dz) {
   if (len < 1e-9) return null;
   dx /= len; dy /= len; dz /= len;
   let best = null, bn = null;
-  for (const { a, b, c, n } of s.tris) {
+  for (const { a, b, c, n } of (s.hitTris ?? s.tris)) {
     const t = rayTriangle(a, b, c, ox, oy, oz, dx, dy, dz);
     if (t !== null && t > 1e-6 && (!best || t < best)) { best = t; bn = n; }
   }

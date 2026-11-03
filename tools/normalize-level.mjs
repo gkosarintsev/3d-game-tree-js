@@ -786,6 +786,7 @@ function normalizeRoadElements(road) {
       topAtMin: topLo,
       topAtMax: topHi,
       ramp: Math.abs(topHi - topLo) > 0.01,
+      rails: !!pl.rails,
     });
   }
   const width = road.width ?? Math.max(...decks.map(d => d.width));

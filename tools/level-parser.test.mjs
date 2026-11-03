@@ -1140,6 +1140,22 @@ t('v2: косая пластина настила принимается и до
   assert(code.includes('"obb"'), 'модуль главы не донёс OBB пластины');
 });
 
+/**
+ * Перила прямых настилов — тот же флаг, что у дуги: движок по нему строит
+ * стенку-призму по кромкам, и терять его в нормализаторе нельзя.
+ */
+t('v2: флаг перил доходит до модуля и у пластины, а без записи его нет', () => {
+  const deck = rails => normalizeLevel(v2Raw(r => {
+    r.roads = [plateRoad('st_rails',
+      { x: 0, z: 10, yaw: 30, length: 40, width: 6, y: 0.12, ...(rails ? { rails: true } : {}) })];
+  })).map.roads[0].decks[0];
+  eq(validateLevel(v2Raw(r => {
+    r.roads = [plateRoad('st_rails', { x: 0, z: 10, yaw: 30, length: 40, width: 6, y: 0.12, rails: true })];
+  }), LEVEL_SPEC_V2).errors.length, 0, 'схема отбраковала пластину с перилами');
+  eq(deck(true).rails, true, 'перила пластины не дошли до модуля');
+  eq(deck(false).rails, false, 'у пластины без записи появились перила');
+});
+
 t('v2: пластина круче maxSlope — ошибка, перепад в пределах — норма', () => {
   const steep = v2Raw(r => {
     r.roads = [plateRoad('st_ramp', { x: 0, z: 10, yaw: 30, length: 10, width: 6, y: 0.12, rise: 5 })];

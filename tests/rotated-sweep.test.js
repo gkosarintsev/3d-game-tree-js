@@ -21,8 +21,8 @@
  * контакта диагональю на всю ширину — 0,84 м для 6° на 8 м полотна. Крен поэтому
  * набирается половиной косинусы на переходе у обоих торцов, а длина перехода
  * считается из остатка `maxSlope` после продольного уклона: край полотна не смеет
- * быть круче оси. Полоса с разными кренами на концах — седло, две плоские граньи
- * на него не ложатся, поэтому угловая нарезка ленты в зоне перехода мельчает
+ * быть круче оси. Полоса с разными кренами на концах — седло, две плоские
+ * грани на него не ложатся, поэтому угловая нарезка ленты в зоне перехода мельчает
  * (`J.sweepRibbonTwist` — бюджет зазора), а вне её остаётся решёточной.
  *
  * Запуск в браузере (через консоль страницы игры, где есть importmap):
@@ -52,9 +52,14 @@
  *      поверхностью в бюджете `J.sweepRibbonTwist`;
  *  12. Стык дуги с плоской касательной пластиной — горизонталь: три сечения и луч
  *      на одной отметке (без перехода крена эта линия — диагональ 0,84 м);
- *  13. Перила `rails` бракуют край полотна, но не мешают идти по осевой;
- *  14. Миникарта печатает дугу кольцевым сектором (два `ctx.arc`), а не габаритом;
- *  15. Граф навигации идёт по осевой дуги: маршрут с земли доводит до точки B на
+ *  13. Перила `rails` бракуют край полотна, но не осевую и не воздух под настилом;
+ *  14. Верх перил — продолжение полотна: вертикальные пробы по всей дуге сходятся
+ *      с высотой **края** + `railHeight`, а выстрел вдоль радиуса встаёт в стенку
+ *      её радиальной гранью (прежние секции мерили осевую и были лесенкой ±0,42 м);
+ *  15. Сфера, угодившая в стенку, выходит из неё радиально (до глубины меньше,
+ *      чем до верха), а опора полотна от перил не растёт;
+ *  16. Миникарта печатает дугу кольцевым сектором (два `ctx.arc`), а не габаритом;
+ *  17. Граф навигации идёт по осевой дуги: маршрут с земли доводит до точки B на
  *      полотне, а узлы на нём стоят на плоскости дуги и не выброшены как карман.
  */
 import { createJsonMap } from '../src/json-map.js';
@@ -425,25 +430,127 @@ function testRailsBlockEdge() {
   const d = deckInfo();
   const bad = [];
   const mid = 90;
-  const top = surfaceOf(d, mid);
   const r = CONFIG.radius;
-  const edge = P(ARC, mid, d.R + d.halfW - 0.15);
+  const rho = d.R + d.halfW - J.railThickness / 2 - 0.05;
+  const edge = P(ARC, mid, rho);
   const centerP = P(ARC, mid, d.R);
-  if (!map.isBlocked(edge.x, edge.z, r, top, CONFIG.eyeHeight)) {
+  // ноги стоят на асфальте у самой стенки: отмеряется высота именно того края, а
+  // не осевой, иначе тело «идёт» на 0,42 м ниже полотна
+  if (!map.isBlocked(edge.x, edge.z, r, surfaceOf(d, mid, rho), CONFIG.eyeHeight)) {
     bad.push('на краю полотна тело не встречает перила');
   }
-  if (map.isBlocked(centerP.x, centerP.z, r, top, CONFIG.eyeHeight)) {
+  if (map.isBlocked(centerP.x, centerP.z, r, surfaceOf(d, mid), CONFIG.eyeHeight)) {
     bad.push('перила перекрыли осевую полотна');
   }
-  // перила идут вдоль всей дуги: та же проверка на другом угле
-  const e2 = P(ARC, 180, d.R - d.halfW + 0.15);
-  const t2 = surfaceOf(d, 180);
-  if (!map.isBlocked(e2.x, e2.z, r, t2, CONFIG.eyeHeight)) bad.push('на внутренней кромке 180° перил нет');
+  // перила идут вдоль всей дуги: та же проверка на внутренней кромке другого угла
+  const rIn = d.R - d.halfW + J.railThickness / 2 + 0.05;
+  const e2 = P(ARC, 180, rIn);
+  if (!map.isBlocked(e2.x, e2.z, r, surfaceOf(d, 180, rIn), CONFIG.eyeHeight)) {
+    bad.push('на внутренней кромке 180° перил нет');
+  }
+  // стенка держит только полотно: под ним, на земле, проход не занят
+  const under = P(ARC, 90, d.R + d.halfW - 0.05);
+  if (map._railsBlock(under.x, under.z, r, 0, CONFIG.eyeHeight)) {
+    bad.push('перила зацепили того, кто идёт под мостом');
+  }
   return {
-    name: 'Перила бракуют край полотна, но не перекрывают осевую',
+    name: 'Перила бракуют край полотна, но не перекрывают осевую и воздух под настилом',
     passed: bad.length === 0,
     info: bad.length ? bad.join('; ')
       : `кромки ${(d.R + d.halfW).toFixed(1)} и ${(d.R - d.halfW).toFixed(1)} м перекрыты, осевая ${d.R} м свободна`,
+  };
+}
+
+/**
+ * Линия перил — продолжение полотна: верх стенки меряется лучом снизу вверх? Нет —
+ * сверху, вертикальными пробами по всей дуге: `map.raySolid` обязан вернуть
+ * `J.railHeight − J.railSink` над **фактической высотой края**. Прежние секции
+ * мерили край по осевой, и на 8 м полотна с креном 6° линия расходилась с
+ * асфальтом на ±0,42 м, а по подъёму была лесенкой с тем же шагом.
+ */
+function testRailTopFollowsEdge() {
+  const map = builtMap();
+  const d = deckInfo();
+  const bad = [];
+  let probes = 0, worst = 0, worstAt = 0;
+  for (const side of [1, -1]) {
+    const rhoEdge = d.R + side * d.halfW;
+    // шаг на 1,5° со сдвигом: вертикальный луч, пущенный ровно по углу кольца,
+    // идёт по общему ребру двух квадов и не находит ни один из них
+    for (let deg = d.a0 + 1.5; deg <= d.a1 - 2; deg += 2) {
+      // хорда нарезки всегда смещает грань к центру круга, поэтому проба
+      // сидит на 0,02 м меньше кромки — для обоих бортов, а не «внутрь полотна»
+      const rho = rhoEdge - 0.02;
+      const p = P(ARC, deg, rho);
+      const want = surfaceOf(d, deg, rhoEdge) + J.railHeight - J.railSink;
+      const hit = map.raySolid(p.x, want + 3, p.z, 0, -1, 0, 6);
+      if (!hit) { bad.push(`луч над кромкой ${deg.toFixed(1)}° ничего не нашёл`); continue; }
+      const dev = Math.abs(hit.y - want);
+      probes++;
+      if (dev > worst) { worst = dev; worstAt = deg; }
+      if (dev > 0.05) bad.push(`${deg.toFixed(1)}°: верх ${hit.y.toFixed(3)} вместо ${want.toFixed(3)}`);
+      if (hit.ny < 0.9) bad.push(`${deg.toFixed(1)}°: нормаль верха не вверх (${hit.ny.toFixed(2)})`);
+    }
+  }
+  // выстрел вдоль радиуса останавливается ограждением, а не уходит за край
+  const mid = 90;
+  const from = P(ARC, mid, d.R);
+  const dir = { x: Math.cos(mid * DEG), z: Math.sin(mid * DEG) };
+  const y = surfaceOf(d, mid, d.R + d.halfW) + J.railHeight / 2;
+  const shot = map.raySolid(from.x, y, from.z, dir.x, 0, dir.z, d.halfW + 1);
+  if (!shot) bad.push('выстрел к краю прошёл сквозь перила');
+  else {
+    const stop = (shot.x - from.x) * dir.x + (shot.z - from.z) * dir.z;
+    const want = d.halfW - J.railThickness / 2;
+    if (Math.abs(stop - want) > 0.07) bad.push(`выстрел встал на ${stop.toFixed(3)} м вместо ${want.toFixed(3)} м`);
+    const radial = Math.abs(shot.nx * dir.x + shot.nz * dir.z);
+    if (radial < 0.99) bad.push(`нормаль перила не радиальна (${radial.toFixed(3)})`);
+  }
+  return {
+    name: 'Верх перил идёт по фактическому краю полотна: луч сходится с лентой по всей дуге',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${probes} проб по обоим бортам, худшее расхождение ${worst.toFixed(3)} м на ${worstAt.toFixed(1)}°; выстрел к краю стал в ${J.railHeight} м стенку`,
+  };
+}
+
+/**
+ * Тело, оказавшееся в стенке перил, выталкивается **радиально**: глубина до
+ * грани полотна (0,06 м) меньше, чем до верха стенки (0,55 м), поэтому сфера
+ * уходит за кромку, а не перелетает через ограждение. Второй вызов обязан ничего
+ * не двигать — точка вне стенки, и опоры ей не перила.
+ */
+function testRailPushesSphereRadially() {
+  const map = builtMap();
+  const d = deckInfo();
+  const bad = [];
+  const mid = 90;
+  const r = CONFIG.radius;
+  const rhoEdge = d.R + d.halfW;
+  const y = surfaceOf(d, mid, rhoEdge) + J.railHeight / 2;
+  const c = P(ARC, mid, rhoEdge);
+  const start = { x: c.x, y, z: c.z };
+  map.resolveSphere(start, r);
+  const moved = Math.hypot(start.x - c.x, start.y - y, start.z - c.z);
+  if (!(moved >= 1e-6)) bad.push('сфера в стенке перил не вытолкнута');
+  const rhoAfter = Math.hypot(start.x, start.z);
+  const sideways = Math.abs(rhoAfter - rhoEdge);
+  if (sideways < J.railThickness / 2 + r - 1e-6) {
+    bad.push(`сфера осталась в стенке: отступ ${sideways.toFixed(3)} м < ${(J.railThickness / 2 + r).toFixed(2)}`);
+  }
+  if (Math.abs(start.y - y) > 0.02) bad.push(`выталкивание ушло по вертикали на ${(start.y - y).toFixed(3)} м`);
+  const again = { x: start.x, y: start.y, z: start.z };
+  map.resolveSphere(again, r);
+  const rest = Math.hypot(again.x - start.x, again.y - start.y, again.z - start.z);
+  if (rest > 1e-6) bad.push(`второй вызов сдвинул ещё на ${rest.toFixed(3)} м`);
+  // нога на асфальте у края остаётся на полотне: перила её не поднимают
+  const foot = map.groundHeightAt(P(ARC, mid, d.R).x, P(ARC, mid, d.R).z, 500);
+  if (Math.abs(foot - surfaceOf(d, mid)) > 0.05) bad.push(`опора осевой ${foot.toFixed(3)} вместо ${surfaceOf(d, mid).toFixed(3)}`);
+  return {
+    name: 'Сфера из стенки перил выходит радиально, а опора полотна не поднимается на ограждение',
+    passed: bad.length === 0,
+    info: bad.length ? bad.join('; ')
+      : `выталкивание ${moved.toFixed(2)} м по нормали кромке, верх стенки остаётся вне опор (${foot.toFixed(2)} м)`,
   };
 }
 
@@ -726,6 +833,8 @@ export async function runRotatedSweepTests() {
     testTransitionMeshTight,
     testJointWithFlatDeck,
     testRailsBlockEdge,
+    testRailTopFollowsEdge,
+    testRailPushesSphereRadially,
     testMinimapArc,
     testNavAlongArc,
     testFrozenChapters,

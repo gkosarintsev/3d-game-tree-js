@@ -221,6 +221,7 @@ const V2_PLATE = obj({
   width: num({ min: 2, max: 30, req: true }),
   y: num({ req: true }),
   rise: num(),
+  rails: bool(),
 });
 
 // Дуга-настил v2: кольцевой сектор с продольным подъёмом и поперечным наклоном.

@@ -1666,7 +1666,8 @@ export const LEVEL_11 = {
             "bottomY": 11.4,
             "topAtMin": 12,
             "topAtMax": 12,
-            "ramp": false
+            "ramp": false,
+            "rails": true
           },
           {
             "minX": -84,
@@ -1691,7 +1692,8 @@ export const LEVEL_11 = {
             "bottomY": -0.48,
             "topAtMin": 12,
             "topAtMax": 0.12,
-            "ramp": true
+            "ramp": true,
+            "rails": true
           }
         ],
         "fill": [],
@@ -3416,7 +3418,8 @@ export const LEVEL_11 = {
             "bottomY": -0.46,
             "topAtMin": 0.14,
             "topAtMax": 0.14,
-            "ramp": false
+            "ramp": false,
+            "rails": false
           }
         ],
         "fill": [],
@@ -3486,7 +3489,8 @@ export const LEVEL_11 = {
             "bottomY": -0.46,
             "topAtMin": 0.14,
             "topAtMax": 0.14,
-            "ramp": false
+            "ramp": false,
+            "rails": false
           }
         ],
         "fill": [],

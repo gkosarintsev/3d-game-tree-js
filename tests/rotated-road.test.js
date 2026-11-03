@@ -28,12 +28,15 @@
  *      вертикальный луч возвращает ту же отметку и нормаль наклона;
  *   6. Тело-сфера самоходом входит на наклонную косую пластину и сходит с неё,
  *      не упираясь в её торец;
- *   7. Опоры и фонари стоят вдоль полотна и повёрнуты вместе с ним;
- *   8. Цепочка узлов вдоль косой эстакады связна: маршрут с земли на верхний
+ *   7. Перила настила — стенка-призма по кромке: её верх идёт параллельно подъёму
+ *      полотна (луч сходится с формулой по всей длине), бракует край, но не
+ *      осевую, не поднимает опору и выталкивает сферу поперёк полотна;
+ *   8. Опоры и фонари стоят вдоль полотна и повёрнуты вместе с ним;
+ *   9. Цепочка узлов вдоль косой эстакады связна: маршрут с земли на верхний
  *      настил существует и проходим ногами на каждом ребре;
- *   9. Миникарта рисует косую пластину четырёхугольником, а не её габаритом;
- *  10. Метки id различают пластины суффиксом `· yaw N°`;
- *  11. Главы 9 и 10 не вошли в поворотную ветку: ни одной пластины с углом или
+ *  10. Миникарта рисует косую пластину четырёхугольником, а не её габаритом;
+ *  11. Метки id различают пластины суффиксом `· yaw N°`;
+ *  12. Главы 9 и 10 не вошли в поворотную ветку: ни одной пластины с углом или
  *      `obb`, ни одной повёрнутой призмы.
  */
 import * as THREE from 'three';
@@ -59,8 +62,8 @@ const RC = Math.cos(YAW), RS = Math.sin(YAW);
  * цепочка узлов графа собирается внутри одной дороги, а конец подъёма совпадает
  * с началом настила. Косая наземная улица с фонарями стоит в стороне.
  */
-const RAMP = { x: 10, z: 20, yaw: 20, length: 40, width: 8, y: 0.12, rise: 6 };
-const FLAT = { x: RAMP.x + 45 * RC, z: RAMP.z + 45 * RS, yaw: 20, length: 50, width: 8, y: 6.12 };
+const RAMP = { x: 10, z: 20, yaw: 20, length: 40, width: 8, y: 0.12, rise: 6, rails: true };
+const FLAT = { x: RAMP.x + 45 * RC, z: RAMP.z + 45 * RS, yaw: 20, length: 50, width: 8, y: 6.12, rails: true };
 const STREET = { x: -30, z: -30, yaw: 30, length: 60, width: 8, y: 0.12 };
 
 const RAW = {
@@ -353,6 +356,77 @@ function testSphereClimbsRamp() {
   };
 }
 
+/**
+ * Перила косого настила — стенка-призма по каждой кромке, чей верх параллелен
+ * подъёму полотна. Проверяется именно это: луч над стенкой и её грань берутся из
+ * одной аналитики, поэтому расхождение с независимой формулой — микроны, а
+ * лесенка коробок (прежний механизм) давала бы ступень на каждом шаге секции и
+ * проём между низом перил и асфальтом там, где полотно ушло вверх.
+ */
+function testPlateRails() {
+  const map = builtMap();
+  const bad = [];
+  const t = J.railThickness, H = J.railHeight, sink = J.railSink;
+  const r = CONFIG.radius;
+  const halfV = RAMP.width / 2;
+  let worst = 0, probes = 0;
+  for (let along = 2; along <= RAMP.length - 2; along += 3) {
+    const du = along - RAMP.length / 2;
+    const want = topAt(RAMP, along) + H - sink;
+    for (const side of [-1, 1]) {
+      // проба по средней линии стенки: полоса `[halfV − t/2, halfV + t/2]`
+      const p = W(RAMP, du, side * halfV);
+      const hit = map.raySolid(p.x, want + 3, p.z, 0, -1, 0, 6);
+      if (!hit) { bad.push(`${along} м: над перилами луч ничего не нашёл`); continue; }
+      probes++;
+      const dev = Math.abs(hit.y - want);
+      worst = Math.max(worst, dev);
+      if (dev > 0.01) bad.push(`${along} м: верх перил ${hit.y.toFixed(3)} вместо ${want.toFixed(3)} — стенка ступенит`);
+    }
+  }
+  if (probes < 20) bad.push(`сверено всего ${probes} проб`);
+  // выстрел к борту встаёт в наружную грань стенки, нормаль — поперёк полотна
+  const mid = RAMP.length / 2;
+  const foot = topAt(RAMP, mid);
+  const vd = { x: -RS, z: RC };
+  const from = W(RAMP, 0, 0);
+  const shot = map.raySolid(from.x, foot + H / 2, from.z, vd.x, 0, vd.z, halfV + 1);
+  if (!shot) bad.push('выстрел к борту прошёл сквозь перила');
+  else {
+    const stop = (shot.x - from.x) * vd.x + (shot.z - from.z) * vd.z;
+    if (Math.abs(stop - (halfV - t / 2)) > 0.02) bad.push(`выстрел встал на ${stop.toFixed(3)} м вместо ${(halfV - t / 2).toFixed(3)} м`);
+    const radial = Math.abs(shot.nx * vd.x + shot.nz * vd.z);
+    if (radial < 0.99) bad.push(`нормаль стенки не перпендикулярна борту (${radial.toFixed(3)})`);
+  }
+  // край полотна занят стенкой, осевая — нет; опорой перила не становятся
+  const edgeP = W(RAMP, 0, halfV - 0.1);
+  if (!map.isBlocked(edgeP.x, edgeP.z, r, foot, CONFIG.eyeHeight)) bad.push('у борта подъёма тело не встречает перила');
+  if (map.isBlocked(from.x, from.z, r, foot, CONFIG.eyeHeight)) bad.push('перила перекрыли осевую подъёма');
+  const sup = map.groundHeightAt(edgeP.x, edgeP.z, 500);
+  if (Math.abs(sup - foot) > 0.02) bad.push(`опора у борта ${sup.toFixed(2)} м вместо ${foot}: перила стали плитой пола`);
+  // сфера в сечении стенки: глубина до грани (0,06) меньше, чем до верха (0,55),
+  // поэтому выталкивание идёт поперёк полотна, а не через ограждение
+  const c = W(RAMP, 0, halfV);
+  c.y = foot + H / 2;
+  const start = { ...c };
+  map.resolveSphere(c, r);
+  const moved = Math.hypot(c.x - start.x, c.y - start.y, c.z - start.z);
+  if (moved < 1e-6) bad.push('сфера в стенке перил не вытолкнута');
+  const loc = L(RAMP, c.x, c.z);
+  if (Math.abs(Math.abs(loc.z) - halfV) < t / 2 + r - 1e-6) bad.push(`сфера осталась в стенке: отступ ${Math.abs(loc.z)}`);
+  if (Math.abs(c.y - start.y) > 0.02) bad.push(`выталкивание ушло по вертикали на ${(c.y - start.y).toFixed(3)} м`);
+  const again = { x: c.x, y: c.y, z: c.z };
+  map.resolveSphere(again, r);
+  const rest = Math.hypot(again.x - c.x, again.y - c.y, again.z - c.z);
+  if (rest > 1e-6) bad.push(`второй вызов сдвинул ещё на ${rest.toFixed(3)} м`);
+  return {
+    name: 'Перила косого настила — гладкая стенка по кромке: верх по подъёму, луч, блокер края и выталкивание',
+    passed: bad.length === 0,
+    info: bad.length ? bad.slice(0, 3).join('; ')
+      : `${probes} проб вдоль подъёма 0,15, худшее расхождение ${worst.toFixed(4)} м; осевая ${(halfV).toFixed(1)} м свободна`,
+  };
+}
+
 function testPillarsAndLamps() {
   const level = normalizeLevel(structuredClone(RAW));
   const bad = [];
@@ -506,6 +580,7 @@ export async function runRotatedRoadTests() {
     testRayAgainstDeck,
     testRampSurface,
     testSphereClimbsRamp,
+    testPlateRails,
     testPillarsAndLamps,
     testNavChain,
     testMinimapPolygon,

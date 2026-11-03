@@ -475,6 +475,22 @@ function testArc() {
 }
 
 /**
+ * Свободен ли коридор от точки старта до фасада: пробы тела на высоте луча
+ * (1,5 м) по всей длине, кроме последних 0,3 м перед самой стеной. Так тест
+ * отличает «свой фасад» от чужого объёма по пути, не зная, что это за объём.
+ */
+function corridorBlocked(map, from, to, run) {
+  const dx = to.x - from.x, dz = to.z - from.z;
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-6) return false;
+  const ux = dx / len, uz = dz / len;
+  for (let t = 0.3; t <= run; t += 0.25) {
+    if (map.isBlocked(from.x + ux * t, from.z + uz * t, 0.05, 1.45, 0.1)) return true;
+  }
+  return false;
+}
+
+/**
  * Косые дома главы: фасад, кровля и пустой угол габарита. Корпус стоит в своих
  * осях, поэтому луч снаружи обязан упереться ровно на аналитическом расстоянии,
  * кровля — быть твёрдой над корпусом, а в углу охватывающего прямоугольника, куда
@@ -490,9 +506,10 @@ function testRotatedHouses() {
     const cz = (b.bounds.minZ + b.bounds.maxZ) / 2;
     const hx = (b.bounds.maxX - b.bounds.minX) / 2;
     const hz = (b.bounds.maxZ - b.bounds.minZ) / 2;
-    // луч к каждой из четырёх граней из 15 м снаружи. Грань, за которой в 15 м
-    // стоит другой дом, не проверяется: луч стартовал бы внутри его плана и
-    // мерил бы чужую стену, а не свою
+    // луч к каждой из четырёх граней из 15 м снаружи. Грань, к которой в этих
+    // 15 м лежит чужой объём (дом, перила настила), не проверяется: луч мерил бы
+    // чужую стену, а не свою, и вердикт «фасад на аналитическом расстоянии»
+    // зависел бы от того, что поблизости поставили развязку
     let faces = 0;
     for (const [lx, lz, nx, nz] of [[cx + hx, cz, 1, 0], [cx, cz + hz, 0, 1],
       [cx - hx, cz, -1, 0], [cx, cz - hz, 0, -1]]) {
@@ -500,6 +517,7 @@ function testRotatedHouses() {
       const dn = { x: nx * c - nz * s, z: nx * s + nz * c };
       const from = { x: face.x + dn.x * 15, z: face.z + dn.z * 15 };
       if (map.buildings.some(o => o !== b && map._inPlan(o, from))) continue;
+      if (corridorBlocked(map, from, face, 15 - J.wallThickness / 2 - 0.3)) continue;
       const hit = map.raySolid(from.x, 1.5, from.z, -dn.x, 0, -dn.z, 30);
       if (!hit) { bad.push(`${b.id}: луч к грани (${lx}, ${lz}) ничего не нашёл`); continue; }
       faces++;
