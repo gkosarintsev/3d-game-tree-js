@@ -432,16 +432,35 @@ function testPillarsAndLamps() {
   const bad = [];
   const pillars = level.map.props.filter(p => p.model === 'concrete_pillar');
   const lamps = level.map.props.filter(p => p.model === 'lamp_post');
-  // развязка: J.pillarSpacing = 12 ⇒ t ∈ {−19, −7, 5, 17}, два ряда (отступ 2,8 м)
-  if (pillars.length !== 8) bad.push(`опор ${pillars.length}, ожидалось 8`);
+  // развязка: J.pillarSpacing = 12 ⇒ верхний настил t ∈ {−19, −7, 5, 17}, два ряда
+  // (отступ 2,8 м); подъём даёт те же четыре линии, но линия u = −4 отсекается
+  // гейтом «колонна короче метра» (её соffit 0,42 м) ⇒ 8 + 4 опоры
+  if (pillars.length !== 12) bad.push(`опор ${pillars.length}, ожидалось 12`);
   const inset = FLAT.width / 2 - J.pillarSection / 2 - J.pillarEdge;
   for (const p of pillars) {
-    const l = L(FLAT, p.position.x, p.position.z);
-    if (Math.abs(l.x) > FLAT.length / 2 + 1e-3) bad.push(`опора за торцом настила: u=${l.x.toFixed(2)}`);
+    // опоры обоих настилов повёрнуты со своим полотном и стоят на грунте;
+    // разнятся они высотой: у наклонного она считается по его плоскости в точке
+    const deck = holds(RAMP, p.position.x, p.position.z) ? RAMP : FLAT;
+    const l = L(deck, p.position.x, p.position.z);
+    if (Math.abs(l.x) > deck.length / 2 + 1e-3) bad.push(`опора за торцом настила: u=${l.x.toFixed(2)}`);
     if (Math.abs(Math.abs(l.z) - inset) > 2e-3) bad.push(`опора не на борту настила: v=${l.z.toFixed(3)}`);
-    if (p.rotationY !== -20) bad.push(`опора повёрнута на ${p.rotationY}° вместо −20°`);
+    if (p.rotationY !== -deck.yaw) bad.push(`опора повёрнута на ${p.rotationY}° вместо ${-deck.yaw}°`);
     if (Math.abs(p.position.y) > 1e-9) bad.push(`пятка опоры на ${p.position.y} вместо земли`);
-    if (Math.abs(p.scale.y - (FLAT.y - J.deckThickness)) > 1e-3) bad.push(`высота опоры ${p.scale.y}`);
+    const sole = topAt(deck, l.x + deck.length / 2) - J.deckThickness;
+    if (Math.abs(p.scale.y - sole) > 2e-3) {
+      bad.push(`опора на u=${l.x.toFixed(1)} высотой ${p.scale.y.toFixed(2)} вместо соффита ${sole.toFixed(2)}`);
+    }
+  }
+  // подъём держат колонны, а не только его торец: вдоль полотна их высоты растут
+  const rampPil = pillars.filter(p => holds(RAMP, p.position.x, p.position.z))
+    .map(p => ({ u: L(RAMP, p.position.x, p.position.z).x, h: p.scale.y }))
+    .sort((a, b) => a.u - b.u);
+  if (rampPil.length !== 4) bad.push(`опор под подъёмом ${rampPil.length}, ожидалось 4`);
+  for (let i = 1; i < rampPil.length; i++) {
+    if (Math.abs(rampPil[i].u - rampPil[i - 1].u) < 1) continue;   // тот же разрез, два борта
+    if (!(rampPil[i].h > rampPil[i - 1].h)) {
+      bad.push(`высоты опор не растут вдоль подъёма: ${rampPil[i - 1].h} → ${rampPil[i].h}`);
+    }
   }
   // улица: J.lampSpacing = 20 ⇒ t ∈ {−20, 0, 20}, по бортам на 4 + 1,4 м
   if (lamps.length !== 6) bad.push(`фонарей ${lamps.length}, ожидалось 6`);
@@ -457,7 +476,7 @@ function testPillarsAndLamps() {
     name: 'Опоры и фонари стоят вдоль полотна и повёрнуты вместе с ним',
     passed: bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ')
-      : `${pillars.length} опор под настилом и ${lamps.length} фонарей на бортах косой улицы`,
+      : `${pillars.length} опор под настилом (${rampPil.length} из них под подъёмом) и ${lamps.length} фонарей на бортах косой улицы`,
   };
 }
 

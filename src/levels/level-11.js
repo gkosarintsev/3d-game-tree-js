@@ -2322,6 +2322,70 @@ export const LEVEL_11 = {
               "y": 11.4,
               "z": 1.6
             }
+          },
+          {
+            "id": "pillar_rd_interchange_-62_64.8",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 180,
+            "position": {
+              "x": -62,
+              "y": 0,
+              "z": 64.8
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 6.054,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_interchange_-62_59.2",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 180,
+            "position": {
+              "x": -62,
+              "y": 0,
+              "z": 59.2
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 6.054,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_interchange_-74_64.8",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 180,
+            "position": {
+              "x": -74,
+              "y": 0,
+              "z": 64.8
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 2.49,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_interchange_-74_59.2",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 180,
+            "position": {
+              "x": -74,
+              "y": 0,
+              "z": 59.2
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 2.49,
+              "z": 1.6
+            }
           }
         ],
         "lamps": [
@@ -4995,6 +5059,70 @@ export const LEVEL_11 = {
         "scale": {
           "x": 1.6,
           "y": 14.4,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_interchange_-62_59.2",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 180,
+        "position": {
+          "x": -62,
+          "y": 0,
+          "z": 59.2
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 6.054,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_interchange_-62_64.8",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 180,
+        "position": {
+          "x": -62,
+          "y": 0,
+          "z": 64.8
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 6.054,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_interchange_-74_59.2",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 180,
+        "position": {
+          "x": -74,
+          "y": 0,
+          "z": 59.2
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 2.49,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_interchange_-74_64.8",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 180,
+        "position": {
+          "x": -74,
+          "y": 0,
+          "z": 64.8
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 2.49,
           "z": 1.6
         }
       },

@@ -813,6 +813,13 @@ function normalizeRoadElements(road) {
  * или в береговой стенке — опора пропускается с предупреждением: её не видно, а
  * правила о декоре не дают ей стать стеной.
  *
+ * Пластина v2 держит колонны и под уклоном: низ опоры — соffit наклонной
+ * плоскости в своей точке (тот же `deckTopAt`, что считает предметы), а не
+ * `bottomY` всего пролёта, и колонна короче метра там, где полотно уже легло на
+ * грунт, не ставится. Осевая пластина v1 с подъёмом опор не носит (её держат
+ * торцы), и опора схода в план наземной улицы проходит молча: там, где съезд
+ * перекрыл улицу, пролёт держит себя сам.
+ *
  * `water` — отметка дна там, где пролёт идёт над руслом: пятка обязана встать на
  * него, иначе колонна кончалась бы на «нуле пола мира» и висела бы над водой.
  */
@@ -821,8 +828,9 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
   for (const d of road.decks) {
     // У дуги нет прямой оси: ряды идут по её собственной (tangent) рамке, шаг
     // отмеряется по длине осевой, а низ колонны — по верхней плоскости дуги в её
-    // точке. Уклон не повод пропускать опоры: подъём на 12 м держат именно они, а
-    // `ramp` у пластин остаётся прежним правилом (пролёт опирается торцами).
+    // точке. Уклон не повод пропускать опоры: подъём на 12 м держат именно они (у
+    // пластин v2 — то же правило, у осевых пролётов v1 пролёт с `rise` по-прежнему
+    // опирается торцами).
     if (d.arc) {
       const spanr = d.span * DEG;
       const len = d.R * Math.abs(spanr);
@@ -858,7 +866,15 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
       }
       continue;
     }
-    if (d.ramp || d.grounded || d.bottomY - ground.y <= 1.0) continue;
+    if (d.grounded) continue;
+    // Пластина v2 (`length`/`width` бывают только у неё) держится опорами и там,
+    // где идёт под уклоном: низ колонны берётся из наклонной плоскости в её
+    // собственной точке, а не из `bottomY` — у съезда это самый низкий срез
+    // (−0,48 м), и де́ковый гейт «колонна короче метра» отрезал бы весь подъём.
+    // Осевая пластина v1 остаётся прежним правилом: пролёт с `rise` держат торцы,
+    // и модули глав 9–10 от этого не меняются.
+    const plate = d.length !== undefined;
+    if (!plate && (d.ramp || d.bottomY - ground.y <= 1.0)) continue;
     // у повёрнутой пластины опоры стоят в её осях: ряд идёт вдоль полотна, а не
     // вдоль мировой оси, иначе колонны выстроились бы поперёк косой эстакады
     const frame = deckFrame(d);
@@ -881,17 +897,25 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
             minX: p.x - half, maxX: p.x + half,
             minZ: p.z - half, maxZ: p.z + half,
           };
+        // у начала подъёма настил ещё у земли: колонны там некуда расти — тот же
+        // гейт по высоте, что у дуги (для плоского пролёта он заведомо проходится)
+        const bottom = plate ? deckTopAt(d, p.x, p.z) - J.deckThickness : d.bottomY;
+        const footY = water ? (water(p.x, p.z) ?? ground.y) : ground.y;
+        if (bottom - footY <= 1.0) continue;
         const hit = frame
           ? obstacles.find(ob => obbHitsObb(ob.rect, plan, 0.05))
           : obstacles.find(ob => obbHitsRect(ob.rect, plan, 0.05));
         if (hit) {
-          warnings.push(`${road.id}: опора в ${r3(p.x)}, ${r3(p.z)} попала в ${hit.id} — пропущена`);
+          // съезд перекрывает улицу: колонна в её плане — не ошибка автора, а
+          // свойство перекрёстка, пролёт над асфальтом держит себя сам
+          if (!(d.ramp && hit.kind === 'road')) {
+            warnings.push(`${road.id}: опора в ${r3(p.x)}, ${r3(p.z)} попала в ${hit.id} — пропущена`);
+          }
           continue;
         }
-        const footY = water ? (water(p.x, p.z) ?? ground.y) : ground.y;
         out.push(makeProp(`pillar_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'concrete_pillar',
           p.x, footY, p.z,
-          { x: J.pillarSection, y: r3(d.bottomY - footY), z: J.pillarSection }, 'bridge_pillar',
+          { x: J.pillarSection, y: r3(bottom - footY), z: J.pillarSection }, 'bridge_pillar',
           frame ? -d.yaw : 0));
       }
     }

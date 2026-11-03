@@ -1242,6 +1242,75 @@ t('опоры косой эстакады стоят вдоль полотна �
   }
 });
 
+/**
+ * Наклонная пластина v2 держится колоннами: подъём на 12 м ничем, кроме них, не
+ * держится, а `bottomY` такой пластины — самый низкий срез (у съезда главы 11 это
+ * −0,48 м), поэтому де́ковый гейт «колонна короче метра» отрезал бы весь подъём.
+ * Низ каждой опоры — соffit наклонной плоскости в её собственной точке.
+ */
+t('v2: наклонная пластина держит опоры, и низ каждой — соffit в своей точке', () => {
+  const plate = { x: 0, z: 45, yaw: 0, length: 48, width: 8, y: 0.12, rise: 12 };
+  const raw = v2Raw(r => {
+    r.roads = [{ id: 'br_ramp', type: 'bridge', elements: [{ plate }] }];
+    r.gameplay.exit = { x: 0, z: 45 };
+  });
+  eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял наклонную пластину');
+  const level = normalizeLevel(raw);
+  eq(level.warnings.length, 0, `предупреждения: ${level.warnings.join(' | ')}`);
+  const pillars = level.map.props.filter(p => p.model === 'concrete_pillar');
+  // u ∈ [−24, 24], шаг 12 ⇒ линии −18, −6, 6, 18 и два ряда (отступ 2,8 м). У линии
+  // −18 низ полотна 1,02 м — гейт её ещё пропускает, ближе к земле опоры не будет
+  eq(pillars.length, 8, `опор ${pillars.length}, ожидалось 8`);
+  const lo = plate.x - plate.length / 2;
+  const topAt = x => plate.y + plate.rise * (x - lo) / plate.length;
+  const rows = new Map();
+  for (const p of pillars) {
+    eq(p.position.y, 0, 'пятка опоры не на грунте');
+    assert(Math.abs(p.position.y + p.scale.y + J.deckThickness - topAt(p.position.x)) < 2e-3,
+      `опора на u=${p.position.x}: высота ${p.scale.y}, а соffit ${(topAt(p.position.x) - J.deckThickness).toFixed(2)}`);
+    assert(Math.abs(Math.abs(p.position.z - plate.z) - 2.8) < 2e-3, `опора не на борту: z=${p.position.z}`);
+    rows.set(p.position.x, Math.max(rows.get(p.position.x) ?? 0, p.scale.y));
+  }
+  const us = [...rows.keys()].sort((a, b) => a - b);
+  eq(us.length, 4, `линий опор ${us.length}, ожидалось 4`);
+  for (let i = 1; i < us.length; i++) {
+    assert(rows.get(us[i]) > rows.get(us[i - 1]), `высоты не растут вдоль подъёма: ${us[i - 1]} → ${us[i]}`);
+  }
+  // линия, у которой полотно уже легло на грунт, опоры не получает: колонну
+  // короче метра не видно, и она не держит ничего
+  eq(us[0], -18, 'первая линия опор не там, где низ полотна выше гейта');
+  assert(topAt(-24) - J.deckThickness <= 1.0, 'у торца подъёма полотно уже выше метра над землёй');
+});
+
+/**
+ * Съезд перекрывает улицу: колонна в её плане — не ошибка автора, а свойство
+ * перекрёстка, поэтому она не ставится и молчит (правило предупреждения остаётся
+ * для плоского настила, где асфальт под колонной значит, что автор положил
+ * настил на улицу).
+ */
+t('v2: опора наклонного схода в план наземной улицы пропускается молча', () => {
+  const plate = { x: 0, z: 8, yaw: 0, length: 48, width: 8, y: 0.12, rise: 12 };
+  const raw = v2Raw(r => {
+    r.buildings = [];
+    r.roads = [
+      { id: 'br_ramp', type: 'bridge', elements: [{ plate }] },
+      { id: 'st_band', type: 'ground', width: 8, points: [{ x: -14, y: 0.12, z: 8 }, { x: 14, y: 0.12, z: 8 }] },
+    ];
+    r.gameplay.exit = { x: 0, z: 8 };
+  });
+  eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял съезд над улицей');
+  const level = normalizeLevel(raw);
+  eq(level.warnings.length, 0, `сход заговорил: ${level.warnings.join(' | ')}`);
+  const pillars = level.map.props.filter(p => p.model === 'concrete_pillar');
+  // улицы перекрывают линии −6 и 6 (обе их кромки в плане полосы z 4…12), −18 и 18
+  // остаются за её торцами
+  eq(pillars.length, 4, `опор ${pillars.length}, ожидалось 4 (две линии вне плана улицы)`);
+  for (const p of pillars) {
+    assert(Math.abs(p.position.x) > 14 - J.pillarSection / 2,
+      `опора ${p.id} всё-таки в плане улицы: x=${p.position.x}`);
+  }
+});
+
 t('фонари косой улицы стоят на её бортах и повёрнуты с полотном', () => {
   const raw = v2Raw(r => {
     r.roads = [plateRoad('st_lamps',
