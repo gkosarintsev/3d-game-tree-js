@@ -14,7 +14,7 @@
  * обязан сходиться с первым после каждой правки брифа.
  */
 import { CONFIG } from './config.js';
-import { frameAt, unrotatePoint } from './geo2d.js';
+import { cellKey, frameAt, rasterRect, rotatedBounds, unrotatePoint } from './geo2d.js';
 
 const J = CONFIG.jsonMap;
 
@@ -76,12 +76,37 @@ export function reliefOf(spec = {}) {
     radius: h.radius,
     height: h.height,
   }));
-  const pads = (spec.pads ?? []).map(p => ({
+  const pads = (spec.pads ?? []).map((p, i) => ({
     minX: p.minX, maxX: p.maxX, minZ: p.minZ, maxZ: p.maxZ,
     y: p.y,
     blend: p.blend ?? blend,
     frame: p.yaw ? frameAt((p.minX + p.maxX) / 2, (p.minZ + p.maxZ) / 2, p.yaw) : null,
+    order: i,
   }));
+
+  /**
+   * Индекс площадок: кольцо blend раздувает прямоугольник площадки в зону её
+   * влияния, и перебор всех площадок на каждую пробу решётки узлов — это сотни
+   * тысяч проверок на районе. Клетка — `relief.cell` (по умолчанию шаг индекса
+   * планов), в неё попадает раздутый план, поэтому проба смотрит только
+   * площадки своего кармана; точный вес по-прежнему решает `padWeight`.
+   */
+  const cell = spec.cell ?? J.planGrid;
+  const buckets = new Map();
+  for (const p of pads) {
+    const world = p.frame ? rotatedBounds(p, p.frame) : p;
+    const zone = {
+      minX: world.minX - p.blend, maxX: world.maxX + p.blend,
+      minZ: world.minZ - p.blend, maxZ: world.maxZ + p.blend,
+    };
+    for (const key of rasterRect(zone, cell)) {
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(p);
+      else buckets.set(key, [p]);
+    }
+  }
+  for (const list of buckets.values()) list.sort((a, b) => a.order - b.order);
+  const bucketAt = (x, z) => buckets.get(cellKey(Math.floor(x / cell), Math.floor(z / cell))) ?? [];
 
   /** Отметка «природы» — земля без площадок: только холмы и долины над `baseY`. */
   const reliefHeightAt = (x, z) => {
@@ -96,7 +121,7 @@ export function reliefOf(spec = {}) {
    */
   const padsAt = (x, z) => {
     const out = [];
-    for (const p of pads) {
+    for (const p of bucketAt(x, z)) {
       const w = padWeight(p, x, z);
       if (w > 0) out.push({ pad: p, weight: w });
     }

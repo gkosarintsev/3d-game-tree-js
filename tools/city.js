@@ -674,6 +674,11 @@ function generateLot(d, style, cell, ctx, buildings, streets, state) {
     const rec = {
       id: p.tag ? `${id}_${p.tag}` : id,
       archetype: name,
+      // «к какому району относится лот» — служебное поле генератора: по нему
+      // нормализатор собирает ОДНУ террасу на район (docs/level12-relief-plan.md,
+      // п. 4.1), а не площадку под каждым корпусом. В модуль главы не доезжает,
+      // как и `archetype`.
+      district: d.id,
       isEnterable: false,
       floorsCount: f,
       floorHeight: fh,

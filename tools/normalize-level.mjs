@@ -18,6 +18,7 @@ import {
   subtractRect, unionBounds, frameOf, frameAt, obbHitsRect, obbHitsObb, obbOf, unrotatePoint, rotatePoint,
   arcBounds, arcDelta, arcBankAt,
 } from '../src/geo2d.js';
+import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -38,10 +39,25 @@ export function normalizeLevel(raw) {
     size: r3(raw.ground?.size ?? 176),
     color: raw.ground?.color ?? J.asphalt,
   };
+  const relief = normalizeRelief(raw, ground, warnings);
+  // Терраса района ставится ДО нормализации домов: пол корпуса обязан взять
+  // отметку уже выровненной террасы, иначе каждый лот требовал бы своего пятачка
+  if (relief) addDistrictPads(relief, raw.buildings ?? []);
+  // Отметка местности в точке — единственная запись о «полу главы»: рельеф там,
+  // где секция задана, и прежняя плоскость `ground.y` там, где её нет. Главы 9–11
+  // получают ту же константу, поэтому их модули обязаны остаться байт-в-байт.
+  ground.land = relief ? ((x, z) => relief.fieldAt(x, z)) : (() => ground.y);
 
   const buildings = (raw.buildings ?? []).map(b => normalizeBuilding(b, ground, warnings));
   const roads = (raw.roads ?? []).map(r => normalizeRoad(r, ground));
   const channels = (raw.waterways ?? []).map(w => normalizeWaterway(w, ground));
+  if (relief) {
+    // авторский дом без района стоит на своей площадке: под ним плоский пол, а не
+    // склон, и терраса района его не касается
+    const terraced = new Set((raw.buildings ?? []).filter(b => b.district).map(b => b.id));
+    addHousePads(relief, buildings.filter(b => !terraced.has(b.id)));
+    relief.finish();
+  }
 
   // препятствия для автогенерации: план наземных улиц, габариты зданий и планы
   // береговых стенок со сходами — опора или фонарь, выросшие посреди асфальта,
@@ -97,7 +113,7 @@ export function normalizeLevel(raw) {
   }
 
   const gp = raw.gameplay ?? {};
-  checkPoints(gp, buildings, roads, channels, warnings);
+  checkPoints(gp, buildings, roads, channels, warnings, relief);
 
   return {
     name: raw.metadata.name,
@@ -114,6 +130,9 @@ export function normalizeLevel(raw) {
       kind: raw.kind ?? 'json',
       units: 'meters',
       ground,
+      // рельеф едет в модуль как данные поля (холмы и площадки), а не как растер
+      // высот: и парсер, и карта пересчитывают `heightAt` общей функцией
+      ...(relief ? { relief: relief.plain } : {}),
       bounds: worldBounds(buildings, roads, channels, ground),
       // точка A живёт в карте: движок передаёт createMap только map-секцию, а
       // spawn нужен карте, чтобы найти опору под ногами до построения графа
@@ -139,6 +158,18 @@ export function normalizeLevel(raw) {
 
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
+/**
+ * Отметка местности в точке для произвольного `ground`. Парсер строит accessor
+ * сам, но его функции вызывают и с самодельным `ground` — генератор кварталов
+ * (`tools/city.js` собирает препятствия) и геометрический проход схемы: там
+ * рельефа нет по построению, и местность обязана быть прежней плоскостью, а не
+ * падением вызова. Молча проглотить это падение нельзя: генератор, потерявший
+ * авторский дом из списка препятствий, положил бы улицу ему в габарит.
+ */
+function landY(ground, x, z) {
+  return ground.land ? ground.land(x, z) : ground.y;
+}
+
 // ------------------------------------------------------------------- здания
 
 /**
@@ -154,7 +185,12 @@ function normalizeBuilding(b, ground, warnings) {
   const footprint = normalizePolygon(b.footprint, `${b.id}.footprint`, errors);
   if (errors.length) throw new Error(errors.join('\n'));
   const bb = polyBounds(footprint);
-  const baseY = r3(b.baseY ?? ground.y);
+  // Пол главы под домом — отметка местности в его центре, а не `ground.y`:
+  // корпус на склоне без авторской baseY утонул бы в холм на половину его высоты.
+  // Без рельефа `land` — та же константа, поэтому главы 9–10 не двигаются.
+  const houseFrame = frameOf(bb, b.rotation ?? 0);
+  const houseCenter = rotatePoint(houseFrame, (bb.minX + bb.maxX) / 2, (bb.minZ + bb.maxZ) / 2);
+  const baseY = r3(b.baseY ?? landY(ground, houseCenter.x, houseCenter.z));
   const floorHeight = r3(b.floorHeight);
 
   const walls = new Map();
@@ -860,7 +896,7 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
           const px = d.cx + Math.cos(am) * rho;
           const pz = d.cz + Math.sin(am) * rho;
           const bottom = arcTopAt(d, am, rho) - J.deckThickness;
-          const footY = water ? (water(px, pz) ?? ground.y) : ground.y;
+          const footY = water ? (water(px, pz) ?? landY(ground, px, pz)) : landY(ground, px, pz);
           // у начала подъёма настил ещё у земли: колонны там некуда расти
           if (bottom - footY <= 1.0) continue;
           const plan = obbOf({
@@ -887,7 +923,11 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
     // Осевая пластина v1 остаётся прежним правилом: пролёт с `rise` держат торцы,
     // и модули глав 9–10 от этого не меняются.
     const plate = d.length !== undefined;
-    if (!plate && (d.ramp || d.bottomY - ground.y <= 1.0)) continue;
+    // «настил у земли» мерится по местности под его центром, а не по плоскости
+    // `ground.y`: пролёт, врезанный в холм, своей опорой держит склон, и колонны
+    // под ним выросли бы внутри грунта
+    const landAt = landY(ground, (d.minX + d.maxX) / 2, (d.minZ + d.maxZ) / 2);
+    if (!plate && (d.ramp || d.bottomY - landAt <= 1.0)) continue;
     // у повёрнутой пластины опоры стоят в её осях: ряд идёт вдоль полотна, а не
     // вдоль мировой оси, иначе колонны выстроились бы поперёк косой эстакады
     const frame = deckFrame(d);
@@ -913,7 +953,7 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
         // у начала подъёма настил ещё у земли: колонны там некуда расти — тот же
         // гейт по высоте, что у дуги (для плоского пролёта он заведомо проходится)
         const bottom = plate ? deckTopAt(d, p.x, p.z) - J.deckThickness : d.bottomY;
-        const footY = water ? (water(p.x, p.z) ?? ground.y) : ground.y;
+        const footY = water ? (water(p.x, p.z) ?? landY(ground, p.x, p.z)) : landY(ground, p.x, p.z);
         if (bottom - footY <= 1.0) continue;
         const hit = frame
           ? obstacles.find(ob => obbHitsObb(ob.rect, plan, 0.05))
@@ -1174,19 +1214,250 @@ export function waterwayFoot(channels) {
 }
 
 
+// ------------------------------------------------------------------- рельеф главы
+
+/**
+ * Рельеф главы: `plain` — данные поля (они едут в модуль главы), `fieldAt` —
+ * та же арифметика, которой парсер ставит опоры, основания колонн и фонари.
+ *
+ * Площадки-«пэды» парсер выводит сам: корпус обязан стоять на своей отметке
+ * `baseY`, а не на склоне под ним, и то же нужно наземному настилу. Ширину
+ * переходной зоны считает парсер, а не автор: площадке, которая выше природы на
+ * 6 м, нельзя переходить в склон за 14 м — это уклон 0,43 м/м, круче предела и
+ * дороги, и рельефа; поле тогда перестаёт быть плавным ровно там, где к нему
+ * примыкает дом.
+ */
+function normalizeRelief(raw, ground, warnings) {
+  const spec = raw.relief;
+  if (!spec) return null;
+  const maxSlope = spec.maxSlope ?? J.relief.maxSlope;
+  if ((spec.hillMaxSlope ?? J.relief.hillMaxSlope) * 1.5 > maxSlope + 1e-9) {
+    warnings.push(`relief: холмы ограничены ${spec.hillMaxSlope ?? J.relief.hillMaxSlope} м/м, а поле — ${maxSlope}: `
+      + 'плоская площадка сойдётся с таким склоном только переходом больше предела (1,5 · уклон капсулы обязан быть не круче поля)');
+  }
+  const plain = {
+    baseY: r3(spec.baseY ?? ground.y),
+    maxSlope,
+    blend: r3(spec.blend ?? J.relief.blend),
+    cell: r3(spec.cell ?? J.planGrid),
+    hills: (spec.hills ?? []).map(h => ({
+      id: h.id, x: r3(h.x), z: r3(h.z),
+      bx: h.bx === undefined ? undefined : r3(h.bx),
+      bz: h.bz === undefined ? undefined : r3(h.bz),
+      radius: r3(h.radius), height: r3(h.height),
+    })),
+    pads: (spec.pads ?? []).map(p => ({
+      id: p.id, minX: r3(p.minX), maxX: r3(p.maxX), minZ: r3(p.minZ), maxZ: r3(p.maxZ),
+      y: r3(p.y), blend: r3(p.blend ?? spec.blend ?? J.relief.blend), yaw: p.yaw,
+    })),
+  };
+  // Пробное поле каждой площадки строится заново на каждом шаге подгонки:
+  // итоговый градиент — это не только кольцо, но и склон под ним, а формула
+  // `|Δ| / maxSlope` (замер — `tools/relief.test.mjs`) даёт 1,5-кратный запас
+  // ровно там, где переход и должен быть плавным
+  const relief = {
+    plain,
+    field: null,
+    fieldAt: (x, z) => relief.field.heightAt(x, z),
+    // Подгонка идёт по полю со ВСЕМИ уже поставленными площадками: кольца двух
+    // соседей складываются, и второй переход, подобранный только против холма, лег
+    // бы на склон круче предела ровно там, где площадки стыкуются
+    addPads(list) {
+      for (const p of list) {
+        fitPadBlend(p, plain, maxSlope, plain.pads);
+        plain.pads.push(p);
+      }
+      relief.field = reliefOf(plain);
+    },
+    // Второй заход по СОБРАННОМУ полю: подгонка по предыстории не видит колец,
+    // поставленных после площадки, а два перехода в одной точке суммируются, и
+    // поле расходится с пределом ровно на стыке соседних площадок. Дотягиваем
+    // такие кольца по финальному полю — за два прохода сумма переходов входит в
+    // предел с обеих сторон. Вердикт «площадке не хватает зоны» отдаёт только
+    // этот финал, иначе одна и та же площадка жаловалась бы на каждый вызов
+    // `addPads`.
+    finish() {
+      for (let round = 0; round < 2; round++) {
+        let widened = false;
+        for (const p of plain.pads) {
+          if (ringSlope(p, relief.field) <= maxSlope * 1.02) continue;
+          fitPadBlend(p, plain, maxSlope, plain.pads.filter(o => o !== p));
+          relief.field = reliefOf(plain);
+          widened = true;
+        }
+        if (!widened) break;
+      }
+      for (const p of plain.pads) {
+        const slope = ringSlope(p, relief.field);
+        if (slope > maxSlope * 1.15) {
+          warnings.push(`relief: площадке ${p.id ?? '?'} не хватает переходной зоны ${J.relief.maxBlend} м — `
+            + `кольцо даёт уклон ${slope.toFixed(3)} м/м при пределе ${maxSlope}; `
+            + `нужно снести террасу на отметку поля (${r3(relief.field.reliefHeightAt(
+              (p.minX + p.maxX) / 2, (p.minZ + p.maxZ) / 2))} м в её центре) или раздвинуть холм`);
+        }
+      }
+    },
+  };
+  plain.pads.forEach((p, i) => fitPadBlend(p, plain, maxSlope, plain.pads.slice(0, i)));
+  relief.field = reliefOf(plain);
+  return relief;
+}
+
+/** Крутизна собранного поля на кольце площадки — по её offset-контуру. */
+function ringSlope(p, field) {
+  const frame = p.yaw ? frameAt((p.minX + p.maxX) / 2, (p.minZ + p.maxZ) / 2, p.yaw) : null;
+  return ringProbes(p, p.blend, frame).reduce((m, q) => Math.max(m, field.slopeAt(q.x, q.z).mag), 0);
+}
+
+/**
+ * Терраса района: одна площадка на все лоты генератора, а не по островку под
+ * каждым домом. 357 корпусов на склоне дают 357 плоских пятачка, чьи кольца
+ * перекрывают друг друга, и поле после третьей подгонки расходится с пределом
+ * в разы (замер — `probe/relief-scale.mjs`: 1,16 м/м при пределе 0,12 и 5,6 с
+ * нормализации). Район же, по просьбе владельца, стоит на возвышенности **целиком**
+ * — значит выравнивать надо его квартал, а не каждый фундамент.
+ *
+ * План террасы — габарит всех лотов района (улица между кварталами попадает под
+ * неё вместе с ними), отметка — поле в центре этого габарита, поэтому район
+ * встаёт на уровень своей местности, а не на отметку, придуманную автором. Порядок
+ * групп = порядок записей в брифе, поэтому поле детерминировано.
+ *
+ * Ставится ДО нормализации домов: пол корпуса берётся из уже выровненного поля, и
+ * все лоты района получают одну отметку. Терраса пока соосна миру — косой район
+ * (этап 5) принесёт ей `yaw` и габарит в своих осях.
+ */
+function addDistrictPads(relief, rawBuildings) {
+  const groups = new Map();
+  for (const b of rawBuildings) {
+    if (!b.district) continue;
+    let g = groups.get(b.district);
+    if (!g) {
+      g = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+      groups.set(b.district, g);
+    }
+    for (const p of b.footprint ?? []) {
+      if (p.x < g.minX) g.minX = p.x;
+      if (p.x > g.maxX) g.maxX = p.x;
+      if (p.z < g.minZ) g.minZ = p.z;
+      if (p.z > g.maxZ) g.maxZ = p.z;
+    }
+  }
+  const pads = [];
+  for (const [id, g] of groups) {
+    pads.push({
+      id: `${id}:терраса`,
+      minX: r3(g.minX), maxX: r3(g.maxX), minZ: r3(g.minZ), maxZ: r3(g.maxZ),
+      y: r3(relief.fieldAt((g.minX + g.maxX) / 2, (g.minZ + g.maxZ) / 2)),
+      blend: relief.plain.blend,
+    });
+  }
+  relief.addPads(pads);
+}
+
+/**
+ * Площадка корпуса под каждым домом: план — габарит footprint в собственных
+ * осях дома, отметка — его `baseY`, поворот — его `rotation`. Повёрнутый дом без
+ * повёрнутой площадки давал бы площадку-габарит, а под её углом склон торчал бы
+ * из-под пола.
+ */
+function addHousePads(relief, buildings) {
+  relief.addPads(buildings.map(b => ({
+    id: `${b.id}:площадка`,
+    minX: r3(b.bounds.minX), maxX: r3(b.bounds.maxX),
+    minZ: r3(b.bounds.minZ), maxZ: r3(b.bounds.maxZ),
+    y: b.baseY,
+    blend: relief.plain.blend,
+    yaw: b.rotation ?? undefined,
+  })));
+}
+
+/**
+ * Ширина перехода площадки из предела уклона **поля**: пробуем кольцо по
+ * offset-контуру на трёх долях перехода (там и пик производной smoothstep, и
+ * своя разность отметок с природой), меряем фактический градиент пробным полем с
+ * этой же площадкой и раздуваем кольцо пропорционально тому, во сколько раз он
+ * круче предела. Повтор 2–4 шага: слагаемая холма кольцо не трогает, а вклад
+ * площадки падает как 1/blend.
+ *
+ * По пробое, а не по формуле `|Δ| / maxSlope`, — потому что итоговый уклон это
+ * сумма attenuated-склона холма и перехода площадки, и формула, считавшая только
+ * разницу отметок, давала бы на переходе 1,5 · maxSlope (производная smoothstep
+ * на середине кольца), то есть ровно тот склон, который поле держать не должно.
+ */
+function fitPadBlend(p, spec, maxSlope, others = []) {
+  let blend = p.blend;
+  for (let i = 0; i < 6; i++) {
+    const trial = reliefOf({
+      baseY: spec.baseY, hills: spec.hills, cell: spec.cell,
+      pads: [...others, { ...p, blend }],
+    });
+    const slope = ringSlope({ ...p, blend }, trial);
+    if (slope <= maxSlope * 1.02 || blend >= J.relief.maxBlend) break;
+    blend = Math.min(blend * Math.max(slope / maxSlope, 1.2), J.relief.maxBlend);
+  }
+  p.blend = r3(blend);
+}
+
+/**
+ * Пробные точки кольца: offset-контур площадки (четыре стороны плюс четверти
+ * окружности по углам) на трёх долях перехода. Доля, а не одно расстояние, —
+ * потому что максимум суммарного градиента `(1−w)·∇природа + Δ·∇w` лежит не
+ * ровно на середине кольца: там пик производной веса, но природа и разность
+ * отметок меняются вдоль контура, и их сумма сдвигается к 0,4–0,7 `blend`.
+ *
+ * Контур, а не «середины сторон раздутого прямоугольника»: вершина угла стоит на
+ * `d·√2` вне кольца, её вес нулевой, и ложный ноль уклона в самой опасной точке
+ * площадки (угол террасы, нависающий над флангом) провалился бы в поле.
+ */
+function ringProbes(p, blend, frame) {
+  const out = [];
+  const push = (x, z) => out.push(frame ? rotatePoint(frame, x, z) : { x, z });
+  for (const fraction of [0.4, 0.55, 0.7]) {
+    const d = blend * fraction;
+    const nx = Math.max(2, Math.min(6, Math.ceil((p.maxX - p.minX) / d)));
+    const nz = Math.max(2, Math.min(6, Math.ceil((p.maxZ - p.minZ) / d)));
+    for (let i = 0; i <= nx; i++) {
+      const z = p.minZ + (p.maxZ - p.minZ) * (i / nx);
+      push(p.minX - d, z);
+      push(p.maxX + d, z);
+    }
+    for (let i = 1; i < nz; i++) {
+      const x = p.minX + (p.maxX - p.minX) * (i / nz);
+      push(x, p.minZ - d);
+      push(x, p.maxZ + d);
+    }
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const cx = sx < 0 ? p.minX : p.maxX;
+        const cz = sz < 0 ? p.minZ : p.maxZ;
+        for (const t of [0.25, 0.5, 0.75]) {
+          const a = (Math.PI / 2) * t;
+          push(cx + sx * d * Math.cos(a), cz + sz * d * Math.sin(a));
+        }
+      }
+    }
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------- предметы и опоры
 
 /**
  * Функция опоры по плану: верх настила дороги, если точка в его прямоугольнике
  * (у наклонного пролёта — отметка наклонной плоскости под этой точкой), иначе низ
- * перекрытия первого этажа здания (baseY), иначе дно русла, иначе земля. Предмет,
- * поставленный на отметку ниже своей опоры, утонул бы в асфальте, а выше — висел.
+ * перекрытия первого этажа здания (baseY), иначе дно русла, иначе **местность** —
+ * `relief.heightAt` там, где рельеф задан, и плоскость `ground.y` там, где нет.
+ * Предмет, поставленный на отметку ниже своей опоры, утонул бы в асфальте, а
+ * выше — висел.
+ *
+ * Дно русла старше поля: холм, пересечённый рекой, под водой не стоит, и опора
+ * там, где грунт вырезан, обязана быть отметкой дна.
  */
 function makeSupport(ground, roads, buildings, water) {
   const plates = roads.flatMap(r => r.decks);
   const plots = buildings.map(b => ({ box: buildingBox(b), y: b.baseY }));
   return (x, z) => {
-    let y = water ? (water(x, z) ?? ground.y) : ground.y;
+    let y = water ? (water(x, z) ?? landY(ground, x, z)) : landY(ground, x, z);
     for (const d of plates) {
       if (!deckHolds(d, x, z)) continue;
       const top = deckTopAt(d, x, z);
@@ -1271,7 +1542,7 @@ function makeProp(id, model, x, y, z, scale, source, rotationY = 0) {
 }
 
 /** Проверка точек главы: спавн не в стене, точка B на чём-то стоит. */
-function checkPoints(gp, buildings, roads, channels, warnings) {
+function checkPoints(gp, buildings, roads, channels, warnings, relief) {
   // стены и план дома лежат в его собственных осях, поэтому мировая точка
   // сначала разворачивается в них: иначе проба косого корпуса давала бы
   // «внутри габарита» там, где фасад только смотрит углом
@@ -1294,7 +1565,10 @@ function checkPoints(gp, buildings, roads, channels, warnings) {
       warnings.push(`${key} ${p.x}, ${p.z}: в русле, вне настила и здания — точка встанет на дно`);
     }
   }
-  if (gp.exit && !onSomething(gp.exit.x, gp.exit.z)) {
+  if (gp.exit && !relief && !onSomething(gp.exit.x, gp.exit.z)) {
+    // Своя местность тоже держит точку: поле непрерывно и ограничено уклоном,
+    // поэтому маяк на открытом склоне главы с рельефом стоит на земле, а не
+    // висит над ней — «не над настилом» было бы ложным предупреждением
     warnings.push(`gameplay.exit ${gp.exit.x}, ${gp.exit.z}: не над зданием и не над настилом — маяк повиснет`);
   }
 }

@@ -16,6 +16,7 @@ import {
 } from '../src/geo2d.js';
 import { normalizeBuilding, normalizeWaterway, resolveRoadElements, toWorld } from './normalize-level.mjs';
 import { ARCHETYPE_NAMES } from './city.js';
+import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -83,6 +84,9 @@ export const LEVEL_SPEC = obj({
     // «чем построен этот корпус» — поле брифа и генератора (tools/city.js);
     // нормализатор его не читает, в модуль главы он не доезжает
     archetype: str({ enum: ARCHETYPE_NAMES }),
+    // «к какому району генератора относится лот» — то же служебное поле: по нему
+    // нормализатор ставит одну террасу района, в модуль главы не доезжает
+    district: str(),
     isEnterable: bool(),
     // потолок этажей — J.shellFloorsMax только для невводимых башен (их этажи —
     // ритм фасада, плит нет); вводимый дом ограничен J.enterableFloors — проверется геометрией
@@ -241,11 +245,52 @@ const V2_ARC = obj({
   rails: bool(),
 });
 
+// Плавный рельеф v2 (`docs/level12-relief-plan.md`, п. 4.1). Холм и долина —
+// одна запись: капсула в плане (`x, z` — начало, `bx, bz` — конец; без них это
+// точка) с радиусом и высотой. Отрицательная высота — провал, поэтому отдельной
+// секции `basins` в данных нет: две списочные формы одного и того же поля
+// разошлись бы при первой правке.
+const V2_HILL = obj({
+  id: str(),
+  x: num({ req: true }),
+  z: num({ req: true }),
+  bx: num(),
+  bz: num(),
+  radius: num({ min: 2, req: true }),
+  height: num({ min: -60, max: 60, req: true }),
+});
+
+// Авторская площадка: терраса района, площадь, насыпь. Отметка `y` держится в
+// ядре прямоугольника, а к полю переход идёт за `blend` (по умолчанию —
+// `relief.blend`). Поворот — вокруг центра прямоугольника, тем же кадром, что у
+// дома и пластины настила.
+const V2_PAD = obj({
+  id: str(),
+  minX: num({ req: true }),
+  maxX: num({ req: true }),
+  minZ: num({ req: true }),
+  maxZ: num({ req: true }),
+  y: num({ req: true }),
+  blend: num({ min: 1, max: 200 }),
+  yaw: num({ min: -360, max: 360 }),
+});
+
+const V2_RELIEF = obj({
+  baseY: num(),
+  maxSlope: num({ min: 0.01, max: 0.3 }),
+  hillMaxSlope: num({ min: 0.01, max: 0.3 }),
+  blend: num({ min: 1, max: 200 }),
+  cell: num({ min: 2, max: 60 }),
+  hills: arr(V2_HILL, { minItems: 1, maxItems: J.relief.maxHills }),
+  pads: arr(V2_PAD, { minItems: 1 }),
+});
+
 export const LEVEL_SPEC_V2 = {
   ...LEVEL_SPEC,
   fields: {
     ...LEVEL_SPEC.fields,
     kind: str({ enum: ['json2'], req: true }),
+    relief: V2_RELIEF,
     roads: {
       ...LEVEL_SPEC.fields.roads,
       items: {
@@ -367,6 +412,74 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
   const half = size / 2;
   const groundY = raw.ground?.y ?? 0;
   const cell = J.probeCell;
+
+  // --- рельеф: крутизна поля и разумность площадок ---
+  // Поле проверяется аналитикой, а не пробой сетки: у холма максимум производной
+  // известен на бумаге (`1,5 · height / radius` на половине радиуса — замер в
+  // `tools/relief.test.mjs`), и автор обязан получить число в тексте ошибки, а не
+  // «где-то круто» после растеризации 600 × 600 м.
+  if (raw.relief) {
+    const r = raw.relief;
+    const maxSlope = r.maxSlope ?? J.relief.maxSlope;
+    // Предел ОДНОЙ капсулы — свой, `hillMaxSlope`: площадка плоская, а переход к
+    // ней даёт 1,5 · |Δ| / blend поверх собственного склона холма, поэтому поле
+    // сойдётся в `maxSlope` только если капсула заведомо пологое предела поля
+    const hillMax = r.hillMaxSlope ?? J.relief.hillMaxSlope;
+    if ((r.baseY ?? 0) !== groundY) {
+      warnings.push(`relief.baseY ${r.baseY ?? 0} не совпал с ground.y ${groundY}: опорным верхом главы станет baseY`);
+    }
+    for (const [n, h] of (r.hills ?? []).entries()) {
+      const label = `relief.hills[${n}] (${h.id ?? 'без id'})`;
+      if ((h.bx === undefined) !== (h.bz === undefined)) {
+        errors.push(`${label}: у капсулы задан только один конец (bx/bz) — второй парсер взял бы как центр холма`);
+      }
+      const peak = 1.5 * Math.abs(h.height) / h.radius;
+      if (peak > hillMax + 1e-9) {
+        errors.push(`${label}: склон круче предела холма — максимум ${peak.toFixed(3)} м/м (1,5 · ${Math.abs(h.height)} / ${h.radius}) `
+          + `при допустимых ${hillMax}; радиус обязан быть не меньше ${(1.5 * Math.abs(h.height) / hillMax).toFixed(0)} м `
+          + 'или высота меньше');
+      }
+    }
+    // Суммарный склон поля — пробой по сетке, а не только аналитика каждой
+    // капсулы: два соседних холма складываются, и предел одной (`1,5 · h / r`)
+    // не видит, что их фланги дают вместе круче. Зона пробы — габарит холмов с
+    // их радиусами, обрезанный по земле: вне его поле константно и проверять нечего.
+    if ((r.hills ?? []).length) {
+      const field = reliefOf({ baseY: r.baseY ?? groundY, hills: r.hills ?? [] });
+      let lo = { x: -half, z: -half }, hi = { x: half, z: half };
+      for (const h of r.hills) {
+        lo = { x: Math.max(lo.x, Math.min(h.x, h.bx ?? h.x) - h.radius),
+               z: Math.max(lo.z, Math.min(h.z, h.bz ?? h.z) - h.radius) };
+        hi = { x: Math.min(hi.x, Math.max(h.x, h.bx ?? h.x) + h.radius),
+               z: Math.min(hi.z, Math.max(h.z, h.bz ?? h.z) + h.radius) };
+      }
+      const step = Math.min(J.relief.meshCell, J.planGrid);
+      let worst = { mag: 0, x: 0, z: 0 };
+      for (let x = lo.x; x <= hi.x + 1e-9; x += step) {
+        for (let z = lo.z; z <= hi.z + 1e-9; z += step) {
+          const mag = field.slopeAt(x, z).mag;
+          if (mag > worst.mag) worst = { mag, x: r3(x), z: r3(z) };
+        }
+      }
+      if (worst.mag > maxSlope * 1.02) {
+        errors.push(`relief: поле в точке (${worst.x}, ${worst.z}) даёт уклон ${worst.mag.toFixed(3)} м/м `
+          + `круче предела ${maxSlope} — холмы складываются, и поштучный предел капсулы этого не видит; `
+          + 'уменьшите высоту или раздвиньте радиусы');
+      }
+    }
+    for (const [n, p] of (r.pads ?? []).entries()) {
+      const label = `relief.pads[${n}] (${p.id ?? 'без id'})`;
+      if (!(p.minX < p.maxX) || !(p.minZ < p.maxZ)) {
+        errors.push(`${label}: вырожденная площадка (${p.minX}…${p.maxX} × ${p.minZ}…${p.maxZ}) — опора в её ядре нечем не держится`);
+      }
+      const reach = Math.max(p.blend ?? r.blend ?? J.relief.blend, 0);
+      if (p.minX - reach < -half || p.maxX + reach > half
+        || p.minZ - reach < -half || p.maxZ + reach > half) {
+        errors.push(`${label}: площадка с переходной зоной ${reach} м выходит за землю ${size} м — `
+          + 'кольцо blend обрезано, и у её края уклон не ограничен');
+      }
+    }
+  }
 
   // --- дороги: осевые последовательные точки и разумные уклоны ---
   const roadRects = [];
