@@ -601,6 +601,10 @@ export class JsonMap extends SolidField {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    // индекс обязателен: в общем ключе `decks` лента лежит рядом с призмами
+    // настилов, а `mergeGeometries` отказывает смеси индексированных и нет
+    // (возвращает null, и глава падает без единого меша)
+    geo.setIndex(Array.from({ length: pos.length / 3 }, (_, i) => i));
     return geo;
   }
 
@@ -1667,15 +1671,28 @@ export class JsonMap extends SolidField {
    * плита выше (тротуар, настил насыпи), и идущий встанет на неё.
    */
   _edgeSupported(a, b) {
+    // ребро в графе двустороннее, поэтому опора обязана держать шаг в обе
+    // стороны. Проба «вверх через высокую проступь» проходит: подъём разрешён,
+    // а спуск по тому же ребру даёт провал глубже `navEdgeDrop` — так шахта
+    // марша связалась с полом, и идущий с площадки падал на этаж
+    return this._edgeWalk(a, b) && this._edgeWalk(b, a);
+  }
+
+  /** Опора под шагом от `a` к `b` в одном направлении (см. `_edgeSupported`). */
+  _edgeWalk(a, b) {
     const dx = b.x - a.x, dz = b.z - a.z;
     const dist = Math.hypot(dx, dz);
     const steps = Math.max(1, Math.ceil(dist / J.navEdgeProbe));
+    // нога не поднимается выше цели ребра: проба внутри шахты видит следующую
+    // проступь, и без потолка из спуска по краю шахты получался провал глубже
+    // `navEdgeDrop` уже после подъёма на ступень, которой на этом ребре нет
+    const cap = Math.max(a.y, b.y);
     let feet = a.y;
     for (let s = 1; s <= steps; s++) {
       const t = s / steps;
       const y = this.groundHeightAt(a.x + dx * t, a.z + dz * t, Math.max(feet, a.y));
       if (feet - y > J.navEdgeDrop) return false;
-      feet = y;
+      feet = Math.min(y, cap);
     }
     return b.y - feet <= this.stepUp;
   }

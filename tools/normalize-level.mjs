@@ -668,7 +668,9 @@ export function resolveRoadElements(elements) {
       resolved = { ...el, plate: { ...el.plate, yaw: endTangentDeg(prev) } };
     }
     out.push({ el: resolved, i });
-    prev = el;
+    // запоминается РАЗРЕШЁННЫЙ элемент: цепочка из двух маркеров подряд обязана
+    // передать дальше угол, вычисленный касательной, а не авторский (обычно 0)
+    prev = resolved;
     pending = false;
   }
   if (pending) throw new Error(`elements[${elements.length - 1}]: connect:'tangent' в конце — примыкающего элемента нет`);
