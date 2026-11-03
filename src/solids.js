@@ -12,6 +12,52 @@ export function circleHitsRect(x, z, minX, maxX, minZ, maxZ, radius) {
 }
 
 /**
+ * Ориентированная коробка (OBB) — та же AABB-запись, но с полем `obb`, где лежат
+ * центр, полуоси и косинус/синус поворота вокруг Y. Нужна v2 генератора города:
+ * дом остаётся прямоугольником **в своих осях** (комнаты, марши, решётка полов —
+ * всё прямоугольное), а в мир он ставится под углом к северу.
+ *
+ * Соглашение о повороте ровно то же, что у `BoxGeometry.rotateY(θ)`: точка мира
+ * `(x, z)` переходит в локальную `(lx, lz)` формулами ниже, поэтому картинка и
+ * коллизия расходятся только если кто-то перепутает знак — а не потому, что
+ * математик разная.
+ *
+ * `minX/maxX/minZ/maxZ` при этом остаются **габаритом повёрнутой коробки**: он
+ * нужен сетке-индексу как broadphase (консервативно — кандидатов становится
+ * больше, но узкая фаза точная, и фантомной высоты или невидимой стены не
+ * появляется: AGENTS запрещает габарит как *решение о твёрдости*, а не как фильтр).
+ */
+function toLocal(o, x, z) {
+  const dx = x - o.cx, dz = z - o.cz;
+  return [dx * o.c + dz * o.s, -dx * o.s + dz * o.c];
+}
+
+/** Вектор или точка локальных осей → мир (обратное к `toLocal` линейное). */
+function toWorld(o, lx, lz) {
+  return [o.cx + lx * o.c - lz * o.s, o.cz + lx * o.s + lz * o.c];
+}
+
+/**
+ * Пересекаются ли круг и коробка — ориентированная ветка той же общей проверки.
+ * Без `obb` вызов побитово равен `circleHitsRect`, чтобы карты 1–10 прошли новый
+ * код тем же путём, что шли раньше.
+ */
+export function circleHitsBox(x, z, box, radius) {
+  const o = box.obb;
+  if (!o) return circleHitsRect(x, z, box.minX, box.maxX, box.minZ, box.maxZ, radius);
+  const [lx, lz] = toLocal(o, x, z);
+  const px = Math.min(Math.max(lx, -o.hx), o.hx);
+  const pz = Math.min(Math.max(lz, -o.hz), o.hz);
+  const dx = lx - px, dz = lz - pz;
+  return dx * dx + dz * dz <= radius * radius;
+}
+
+/** Лежит ли точка плана внутри коробки (опора без радиуса ноги). */
+export function pointHitsBox(x, z, box) {
+  return circleHitsBox(x, z, box, 0);
+}
+
+/**
  * Общий механизм твёрдых объёмов (AABB) уровня: трёхмерная сетка-индекс,
  * рейкаст к первой грани, выталкивание сферы и маршевый луч до препятствия.
  *
@@ -82,6 +128,10 @@ export class SolidField {
     for (const idx of list) {
       const s = this.surfaces[idx];
       if (s.y <= best || s.y > limit) continue;
+      if (s.obb) {
+        if (pointHitsBox(x, z, s)) best = s.y;
+        continue;
+      }
       if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) best = s.y;
     }
     return best;
@@ -133,27 +183,56 @@ export class SolidField {
    *   (t — расстояние, axis — ось грани, sign — знак нормали вдоль оси)
    */
   _rayAabb(ox, oy, oz, dx, dy, dz, s) {
+    if (s.obb) {
+      // луч переносится в локальные оси коробки и считается слэбами как обычный
+      // AABB; нормаль входит в мир той же формулой, что и геометрия
+      const o = s.obb;
+      const [lo, lz0] = toLocal(o, ox, oz);
+      const r = this._slabs(lo, oy, lz0,
+        dx * o.c + dz * o.s, dy, -dx * o.s + dz * o.c,
+        -o.hx, o.hx, s.minY, s.maxY, -o.hz, o.hz);
+      if (!r) return null;
+      // локальная нормаль грани (axis, sign) → мировая: поворот на тот же угол
+      const lnx = r.axis === 0 ? r.sign : 0, lnz = r.axis === 2 ? r.sign : 0;
+      return {
+        t: r.t, axis: -1, sign: 1,
+        nx: lnx * o.c - lnz * o.s,
+        ny: r.axis === 1 ? r.sign : 0,
+        nz: lnx * o.s + lnz * o.c,
+      };
+    }
+    return this._slabs(ox, oy, oz, dx, dy, dz,
+      s.minX, s.maxX, s.minY, s.maxY, s.minZ, s.maxZ);
+  }
+
+  /**
+   * Слэбы по трём парам границ — отдельная функция потому, что у ориентированной
+   * коробки и у обычная проверка одна и та же, просто в разных осях.
+   * @returns {{t:number, axis:number, sign:number}|null} ближайшая точка входа
+   *   (t — расстояние, axis — ось грани, sign — знак нормали вдоль оси)
+   */
+  _slabs(ox, oy, oz, dx, dy, dz, minX, maxX, minY, maxY, minZ, maxZ) {
     let tmin = -Infinity, tmax = Infinity, axis = 0, t1, t2;
     if (Math.abs(dx) < 1e-9) {
-      if (ox < s.minX || ox > s.maxX) return null;
+      if (ox < minX || ox > maxX) return null;
     } else {
-      t1 = (s.minX - ox) / dx; t2 = (s.maxX - ox) / dx;
+      t1 = (minX - ox) / dx; t2 = (maxX - ox) / dx;
       if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
       if (t1 > tmin) { tmin = t1; axis = 0; }
       if (t2 < tmax) tmax = t2;
     }
     if (Math.abs(dy) < 1e-9) {
-      if (oy < s.minY || oy > s.maxY) return null;
+      if (oy < minY || oy > maxY) return null;
     } else {
-      t1 = (s.minY - oy) / dy; t2 = (s.maxY - oy) / dy;
+      t1 = (minY - oy) / dy; t2 = (maxY - oy) / dy;
       if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
       if (t1 > tmin) { tmin = t1; axis = 1; }
       if (t2 < tmax) tmax = t2;
     }
     if (Math.abs(dz) < 1e-9) {
-      if (oz < s.minZ || oz > s.maxZ) return null;
+      if (oz < minZ || oz > maxZ) return null;
     } else {
-      t1 = (s.minZ - oz) / dz; t2 = (s.maxZ - oz) / dz;
+      t1 = (minZ - oz) / dz; t2 = (maxZ - oz) / dz;
       if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; }
       if (t1 > tmin) { tmin = t1; axis = 2; }
       if (t2 < tmax) tmax = t2;
@@ -173,7 +252,7 @@ export class SolidField {
     if (len < 1e-9) return null;
     dx /= len; dy /= len; dz /= len;
 
-    let bestT = Infinity, bestAxis = 0, bestSign = 1, found = false;
+    let bestT = Infinity, found = false, bestNx = 0, bestNy = 0, bestNz = 0;
 
     if (this.solidIndex.size) {
       const b = this.solidBucket;
@@ -196,7 +275,13 @@ export class SolidField {
                 stamp[idx] = mark;
                 const r = this._rayAabb(ox, oy, oz, dx, dy, dz, this.solids[idx]);
                 if (r && r.t <= maxDist && r.t < bestT) {
-                  bestT = r.t; bestAxis = r.axis; bestSign = r.sign; found = true;
+                  bestT = r.t; found = true;
+                  if (r.axis < 0) { bestNx = r.nx; bestNy = r.ny; bestNz = r.nz; }
+                  else {
+                    bestNx = r.axis === 0 ? r.sign : 0;
+                    bestNy = r.axis === 1 ? r.sign : 0;
+                    bestNz = r.axis === 2 ? r.sign : 0;
+                  }
                 }
               }
             }
@@ -221,15 +306,46 @@ export class SolidField {
     if (!found) return null;
     return {
       x: ox + dx * bestT, y: oy + dy * bestT, z: oz + dz * bestT,
-      nx: bestAxis === 0 ? bestSign : 0,
-      ny: bestAxis === 1 ? bestSign : 0,
-      nz: bestAxis === 2 ? bestSign : 0,
+      nx: bestNx, ny: bestNy, nz: bestNz,
       dist: bestT,
     };
   }
 
   /** Выталкивает точку из параллелепипеда по кратчайшему направлению. */
   _pushOut(c, r, s) {
+    if (s.obb) {
+      // то же выталкивание в локальных осях коробки: направление кратчайшего
+      // выхода считается по его собственным граням, а не по граням габарита —
+      // иначе сфера, идущая вдоль косой стены, съезжала бы вбок по ступеням AABB
+      const o = s.obb;
+      const [lx, lz] = toLocal(o, c.x, c.z);
+      const py = Math.min(Math.max(c.y, s.minY), s.maxY);
+      const dx = lx - Math.min(Math.max(lx, -o.hx), o.hx);
+      const dy = c.y - py;
+      const dz = lz - Math.min(Math.max(lz, -o.hz), o.hz);
+      const d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 >= r * r) return false;
+      if (d2 > 1e-10) {
+        const d = Math.sqrt(d2), push = (r - d) / d;
+        const [wx, wz] = toWorld(o, lx + dx * push, lz + dz * push);
+        c.x = wx; c.z = wz; c.y += dy * push;
+      } else { // центр внутри объёма — выходим через ближайшую грань (порядок тот же)
+        const dl = lx + o.hx, dr = o.hx - lx;
+        const dyl = c.y - s.minY, dyr = s.maxY - c.y;
+        const dzl = lz + o.hz, dzr = o.hz - lz;
+        const m = Math.min(dl, dr, dyl, dyr, dzl, dzr);
+        let nx = lx, nz = lz, ny = c.y;
+        if (m === dl) nx = -o.hx - r;
+        else if (m === dr) nx = o.hx + r;
+        else if (m === dyl) ny = s.minY - r;
+        else if (m === dyr) ny = s.maxY + r;
+        else if (m === dzl) nz = -o.hz - r;
+        else nz = o.hz + r;
+        const [wx, wz] = toWorld(o, nx, nz);
+        c.x = wx; c.y = ny; c.z = wz;
+      }
+      return true;
+    }
     const px = Math.min(Math.max(c.x, s.minX), s.maxX);
     const py = Math.min(Math.max(c.y, s.minY), s.maxY);
     const pz = Math.min(Math.max(c.z, s.minZ), s.maxZ);
