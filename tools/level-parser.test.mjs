@@ -945,6 +945,37 @@ t('v1 заморожен: rotation у дома и elements у дороги — �
     `elements принят v1-схемой: ${e2[0] || 'ошибок нет'}`);
 });
 
+t('v1 заморожен: relief, yaw района, полигон и профиль улицы — чужие поля для v1', () => {
+  const relief = structuredClone(rawLevel);
+  relief.relief = { baseY: 0, hills: [{ x: 0, z: 0, radius: 60, height: 8 }] };
+  hasError(validateLevel(relief).errors, 'relief', 'поле не описано в схеме');
+
+  // генератор читает `city` раньше схемы, поэтому его молчание опаснее ошибки:
+  // район с `yaw` собрался бы осевым, а автор правил бы несуществующее поле
+  const cityRaw = JSON.parse(readFileSync(resolve(ROOT, 'src/levels/level-10.json'), 'utf8'));
+  const cases = [
+    ['yaw', r => { r.city.districts[0].yaw = 18; }],
+    ['polygon', r => {
+      r.city.districts[0].polygon = [
+        { x: -100, z: -100 }, { x: 100, z: -100 }, { x: 100, z: 100 }, { x: -100, z: 100 },
+      ];
+    }],
+    ['grade', r => { r.city.districts[0].street.grade = 0.05; }],
+  ];
+  for (const [key, mutate] of cases) {
+    const raw = structuredClone(cityRaw);
+    mutate(raw);
+    let thrown = null;
+    try {
+      expandCity(raw);
+    } catch (e) {
+      thrown = e;
+    }
+    assert(thrown && String(thrown.message).includes(key),
+      `генератор принял '${key}' молча: район с ним собрался бы осевым и без профиля, а поле пропало бы без ошибки`);
+  }
+});
+
 t('v1 заморожен: служебные поля metadata не попадают в модуль главы', () => {
   const base = generateModule(structuredClone(rawLevel), 'src/levels/level-09.json').code;
   const withFlag = structuredClone(rawLevel);

@@ -321,6 +321,27 @@ function districtSpec(d) {
 }
 
 /**
+ * Ключи, которые генератор действительно читает. Неизвестный ключ — ошибка ещё
+ * до первого вызова ГПСЧ: секция `city` разворачивается в улицы и дома, и
+ * проигнорированное поле означает, что автор получил НЕ то, что написал. Так
+ * «косой район» (`yaw`), его граница-многоугольник и профиль улицы по рельефу
+ * (`street.grade`) не соберутся молча прямым городом на плоскости — до того,
+ * как эти поля появятся в генераторе.
+ */
+const CITY_KEYS = ['seed', 'districts'];
+const DISTRICT_KEYS = ['id', 'name', 'style', 'block', 'street', 'lot', 'height',
+  'tower', 'archetypes', 'enterableEvery', 'skip', 'courtyard', 'roofs'];
+const DISTRICT_SECTION_KEYS = {
+  street: ['pitch', 'width'],
+  lot: ['pitch', 'inset', 'merge'],
+  height: ['minFloors', 'maxFloors', 'floorHeight'],
+  tower: ['chance', 'floors', 'floorHeight'],
+  roofs: ['walkable', 'access', 'parapet'],
+};
+
+const unknownIn = (obj, allowed) => Object.keys(obj ?? {}).filter(k => !allowed.includes(k));
+
+/**
  * Что запрещено ещё до первого вызова ГПСЧ. Ошибки копятся списком: правка
  * конфигурации района — это цифры, и владелец обязан увидеть все несостыковки
  * за один прогон, а не по одной.
@@ -329,11 +350,22 @@ function cityConfigErrors(city, ground, districts) {
   const errors = [];
   const half = ground.size / 2;
   if (!Number.isInteger(city.seed)) errors.push(`city.seed ${city.seed} — не целое: ГПСЧ mulberry32 работает с 32-битным сидом`);
+  for (const k of unknownIn(city, CITY_KEYS)) {
+    errors.push(`city: ключ '${k}' генератор не читает — район с ним собрался бы без этого поля`);
+  }
   const seen = new Set();
   for (const d of districts) {
     if (!d.id) { errors.push('city.districts: у района нет id — его улицы и лоты не получат имён'); continue; }
     if (seen.has(d.id)) errors.push(`city.districts: id района '${d.id}' уже занят`);
     seen.add(d.id);
+    for (const k of unknownIn(d, DISTRICT_KEYS)) {
+      errors.push(`city.districts (${d.id}): ключ '${k}' генератор не читает — район собрался бы без него`);
+    }
+    for (const [section, allowed] of Object.entries(DISTRICT_SECTION_KEYS)) {
+      for (const k of unknownIn(d[section], allowed)) {
+        errors.push(`city.districts (${d.id}).${section}: ключ '${k}' генератор не читает — ${section} собрался бы без него`);
+      }
+    }
     const spec = districtSpec(d);
     const b = d.block;
     if (!b) { errors.push(`city.districts (${d.id}): нет блока — генератору негде встать`); continue; }
