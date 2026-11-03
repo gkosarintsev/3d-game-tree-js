@@ -15,7 +15,7 @@
 import { CONFIG } from '../src/config.js';
 import {
   normalizePolygon, pointInPoly, polyBounds, polyEdges, polyRects, r3, rectsIntersect,
-  subtractRect, unionBounds,
+  subtractRect, unionBounds, frameOf, obbHitsRect, obbOf, unrotatePoint,
 } from '../src/geo2d.js';
 
 const J = CONFIG.jsonMap;
@@ -46,7 +46,7 @@ export function normalizeLevel(raw) {
   // в стенке или сквозь пандус, не объект уровня
   const obstacles = [
     ...roads.filter(r => r.type === 'ground').flatMap(r => r.decks.map(d => ({ id: r.id, kind: 'road', rect: d }))),
-    ...buildings.map(b => ({ id: b.id, kind: 'building', rect: b.bounds })),
+    ...buildings.map(b => ({ id: b.id, kind: 'building', rect: buildingBox(b) })),
     ...channels.flatMap(c => [
       ...c.walls.map(w => ({ id: `${c.id}:берег`, kind: 'waterway', rect: w.rect })),
       ...c.descents.filter(d => d.kind === 'ramp')
@@ -109,7 +109,7 @@ export function normalizeLevel(raw) {
       alienEnemies: gp.alienEnemies ?? {},
     },
     map: {
-      kind: 'json',
+      kind: raw.kind ?? 'json',
       units: 'meters',
       ground,
       bounds: worldBounds(buildings, roads, channels, ground),
@@ -235,6 +235,13 @@ function normalizeBuilding(b, ground, warnings) {
     } : {}),
     footprint: footprint.map(p => ({ x: r3(p.x), z: r3(p.z) })),
     bounds: { minX: r3(bb.minX), maxX: r3(bb.maxX), minZ: r3(bb.minZ), maxZ: r3(bb.maxZ) },
+    // поворот дома в плане — единственное, что уезжает в модуль из v2: всё
+    // остальное (footprint, стены, комнаты, марши, двери) остаётся в локальных
+    // осях, поэтому союз прямоугольников, проёмы и решётки полов считаются
+    // прежней арифметикой, а в мир ставятся одним углом вокруг центра габарита.
+    // Ключ появляется только у повёрнутого дома — главы 9 и 10 обязаны
+    // нормализоваться побайтово как раньше
+    ...(b.rotation ? { rotation: r3(b.rotation) } : {}),
     rects: polyRects(footprint).map(r => rectOut(r)).sort(byRect),
     walls: [...walls.values()].sort((a, c) => keyOfRect(a) < keyOfRect(c) ? -1 : 1),
     rooms,
@@ -246,6 +253,20 @@ function normalizeBuilding(b, ground, warnings) {
 const keyOfRect = r => `${r.minX}|${r.maxX}|${r.minZ}|${r.maxZ}`;
 const byRect = (a, b) => (keyOfRect(a) < keyOfRect(b) ? -1 : 1);
 const rectOut = r => ({ minX: r3(r.minX), maxX: r3(r.maxX), minZ: r3(r.minZ), maxZ: r3(r.maxZ) });
+
+/**
+ * Дом в мировом плане: OBB, если у него есть `rotation` (v2), и тот же
+ * прямоугольник, что и раньше, при угле 0. Автогенерация (опоры, фонари,
+ * отметки опоры под предметом) ставит вещи в мир, поэтому обязана видеть
+ * повёрнутый корпус повёрнутым: габарит косого дома торчит за его фасады
+ * углами, и фонарь, пропущенный из-за такого охвата, был бы молчаливой дырой
+ * в освещении улицы.
+ */
+const buildingBox = b => obbOf(b.bounds, frameOf(b.bounds, b.rotation ?? 0));
+
+/** Точка в плане дома — тот же OBB, что и выше, а не его охватывающий rect. */
+const inBox = (x, z, box) => obbHitsRect(box,
+  { minX: x - 1e-6, maxX: x + 1e-6, minZ: z - 1e-6, maxZ: z + 1e-6 }, -1e-6);
 
 /** Ребро полигона → план стены толщиной thickness, центрованный на ребре. */
 function edgeRect(edge, thickness) {
@@ -563,7 +584,7 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
           minX: p.x - J.pillarSection / 2, maxX: p.x + J.pillarSection / 2,
           minZ: p.z - J.pillarSection / 2, maxZ: p.z + J.pillarSection / 2,
         };
-        const hit = obstacles.find(o => rectsIntersect(rect, o.rect, 0.05));
+        const hit = obstacles.find(o => obbHitsRect(o.rect, rect, 0.05));
         if (hit) {
           warnings.push(`${road.id}: опора в ${r3(p.x)}, ${r3(p.z)} попала в ${hit.id} — пропущена`);
           continue;
@@ -590,7 +611,7 @@ function roadLamps(road, obstacles, warnings, water) {
         ? [{ x: t, z: d.minZ - J.lampOffset }, { x: t, z: d.maxZ + J.lampOffset }]
         : [{ x: d.minX - J.lampOffset, z: t }, { x: d.maxX + J.lampOffset, z: t }];
       for (const p of sides) {
-        const hit = obstacles.find(o => o.kind === 'building' && rectsIntersect(pointRect(p), o.rect, 0.05));
+        const hit = obstacles.find(o => o.kind === 'building' && obbHitsRect(o.rect, pointRect(p), 0.05));
         if (hit) {
           warnings.push(`${road.id}: фонарь в ${r3(p.x)}, ${r3(p.z)} попал в ${hit.id} — пропущен`);
           continue;
@@ -793,7 +814,7 @@ function makeSupport(ground, roads, buildings, water) {
     rect: d, axis: d.axis, lo: d.axis === 'x' ? d.minX : d.minZ,
     hi: d.axis === 'x' ? d.maxX : d.maxZ, y: d.topAtMin, y1: d.topAtMax,
   })));
-  const plots = buildings.map(b => ({ rect: b.bounds, y: b.baseY }));
+  const plots = buildings.map(b => ({ box: buildingBox(b), y: b.baseY }));
   return (x, z) => {
     let y = water ? (water(x, z) ?? ground.y) : ground.y;
     for (const p of plates) {
@@ -802,7 +823,7 @@ function makeSupport(ground, roads, buildings, water) {
       const top = p.y1 === p.y ? p.y : p.y + (p.y1 - p.y) * (u - p.lo) / (p.hi - p.lo);
       if (top > y) y = top;
     }
-    for (const p of plots) if (inRect(x, z, p.rect) && p.y > y) y = p.y;
+    for (const p of plots) if (inBox(x, z, p.box) && p.y > y) y = p.y;
     return r3(y);
   };
 }
@@ -815,8 +836,8 @@ function authoredProp(o, support, obstacles, warnings) {
   if (Math.abs(y - snapped) > 0.05) {
     warnings.push(`landscapeObjects (${o.id}): position.y ${y} не совпадает с опорой ${snapped} — предмет поставлен на неё`);
   }
-  const hit = obstacles.find(ob => ob.kind === 'building' && rectsIntersect(pointRect(o.position), ob.rect, 0.05));
-  if (hit && o.model !== 'bollard') warnings.push(`landscapeObjects (${o.id}): внутри габарита ${hit.id} — предмет не виден из улиц`);
+  const hit = obstacles.find(ob => ob.kind === 'building' && obbHitsRect(ob.rect, pointRect(o.position), 0.05));
+  if (hit && o.model !== 'bollard') warnings.push(`landscapeObjects (${o.id}): внутри плана ${hit.id} — предмет не виден из улиц`);
   return makeProp(o.id, o.model, o.position.x, snapped, o.position.z,
     { x: o.scale?.x ?? 1, y: o.scale?.y ?? 1, z: o.scale?.z ?? 1 }, 'authored', o.rotation?.y ?? 0);
 }
@@ -831,8 +852,15 @@ function makeProp(id, model, x, y, z, scale, source, rotationY = 0) {
 
 /** Проверка точек главы: спавн не в стене, точка B на чём-то стоит. */
 function checkPoints(gp, buildings, roads, channels, warnings) {
-  const insideWall = (x, z) => buildings.some(b => b.walls.some(w => inRect(x, z, w)));
-  const onSomething = (x, z) => buildings.some(b => inRect(x, z, b.bounds)) ||
+  // стены и план дома лежат в его собственных осях, поэтому мировая точка
+  // сначала разворачивается в них: иначе проба косого корпуса давала бы
+  // «внутри габарита» там, где фасад только смотрит углом
+  const frames = buildings.map(b => frameOf(b.bounds, b.rotation ?? 0));
+  const insideWall = (x, z) => buildings.some((b, i) => {
+    const p = unrotatePoint(frames[i], x, z);
+    return b.walls.some(w => inRect(p.x, p.z, w));
+  });
+  const onSomething = (x, z) => buildings.some(b => inBox(x, z, buildingBox(b))) ||
     roads.some(r => r.decks.some(d => inRect(x, z, d)));
   // русло режет грунт, поэтому точка над ним стоит только если её держит
   // настил моста или здание: иначе маяк или игрок повиснут над водой
@@ -853,7 +881,7 @@ function checkPoints(gp, buildings, roads, channels, warnings) {
 
 function worldBounds(buildings, roads, channels, ground) {
   let out = { minX: -ground.size / 2, maxX: ground.size / 2, minZ: -ground.size / 2, maxZ: ground.size / 2 };
-  for (const b of buildings) out = unionBounds(out, b.bounds);
+  for (const b of buildings) out = unionBounds(out, buildingBox(b));
   for (const r of roads) for (const d of r.decks) out = unionBounds(out, d);
   for (const c of channels) for (const h of c.holes) out = unionBounds(out, h);
   return rectOut(out);

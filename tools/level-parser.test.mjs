@@ -11,10 +11,11 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { validateLevel } from './level-schema.mjs';
+import { validateLevel, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel, waterwayFoot } from './normalize-level.mjs';
 import { generateModule } from './build-level.mjs';
 import { expandCity, ARCHETYPE_NAMES } from './city.js';
+import { frameOf, obbHitsRect, obbOf, rectsIntersect, rotatedBounds } from '../src/geo2d.js';
 import { CONFIG } from '../src/config.js';
 
 const J = CONFIG.jsonMap;
@@ -939,6 +940,152 @@ t('v1 заморожен: служебные поля metadata не попада
   withFlag.metadata.engine = 'city-v1';
   assert(generateModule(withFlag, 'src/levels/level-09.json').code === base,
     'модуль главы изменился от служебной строки метаданных');
+});
+
+// ------------------------------------------------------- поворотный дом (v2, этап 2)
+
+/**
+ * Компактный бриф v2: один косой корпус 24 × 6 м под 30° в земле 120 м и улица,
+ * которая в базовом варианте стоит в стороне. Угол поворачивает план вокруг
+ * центра его габарита, поэтому весь внутренний расчёт (стены, комнаты, марши)
+ * идёт в локальных осях, а в мир выходят только границы — здесь и проверяется,
+ * что наружные тесты смотрят на повёрнутый корпус, а не на его охватывающий
+ * прямоугольник.
+ */
+const V2_RAW = {
+  kind: 'json2',
+  metadata: { levelName: 'v2House', name: 'Косой квартал', hint: '—', units: 'meters' },
+  ground: { y: 0, size: 120 },
+  roads: [
+    { id: 'st_main', type: 'ground', width: 6, points: [{ x: -50, y: 0.12, z: 26 }, { x: 50, y: 0.12, z: 26 }] },
+  ],
+  buildings: [{
+    id: 'h_slant', isEnterable: false, floorsCount: 2, floorHeight: 3.4, rotation: 30,
+    footprint: [{ x: -12, z: -3 }, { x: 12, z: -3 }, { x: 12, z: 3 }, { x: -12, z: 3 }],
+    rooms: [],
+  }],
+  gameplay: { goal: 'exit', spawn: { x: 0, z: 34 }, exit: { x: 40, z: 29 }, exitRadius: 4 },
+};
+
+/** Полоса наземной улицы вдоль X (ширина 2 ⇒ z ∈ [7, 9]) на данном участке x. */
+const band = (id, x0, x1) => ({
+  id, type: 'ground', width: 2,
+  points: [{ x: x0, y: 0.12, z: 8 }, { x: x1, y: 0.12, z: 8 }],
+});
+/** План настила той полосы — так же его считает валидатор и нормализатор. */
+const bandRect = b => ({
+  minX: b.points[0].x, maxX: b.points[1].x,
+  minZ: b.points[0].z - b.width / 2, maxZ: b.points[0].z + b.width / 2,
+});
+// «дальний» конец косого корпуса реально достаёт до z = 8,6 — сюда полоса легла бы
+// на фасад, а тот же участок её на противоположном конце охвата пуст: дом смотрит углом
+const BAND_ON = band('st_on', 6, 14);
+const BAND_CORNER = band('st_corner', -14, -8);
+/** План дома из V2_RAW (24 × 6 м) в его локальных осях, центр в (0, 0). */
+const SLANT_RECT = { minX: -12, maxX: 12, minZ: -3, maxZ: 3 };
+
+const v2Errors = (mutate = () => {}) => {
+  const raw = structuredClone(V2_RAW);
+  mutate(raw);
+  return validateLevel(raw, LEVEL_SPEC_V2).errors;
+};
+
+t('v2 принимает rotation: валидатор молчит, а модуль несёт угол и kind', () => {
+  const errors = v2Errors();
+  eq(errors.length, 0, `ошибки: ${errors.join(' | ')}`);
+  const level = normalizeLevel(structuredClone(V2_RAW));
+  eq(level.map.kind, 'json2', 'kind карты');
+  eq(level.map.buildings[0].rotation, 30, 'rotation в данных карты');
+  // план, стены и комнаты остаются неразвёрнутыми: угол — единственная новая запись
+  eq(level.map.buildings[0].bounds.maxX, 12, 'габарит дома остался локальным');
+  const code = generateModule(structuredClone(V2_RAW), 'src/levels/level-11.json').code;
+  assert(code.includes(`kind: 'json2'`), 'в шапке модуля не стало видно типа карты json2');
+  assert(code.includes('"rotation": 30'), 'модуль главы не донёс угол дома');
+  assert(/Поворотные дома/.test(code), 'шапка модуля v2 не объясняет, что поворачивается');
+});
+
+t('v1 не принимает ни kind json2, ни сам бриф v2', () => {
+  const errors = validateLevel(structuredClone(V2_RAW)).errors;
+  hasError(errors, 'kind', 'поле не описано в схеме');
+});
+
+t('косой дом, доставший углом до улицы, — ошибка; тот же план без поворота — норма', () => {
+  hasError(v2Errors(r => { r.roads.push(BAND_ON); }), 'дом стоит в улице');
+  const flat = v2Errors(r => { r.buildings[0].rotation = 0; r.roads.push(BAND_ON); });
+  eq(flat.length, 0, `плоский дом в той же полосе дал ошибки: ${flat.join(' | ')}`);
+});
+
+t('охватывающий прямоугольник косого дома не бракует улицу в его пустом углу', () => {
+  // довод, что тест выше не случайность: габарит повёрнутого плана в эту полосу
+  // действительно заходит, а сам корпус — нет
+  const f = frameOf(SLANT_RECT, 30);
+  assert(rectsIntersect(rotatedBounds(SLANT_RECT, f), bandRect(BAND_CORNER), 0.05),
+    'габарит косого дома не пересекает полосу — тест ничего не доказывает');
+  assert(!obbHitsRect(obbOf(SLANT_RECT, f), bandRect(BAND_CORNER), 0.05),
+    'корпус реально пересекает полосу — проверка стала бы бессмысленной');
+  const errors = v2Errors(r => { r.roads.push(BAND_CORNER); });
+  eq(errors.length, 0, `дом под углом отбракован по габариту: ${errors.join(' | ')}`);
+});
+
+t('поворот выбрасывает дом за землю, хотя его план целиком внутри', () => {
+  const shift = r => {
+    r.buildings[0].footprint = [{ x: -12, z: 53 }, { x: 12, z: 53 }, { x: 12, z: 59 }, { x: -12, z: 59 }];
+  };
+  const flat = v2Errors(r => { shift(r); r.buildings[0].rotation = 0; });
+  eq(flat.length, 0, `план без поворота дал ошибки: ${flat.join(' | ')}`);
+  // ez = 12·sin30° + 3·cos30° ≈ 8,6 ⇒ верх повёрнутого корпуса на 64,6 м при земле 120 м
+  hasError(v2Errors(shift), 'выходит за землю');
+});
+
+t('пересечение планов разрешено только соосной паре домов', () => {
+  const twin = rot => r => {
+    r.buildings.push({
+      id: 'h_twin', isEnterable: false, floorsCount: 2, floorHeight: 3.4, rotation: rot,
+      footprint: [{ x: -12, z: 1 }, { x: 12, z: 1 }, { x: 12, z: 7 }, { x: -12, z: 7 }],
+      rooms: [],
+    });
+  };
+  const same = v2Errors(twin(30));
+  eq(same.length, 0, `соосная пара домов дала ошибки: ${same.join(' | ')}`);
+  hasError(v2Errors(twin(90)), 'h_slant', 'h_twin', 'разных rotation');
+});
+
+t('торец перехода не опирается на косой дом', () => {
+  const bridge = r => {
+    r.buildings[0].footprint = [{ x: -2, z: -4 }, { x: 10, z: -4 }, { x: 10, z: 4 }, { x: -2, z: 4 }];
+    r.buildings[0].floorsCount = 1;
+    r.buildings[0].roof = { walkable: true };
+    r.buildings.push({
+      id: 'h_far', isEnterable: false, floorsCount: 1, floorHeight: 3.4, roof: { walkable: true },
+      footprint: [{ x: 26, z: -4 }, { x: 38, z: -4 }, { x: 38, z: 4 }, { x: 26, z: 4 }],
+      rooms: [],
+    });
+    r.roads.push({ id: 'br_1', type: 'skybridge', width: 4, points: [{ x: -2, y: 3.4, z: 0 }, { x: 30, y: 3.4, z: 0 }] });
+  };
+  const flat = v2Errors(r => { bridge(r); r.buildings[0].rotation = 0; });
+  eq(flat.length, 0, `переход между соосными домами дал ошибки: ${flat.join(' | ')}`);
+  hasError(v2Errors(r => { bridge(r); r.buildings[0].rotation = 15; }), 'br_1', 'начальный', 'не имеет опоры');
+});
+
+t('автогенерация видит косой дом его планом, а не габаритом', () => {
+  const raw = structuredClone(V2_RAW);
+  // подиум: отметка опоры под предметом тогда различима (пол дома 1 м против земли 0)
+  raw.buildings[0].baseY = 1;
+  raw.landscapeObjects = [
+    { id: 'in_body', model: 'container', position: { x: 9, y: 1, z: 7.2 } },
+    { id: 'in_corner', model: 'container', position: { x: -11, y: 0, z: 8 } },
+  ];
+  const { errors } = validateLevel(raw, LEVEL_SPEC_V2);
+  eq(errors.length, 0, `ошибки: ${errors.join(' | ')}`);
+  const level = normalizeLevel(raw);
+  const body = level.map.props.find(p => p.id === 'in_body');
+  const corner = level.map.props.find(p => p.id === 'in_corner');
+  assert(level.warnings.some(w => w.includes('in_body') && w.includes('внутри плана h_slant')),
+    `предмет в корпусе не отмечен: ${level.warnings.join(' | ') || '(предупреждений нет)'}`);
+  assert(!level.warnings.some(w => w.includes('in_corner')),
+    `пустой угол габарита косого дома был принят за дом: ${level.warnings.join(' | ')}`);
+  eq(corner.position.y, 0, 'предмет в пустом углу габарита встал на отметку дома');
+  eq(body.position.y, 1, 'предмет на грунте у угла корпуса не встал на пол дома');
 });
 
 // ---------------------------------------------------------------- генератор кварталов

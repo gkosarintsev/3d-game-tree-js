@@ -16,7 +16,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateLevel } from './level-schema.mjs';
+import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel } from './normalize-level.mjs';
 import { expandCity } from './city.js';
 
@@ -34,7 +34,11 @@ export function generateModule(raw, sourceName) {
   } catch (e) {
     throw new ValidationError([String(e?.message ?? e)], []);
   }
-  const { errors, warnings: geoWarnings } = validateLevel(expanded);
+  // переключатель версии — в самом брифе: v1 (`kind: 'json'` или без него) не
+  // принимает ни `rotation`, ни дуги, поэтому схема обязана выбираться до
+  // геометрического прохода, а не после
+  const spec = expanded.kind === 'json2' ? LEVEL_SPEC_V2 : LEVEL_SPEC;
+  const { errors, warnings: geoWarnings } = validateLevel(expanded, spec);
   if (errors.length) throw new ValidationError(errors, geoWarnings);
   let level;
   try {
@@ -58,6 +62,11 @@ export function generateModule(raw, sourceName) {
   const seeded = raw.city
     ? `\n *\n * Секцию \`city\* развернул генератор кварталов (tools/city.js): его ГПСЧ сидит\n * в \`city.seed\`, поэтому и этот файл детерминирован — правка района в брифе\n * меняет дома, а правка сида меняет весь район целиком.`
     : '';
+  // абзац появляется только у брифа `kind: 'json2'` — главы 9 и 10 обязаны
+  // остаться побайтово прежними
+  const turned = expanded.kind === 'json2'
+    ? `\n *\n * Поворотные дома (\`buildings[].rotation\*) ставят корпус под углом к северу:\n * весь внутренний расчёт — стены, комнаты, шахты маршей и проёмы дверей —\n * идёт в его собственных осях, а в мировом плане его держит ориентированная\n * коробка (src/solids.js), потому что габарит решил бы твёрдость вокруг дома\n * и вокруг неё выросли бы невидимые башни.`
+    : '';
   const code = `/**
  * СГЕНЕРИРОВАННО — руками не править.
  *
@@ -65,11 +74,11 @@ export function generateModule(raw, sourceName) {
  * \`node tools/build-level.mjs ${sourceName}\` перезаписывает этот файл
  * побайтово одинаково (ГПСЧ в парсере нет, ключи объектов отсортированы).${seeded}
  *
- * Тип карты — \`kind: 'json'\`: числа и топологию готовит Node-парсер
+ * Тип карты — \`kind: '${expanded.kind ?? 'json'}'\`: числа и топологию готовит Node-парсер
  * (замкнутые полигоны, союз прямоугольников footprint, абсолютные высоты
  * этажей, проступи лестниц, пластины настилов, автогенерированные опоры и
  * фонари, проёмы дверей), браузер строит из них только солиды, опоры,
- * навигацию и меш.${notice}
+ * навигацию и меш.${turned}${notice}
  */
 export const ${constName} = ${body};
 `;

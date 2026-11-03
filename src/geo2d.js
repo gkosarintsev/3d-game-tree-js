@@ -206,6 +206,122 @@ export function unionBounds(a, b) {
   };
 }
 
+// ------------------------------------------------- поворот объекта в плане (v2)
+// Дом v2 остаётся прямоугольником **в своих осях**: весь расчёт парсера (стены,
+// комнаты, шахты маршей, проёмы дверей) идёт в неразвёрнутом кадре, а в мир
+// координаты превращает поворот вокруг центра габарита. Соглашение то же, что у
+// `BoxGeometry.rotateY(θ)` и у `obb` в src/solids.js, поэтому картинка, коллизия
+// и валидатор расходятся только если кто-то перепутает знак — а не потому, что
+// математик две.
+
+/**
+ * Кадр поворота дома: центр его габарита и косинус с синусом. Возвращает null
+ * при нулевом (или отсутствующем) угле — тогда объект живёт ровно как в v1, и
+ * ни одна проверка не платит за поворот.
+ */
+export function frameOf(bounds, rotationDeg) {
+  if (!rotationDeg) return null;
+  const rad = rotationDeg * Math.PI / 180;
+  return {
+    cx: (bounds.minX + bounds.maxX) / 2,
+    cz: (bounds.minZ + bounds.maxZ) / 2,
+    deg: rotationDeg,
+    c: Math.cos(rad),
+    s: Math.sin(rad),
+  };
+}
+
+/** Неразвёрнутая мировая точка → точка повёрнутого объекта. */
+export function rotatePoint(f, x, z) {
+  if (!f) return { x, z };
+  const dx = x - f.cx, dz = z - f.cz;
+  return { x: f.cx + dx * f.c - dz * f.s, z: f.cz + dx * f.s + dz * f.c };
+}
+
+/** Обратное к `rotatePoint`: мировая точка → неразвёрнутый кадр объекта. */
+export function unrotatePoint(f, x, z) {
+  if (!f) return { x, z };
+  const dx = x - f.cx, dz = z - f.cz;
+  return { x: f.cx + dx * f.c + dz * f.s, z: f.cz - dx * f.s + dz * f.c };
+}
+
+/** Габарит повёрнутого прямоугольника — только broadphase'у сетки и лимиту земли. */
+export function rotatedBounds(rect, f) {
+  if (!f) return { minX: rect.minX, maxX: rect.maxX, minZ: rect.minZ, maxZ: rect.maxZ };
+  const hx = (rect.maxX - rect.minX) / 2, hz = (rect.maxZ - rect.minZ) / 2;
+  const c = Math.abs(f.c), s = Math.abs(f.s);
+  const bx = f.cx + ((rect.minX + rect.maxX) / 2 - f.cx) * f.c - ((rect.minZ + rect.maxZ) / 2 - f.cz) * f.s;
+  const bz = f.cz + ((rect.minX + rect.maxX) / 2 - f.cx) * f.s + ((rect.minZ + rect.maxZ) / 2 - f.cz) * f.c;
+  const ex = hx * c + hz * s, ez = hx * s + hz * c;
+  return { minX: bx - ex, maxX: bx + ex, minZ: bz - ez, maxZ: bz + ez };
+}
+
+/**
+ * Прямоугольник неразвёрнутого кадра как ориентированная коробка в мире: габарит
+ * для фильтра сетки плюс точные полуоси и угол для узкой фазы (`obb` читает
+ * src/solids.js). Сам габарит решением о твёрдости не становится — это ровно то
+ * запретительное правило AGENTS про внешний ассет.
+ */
+export function obbOf(rect, f) {
+  const bounds = rotatedBounds(rect, f);
+  if (!f) return { ...bounds };
+  const hx = (rect.maxX - rect.minX) / 2, hz = (rect.maxZ - rect.minZ) / 2;
+  const p = rotatePoint(f, (rect.minX + rect.maxX) / 2, (rect.minZ + rect.maxZ) / 2);
+  return { ...bounds, obb: { cx: p.x, cz: p.z, hx, hz, c: f.c, s: f.s } };
+}
+
+/**
+ * Пересечение двух фигур в плане по опорным осям (SAT): у прямоугольников,
+ * вписанных в одну сетку осей, это ровно `rectsIntersect`, а с поворотным
+ * объектом добавляются его собственные две оси — всего до четырёх.
+ * Касание гранью, как и в `rectsIntersect`, пересечением не считается; `margin`
+ * требует нахлёста глубже этого значения.
+ */
+function satOverlap(a, b, axes, margin) {
+  for (const [ax, az] of axes) {
+    const gap = Math.abs((a.cx - b.cx) * ax + (a.cz - b.cz) * az);
+    if (gap >= a.r(ax, az) + b.r(ax, az) - margin) return false;
+  }
+  return true;
+}
+
+/** Проекция фигуры на ось: у прямоугольника — полуширина по осям мира, у OBB — по своим. */
+function rectFigure(rect) {
+  return {
+    cx: (rect.minX + rect.maxX) / 2, cz: (rect.minZ + rect.maxZ) / 2,
+    hx: (rect.maxX - rect.minX) / 2, hz: (rect.maxZ - rect.minZ) / 2,
+    obb: null,
+    r(ax, az) { return Math.abs(this.hx * ax) + Math.abs(this.hz * az); },
+  };
+}
+function obbFigure(box) {
+  const o = box.obb;
+  if (!o) return rectFigure(box);
+  return {
+    cx: o.cx, cz: o.cz, hx: o.hx, hz: o.hz, obb: o,
+    r(ax, az) { return Math.abs(o.hx * (ax * o.c + az * o.s)) + Math.abs(o.hz * (-ax * o.s + az * o.c)); },
+  };
+}
+
+/** Повёрнутая коробка против прямоугольника мировой сетки. */
+export function obbHitsRect(box, rect, margin = 0) {
+  const a = obbFigure(box), b = rectFigure(rect);
+  const axes = [[1, 0], [0, 1]];
+  if (a.obb) axes.push([a.obb.c, a.obb.s], [-a.obb.s, a.obb.c]);
+  return satOverlap(a, b, axes, margin);
+}
+
+/** Две повёрнутые коробки (дом против дома, пластина дороги против дома). */
+export function obbHitsObb(aBox, bBox, margin = 0) {
+  const a = obbFigure(aBox), b = obbFigure(bBox);
+  const axes = [[1, 0], [0, 1]];
+  if (a.obb) axes.push([a.obb.c, a.obb.s], [-a.obb.s, a.obb.c]);
+  if (b.obb) axes.push([b.obb.c, b.obb.s], [-b.obb.s, b.obb.c]);
+  // оси двух одинаково повёрнутых фигур повторяются — SAT от этого не ломается,
+  // просто зря проверяет ту же пару интервалов
+  return satOverlap(a, b, axes, margin);
+}
+
 /** Рёбра полигона как отрезки в плане: {x0,z0,x1,z1,axis}. */
 export function polyEdges(poly) {
   const out = [];

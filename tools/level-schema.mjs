@@ -10,8 +10,9 @@
  */
 import { CONFIG } from '../src/config.js';
 import {
-  AXIS_EPS, cellKey, normalizePolygon, polyBounds, polyEdges, polyRects,
-  r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
+  AXIS_EPS, cellKey, frameOf, normalizePolygon, obbHitsObb, obbHitsRect, obbOf,
+  polyBounds, polyEdges, polyRects, r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
+  rotatedBounds,
 } from '../src/geo2d.js';
 import { normalizeBuilding, normalizeWaterway, toWorld } from './normalize-level.mjs';
 import { ARCHETYPE_NAMES } from './city.js';
@@ -194,6 +195,37 @@ export const LEVEL_SPEC = obj({
   }, { req: true }),
 });
 
+/**
+ * Схема v2 — поворотный город (`kind: 'json2'`, глава 11). От v1 отличается ровно
+ * двумя полями: обязательным переключателем `kind` и `buildings[].rotation`.
+ *
+ * Клон, а не второй литерал: топология у версий общая, и расхождение в списке
+ * типов комнат, лимите этажей или диапазонах стен всплыло бы тогда, когда его
+ * никто не ищет, — после правки одного из двух текстов.
+ *
+ * `rotation` — градусы вокруг центра габарита footprint, любой angle. Дом от этого
+ * не перестаёт быть прямоугольным: footprint, комнаты, стены и марши лежат в его
+ * собственных осях (поэтому осевая арифметика парсера к ним применяется как
+ * раньше), а в мировом плане их поворачивает один угол.
+ */
+export const LEVEL_SPEC_V2 = {
+  ...LEVEL_SPEC,
+  fields: {
+    ...LEVEL_SPEC.fields,
+    kind: str({ enum: ['json2'], req: true }),
+    buildings: {
+      ...LEVEL_SPEC.fields.buildings,
+      items: {
+        ...LEVEL_SPEC.fields.buildings.items,
+        fields: {
+          ...LEVEL_SPEC.fields.buildings.items.fields,
+          rotation: num({ min: -360, max: 360 }),
+        },
+      },
+    },
+  },
+};
+
 // ------------------------------------------------------------- обход схемы
 
 function typeOf(v) {
@@ -270,10 +302,14 @@ export function validateSpec(raw, spec = LEVEL_SPEC) {
  * Второй проход — то, что видно только по всей картине: комнаты внутри
  * footprint, пересечения комнат, лестницы в комнатах, осевые рёбра дорог,
  * уклоны, опоры под настилом, лимит огней.
+ * @param {object} raw бриф уровня
+ * @param {object} spec схема (`LEVEL_SPEC` для `kind: 'json'`, `LEVEL_SPEC_V2`
+ *   для поворотного города) — структуру и геометрию обязан проверять один и тот
+ *   же набор правил, иначе валидатор пропустил бы поле, которое парсер не читает
  * @returns {{errors:string[], warnings:string[]}}
  */
-export function validateLevel(raw) {
-  const errors = validateSpec(raw);
+export function validateLevel(raw, spec = LEVEL_SPEC) {
+  const errors = validateSpec(raw, spec);
   const warnings = [];
   if (errors.length) return { errors, warnings, geometryOnly: false };
 
@@ -398,6 +434,11 @@ export function validateLevel(raw) {
   // полов, кровель и дверей, что считает парсер, — своя копия этой арифметики
   // разъехалась бы с ним при первой же правке
   const normBuildings = [];
+  // планы домов в мировых осях (OBB для косых) — для проверки «соседями не
+  // пересечься»; собирается всегда, а сравнивается только если в брифе есть
+  // хотя бы один поворот: район из 600 соосных домов сверялся бы по габаритам,
+  // которые и так не пересекаются
+  const planBoxes = [];
   for (const [n, b] of (raw.buildings ?? []).entries()) {
     const label = `buildings[${n}] (${b.id})`;
     const enterable = b.isEnterable !== false;
@@ -418,21 +459,30 @@ export function validateLevel(raw) {
     const fpCells = rasterPoly(fp, cell);
     if (fpCells.size === 0) { errors.push(`${label}: footprint не покрывает ни одной клетки — здания нет`); continue; }
     const bounds = polyBounds(fp);
+    // косой дом: весь план ниже считается в его осях, а в мировой он ставится
+    // поворотом вокруг центра габарита — тем же `frameOf`, что и карта
+    const frame = frameOf(bounds, b.rotation ?? 0);
+    planBoxes.push({
+      label, rotation: b.rotation ?? 0, rotated: !!frame,
+      rects: polyRects(fp).map(r => obbOf(r, frame)),
+    });
     for (const rect of polyRects(fp)) {
+      const o = obbOf(rect, frame);
       for (const rr of groundRects) {
-        if (rectsIntersect(rect, rr.rect, 0.05)) {
-          errors.push(`${label}: часть footprint ${fmtRect(rect)} легла на план наземной дороги ${rr.id} — дом стоит в улице`);
+        if (obbHitsRect(o, rr.rect, 0.05)) {
+          errors.push(`${label}: часть footprint ${fmtRect(rotatedBounds(rect, frame))} легла на план наземной дороги ${rr.id} — дом стоит в улице`);
         }
       }
       // план русла включает дно, берега, сходы и стенки: дом, вставший в него,
       // отнял бы у воды суши, а игрок — дорогу вброд
       for (const c of channelRects) {
-        if (rectsIntersect(rect, c.rect, 0.05)) {
-          errors.push(`${label}: часть footprint ${fmtRect(rect)} легла в русло ${c.id} — дом стоит в воде`);
+        if (obbHitsRect(o, c.rect, 0.05)) {
+          errors.push(`${label}: часть footprint ${fmtRect(rotatedBounds(rect, frame))} легла в русло ${c.id} — дом стоит в воде`);
         }
       }
     }
-    for (const v of [[bounds.minX, bounds.minZ], [bounds.maxX, bounds.maxZ]]) {
+    const outline = rotatedBounds(bounds, frame);
+    for (const v of [[outline.minX, outline.minZ], [outline.maxX, outline.maxZ]]) {
       if (Math.abs(v[0]) > half || Math.abs(v[1]) > half) {
         errors.push(`${label}: выходит за землю (${size} м): точка ${v[0]}, ${v[1]}`);
       }
@@ -531,6 +581,27 @@ export function validateLevel(raw) {
     }
   }
 
+  // --- косые дома: пересечение планов ---
+  // Разрешена только соосная пара (подиум + башня): при одном угле планы
+  // переводятся друг в друга сдвигом, и парсер прорезает кровлю чужим планом
+  // корректно. Разный угол дал бы пересечение, которое в локальных осях дома
+  // не выражается ничем, — кровля под таким домом прорезалась бы его габаритом.
+  // Габарит для проверки не годится: два косых дома могут смотреть друг на
+  // друга углами, а их охватывающие коробки — пересекаться.
+  if (planBoxes.some(b => b.rotated)) {
+    for (const [i, a] of planBoxes.entries()) {
+      for (const b of planBoxes.slice(i + 1)) {
+        if (b.rotation === a.rotation) continue;
+        const hit = a.rects.some(ra => b.rects.some(rb => obbHitsObb(ra, rb, 0.05)));
+        if (hit) {
+          errors.push(`${a.label} и ${b.label}: планы пересекаются при разных rotation `
+            + `(${a.rotation}° и ${b.rotation}°) — косой дом нельзя ни вписать в чужую кровлю, `
+            + 'ни обходить: соосная пара (одинаковый rotation) разрешена');
+        }
+      }
+    }
+  }
+
   // --- переходы (skybridge): у пластины нет опор с земли, её держат здания ---
   // Каждый торец обязан совпасть с отметкой пола комнаты (тогда в переход ведёт
   // её дверь) или с ходовой кровлей (тогда настил примыкает к плите). Без этого
@@ -555,9 +626,12 @@ export function validateLevel(raw) {
       // примыкание меряется проёмом двери, а не её наружным узлом: узел парсер
       // выносит на 1,4 м за фасад (там нога входит в дверь), а пластина кончается
       // у стены — проверять по узлу значило бы требовать перехода длиннее дома
-      const door = normBuildings.some(b => b.doors.some(d => Math.abs(d.y - p.y) <= J.skybridgeFit
+      // косой дом торцом перехода не отпускается: и дверь, и плита кровли лежат
+      // в его осях, поэтому мировой прямоугольник настила сравнивался бы с
+      // локальным планом и согласил бы примыкание там, где его нет
+      const door = normBuildings.some(b => !b.rotation && b.doors.some(d => Math.abs(d.y - p.y) <= J.skybridgeFit
         && rectsIntersect(cap, d.rect, 0.05)));
-      const roof = normBuildings.some(b => b.roof?.walkable === true
+      const roof = normBuildings.some(b => !b.rotation && b.roof?.walkable === true
         && Math.abs(b.roofY - p.y) <= J.skybridgeFit
         && rectsIntersect(cap, b.bounds, 0.05));
       if (!door && !roof) {
