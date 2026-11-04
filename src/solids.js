@@ -89,6 +89,12 @@ export class SolidField {
     this._mark = 0;
     // плоскость «земли» для рейкаста: {y, half} либо null (рельеф без плоскости)
     this.groundPlane = null;
+    /**
+     * Аналитический «пол мира» вместо нуля: `floorAt(x, z) → отметка грунта`.
+     * null — как раньше (улица, город, район из GLB); картой с плавным рельефом
+     * главы ставится поле из `src/relief.js`.
+     */
+    this.floorAt = null;
     // плоские опоры для ходьбы (полы, тротуары, ступени) — заполняет карта
     /** @type {{minX,maxX,minZ,maxZ,y:number}[]} */
     this.surfaces = [];
@@ -129,17 +135,19 @@ export class SolidField {
   }
 
   /**
-   * Ближайшая опорная поверхность не выше fromY + допустимого шага. Пол мира —
-   * ноль: всё, что ниже (яма, подвал), опорой для ходьбы не считается.
+   * Высшая плоская опора (плита пола, тротуар, ступень) не выше
+   * `fromY + stepUp`. `null` — ни одна плита точку не накрывает: карте с
+   * аналитическим грунтом это нужно отличать от «плита на нуле», потому что под
+   * руслом прорезанного склона ноль — не опора, а воздух над дном.
    */
-  groundHeightAt(x, z, fromY = 0) {
+  plateHeightAt(x, z, fromY = 0) {
     const list = this.index.get(this._key(Math.floor(x / this.bucket), Math.floor(z / this.bucket)));
-    let best = 0;
-    if (!list) return best;
+    if (!list) return null;
     const limit = fromY + this.stepUp;
+    let best = null;
     for (const idx of list) {
       const s = this.surfaces[idx];
-      if (s.y <= best || s.y > limit) continue;
+      if ((best !== null && s.y <= best) || s.y > limit) continue;
       if (s.obb) {
         if (pointHitsBox(x, z, s)) best = s.y;
         continue;
@@ -147,6 +155,22 @@ export class SolidField {
       if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) best = s.y;
     }
     return best;
+  }
+
+  /**
+   * Опора под ногами: высшая из плоских плит и «пола мира».
+   *
+   * Полом мира без рельефа был нуль (`plateHeightAt` стартовал с него), теперь
+   * его задаёт `floorAt` — отметка поля под точкой. Плита ниже грунта не мешает
+   * (дом на площадке стоит полом заподлицо со склоном), плита выше — держит ногу,
+   * и предельный шаг `fromY + stepUp` фильтрует именно плиты: грунт в точке —
+   * единственная отметка местности, а не «высшая опора в пределах шага ноги»,
+   * иначе спуск с холма отвечал бы нулём и нога повисла бы над склоном.
+   */
+  groundHeightAt(x, z, fromY = 0) {
+    const plate = this.plateHeightAt(x, z, fromY);
+    const floor = this.floorAt ? this.floorAt(x, z) : 0;
+    return plate === null ? floor : Math.max(plate, floor);
   }
 
   /**

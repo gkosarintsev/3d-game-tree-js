@@ -8,6 +8,7 @@ import {
   arcDelta, arcBankAt,
 } from './geo2d.js';
 import { buildProps } from './props.js';
+import { reliefOf } from './relief.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -89,10 +90,22 @@ export class JsonMap extends SolidField {
     this.stepUp = CONFIG.building.stepUp;
     this.bounds = spec.bounds;
     this.viewHalf = this.half + 24;
+    /**
+     * Плавный рельеф главы (секция `relief`, `src/relief.js`): null у глав без
+     * неё, поэтому весь код ниже — и грунт, и опора, и луч, и решётка навигации —
+     * для них идёт ровно прежней ветвью. Формула поля та же, что у парсера, и
+     * вторая реализация запрещена: отметка ноги и картинка холма обязаны
+     * сходиться на первом же брифе.
+     */
+    this.relief = spec.relief ? reliefOf(spec.relief) : null;
+    // «пол мира — ноль» заменяется отметкой поля: `groundHeightAt` базового
+    // механизма отвечает через этот крючок
+    if (this.relief) this.floorAt = (x, z) => this.relief.heightAt(x, z);
     // земля уровня — общая плоскость: рейкаст вниз опирается на неё, а не на
     // сетку солидов (плит полов под ногами всё равно хватает, но луч из-за
-    // предела высоты должен иметь куда упасть)
-    this.groundPlane = { y: this.groundY, half: this.half };
+    // предела высоты должен иметь куда упасть). С рельефом плоскости нет: грунт
+    // для луча — поле, и `raySolid` марширует по нему сам
+    this.groundPlane = this.relief ? null : { y: this.groundY, half: this.half };
 
     this.buildings = spec.buildings ?? [];
     // Кадр поворота каждого дома (`buildings[].rotation`, v2): null у дома без
@@ -914,9 +927,16 @@ export class JsonMap extends SolidField {
   /**
    * Опора: плоские плиты как у базового механизма, плюс верх наклонных призм —
    * у них нет одной отметки на весь план, поэтому в `surfaces` они не стоят.
+   *
+   * С секцией `relief` «полом мира» становится отметка поля (`floorAt` в
+   * `SolidField`), и она НЕ фильтруется пределом шага: местность в точке —
+   * единственная отметка, а не «высшая опора в пределах ноги». Иначе спуск с
+   * холма отвечал бы нулём, и нога повисла бы над склоном.
    */
   groundHeightAt(x, z, fromY = 0) {
-    const base = super.groundHeightAt(x, z, fromY);
+    const plate = this.plateHeightAt(x, z, fromY);
+    const floor = this.relief ? this.relief.heightAt(x, z) : 0;
+    const base = plate === null ? floor : Math.max(plate, floor);
     // берётся высшая опора в пределах шага ноги, а не просто высшая: на развязке
     // полотно дуги висит над улицей, и её 8 м не должны прятать асфальт под ногой
     const lim = fromY + this.stepUp;
@@ -925,10 +945,13 @@ export class JsonMap extends SolidField {
       if (t !== null && t <= lim && (top === null || t > top)) top = t;
     }
     if (top === null) return base;
-    // в русле «пол мира — ноль» ноги не держит: дно и склон лежат ниже нуля, и
-    // опора там ровно та, что отдаёт призма. Над водой настил моста остаётся
-    // опорой — его отметка приходит в `base` и она выше дна
-    if (this._inChannel(x, z)) return base > 0 ? Math.max(base, top) : top;
+    // в русле «пол мира» (ноль без рельефа, отметка поля с ним) ноги не держит:
+    // грунт там срезан руслом, и опора ровно та, что отдаёт призма дна или схода.
+    // Над водой настил моста остаётся опорой — его плита выше дна
+    if (this._inChannel(x, z)) {
+      const hold = plate !== null && plate > floor ? plate : null;
+      return hold !== null && hold > top ? hold : top;
+    }
     return top > base ? top : base;
   }
 
@@ -947,7 +970,8 @@ export class JsonMap extends SolidField {
    */
   raySolid(ox, oy, oz, dx, dy, dz, maxDist) {
     const len = Math.hypot(dx, dy, dz);
-    const groundIsPhantom = this.holes.length > 0 && len > 1e-9 && dy / len < -1e-9
+    const groundIsPhantom = this.groundPlane && this.holes.length > 0 && len > 1e-9
+      && dy / len < -1e-9
       && this._downwardHitInChannel(ox, oy, oz, dx / len, dy / len, dz / len, maxDist);
     const gp = this.groundPlane;
     if (groundIsPhantom) this.groundPlane = null;
@@ -969,8 +993,58 @@ export class JsonMap extends SolidField {
       const h = raySweep(s, ox, oy, oz, dx, dy, dz);
       if (h && h.dist < limit && (!best || h.dist < best.dist)) best = h;
     }
+    // грунт-поле: у луча, уходящего в холм, нет «плоскости земли», куда ему
+    // упасть, — он обязан остановиться на склоне
+    if (this.relief && len > 1e-9) {
+      const h = this._reliefRay(ox, oy, oz, dx / len, dy / len, dz / len, limit);
+      if (h && (!best || h.dist < best.dist)) best = h;
+    }
     if (!best) return base;
     return { x: best.x, y: best.y, z: best.z, nx: best.nx, ny: best.ny, nz: best.nz, dist: best.dist };
+  }
+
+  /**
+   * Удар луча в поле рельефа: марш шагом `relief.meshCell / 2` по знаку
+   * разности «луч минус грунт», затем половинное деление на найденном интервале.
+   *
+   * Шаг — половина клетки картинки, а не «до первой пробы ниже грунта»: на
+   * пологом склоне луч входит под малым углом и один шаг в клетку мог бы
+   * проскочить бугор целиком. Предел `limit` уже задан сольюдом или призмой,
+   * поэтому марш не тянется на всю землю.
+   *
+   * Аналитика, а не треугольники меша: картинка строится из той же функции по
+   * той же сетке, и расхождение хорды с дугой на радиусах главы — сотые долями
+   * метра (замер — `tests/relief-terrain.test.js`), тогда как вторая копия
+   * поверхности в луче разошлась бы с опорой ноги.
+   */
+  _reliefRay(ox, oy, oz, dx, dy, dz, maxDist) {
+    const step = J.relief.meshCell / 2;
+    const gap = (t) => (oy + dy * t) - this.relief.heightAt(ox + dx * t, oz + dz * t);
+    let prev = gap(0);
+    // шаг считается целым числом проб, а не условием `t <= maxDist` со `min`:
+    // иначе граница отсечки совпадает с первой же пробой и марш обрывается на
+    // первых метрах, оставляя луч без грунта ровно там, где склон пологий
+    const n = Math.max(1, Math.ceil(maxDist / step));
+    for (let i = 1; i <= n; i++) {
+      const tc = Math.min(i * step, maxDist);
+      const cur = gap(tc);
+      if (prev >= 0 && cur < 0) {
+        let lo = tc - step, hi = tc;
+        for (let k = 0; k < 16 && hi - lo > 1e-4; k++) {
+          const mid = (lo + hi) / 2;
+          if (gap(mid) >= 0) lo = mid; else hi = mid;
+        }
+        const x = ox + dx * hi, z = oz + dz * hi;
+        if (Math.abs(x) > this.half || Math.abs(z) > this.half) return null;
+        // русло: грунт в его плане прорезан, и «отметка природы» там — воздух
+        // над водой. Луч обязан идти дальше, к дну, стенке или настилу моста
+        if (this.holes.length && this._inChannel(x, z)) { prev = cur; continue; }
+        const nrm = this.relief.normalAt(x, z);
+        return { x, y: this.relief.heightAt(x, z), z, nx: nrm.x, ny: nrm.y, nz: nrm.z, dist: hi };
+      }
+      prev = cur;
+    }
+    return null;
   }
 
   /** Пересекает ли луч плоскость земли там, где грунт прорезан руслом. */
@@ -1003,7 +1077,29 @@ export class JsonMap extends SolidField {
       // соскользнуть за край — пояс берётся по фактической высоте края
       if (s.rails && pushOutSweepRails(c, r, s)) fromSweep = true;
     }
-    return moved || fromWedge || fromSweep;
+    return moved || fromWedge || fromSweep || this._reliefPush(c, r);
+  }
+
+  /**
+   * Выталкивание тела из грунта-поля: по нормали поля на точном расстоянии до
+   * него. Вертикальный зазор `c.y − h` — это `r / cos уклона`, а не `r` (то же
+   * правило, что у сферы на наклонной пластине), поэтому в уклоне 0,12 тело не
+   * сносит вверх по склону на сантиметр за сантиметром.
+   *
+   * В русле поля нет: грунт там срезан, и над дном держит призма — иначе сфера,
+   * идущая по берегу вброд, всплывала бы на отметку «природы» над водой.
+   */
+  _reliefPush(c, r) {
+    if (!this.relief || (this.holes.length && this._inChannel(c.x, c.z))) return false;
+    const h = this.relief.heightAt(c.x, c.z);
+    const n = this.relief.normalAt(c.x, c.z);
+    const d = (c.y - h) * n.y;
+    if (d >= r) return false;
+    const s = r - d;
+    c.x += n.x * s;
+    c.y += n.y * s;
+    c.z += n.z * s;
+    return true;
   }
 
   // -------------------------------------------------- коллизии габарита и опоры
@@ -1127,6 +1223,21 @@ export class JsonMap extends SolidField {
     const cx = r => (r.minX + r.maxX) / 2;
     const cz = r => (r.minZ + r.maxZ) / 2;
     const put = (text, x, y, z) => out.push({ text, x, y, z });
+
+    // метки рельефа: холм подписывается отметкой ПОСЛЕ площадок (той, что видит
+    // нога), а не высотой из брифа — иначе по метке не найти расхождение поля с
+    // опорой. Площадка показывает свою целевую отметку: у неё ядро ровное, и по
+    // числу видно, встал ли на неё дом
+    if (this.relief) {
+      for (const h of this.relief.hills) {
+        const x = (h.x + h.bx) / 2, z = (h.z + h.bz) / 2;
+        put(`рельеф ${h.id ?? '?'} · ${h.height} м`, x, this.relief.heightAt(x, z) + 2, z);
+      }
+      for (const p of this.relief.pads) {
+        const c = p.frame ? rotatePoint(p.frame, cx(p), cz(p)) : { x: cx(p), z: cz(p) };
+        put(`площадка ${p.id ?? '?'} · ${p.y} м`, c.x, this.relief.heightAt(c.x, c.z) + 2, c.z);
+      }
+    }
 
     for (const b of this.buildings) {
       // центр мировой: у косого дома план лежит в его осях, а метка обязана
@@ -1316,7 +1427,11 @@ export class JsonMap extends SolidField {
       for (let i = 0; i <= n; i++) {
         const x = -this.half + i * step;
         if (this._inBuilding(x, z)) continue;
-        const y = this.groundHeightAt(x, z, this.groundY);
+        // на склоне отсчёт опоры ведётся от местности, а не от `groundY`: плита
+        // тротуара на холме +14 м лежит в пределе шага от поля и обязана быть
+        // принята, иначе узел встал бы на голый склон под ногами
+        const fromY = this.relief ? this.relief.heightAt(x, z) : this.groundY;
+        const y = this.groundHeightAt(x, z, fromY);
         if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) continue;
         row[i] = nav.add(x, y, z, `w:${i}:${j}`);
       }
@@ -1326,10 +1441,56 @@ export class JsonMap extends SolidField {
       for (let i = 0; i <= n; i++) {
         const id = lat[j][i];
         if (id === undefined) continue;
-        if (i > 0 && lat[j][i - 1] !== undefined) this._link(nav, id, lat[j][i - 1]);
-        if (j > 0 && lat[j - 1][i] !== undefined) this._link(nav, id, lat[j - 1][i]);
+        if (i > 0 && lat[j][i - 1] !== undefined) this._linkRise(nav, id, lat[j][i - 1], `x${i}:${j}`);
+        if (j > 0 && lat[j - 1][i] !== undefined) this._linkRise(nav, id, lat[j - 1][i], `z${i}:${j}`);
       }
     }
+  }
+
+  /**
+   * Ребро решётки через склон: перепад соседних узлов обязан остаться в шаге
+   * ноги, иначе `_link` его бракует, и на уклоне круче `stepUp / navStep`
+   * (0,6 м на 6 м = 0,1 м/м, а рельеф главы держит до 0,12) решётка рассыпается
+   * на изолированные полки — `_pruneToSpawn` срезает весь склон, и враг не
+   * доходит между ярусами города.
+   *
+   * Поэтому вдоль такого ребра вставляются промежуточные узлы (тот же приём, что
+   * держит наклонные настилы и марши), а ставится узел только там, где опора есть
+   * и габарит свободен: середина ребра может лечь в план дома или за край откоса,
+   * и тогда цепочка обрывается, а не ведёт врага сквозь стену.
+   */
+  _linkRise(nav, a, b, tag) {
+    const pa = nav.pos[a], pb = nav.pos[b];
+    if (!this.relief || Math.abs(pa.y - pb.y) <= this.stepUp) {
+      this._link(nav, a, b);
+      return;
+    }
+    const keep = this.stepUp * 0.8;
+    const k = Math.max(2, Math.ceil(Math.abs(pa.y - pb.y) / keep));
+    let prev = a;
+    for (let s = 1; s < k; s++) {
+      const t = s / k;
+      const x = pa.x + (pb.x - pa.x) * t;
+      const z = pa.z + (pb.z - pa.z) * t;
+      if (this._inBuilding(x, z)) return;
+      const fromY = this.relief.heightAt(x, z);
+      const y = this.groundHeightAt(x, z, fromY);
+      if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) return;
+      const id = nav.add(x, y, z, `ws:${tag}:${s}`);
+      if (!this._linkOk(nav, prev, id)) return;
+      prev = id;
+    }
+    this._linkOk(nav, prev, b);
+  }
+
+  /** Ребро между двумя узлами, если оно проходит проверки (см. `_link`). */
+  _linkOk(nav, a, b) {
+    const pa = nav.pos[a], pb = nav.pos[b];
+    if (Math.abs(pa.y - pb.y) > this.stepUp) return false;
+    if (!this.bodyClearLine(pa, pb)) return false;
+    if (!this._edgeSupported(pa, pb)) return false;
+    nav.link(a, b);
+    return true;
   }
 
   /**
@@ -1836,11 +1997,7 @@ export class JsonMap extends SolidField {
 
   /** Ребро между двумя узлами: перепад в один шаг, габарит свободен, опора держит. */
   _link(nav, a, b) {
-    const pa = nav.pos[a], pb = nav.pos[b];
-    if (Math.abs(pa.y - pb.y) > this.stepUp) return;
-    if (!this.bodyClearLine(pa, pb)) return;
-    if (!this._edgeSupported(pa, pb)) return;
-    nav.link(a, b);
+    this._linkOk(nav, a, b);
   }
 
   /**
@@ -1931,13 +2088,40 @@ export class JsonMap extends SolidField {
    *
    * Плоскость лежит в XY и смотрит вдоль +Z, а меш поворачивается на −90° вокруг
    * X: мировая ось Z выходит из локальной −Y, мировая высота — из локальной Z.
+   *
+   * С рельефом та же сетка прямоугольников, но вершины берут отметку поля, а
+   * нормали — его аналитический градиент (`normalAt`), а не
+   * `computeVertexNormals`: у совпадающих вершин двух пластин, нарезанных от
+   * разных прямоугольников русла, общий нормальный вектор один и тот же, поэтому
+   * на стыке не появляется световой шов, а картинка остаётся той же поверхностью,
+   * по которой ходит нога и которую видит луч.
    */
   _groundGeo() {
     let rects = [{ minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
     for (const h of this.holes) rects = rects.flatMap(r => subtractRect(r, h));
-    return mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
-      r.maxX - r.minX, r.maxZ - r.minZ,
-    ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0)), false);
+    if (!this.relief) {
+      return mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
+        r.maxX - r.minX, r.maxZ - r.minZ,
+      ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0)), false);
+    }
+    const cell = J.relief.meshCell;
+    return mergeGeometries(rects.map(r => {
+      const g = new THREE.PlaneGeometry(
+        r.maxX - r.minX, r.maxZ - r.minZ,
+        Math.max(1, Math.round((r.maxX - r.minX) / cell)),
+        Math.max(1, Math.round((r.maxZ - r.minZ) / cell)),
+      ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0);
+      const pos = g.attributes.position;
+      const nrm = g.attributes.normal;
+      for (let k = 0; k < pos.count; k++) {
+        const x = pos.getX(k), z = -pos.getY(k);
+        // позиция задаётся относительно `ground.position.y = groundY`
+        pos.setZ(k, this.relief.heightAt(x, z) - this.groundY);
+        const n = this.relief.normalAt(x, z);
+        nrm.setXYZ(k, n.x, -n.z, n.y);
+      }
+      return g;
+    }), false);
   }
 
   /**
@@ -2461,7 +2645,7 @@ export class JsonMap extends SolidField {
   build(scene) {
     this.sceneObjects = [];
     const ground = new THREE.Mesh(
-      this.holes.length ? this._groundGeo() : new THREE.PlaneGeometry(this.width, this.depth),
+      (this.holes.length || this.relief) ? this._groundGeo() : new THREE.PlaneGeometry(this.width, this.depth),
       new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }),
     );
     ground.rotation.x = -Math.PI / 2;
