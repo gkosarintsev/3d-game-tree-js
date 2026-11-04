@@ -1252,8 +1252,10 @@ function profileDistrictStreets(rawRoads, roads, relief, warnings) {
  * плоскости в своей точке (тот же `deckTopAt`, что считает предметы), а не
  * `bottomY` всего пролёта, и колонна короче метра там, где полотно уже легло на
  * грунт, не ставится. Осевая пластина v1 с подъёмом опор не носит (её держат
- * торцы), и опора схода в план наземной улицы проходит молча: там, где съезд
- * перекрыл улицу, пролёт держит себя сам.
+ * торцы), и опора в план наземной улицы проходит молча у любого настила: там,
+ * где полотно перекрыло улицу, пролёт держит себя сам, а дыра в ряду колонн —
+ * картинка перекрёстка, а не потерпанный авторский замысел. В план дома, другого
+ * настила или береговой стенки стойка не встаёт без предупреждения.
  *
  * `water` — отметка дна там, где пролёт идёт над руслом: пятка обязана встать на
  * него, иначе колонна кончалась бы на «нуле пола мира» и висела бы над водой.
@@ -1290,7 +1292,11 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
           }, frameAt(px, pz, yaw));
           const hit = obstacles.find(ob => obbHitsObb(ob.rect, plan, 0.05));
           if (hit) {
-            warnings.push(`${road.id}: опора в ${r3(px)}, ${r3(pz)} попала в ${hit.id} — пропущена`);
+            // то же молчание, что у пластины: стойка в проезжей части не ставится,
+            // и слово о ней не пишется
+            if (hit.kind !== 'road') {
+              warnings.push(`${road.id}: опора в ${r3(px)}, ${r3(pz)} попала в ${hit.id} — пропущена`);
+            }
             continue;
           }
           out.push(makeProp(`pillar_${road.id}_${r3(px)}_${r3(pz)}`, 'concrete_pillar',
@@ -1345,9 +1351,14 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
           ? obstacles.find(ob => obbHitsObb(ob.rect, plan, 0.05))
           : obstacles.find(ob => obbHitsRect(ob.rect, plan, 0.05));
         if (hit) {
-          // съезд перекрывает улицу: колонна в её плане — не ошибка автора, а
-          // свойство перекрёстка, пролёт над асфальтом держит себя сам
-          if (!(d.ramp && hit.kind === 'road')) {
+          // Опора в плане наземной улицы пропускается **молча** — и у съезда, и у
+          // любого настила, в том числе у кольца трассы: колонна в проезжей части
+          // не ошибка автора, а свойство перекрёстка, пролёт над асфальтом держит
+          // себя сам. В план дома или другого настила стойка по-прежнему не встаёт
+          // без слова (замер этапа 3: трасса над районом давала 6…13 таких
+          // предупреждений на сборку, и закоммиченная глава не имела бы права их
+          // нести, хотя геометрия в обоих случаях одинаковая)
+          if (hit.kind !== 'road') {
             warnings.push(`${road.id}: опора в ${r3(p.x)}, ${r3(p.z)} попала в ${hit.id} — пропущена`);
           }
           continue;
@@ -1722,6 +1733,19 @@ function ringSlope(p, field) {
 }
 
 /**
+ * Террасы районов идут в поле рельефа: `blend` — общий для площадки (`relief.plain`),
+ * отметка — собранное на данный момент поле (террасы ставятся ДО нормализации
+ * домов, поэтому пол корпуса берётся из уже выровненного поля).
+ */
+function addDistrictPads(relief, rawBuildings, rawRoads) {
+  // `blend` вставляется ПЕРЕД `yaw`: порядок ключей записи доходит до модуля
+  // главы, и иная сборка (spread в конец) сдвигает его после `yaw` — глава 12
+  // перестаёт сходиться с закоммиченным модулем побайтово.
+  relief.addPads(districtTerraces(rawBuildings, rawRoads, (x, z) => relief.fieldAt(x, z))
+    .map(({ yaw, ...pad }) => ({ ...pad, blend: relief.plain.blend, yaw })));
+}
+
+/**
  * Терраса района: одна площадка на все лоты генератора, а не по островку под
  * каждым домом. 357 корпусов на склоне дают 357 плоских пятачка, чьи кольца
  * перекрывают друг друга, и поле после третьей подгонки расходится с пределом
@@ -1744,12 +1768,24 @@ function ringSlope(p, field) {
  *
  * Порядок групп = порядок записей в брифе, поэтому поле детерминировано.
  *
- * Ставится ДО нормализации домов: пол корпуса берётся из уже выровненного поля, и
- * все лоты района получают одну отметку.
+ * Террасы — **одна арифметика для парсера и генератора** (правило про
+ * `roadRectsOf` в AGENTS.md): съезд трассы (глава 13) обязан привести нос на
+ * полотно, отметку которого посчитает нормализатор, а та равна `y` террасы плюс
+ * `J.streetRise` — внутри площадки поле постоянно, поэтому и `fieldAcross`
+ * (корыто пластины), и хорда прогона дают одно число, и предсказание носа
+ * сходится с собранной главой без предупреждения. Переписать union во второй раз
+ * в `tools/city.js` значило бы разъехаться с парсером при первой же правке.
+ *
+ * @param {object[]} buildings записи брифа (терраса — только у районов, то есть
+ *   у корпусов со служебным полем `district`)
+ * @param {object[]} roads записи брифа (полотна улиц того же района входят в ядро
+ *   террасы, см. выше)
+ * @param {(x:number,z:number)=>number} levelAt отметка поля в центре террасы
+ * @returns {object[]} площадки без `blend` — его добавляет вызывающий
  */
-function addDistrictPads(relief, rawBuildings, rawRoads) {
+export function districtTerraces(buildings, roads, levelAt) {
   const groups = new Map();
-  for (const b of rawBuildings) {
+  for (const b of buildings) {
     if (!b.district) continue;
     let g = groups.get(b.district);
     if (!g) {
@@ -1776,7 +1812,7 @@ function addDistrictPads(relief, rawBuildings, rawRoads) {
   // горб того же размера посреди улицы). Пластина лежит в мировых осях (`yaw` —
   // мировая ориентация), поэтому в локальные оси района её центр и угол
   // разворачиваются тем же кадром, что и планы лотов.
-  for (const r of rawRoads) {
+  for (const r of roads) {
     const g = r.district === undefined ? null : groups.get(r.district);
     if (!g) continue;
     const f = g.frame;
@@ -1808,12 +1844,11 @@ function addDistrictPads(relief, rawBuildings, rawRoads) {
       // локальных осях уехало бы от квартала на sin·диагональ.
       minX: r3(centre.x - hx), maxX: r3(centre.x + hx),
       minZ: r3(centre.z - hz), maxZ: r3(centre.z + hz),
-      y: r3(relief.fieldAt(centre.x, centre.z)),
-      blend: relief.plain.blend,
+      y: r3(levelAt(centre.x, centre.z)),
       yaw: g.frame ? r3(g.frame.deg) : undefined,
     });
   }
-  relief.addPads(pads);
+  return pads;
 }
 
 /**

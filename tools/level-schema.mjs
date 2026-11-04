@@ -312,6 +312,11 @@ export const LEVEL_SPEC_V2 = {
           district: str(),
           grade: num({ min: 0, max: J.maxSlope }),
           crossing: bool(),
+          // служебные поля трассы (`city.track`): петля и съезд различаются по
+          // первому, второй держит id секции — по ним метка `debugIds` подписывает
+          // шов и носы, а сюита считает крылья. В модуль главы не доезжают
+          trackRole: str({ enum: ['ring', 'entry'] }),
+          trackId: str(),
         },
       },
     },

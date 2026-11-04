@@ -13,9 +13,11 @@ import { makeRng } from '../src/rng.js';
 import { arcDelta, r3 } from '../src/geo2d.js';
 import { CONFIG } from '../src/config.js';
 import { reliefOf } from '../src/relief.js';
+import { validateLevel, LEVEL_SPEC_V2 } from './level-schema.mjs';
+import { normalizeLevel } from './normalize-level.mjs';
 import {
-  TRACK_DEFAULTS, TRACK_ARC_MIN, trackSpec, trackCenterline, trackAxisAt, expandCity,
-  trackProfile, trackToes, trackDeckAt,
+  TRACK_DEFAULTS, TRACK_ARC_MIN, TRACK_ARC_SLIVER, trackSpec, trackCenterline, trackAxisAt, expandCity,
+  trackProfile, trackToes, trackDeckAt, trackFittedAt,
 } from './city.js';
 
 const JJ = CONFIG.jsonMap;
@@ -184,10 +186,16 @@ t('контур остаётся простым при дрожи до пред�
         // ломается, и `connect: 'tangent'` отдаст диагональ. Предел дрожи
         // (0,5) подобран так, чтобы скругление переживало срезку `MIN_RUN`
         // на каждом кольце (замер: 880 вершин прогона, худший радиус 8,5 м
-        // при `TRACK_ARC_MIN` 2 м и худший поворот 152,1°)
+        // при `TRACK_ARC_MIN` 2 м и худший поворот 152,1°). Сброс в ноль
+        // легален по двум причинам: тоньше предела схемы (`TRACK_ARC_MIN`) и
+        // короче миллиметровой отметки (`TRACK_ARC_SLIVER`) — тогда вершина
+        // остаётся углом, а две прямые сходятся в неё в одну точку
         for (let i = 0; i < turns; i++) {
-          assert(tr.R[i] >= TRACK_ARC_MIN,
+          assert(tr.R[i] === 0 || tr.R[i] >= TRACK_ARC_MIN,
             `seed ${seed}, jitter ${jitter}, turns ${turns}: вершина ${i} осталась углом (R ${tr.R[i]})`);
+          assert(!tr.R[i] || tr.R[i] * Math.abs(tr.turn[i]) >= TRACK_ARC_SLIVER,
+            `seed ${seed}, jitter ${jitter}, turns ${turns}: дуга вершины ${i} короче ${TRACK_ARC_SLIVER} м`
+            + ` (${(tr.R[i] * Math.abs(tr.turn[i])).toFixed(3)} м при R ${tr.R[i].toFixed(1)})`);
         }
       }
     }
@@ -331,13 +339,16 @@ t('без city.track генератор не берёт ни одной ноты
   assert(!('lot_in_track_band' in statsPlain), 'без трассы появился счётчик коридора');
   assert(!('district_crossed_by_track' in statsPlain), 'без трассы появился счётчик пересечённых районов');
 
-  // дороги района от трассы не зависят: коридор блокирует лоты, но не улицы,
-  // и осевой район остаётся прежним кварталом под поднятым настилом
-  const ids = out => out.roads.map(r => r.id).join(',');
+  // улицы района от трассы не зависят: коридор блокирует лоты, но не улицы, и
+  // осевой район остаётся прежним кварталом под поднятым настилом. Полотно
+  // самой трассы — свои записи (их различает `trackRole`), их в этом сравнении нет
+  const ids = out => out.roads.filter(r => r.district !== undefined).map(r => r.id).join(',');
   const track = LEVEL({ track: { radius: 60, turns: 5, minRadius: 30, entries: 0, amplitude: 1, waves: 1, clearance: 2 } });
   const statsTrack = {};
   const builtTrack = expandCity(structuredClone(track), statsTrack);
   assert(ids(builtPlain) === ids(builtTrack), 'ids улиц района изменились из-за секции track');
+  assert(builtTrack.roads.some(r => r.trackRole === 'ring'), 'кольцо не эмитилось в дороги');
+  assert(!builtPlain.roads.some(r => r.trackRole), 'без city.track в дорогах появилась трасса');
   assert(builtTrack.buildings.length <= builtPlain.buildings.length,
     `с коридором домов больше (${builtTrack.buildings.length} против ${builtPlain.buildings.length})`);
   // и не нуля: коробка коридора обязана оставлять район кварталом. Первая
@@ -588,6 +599,340 @@ t('разброс требования больше, чем петля берё�
     `радиус 240 м не снял отказ: разброс ${ok.profile.spread.toFixed(2)} м при бюджете ${(ok.spec.grade * ok.length / 2).toFixed(2)} м`);
   assert(ok.profile.deck.every((y, i) => y >= ok.profile.need[i] - 1e-12),
     'на длинной петле полотно ушло под требование');
+});
+
+// ------------------------------------------------------------------ эмиссия
+/*
+ * Этап 3: полотно в данных. Всё ниже проверяет уже **записи брифа**, а не
+ * внутренний массив, потому что с этого момента потребители — схема, нормализатор
+ * и движок — видят именно их.
+ */
+
+/** Специя поля главы 12 — тот же бриф, что у собранной главы. */
+const FIELD12_SPEC = {
+  baseY: 0,
+  hills: [
+    { x: -340, z: -135.5, bx: 340, bz: -135.5, radius: 344, height: -7.37 },
+    { x: -340, z: -30.6, bx: 340, bz: -30.6, radius: 172, height: -2.37 },
+    { x: -340, z: -36.2, bx: 340, bz: -36.2, radius: 524, height: 6.05 },
+    { x: -340, z: 46.3, bx: 340, bz: 46.3, radius: 514, height: 3.66 },
+    { x: -340, z: 244.6, bx: 340, bz: 244.6, radius: 360, height: 8.65 },
+  ],
+};
+
+const MILD_SPEC = { baseY: 0, hills: [{ x: -300, z: 0, bx: 300, bz: 0, radius: 400, height: 6 }] };
+
+/** Район в дальнем углу: носам съездов улица под ними не достается. */
+const FAR_BLOCK = { minX: 200, maxX: 290, minZ: 200, maxZ: 290 };
+
+const DEG = Math.PI / 180;
+
+/** Концы элемента полотна в мире и его длина по оси. */
+function deckCaps(el) {
+  if (el.arc) {
+    const a = el.arc, d0 = a.from * DEG, d1 = a.to * DEG;
+    let d = d1 - d0;
+    if (d > Math.PI) d -= 2 * Math.PI;
+    if (d < -Math.PI) d += 2 * Math.PI;
+    const w = Math.sign(d) || 1;
+    return {
+      x0: a.cx + Math.cos(d0) * a.radius, z0: a.cz + Math.sin(d0) * a.radius,
+      x1: a.cx + Math.cos(d1) * a.radius, z1: a.cz + Math.sin(d1) * a.radius,
+      t0x: -Math.sin(d0) * w, t0z: Math.cos(d0) * w,
+      t1x: -Math.sin(d1) * w, t1z: Math.cos(d1) * w,
+      y0: a.y[0], y1: a.y[1], len: a.radius * Math.abs(d), width: a.width, rails: a.rails,
+    };
+  }
+  const pl = el.plate, rad = (pl.yaw ?? 0) * DEG, hx = pl.length / 2;
+  return {
+    x0: pl.x - Math.cos(rad) * hx, z0: pl.z - Math.sin(rad) * hx,
+    x1: pl.x + Math.cos(rad) * hx, z1: pl.z + Math.sin(rad) * hx,
+    t0x: Math.cos(rad), t0z: Math.sin(rad), t1x: Math.cos(rad), t1z: Math.sin(rad),
+    y0: pl.y, y1: pl.y + (pl.rise ?? 0), len: pl.length, width: pl.width, rails: pl.rails,
+  };
+}
+
+function cityLevel(block, over = {}, seed = 20261105) {
+  // голый прямоугольник — это «район где угодно»: id и уклад улиц фикстура
+  // дописывает сама, иначе схема бракует бриф до того, как дойдёт до трассы
+  const district = block.block ? block : {
+    id: 'd0', street: { pitch: 44, width: 14, grade: 0.06 }, block,
+  };
+  return {
+    kind: 'json2',
+    metadata: { levelName: 'проба', name: 'проба', hint: ' ', units: 'meters' },
+    ground: { y: 0, size: 600 },
+    ...(over.relief ? { relief: over.relief } : {}),
+    gameplay: { goal: 'exit', spawn: { x: 0, z: 0 }, exit: { x: 0, z: 0 }, enemies: { count: 1 } },
+    city: {
+      seed,
+      districts: [district],
+      track: { ...TRACK_DEFAULTS, ...(over.track ?? {}) },
+    },
+  };
+}
+
+/** Разворот, точка B на пластине кольца и оба прохода проверки данных. */
+function buildDeck(block, over = {}, seed = 20261105) {
+  const stats = {};
+  const built = expandCity(cityLevel(block, over, seed), stats);
+  const ring = built.roads.find(r => r.trackRole === 'ring');
+  const p = ring.elements.find(el => el.plate).plate;
+  built.gameplay.exit = { x: p.x, z: p.z };
+  const { errors, warnings } = validateLevel(built, LEVEL_SPEC_V2);
+  const norm = normalizeLevel(structuredClone(built));
+  return {
+    built, stats, ring, errors, norm,
+    warnings: [...warnings, ...norm.warnings.map(m => `нормализатор: ${m}`)],
+    entries: built.roads.filter(r => r.trackRole === 'entry'),
+  };
+}
+
+/**
+ * Полотно наземной улицы в точке: нормализатор переписывает отметки прогона по
+ * полю (и по террасе района), поэтому мериТЬ нос надо по `decks` нормализованной
+ * дороги, а не по provisional `y` пластины в развёрнутом брифе — иначе сравнение
+ * видит естественный грунт под кварталом (замер первой версии теста: нос 6,117 м
+ * против «асфальта» 0,120 м на мягкой гряде).
+ */
+function streetTopAt(norm, x, z) {
+  for (const road of norm.map.roads) {
+    if (road.type !== 'ground') continue;
+    for (const d of road.decks ?? []) {
+      if (x < d.minX - 1e-9 || x > d.maxX + 1e-9 || z < d.minZ - 1e-9 || z > d.maxZ + 1e-9) continue;
+      const span = (d.axis === 'x' ? d.maxX - d.minX : d.maxZ - d.minZ);
+      if (span <= 0) return { id: road.id, top: d.topAtMin };
+      const t = ((d.axis === 'x' ? x - d.minX : z - d.minZ) / span);
+      return { id: road.id, top: d.topAtMin + (d.topAtMax - d.topAtMin) * t };
+    }
+  }
+  return null;
+}
+
+/**
+ * Блок, накрывающий оба носа съездов с запасом: носы берутся из сборки, где
+ * района под ними нет, поэтому фикстура не зависит от того, куда сид их поставил.
+ */
+function noseCover(over = {}, seed = 20261105, half = 60) {
+  const far = buildDeck(FAR_BLOCK, over, seed);
+  const pts = far.entries.map(e => {
+    const c = deckCaps(e.elements[e.elements.length - 1]);
+    return { x: c.x1, z: c.z1 };
+  });
+  if (!pts.length) return { far, block: FAR_BLOCK };
+  return {
+    far,
+    block: {
+      id: 'd0',
+      street: { pitch: 44, width: 14, grade: 0.06 },
+      block: {
+        minX: Math.round(Math.min(...pts.map(q => q.x)) - half),
+        maxX: Math.round(Math.max(...pts.map(q => q.x)) + half),
+        minZ: Math.round(Math.min(...pts.map(q => q.z)) - half),
+        maxZ: Math.round(Math.max(...pts.map(q => q.z)) + half),
+      },
+    },
+  };
+}
+
+t('полотно петли в данных: крышки стыкуются вровень, касательная не ломается, уклон в grade', () => {
+  // Два разных допуска, и оба — про представление числа, а не про геометрию:
+  // план крышки восстанавливается из округлённых `x`/`length`/`yaw` (0,5 мм на
+  // координату плюс 1e-3° поворота на конце пролёта — замер: 1,426 мм на 60-й
+  // плите), а отметка в стыке — ОДНО и то же число `fit.v`, поэтому по высоте
+  // требует ровно равенства.
+  const CAP_MM = 2e-3;
+  const MM = 1e-3;
+  const configs = [['дефолт', {}], ['мелкое кольцо', { radius: 80, turns: 8, minRadius: 30 }],
+    ['без дрожи', { curvatureJitter: 0 }], ['дрожащее', { curvatureJitter: 0.49 }],
+    ['крутой профиль', { grade: 0.12, amplitude: 6 }],
+    // «полоса высот»: 6 м при двух волнах — самый высокий гребень, который
+    // держит гейт конфигурации при дефолтном уклоне (amplitude·waves·π ≤
+    // grade·L = 0,08 × 484,509 м, то есть ≤ 12,338 м·волн; 8 × 2 = 16 гейт
+    // бракует, поэтому здесь не больше 6 × 2)
+    ['полоса высот', { amplitude: 6, waves: 2 }]];
+  for (const [label, track] of configs) {
+    const grade = track.grade ?? TRACK_DEFAULTS.grade;
+    for (const seed of [1, 7, 20261105, 42]) {
+      const r = buildDeck(FAR_BLOCK, { track: { ...track, entries: 0 } }, seed);
+      const els = r.ring.elements;
+      assert(els.length >= 6, `${label}/seed ${seed}: элементов ${els.length} — полотно не собралось`);
+      assert(r.errors.length === 0, `${label}/seed ${seed}: схема бракует кольцо: ${r.errors[0]}`);
+      let arcs = 0, plates = 0, worstJoint = 0, worstSlope = 0;
+      for (let i = 0; i < els.length; i++) {
+        const a = deckCaps(els[i]), b = deckCaps(els[(i + 1) % els.length]);
+        const gap = Math.hypot(a.x1 - b.x0, a.z1 - b.z0);
+        worstJoint = Math.max(worstJoint, gap);
+        assert(gap <= CAP_MM, `${label}/seed ${seed}, шов ${i}: крышки разошлись на ${gap.toFixed(6)} м`);
+        // в стыке одно и то же число `fit.v`, но у плиты конец — сумма `y + rise`
+        // двух округлённых величин, поэтому здесь не равенство, а шум
+        // представления (замер: ≤ 1e-16 м); миллиметра на стыке быть не должно
+        assert(Math.abs(a.y1 - b.y0) <= 1e-9,
+          `${label}/seed ${seed}, шов ${i}: ступень по высоте ${Math.abs(a.y1 - b.y0).toFixed(6)} м — крышки взяли разные числа`);
+        const dot = Math.max(-1, Math.min(1, a.t1x * b.t0x + a.t1z * b.t0z));
+        const kink = Math.acos(dot) * 180 / Math.PI;
+        // Верешина без скругления — это угол, и он легален ровно потому, что
+        // `TRACK_ARC_SLIVER` сбрасывает в ноль только почти прямые вершины:
+        // худший из измеренных (мелкое кольцо, seed 1) — 0,663°, дефолт — 0,063°.
+        // Градус — потолок того, что глаз прочитал бы как излом на 10-м полотне
+        assert(kink <= 1, `${label}/seed ${seed}, шов ${i}: излом касательной ${kink.toFixed(3)}°`);
+        if (els[i].arc) arcs++; else plates++;
+        const slope = Math.abs(a.y1 - a.y0) / a.len;
+        worstSlope = Math.max(worstSlope, slope);
+        assert(slope <= grade + 2 * MM / a.len + 1e-12,
+          `${label}/seed ${seed}, элемент ${i}: уклон ${slope.toFixed(5)} м/м круче обещанного ${grade}`);
+        assert(a.len >= TRACK_ARC_SLIVER, `${label}/seed ${seed}, элемент ${i}: пролёт ${a.len.toFixed(3)} м`);
+        assert(a.width === r3(TRACK_DEFAULTS.width), `${label}/seed ${seed}, элемент ${i}: ширина не из брифа`);
+        assert(a.rails === true, `${label}/seed ${seed}, элемент ${i}: перила потерялись`);
+      }
+      assert(arcs >= 3 && plates >= 3, `${label}/seed ${seed}: дуг ${arcs}, плит ${plates} — что-то не эмитилось`);
+      // восстановление крышки из округлённых чисел не имеет права дать дыру,
+      // которую нога заметит: `J.deckJoint` — половина метра, здесь — два
+      // миллиметра наихудшего стыка (замер: 1,426 мм на 60-й плите)
+      assert(worstJoint <= CAP_MM, `${label}/seed ${seed}: худший шов ${worstJoint.toFixed(6)} м`);
+    }
+  }
+});
+
+t('подгонка полотна: хорда держит мажоранту профиля, уклон и разброс остаются в бюджете', () => {
+  for (const seed of SEEDS) {
+    for (const [label, field] of [['равнина', null], ['гряда главы 12', field12]]) {
+      const tr = ringP({}, field, 0, seed);
+      const f = tr.fit, g = tr.spec.grade;
+      assert(f, `${label}/seed ${seed}: подгонка не посчитана`);
+      near(f.m, tr.elements.length, 0, `${label}/seed ${seed}: узлов подгонки против элементов`);
+      for (let k = 0; k < f.m; k++) {
+        near(f.s[k], tr.elements[k].s0, 1e-9, `${label}/seed ${seed}: узел ${k} не на начале элемента`);
+        near(f.v[k], trackFittedAt(tr, f.s[k]), 1e-12, `${label}/seed ${seed}: узел ${k} против своей пробы`);
+        // узлы подгонки не стоят на решётке профиля (шаг 2 м против длины
+        // пролёта), поэтому мерить надо интерполяцией мажоранты в абсциссе узла,
+        // а не ближайшей её пробой: ближайшая проба выше узла на уклоне сама по
+        // себе (замер первой версии этого теста: 3,486 м против пробы 3,503 м)
+        const fine = trackDeckAt(tr, f.s[k]);
+        assert(f.v[k] >= fine - 1e-9,
+          `${label}/seed ${seed}: узел ${k} = ${f.v[k].toFixed(3)} м ушёл под полотно профиля ${fine.toFixed(3)} м`);
+      }
+      // главное обещание: кусочно-линейная крышка нигде не провисает под мажоранту
+      let dip = 0;
+      for (let i = 0; i < 2000; i++) {
+        const s = (i / 2000) * tr.length;
+        dip = Math.max(dip, trackDeckAt(tr, s) - trackFittedAt(tr, s));
+      }
+      assert(dip <= 1e-12, `${label}/seed ${seed}: хорда провисает под полотно на ${dip.toFixed(6)} м`);
+      assert(f.maxSlope <= g + 1e-12,
+        `${label}/seed ${seed}: уклон после подгонки ${f.maxSlope.toFixed(5)} круче grade ${g}`);
+      assert(f.spread <= g * tr.length / 2 + 1e-9,
+        `${label}/seed ${seed}: разброс после подгонки ${f.spread.toFixed(3)} м при бюджете ${(g * tr.length / 2).toFixed(3)} м`);
+      assert(f.liftMax > 0, `${label}/seed ${seed}: подгонка не сняла ни одного прогиба — проба ничего не меряет`);
+      near(trackFittedAt(tr, -3.5), trackFittedAt(tr, tr.length - 3.5), 1e-12, `${label}/seed ${seed}: обход петли`);
+    }
+  }
+});
+
+t('полотно после подгонки не прячется под террасу: нос выше асфальта всегда', () => {
+  // профиль читает поле СО ВСЕМИ террасами, поэтому спуск есть всегда; подиум,
+  // вставший выше полотна, — конфиг, а не случайность сида, и он обязан быть
+  // назван, а не превращён в пластину нулевой длины за гейтом схемы
+  const tr = ringP({ entries: 1 }, null, 0, 20261105);
+  const podium = reliefOf({
+    baseY: 0,
+    pads: [{ id: 'подиум', minX: -300, maxX: 300, minZ: -300, maxZ: 300, y: tr.fit.v[0] + 10, blend: 1 }],
+  });
+  let err = null;
+  try { trackToes(tr, { field: null, streetField: podium, ground: { y: 0, size: 600 } }); }
+  catch (e) { err = String(e.message); }
+  assert(err !== null, 'съезд, начавшийся на 10 м ниже асфальта, прошёл молча');
+  assert(/спускаться нечему/.test(err), `ошибка не называет причину: ${err}`);
+});
+
+t('съезды в данных: одна пластина от кольца до асфальта, торец вровень с улицей', () => {
+  for (const [label, relief] of [['равнина', null], ['мягкая гряда', MILD_SPEC]]) {
+    const cover = noseCover({ relief }, 20261105);
+    const r = buildDeck(cover.block, { relief }, 20261105);
+    assert(r.entries.length === 2, `${label}: съездов ${r.entries.length} при entries 2`);
+    for (const e of r.entries) {
+      assert(e.elements.length === 1 && e.elements[0].plate, `${label}/${e.id}: подъём не пластиной`);
+      const p = e.elements[0].plate;
+      assert(p.rise < 0, `${label}/${e.id}: подъём идёт вверх (${p.rise}) — съезд обязан спускаться`);
+      assert(p.length >= 1, `${label}/${e.id}: пластина ${p.length} м — короче минимума схемы`);
+      const slope = Math.abs(p.rise) / p.length;
+      assert(slope <= JJ.maxSlope, `${label}/${e.id}: уклон ${slope.toFixed(4)} круче предела ${JJ.maxSlope}`);
+      const cap = deckCaps(e.elements[0]);
+      // торец подъёма обязан лежать в плане наземной улицы и вровень с её
+      // окончательным полотном — той же отметкой, которую видит нога
+      const asphalt = streetTopAt(r.norm, cap.x1, cap.z1);
+      assert(asphalt, `${label}/${e.id}: нос ${cap.x1.toFixed(1)}, ${cap.z1.toFixed(1)} не в плане наземной улицы`);
+      assert(Math.abs(asphalt.top - cap.y1) <= JJ.skybridgeFit,
+        `${label}/${e.id}: нос ${cap.y1.toFixed(3)} м против асфальта ${asphalt.top.toFixed(3)} м (${asphalt.id}) — ступень больше допуска ${JJ.skybridgeFit}`);
+    }
+  }
+});
+
+t('нос на асфальте: собранный уровень не несёт ни ошибки, ни предупреждения', () => {
+  for (const [label, relief] of [['равнина', null], ['мягкая гряда', MILD_SPEC]]) {
+    for (const seed of [2, 3, 5, 8]) {
+      const cover = noseCover({ relief }, seed);
+      const r = buildDeck(cover.block, { relief }, seed);
+      assert(r.errors.length === 0, `${label}/seed ${seed}: ошибок ${r.errors.length} — ${r.errors[0]}`);
+      assert(r.warnings.length === 0, `${label}/seed ${seed}: предупреждений ${r.warnings.length} — ${r.warnings[0]}`);
+      assert(r.stats.district_crossed_by_track > 0, `${label}/seed ${seed}: кольцо не пересекло район — фикстура не о том`);
+      assert((r.stats.nose_line_added ?? 0) + (r.stats.nose_line_shifted ?? 0) > 0,
+        `${label}/seed ${seed}: сетка улиц не подавалась под носы: ${JSON.stringify(r.stats)}`);
+      // оценка террасы по центру блока не обязана сойтись с ядром квартала
+      // миллиметр в миллиметр: на гряде 0,05 м/м через 268-й блок ошибка —
+      // десятки дециметров, и residual назван счётчиком. Требование честное:
+      // на равнине их нет вовсе, на рельефе — доли процента проб полотна
+      const under = r.stats.track_deck_under_terrace ?? 0;
+      const limit = label === 'равнина' ? 0 : 20;   // 20 проб из ~400 (5 %)
+      assert(under <= limit,
+        `${label}/seed ${seed}: ${under} проб полотна под террасой при пределе ${limit} — кольцо закопано в насыпь`);
+    }
+  }
+});
+
+t('район не в том месте: свободные носы названы и схемой, и счётчиками', () => {
+  const r = buildDeck(FAR_BLOCK, {}, 2);
+  assert(r.errors.length === 2, `ожидалось два свободных носа, получила ошибок ${r.errors.length}: ${r.errors[0] ?? '—'}`);
+  assert(/не находит наземную улицу/.test(r.errors[0]), `схема назвала не то: ${r.errors[0]}`);
+  assert(r.stats.track_nose_off_street === 2, `счётчик носа вне улицы: ${JSON.stringify(r.stats)}`);
+  assert(r.stats.nose_no_district === 2, `счётчик носа вне района: ${JSON.stringify(r.stats)}`);
+  // обратная сторона: тот же сид, но блок накрывает носы — счётчиков нет
+  const near = buildDeck(noseCover({}, 2).block, {}, 2);
+  assert(!(near.stats.track_nose_off_street > 0) && !(near.stats.nose_no_district > 0),
+    `район под носами, а счётчики остались: ${JSON.stringify(near.stats)}`);
+});
+
+t('оценка террасы против собранной: расхождение названо счётчиком', () => {
+  // район на 268 × 354 м через всю гряду главы 12: ядро террасы поднимает грунт
+  // выше, чем оценка по центру блока, и и нос, и полотно обязаны это показать
+  const cover = noseCover({ relief: FIELD12_SPEC }, 1);
+  const r = buildDeck(cover.block, { relief: FIELD12_SPEC }, 1);
+  assert((r.stats.track_toe_moved ?? 0) > 0,
+    `пролёт съезда не сдвинулся ни на полметра на 300-м блоке: ${JSON.stringify(r.stats)}`);
+  assert((r.stats.track_deck_under_terrace ?? 0) > 0,
+    `полотно не ушло под террасу на крутом поле — проба не настроена: ${JSON.stringify(r.stats)}`);
+  // на равнине тех же счётчиков быть не может
+  const flat = buildDeck(noseCover({}, 1).block, {}, 1);
+  assert(!(flat.stats.track_toe_moved > 0) && !(flat.stats.track_deck_under_terrace > 0),
+    `на равнине счётчики террасы всё равно сработали: ${JSON.stringify(flat.stats)}`);
+});
+
+t('отметки кольца не зависят от районов, пока съездов нет', () => {
+  const a = buildDeck(FAR_BLOCK, { track: { entries: 0 } }, 7);
+  const b = buildDeck({
+    id: 'd0', street: { pitch: 44, width: 14, grade: 0.06 },
+    block: { minX: -250, maxX: -100, minZ: -250, maxZ: -100 },
+  }, { track: { entries: 0 } }, 7);
+  assert(JSON.stringify(a.ring.elements) === JSON.stringify(b.ring.elements),
+    'полотно петли поехало от того, где стоит квартал (при съездах 0 и равнине поле ему не указ)');
+  // и наоборот: рельеф обязан двигать полотно — иначе «поле нужно на шаге 2» ложь
+  const hilly = buildDeck(FAR_BLOCK, { relief: MILD_SPEC, track: { entries: 0 } }, 7);
+  assert(JSON.stringify(hilly.ring.elements) !== JSON.stringify(a.ring.elements),
+    'гряда не повлияла на отметки полотна');
+  // два разных сида — два разных полотна
+  const other = buildDeck(FAR_BLOCK, { track: { entries: 0 } }, 42);
+  assert(JSON.stringify(other.ring.elements) !== JSON.stringify(a.ring.elements),
+    'сид не повлиял на полотно');
 });
 
 console.log(`\n${passed}/${passed + failures.length} проверок зелёные`);

@@ -31,7 +31,7 @@ import {
   AXIS_EPS, pointInPoly, polyEdges, polyRects, r3, rectsIntersect,
   frameAt, rotatePoint, unrotatePoint, rotatedBounds, obbHitsRect, obbHitsObb, obbOf, signedArea,
 } from '../src/geo2d.js';
-import { normalizeBuilding, normalizeRoad, normalizeWaterway, bridgeNoses } from './normalize-level.mjs';
+import { normalizeBuilding, normalizeRoad, normalizeWaterway, bridgeNoses, districtTerraces } from './normalize-level.mjs';
 import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
@@ -575,6 +575,15 @@ const TRACK_MAX_JITTER = 0.5;
  */
 export const TRACK_ARC_MIN = 2;
 
+/**
+ * Наименьшая **длина** дуги, которую ещё есть смысл писать в данные. Отметки
+ * полотна округляются до миллиметра, и на пролёте короче метра это округление
+ * само по себе меняет уклон больше, чем `grade`; кроме того, на такой дуге
+ * переход крена (`J.sweepRibbonTwist`) не помещается. Сброс в ноль делает
+ * вершину углом — см. комментарий в `trackCenterline`.
+ */
+export const TRACK_ARC_SLIVER = 1;
+
 export const trackSpec = t => {
   const out = { ...TRACK_DEFAULTS, ...t };
   const c = Array.isArray(t?.center) ? t.center : TRACK_DEFAULTS.center;
@@ -604,7 +613,7 @@ function trackConfigErrors(track, ground, v2) {
     errors.push(`city.track: ключ '${k}' генератор не читает — кольцо собралось бы без него`);
   }
   if (typeof t.id !== 'string' || !t.id) {
-    errors.push(`city.track.id '${t.id}' — нужен префикс id элементов полотна ('ring_r1', 'ring_c0')`);
+    errors.push(`city.track.id '${t.id}' — нужен префикс id дорог полотна ('ring_ring', 'ring_e0')`);
   }
   if (!Number.isInteger(t.turns) || t.turns < 3) {
     errors.push(`city.track.turns ${track.turns} — нужно целое ≥ 3: у двух вершин петля вырождается в прямую туда и обратно`);
@@ -713,6 +722,13 @@ export function trackCenterline(spec, ctx) {
   // соседние прямые кончались бы в A_i и B_i, разнесённых на `2·T_i`, и в оси
   // появилась бы дыра (замер первой пробы этого этапа: разрыв 0,0127 м в шве и
   // в середине кольца, а коридор над ней — две щели по полотно шириной).
+  //
+  // Тоньше `TRACK_ARC_SLIVER` по **длине** сбрасывается по той же причине и с
+  // той же операцией: раствор почти прямой вершины (дрожь радиуса делает её
+  // 0,2°) даёт дугу в 0,104 м при радиусе 30 м, а отметки полотна пишутся
+  // миллиметрами — на такой длине округление само по себе даёт уклон 0,0868
+  // при обещанном `grade` 0,08 (замер этапа 3). Вершина без скругления — угол,
+  // зато две прямые сходятся в ней в одну точку, а излом в 0,2° глаз не видит.
   const R = [], T = [], A = [], B = [];
   for (let i = 0; i < n; i++) {
     const t = Math.tan(Math.abs(turn[i]) / 2);
@@ -721,7 +737,7 @@ export function trackCenterline(spec, ctx) {
       ? Math.min((edges[(i - 1 + n) % n].L - MIN_RUN) / (2 * t), (edges[i].L - MIN_RUN) / (2 * t))
       : 0;
     let r = t > 0 ? clamp(Math.min(drawn, cap), 0, spec.radius) : 0;
-    if (r < TRACK_ARC_MIN) r = 0;
+    if (r < TRACK_ARC_MIN || r * Math.abs(turn[i]) < TRACK_ARC_SLIVER) r = 0;
     R[i] = r;
     T[i] = r * t;
     A[i] = { x: verts[i].x - edges[(i - 1 + n) % n].ux * T[i], z: verts[i].z - edges[(i - 1 + n) % n].uz * T[i] };
@@ -954,7 +970,107 @@ export function trackProfile(track, field, groundY) {
   }
   const out = { n, step, floor, need, deck, spread, maxSlope, minClear, hang };
   track.profile = out;
+  trackFit(track);
   return out;
+}
+
+/**
+ * Отметки полотна **на стыках элементов**, а не на пробном шаге профиля.
+ *
+ * Пластина и дуга держат ОДНУ прямую на всю свою длину, а мажоранта — ломаная с
+ * переломами каждые 2 м: хорда по концам пролёта проваливается под ломаную
+ * ровно на её выпуклость. Замер первой версии этапа (глава 12 как поле,
+ * `grade 0,08`, дефолтная петля) — худший прогиб 0,957 м, то есть асфальт
+ * закапывался в требование на целый метр. Подъём каждого пролёта на его же
+ * прогиб проблему решает только для него: отметка стыка принадлежит двум
+ * пролётам, и у короткой дуги подъём один, у длинной прямой — другой; замер той
+ * же версии — ступень 0,931 м на стыке элементов 5 и 6, то есть стена в
+ * проезжей части, которую нога не берёт (`CONFIG.jsonMap.stepUp` меньше).
+ *
+ * Поэтому подгоняется сама ломаная: сначала стыки берут отметку полотна, потом
+ * каждый поднятый прогиб добавляется **обоим своим концам** (уклон пролёта не
+ * меняется), и поскольку узел общий, сосед получает подъём не меньше своего.
+ * Один такой проход снимает все прогибы сразу — правки только прибавляют. Затем
+ * уклон приводится к `grade`: узел, опущенный относительно соседа больше, чем
+ * на `grade · длину`, поднимается (relaxation по кругу), и это тоже только
+ * прибавка, поэтому прогибы не возвращаются.
+ *
+ * Разница с профилем — в бюджете: мажоранта на шаге 2 м обязана держать
+ * разброс `need`, а здесь разброс готового fit'а сравнивается с тем же
+ * `grade · L / 2` и перерасход называется ошибкой, а не тихим подъёмом всего
+ * круга.
+ */
+export function trackFit(track) {
+  const spec = track.spec, p = track.profile, els = track.elements;
+  const m = els.length, g = spec.grade;
+  const sNode = [];
+  for (let k = 0, acc = 0; k < m; k++) { sNode.push(acc); acc += els[k].len; }
+  const v = sNode.map(s => trackDeckAt(track, s));
+  // подъём по прогибу хорды: узел получает максимум из прогибов двух своих
+  // пролётов, поэтому каждый пролёт поднимается обоими концами не меньше, чем
+  // на собственный прогиб
+  let liftMax = 0;
+  for (let round = 0; round < 4; round++) {
+    const lift = new Array(m).fill(0);
+    for (let k = 0; k < m; k++) {
+      const s0 = sNode[k], len = els[k].len;
+      const a = v[k], b = v[(k + 1) % m];
+      for (let i = 0; i < p.n; i++) {
+        const s = i * p.step;
+        if (s <= s0 + 1e-9 || s >= s0 + len - 1e-9) continue;
+        const d = p.deck[i] - (a + (b - a) * (s - s0) / len);
+        if (d > lift[k]) lift[k] = d;
+      }
+    }
+    let worst = 0;
+    for (const l of lift) if (l > worst) worst = l;
+    if (worst > liftMax) liftMax = worst;
+    if (worst <= 1e-12) break;
+    for (let k = 0; k < m; k++) v[k] += Math.max(lift[k], lift[(k - 1 + m) % m]);
+  }
+  // предел уклона на стыках: подъём пролёта меняет уклон соседа, и низший конец
+  // пары поднимается до `grade · длину` пролёта. Это тоже прибавка, поэтому
+  // снятые прогибы обратно не возвращаются
+  let changed = true, sweeps = 0;
+  while (changed && sweeps++ < 4 * m) {
+    changed = false;
+    for (let k = 0; k < m; k++) {
+      const j = (k + 1) % m, budget = g * els[k].len;
+      if (v[k] > v[j] + budget + 1e-12) { v[j] = v[k] - budget; changed = true; }
+      else if (v[j] > v[k] + budget + 1e-12) { v[k] = v[j] - budget; changed = true; }
+    }
+  }
+  const lo = Math.min(...v), hi = Math.max(...v), spread = hi - lo;
+  if (spread > g * track.length / 2 + 1e-9) {
+    throw new Error(`city.track «${spec.id}»: петля ${r3(track.length)} м коротка для разброса полотна`
+      + ` ${r3(spread)} м после подгонки хорд (требование ${r3(p.spread)} м, подъём хорд ${r3(liftMax)} м)`
+      + ` при grade ${g} м/м — нужно не менее ${r3(2 * spread / g)} м`);
+  }
+  let maxSlope = 0, dip = 0;
+  for (let k = 0; k < m; k++) {
+    const s0 = sNode[k], len = els[k].len;
+    const a = v[k], b = v[(k + 1) % m];
+    maxSlope = Math.max(maxSlope, Math.abs(b - a) / len);
+    for (let i = 0; i < p.n; i++) {
+      const s = i * p.step;
+      if (s <= s0 + 1e-9 || s >= s0 + len - 1e-9) continue;
+      dip = Math.max(dip, p.deck[i] - (a + (b - a) * (s - s0) / len));
+    }
+  }
+  track.fit = { m, s: sNode, len: els.map(e => e.len), v, spread, liftMax, maxSlope, dip };
+  return track.fit;
+}
+
+/** Отметка **подогнанного** полотна на пройденном расстоянии — та, что уйдёт в данные. */
+export function trackFittedAt(track, s) {
+  const f = track.fit;
+  if (!f) throw new Error('trackFittedAt: подгонка не посчитана — трассе нужен trackProfile до эмиссии');
+  let u = s % track.length;
+  if (u < 0) u += track.length;
+  let k = 0;
+  while (k + 1 < f.m && f.s[k + 1] <= u) k++;
+  const a = f.v[k], b = f.v[(k + 1) % f.m];
+  return a + (b - a) * ((u - f.s[k]) / f.len[k]);
 }
 
 /** Отметка полотна на пройденном расстоянии (линейно между пробами профиля). */
@@ -1000,14 +1116,31 @@ const TRACK_TOE_STEP = 2;
  */
 function trackEntryToe(track, ctx, entry) {
   const spec = track.spec;
-  const top = trackDeckAt(track, entry.s);
+  // Отметка ухода — **подогнанного** полотна, а не ломаной профиля: съезд
+  // прикладывается к кольцу торцом, и если его начало взято с ломаной, на стыке
+  // остаётся ступень ровно в половину прогиба хорды (замер — в комментарии
+  // `trackFit`)
+  const top = trackFittedAt(track, entry.s);
   const slope = spec.grade / entry.runFactor;
-  const level = (x, z) => (ctx.field ? ctx.field.heightAt(x, z) : ctx.ground.y) + J.streetRise;
+  // `ctx.streetField` — поле СО ВСЕМИ террасами районов (до цикла — оценёнными по
+  // блокам, после — по `districtTerraces`): отметка асфальта под носом и есть та,
+  // что отдаст нормализатор. Естественное поле под террасой района на 2…3 м ниже
+  // её ядра, и съезд, найденный по нему, кончался бы в воздухе над кварталом
+  const field = ctx.streetField ?? ctx.field;
+  const level = (x, z) => (field ? field.heightAt(x, z) : ctx.ground.y) + J.streetRise;
   const half = ctx.ground.size / 2;
   // `clearance > J.streetRise` — гейт схемы, поэтому первая проба заведомо
   // выше уровня улицы: спуск есть всегда, и отдельная ветка «съезд стартует из
   // ямы» была бы кодом, который не наступает
   let prev = top - level(entry.x, entry.z);
+  // `clearance > J.streetRise` — гейт схемы для ЕСТЕСТВЕННОГО поля, но терраса
+  // района под кольцом обязана держаться тем же гейтом: если нос стартует уже на
+  // асфальте, спуска нет, и пластина съезда короче минимальных 1 м схемы
+  if (prev < 0.05) {
+    throw new Error(`city.track «${spec.id}»: съезд ${entry.id} начинается с полотна ${r3(top)} м`
+      + ` там, где уровень улицы ${r3(level(entry.x, entry.z))} м — спускаться нечему`
+      + ' (району под кольцом нужна терраса ниже полотна, а кольцу — больший clearance)');
+  }
   // ниже дна плитки полотно уже не встретит грунт: за этот предел считать нечего
   const limit = (top - (ctx.ground.y - 1)) / slope;
   for (let t = TRACK_TOE_STEP; t <= limit + TRACK_TOE_STEP; t += TRACK_TOE_STEP) {
@@ -1062,21 +1195,29 @@ export function trackToes(track, ctx) {
  */
 function buildTrack(city, ctx) {
   const track = trackCenterline(trackSpec(city.track), ctx);
-  trackProfile(track, ctx.field, ctx.ground.y);
+  ctx.streetField = terracedField(ctx, estimateTerraces(city.districts ?? [], ctx));
+  // Профиль читает поле СО ВСЕМИ террасами: район на склоне поднимает площадку
+  // на 2…3 м над естественным полем, и полотно, посчитанное по нему, уходило бы
+  // в тело террасы (замер этапа 3: 9…29 проб из ~400 лежали под террасой меньше
+  // чем на зазор, то есть кольцо проваливалось в насыпь кварталов). Отметка
+  // ядра террасы — та же, что кормит нос съезда, поэтому и там, и здесь поле
+  // одно: `ctx.streetField`
+  trackProfile(track, ctx.streetField ?? ctx.field, ctx.ground.y);
   trackToes(track, ctx);
   // коридор — своим списком, не в `ctx.obstacles`: лот отбраковывается
   // `d.trackBand` со своим счётчиком, а общий список звал бы `lot_blocked` и
   // прятал причину отказа
   for (const e of track.entries) {
     if (ctx.v2) {
-      ctx.noses.push({
+      e.nose = {
         x: e.toe.x, z: e.toe.z, top: e.toe.top, dx: e.dx, dz: e.dz,
         len: e.toe.reach, i: e.n, side: 'min', n: -1,
-        // id, которым съезд будет записан в дороги на этапе 3: район читает из
-        // носа только его (в `serveX/serveZ` счётчики), а валидатор получит
-        // настоящую запись, когда она появится
+        // id, которым съезд будет записан в дороги: район читает из носа только
+        // его (в `serveX/serveZ` счётчики), а валидатор получит настоящую
+        // запись вместе с эмиссией (`trackDecks`)
         road: { id: e.id, type: 'bridge' },
-      });
+      };
+      ctx.noses.push(e.nose);
     }
   }
   for (const d of city.districts ?? []) {
@@ -1085,6 +1226,189 @@ function buildTrack(city, ctx) {
     if (track.band.some(o => obbHitsObb(o.obb, box, 0.05))) ctx.bump('district_crossed_by_track');
   }
   return track;
+}
+
+/**
+ * Оценка террас района ДО цикла районов: блок района и отметка его центра.
+ * Настоящая терраса — союз планов лотов и полотен улиц (её считает
+ * `districtTerraces` в нормализаторе, той же функцией, что и парсер), то есть
+ * квартал чуть уже блока, а её ядро — плоское. Для носа съезда важна именно
+ * отметка ядра, а ошибка «центр блока против центра союза» — сотни долей метра
+ * на поле в 0,05 м/м; без оценки нос искал бы уровень естественного поля под
+ * кварталом и уходил бы на 20…30 м дальше по лучу (терраса выше него ровно на
+ * столько, на сколько район стоит на склоне).
+ */
+function estimateTerraces(districts, ctx) {
+  if (!ctx.reliefSpec) return [];
+  return districts.filter(d => d.block).map(d => {
+    const f = districtFrame(d);
+    const hx = (d.block.maxX - d.block.minX) / 2, hz = (d.block.maxZ - d.block.minZ) / 2;
+    const c = { x: (d.block.minX + d.block.maxX) / 2, z: (d.block.minZ + d.block.maxZ) / 2 };
+    const w = f ? rotatePoint(f, c.x, c.z) : c;
+    return {
+      id: `${d.id}:терраса-оценка`,
+      minX: r3(w.x - hx), maxX: r3(w.x + hx), minZ: r3(w.z - hz), maxZ: r3(w.z + hz),
+      y: r3(ctx.field.heightAt(w.x, w.z)),
+      yaw: f ? r3(f.deg) : undefined,
+    };
+  });
+}
+
+/**
+ * Поле со всеми террасами — тем, по которому нормализатор кладёт асфальт района.
+ * Площадки передаются в `reliefOf` теми же записями, что и в `relief.plain`,
+ * поэтому вес ядра (`padWeight` = 1 внутри rect'а) даёт ровно отметку террасы, а
+ * переходное кольцо — тот же ease, что у собранной главы.
+ */
+function terracedField(ctx, terraces) {
+  if (!ctx.reliefSpec) return null;
+  return reliefOf({
+    ...ctx.reliefSpec,
+    pads: [...(ctx.reliefSpec.pads ?? []), ...terraces],
+  });
+}
+
+/** Пластина наземной улицы, в чей план попадает точка (null — ни одна не накрывает). */
+function streetPlanAt(roads, x, z) {
+  for (const r of roads) {
+    if (r.type !== 'ground') continue;
+    for (const el of r.elements ?? []) {
+      const p = el.plate;
+      if (!p) continue;
+      const rad = (p.yaw ?? 0) * Math.PI / 180;
+      const dx = x - p.x, dz = z - p.z;
+      const u = dx * Math.cos(rad) + dz * Math.sin(rad);
+      const v = -dx * Math.sin(rad) + dz * Math.cos(rad);
+      if (Math.abs(u) <= p.length / 2 && Math.abs(v) <= p.width / 2) return { road: r, plate: p };
+    }
+  }
+  return null;
+}
+
+/**
+ * Полотно трассы в дорогах брифа (этап 3): кольцо — одна дорога `type: 'bridge'`
+ * из дуг скруглений и пластин прямых, съезды — отдельные дороги, чей нос кладёт
+ * на полотно наземной улицы. Отметки пишутся готовые (`y`/`rise`, `y: [y0, y1]`):
+ * `profileDistrictStreets` берёт только улицы района, у которых все элементы —
+ * `plate` без `connect`, поэтому трасса в фит по полю не попадает и второй раз
+ * подгонять её некому. Опоры и фонари считает нормализатор (`bridgePillars`,
+ * `roadLamps`) — те же механизмы, что у глав 11–12.
+ *
+ * Второй проход носа — здесь, а не в `buildTrack`: до цикла районов терраса
+ * квартала только оценена по блоку, а нос обязан встать на ОТМЕТКУ СОБРАННОГО
+ * асфальта, которую парсер возьмёт из настоящей террасы (`districtTerraces`).
+ * Оценкой держится только сетка улиц (ей нужно, куда подавать ряд), и обе отметки
+ * сходятся внутри `J.skybridgeFit`, пока блок района не уехал от носа далеко.
+ *
+ * @param {object} ctx контекст `expandCity` с собранной `track`
+ * @param {object[]} roadsOut сюда ложатся новые записи дорог (те же, что у
+ *   районов)
+ * @param {object[]} allRoads все дороги развёрнутого уровня — авторские плюс
+ *   генерированные: по ним считается терраса района и по ним нос проверяется на
+ *   план улицы, потому что именно этот список увидит схема
+ * @param {object[]} allBuildings то же для корпусов
+ * @param {object[]} districts сырые районы секции `city` — ими нос узнаёт,
+ *   обслужен ли он после второго прохода
+ */
+export function trackDecks(ctx, roadsOut, allRoads, allBuildings, districts) {
+  const track = ctx.track;
+  if (!track) return;
+  const spec = track.spec;
+  const terraces = districtTerraces(allBuildings, allRoads,
+    (x, z) => (ctx.field ? ctx.field.heightAt(x, z) : ctx.ground.y));
+  ctx.streetField = terracedField(ctx, terraces);
+  // блоки районов — по ним нос узнаёт, обслужен ли он (сетка уже отработала, и
+  // второй проход носа мог сдвинуть пятку за квартал)
+  const blocks = districts.filter(d => d.block).map(d => ({
+    box: obbOf(d.block, districtFrame(d)),
+  }));
+
+  for (const e of track.entries) {
+    const before = e.toe.reach;
+    e.toe = trackEntryToe(track, ctx, e);
+    if (Math.abs(e.toe.reach - before) > 0.5) ctx.bump('track_toe_moved');
+    if (e.nose) {
+      e.nose.x = e.toe.x; e.nose.z = e.toe.z; e.nose.top = e.toe.top; e.nose.len = e.toe.reach;
+      e.nose.claimed = blocks.some(b => obbHitsRect(b.box,
+        { minX: e.toe.x, maxX: e.toe.x, minZ: e.toe.z, maxZ: e.toe.z }, 0));
+    }
+    if (!streetPlanAt(allRoads, e.toe.x, e.toe.z)) ctx.bump('track_nose_off_street');
+  }
+
+  // полотно обязано держать зазор НЕ только над естественным полем: терраса
+  // района, вставшая под кольцо, поднимает грунт под настилом выше, чем мерил
+  // `trackProfile`, и тогда под столбами растёт стена, а не улица
+  const p = track.profile;
+  for (let i = 0; i < p.n; i++) {
+    const at = trackAxisAt(track, i * p.step);
+    const ground = ctx.streetField ? ctx.streetField.heightAt(at.x, at.z) : ctx.ground.y;
+    if (trackFittedAt(track, i * p.step) - ground < spec.clearance - 1e-6) ctx.bump('track_deck_under_terrace');
+  }
+
+  roadsOut.push({
+    id: `${spec.id}_ring`, type: 'bridge', width: r3(spec.width), lamps: !!spec.lamps,
+    trackRole: 'ring', trackId: spec.id,
+    elements: trackElements(track),
+  });
+  for (const e of track.entries) {
+    const dx = e.toe.x - e.x, dz = e.toe.z - e.z;
+    roadsOut.push({
+      id: e.id, type: 'bridge', width: r3(spec.width), lamps: !!spec.lamps,
+      trackRole: 'entry', trackId: spec.id,
+      elements: [{
+        plate: {
+          x: r3(e.x + dx / 2), z: r3(e.z + dz / 2),
+          // угол — в тех же градусах, что `yaw` у пластины района и у поворотного
+          // дома; `unrotatePoint` требует объект кадра, а разворот одной пары
+          // синусов здесь стоит дешевле, чем лишняя аллокация на каждый съезд
+          yaw: r3(Math.atan2(dz, dx) * 180 / Math.PI),
+          length: r3(Math.hypot(dx, dz)), width: r3(spec.width),
+          // `y` — верх на НАЧАЛЕ оси, то есть на петле: съезд всегда идёт под
+          // уклон, и `rise` остаётся отрицательным
+          y: r3(e.toe.ringTop), rise: r3(e.toe.top - e.toe.ringTop), rails: !!spec.rails,
+        },
+      }],
+    });
+  }
+}
+
+/**
+ * Элементы полотна петли: дуга скругления и пластина прямой, каждая — со своей
+ * парой отметок из подгонки `trackFit`.
+ *
+ * Отметки берутся с **узлов подгонки**, а не с ломаной профиля: узел принадлежит
+ * обоим своим пролётам, поэтому полотно непрерывно в каждом стыке, а хорда
+ * каждого пролёта держит требование (иначе плита проваливается под ломаную на
+ * 0,96 м — замер в комментарии `trackFit`). Подъём и разброс после подгонки
+ * меряются заново и здесь же: `rise / length` пролёта не смеет превысить
+ * `grade`, которым обещана петля.
+ */
+function trackElements(track) {
+  const spec = track.spec, fit = track.fit, out = [];
+  if (!fit) throw new Error('trackElements: подгонка не посчитана — трассе нужен trackProfile до эмиссии');
+  for (let k = 0; k < track.elements.length; k++) {
+    const el = track.elements[k];
+    const a = r3(fit.v[k]), b = r3(fit.v[(k + 1) % fit.m]);
+    if (el.kind === 'arc') {
+      out.push({
+        arc: {
+          cx: r3(el.cx), cz: r3(el.cz), radius: r3(el.radius),
+          from: r3(el.a0 * 180 / Math.PI), to: r3((el.a0 + el.span) * 180 / Math.PI),
+          width: r3(spec.width), y: [a, b], bank: spec.bank, rails: !!spec.rails,
+        },
+      });
+      continue;
+    }
+    const dx = el.x1 - el.x0, dz = el.z1 - el.z0;
+    out.push({
+      plate: {
+        x: r3(el.x0 + dx / 2), z: r3(el.z0 + dz / 2),
+        yaw: r3(Math.atan2(dz, dx) * 180 / Math.PI),
+        length: r3(el.len), width: r3(spec.width), y: a, rise: r3(b - a), rails: !!spec.rails,
+      },
+    });
+  }
+  return out;
 }
 
 /**
@@ -1119,6 +1443,9 @@ export function expandCity(raw, stats) {
     // брать корыто поля, а не «пол — ноль» (решение владельца, план §2.4).
     // Без секции `relief` — null, и потребители читают `ground.y`
     field: reliefField,
+    // секция `relief` как есть: по ней трасса пересобирает поле С террасами
+    // районов (`terracedField`) — той же функцией, что и нормализатор
+    reliefSpec: raw.relief ? { ...raw.relief, baseY: raw.relief.baseY ?? ground.y } : null,
     // улицы v2 — пластины с перекрёстками и профилем по рельефу; v1 (глава 10)
     // остаётся полосой `points` на одной отметке, поэтому ей нужен явный флаг
     v2: raw.kind === 'json2',
@@ -1139,6 +1466,14 @@ export function expandCity(raw, stats) {
   for (const d of districts) {
     generateDistrict(districtSpec(d), ctx, roads, buildings);
   }
+  // полотно трассы — ПОСЛЕ районов: съезд ищет нос по настоящей террасе
+  // квартала, и её план (`districtTerraces`) считается по уже выпущенным лотам и
+  // улицам. До районов тот же нос стоял на оценке по блоку — ею сетка подавала
+  // ряды под пятку. Списки дорог и корпусов берутся развёрнутыми (авторские +
+  // генерированные): террасу нормализатор считает именно по ним
+  const genRoads = mergeAuthored(raw.roads, roads);
+  const genBuildings = mergeAuthored(raw.buildings, buildings);
+  if (ctx.track) trackDecks(ctx, roads, genRoads, genBuildings, districts);
   // нос, не попавший ни в один блок, обслуживает авторскую улицу (или не
   // обслуживается никем, и валидатор это скажет) — считается один раз, а не
   // «каждым районом, до которого носу далеко»
@@ -1148,7 +1483,7 @@ export function expandCity(raw, stats) {
   return {
     ...rest,
     roads: mergeAuthored(raw.roads, roads),
-    buildings: mergeAuthored(raw.buildings, buildings),
+    buildings: genBuildings,
   };
 }
 
