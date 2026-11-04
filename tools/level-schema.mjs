@@ -502,10 +502,16 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
         errors.push(`${label}: вырожденная площадка (${p.minX}…${p.maxX} × ${p.minZ}…${p.maxZ}) — опора в её ядре нечем не держится`);
       }
       const reach = Math.max(p.blend ?? r.blend ?? J.relief.blend, 0);
-      if (p.minX - reach < -half || p.maxX + reach > half
-        || p.minZ - reach < -half || p.maxZ + reach > half) {
+      // Кольцо обрезано лишь тогда, когда ЯДРО площадки ещё лежит внутри земли:
+      // тогда в кадре остаётся оборванный переход, и его уклон нечем ограничить.
+      // Ядро, дотянутое до самого края, перехода в кадре не имеет вовсе — так
+      // держится коридор поймы, который обязан пересекать карту целиком
+      const cut = (lo, hi, edge) => (edge === 'lo' ? lo - reach < -half : hi + reach > half)
+        && (edge === 'lo' ? lo > -half : hi < half);
+      if (cut(p.minX, p.maxX, 'lo') || cut(p.minX, p.maxX, 'hi')
+        || cut(p.minZ, p.maxZ, 'lo') || cut(p.minZ, p.maxZ, 'hi')) {
         errors.push(`${label}: площадка с переходной зоной ${reach} м выходит за землю ${size} м — `
-          + 'кольцо blend обрезано, и у её края уклон не ограничен');
+          + 'кольцо blend обрезано внутри кадра, и у её края уклон не ограничен');
       }
     }
   }

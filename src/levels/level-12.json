@@ -1,0 +1,984 @@
+{
+  "metadata": {
+    "levelName": "level-12",
+    "name": "Глава 12. Рельефный мегаполис",
+    "hint": "—",
+    "engine": "AI-First Three.js Pipeline",
+    "units": "meters"
+  },
+  "ground": {
+    "y": 0,
+    "size": 600,
+    "color": "#1a1d22"
+  },
+  "windows": {
+    "lit": 0.42
+  },
+  "clutter": {
+    "roof": {
+      "perHouse": 4
+    },
+    "street": {
+      "every": 26
+    }
+  },
+  "signage": {
+    "keep": 0.75,
+    "width": [
+      3.5,
+      6.5
+    ]
+  },
+  "city": {
+    "seed": 20261104,
+    "districts": [
+      {
+        "id": "sind",
+        "name": "Портовая промзона",
+        "style": "industrial",
+        "block": {
+          "minX": -290,
+          "maxX": -100,
+          "minZ": -296,
+          "maxZ": -176
+        },
+        "street": {
+          "pitch": 44,
+          "width": 16,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 13,
+          "inset": 2,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 1,
+          "maxFloors": 5,
+          "floorHeight": 4.6
+        },
+        "tower": {
+          "chance": 0.05,
+          "floors": [
+            12,
+            20
+          ],
+          "floorHeight": 5
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "bar_pair",
+          "cross",
+          "stepped2"
+        ],
+        "enterableEvery": 3,
+        "skip": 0.05,
+        "courtyard": 0.1,
+        "roofs": {
+          "walkable": true,
+          "access": 0.5,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "skit",
+        "name": "Трущобы Ист-сайда",
+        "style": "kitsch",
+        "block": {
+          "minX": 60,
+          "maxX": 290,
+          "minZ": -273,
+          "maxZ": -207
+        },
+        "street": {
+          "pitch": 34,
+          "width": 12,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 10,
+          "inset": 1.5,
+          "merge": 0.5
+        },
+        "height": {
+          "minFloors": 3,
+          "maxFloors": 12,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            16,
+            34
+          ],
+          "floorHeight": 3.9
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "t",
+          "cross",
+          "stepped2",
+          "bar_pair"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": -14,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "nkab",
+        "name": "Кабуки на плато",
+        "style": "slum",
+        "block": {
+          "minX": -280,
+          "maxX": -120,
+          "minZ": 145,
+          "maxZ": 265
+        },
+        "street": {
+          "pitch": 30,
+          "width": 10,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 9,
+          "inset": 1.5,
+          "merge": 0.5
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 7,
+          "floorHeight": 3.1
+        },
+        "tower": {
+          "chance": 0.03,
+          "floors": [
+            10,
+            18
+          ],
+          "floorHeight": 3.4
+        },
+        "archetypes": [
+          "box",
+          "l",
+          "u",
+          "bar_pair",
+          "stepped2",
+          "podium_tower"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.03,
+        "courtyard": 0.2,
+        "yaw": 22,
+        "roofs": {
+          "walkable": true,
+          "access": 0.4,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "ncc",
+        "name": "Корпоративный центр на плато",
+        "style": "corporate",
+        "block": {
+          "minX": -30,
+          "maxX": 230,
+          "minZ": 150,
+          "maxZ": 270
+        },
+        "street": {
+          "pitch": 40,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 10,
+          "inset": 1.5,
+          "merge": 0.5
+        },
+        "height": {
+          "minFloors": 4,
+          "maxFloors": 16,
+          "floorHeight": 3.8
+        },
+        "tower": {
+          "chance": 0.14,
+          "floors": [
+            24,
+            52
+          ],
+          "floorHeight": 4.4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "t",
+          "cross",
+          "stepped2",
+          "stepped3",
+          "podium_tower"
+        ],
+        "enterableEvery": 3,
+        "skip": 0.02,
+        "courtyard": 0.16,
+        "yaw": -8,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      }
+    ]
+  },
+  "waterways": [
+    {
+      "id": "river",
+      "width": 60,
+      "bedY": -4,
+      "surfaceY": -1.5,
+      "bank": "quay",
+      "wade": true,
+      "points": [
+        {
+          "x": -300,
+          "z": -120
+        },
+        {
+          "x": 300,
+          "z": -120
+        }
+      ],
+      "ramps": [
+        {
+          "at": {
+            "x": -260,
+            "z": -125
+          },
+          "width": 6
+        },
+        {
+          "at": {
+            "x": -20,
+            "z": -125
+          },
+          "width": 6
+        },
+        {
+          "at": {
+            "x": 100,
+            "z": -125
+          },
+          "width": 6
+        },
+        {
+          "at": {
+            "x": 260,
+            "z": -125
+          },
+          "width": 6
+        }
+      ]
+    }
+  ],
+  "roads": [
+    {
+      "id": "rd_quay_s",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        {
+          "x": -280,
+          "y": 0.12,
+          "z": -170
+        },
+        {
+          "x": 280,
+          "y": 0.12,
+          "z": -170
+        }
+      ]
+    },
+    {
+      "id": "rd_quay_n",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        {
+          "x": -280,
+          "y": 0.12,
+          "z": -69
+        },
+        {
+          "x": 280,
+          "y": 0.12,
+          "z": -69
+        }
+      ]
+    },
+    {
+      "id": "rd_port_ave",
+      "type": "ground",
+      "width": 8,
+      "lamps": true,
+      "points": [
+        {
+          "x": -20,
+          "y": 0.12,
+          "z": -290
+        },
+        {
+          "x": -20,
+          "y": 0.12,
+          "z": -175
+        }
+      ]
+    },
+    {
+      "id": "rd_low_link",
+      "type": "ground",
+      "width": 8,
+      "lamps": true,
+      "points": [
+        {
+          "x": -90,
+          "y": 0.12,
+          "z": -250
+        },
+        {
+          "x": 50,
+          "y": 0.12,
+          "z": -250
+        }
+      ]
+    },
+    {
+      "id": "rd_plate_ave",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        {
+          "x": -280,
+          "y": 14.644,
+          "z": 118
+        },
+        {
+          "x": -264,
+          "y": 14.827,
+          "z": 118
+        },
+        {
+          "x": -251,
+          "y": 14.885,
+          "z": 118
+        },
+        {
+          "x": -193,
+          "y": 14.696,
+          "z": 118
+        },
+        {
+          "x": -78,
+          "y": 13.86,
+          "z": 118
+        },
+        {
+          "x": -28,
+          "y": 13.324,
+          "z": 118
+        },
+        {
+          "x": -7,
+          "y": 13.19,
+          "z": 118
+        },
+        {
+          "x": 154,
+          "y": 13.195,
+          "z": 118
+        },
+        {
+          "x": 181,
+          "y": 13.341,
+          "z": 118
+        },
+        {
+          "x": 217,
+          "y": 13.704,
+          "z": 118
+        },
+        {
+          "x": 222,
+          "y": 13.634,
+          "z": 118
+        },
+        {
+          "x": 236,
+          "y": 13.193,
+          "z": 118
+        },
+        {
+          "x": 280,
+          "y": 13.184,
+          "z": 118
+        }
+      ]
+    },
+    {
+      "id": "rd_scarp_ave",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        {
+          "x": -160,
+          "y": 0.12,
+          "z": -64
+        },
+        {
+          "x": -160,
+          "y": 0.141,
+          "z": -56
+        },
+        {
+          "x": -160,
+          "y": 0.264,
+          "z": -50
+        },
+        {
+          "x": -160,
+          "y": 0.575,
+          "z": -43
+        },
+        {
+          "x": -160,
+          "y": 0.996,
+          "z": -37
+        },
+        {
+          "x": -160,
+          "y": 1.767,
+          "z": -29
+        },
+        {
+          "x": -160,
+          "y": 3.55,
+          "z": -14
+        },
+        {
+          "x": -160,
+          "y": 4.071,
+          "z": -9
+        },
+        {
+          "x": -160,
+          "y": 6.27,
+          "z": 20
+        },
+        {
+          "x": -160,
+          "y": 7.594,
+          "z": 36
+        },
+        {
+          "x": -160,
+          "y": 8.523,
+          "z": 45
+        },
+        {
+          "x": -160,
+          "y": 11.076,
+          "z": 68
+        },
+        {
+          "x": -160,
+          "y": 12.35,
+          "z": 81
+        },
+        {
+          "x": -160,
+          "y": 13.009,
+          "z": 89
+        },
+        {
+          "x": -160,
+          "y": 13.56,
+          "z": 97
+        },
+        {
+          "x": -160,
+          "y": 14,
+          "z": 105
+        },
+        {
+          "x": -160,
+          "y": 14.334,
+          "z": 113
+        }
+      ]
+    },
+    {
+      "id": "br_west",
+      "type": "bridge",
+      "width": 12,
+      "lamps": true,
+      "elements": [
+        {
+          "plate": {
+            "x": -192,
+            "z": -150,
+            "yaw": 90,
+            "length": 30,
+            "width": 12,
+            "y": 0.12,
+            "rise": 2.88,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -192,
+            "z": -119.75,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": 0,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -192,
+            "z": -89.25,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": -2.88,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "br_mid",
+      "type": "bridge",
+      "width": 12,
+      "lamps": true,
+      "elements": [
+        {
+          "plate": {
+            "x": 60,
+            "z": -150,
+            "yaw": 90,
+            "length": 30,
+            "width": 12,
+            "y": 0.12,
+            "rise": 2.88,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 60,
+            "z": -119.75,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": 0,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 60,
+            "z": -89.25,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": -2.88,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "br_east",
+      "type": "bridge",
+      "width": 12,
+      "lamps": true,
+      "elements": [
+        {
+          "plate": {
+            "x": 170,
+            "z": -150,
+            "yaw": 90,
+            "length": 30,
+            "width": 12,
+            "y": 0.12,
+            "rise": 2.88,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 170,
+            "z": -119.75,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": 0,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 170,
+            "z": -89.25,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": -2.88,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "rd_fly_e",
+      "type": "bridge",
+      "width": 8,
+      "lamps": false,
+      "elements": [
+        {
+          "plate": {
+            "x": -60,
+            "z": -141,
+            "yaw": 90,
+            "length": 48,
+            "width": 8,
+            "y": 0.12,
+            "rise": 2.16,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": -100,
+            "yaw": 90,
+            "length": 34,
+            "width": 8,
+            "y": 2.28,
+            "rise": 1.53,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": -66.5,
+            "yaw": 90,
+            "length": 33,
+            "width": 8,
+            "y": 3.81,
+            "rise": 1.485,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": -35,
+            "yaw": 90,
+            "length": 30,
+            "width": 8,
+            "y": 5.295,
+            "rise": 1.35,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": 0,
+            "yaw": 90,
+            "length": 40,
+            "width": 8,
+            "y": 6.645,
+            "rise": 1.8,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": 40,
+            "yaw": 90,
+            "length": 40,
+            "width": 8,
+            "y": 8.445,
+            "rise": 2.042,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": 86.5,
+            "yaw": 90,
+            "length": 53,
+            "width": 8,
+            "y": 10.487,
+            "rise": 3.18,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "rd_x_east",
+      "type": "bridge",
+      "width": 8,
+      "lamps": false,
+      "elements": [
+        {
+          "plate": {
+            "x": 262.334,
+            "z": -53.765,
+            "yaw": 133.364,
+            "length": 28.156,
+            "width": 8,
+            "y": 0.12,
+            "rise": 1.23,
+            "rails": true
+          }
+        },
+        {
+          "arc": {
+            "cx": 187.236,
+            "cz": -105.326,
+            "radius": 90,
+            "width": 8,
+            "from": 43.363,
+            "to": 70.067,
+            "y": [
+              1.35,
+              2.772
+            ],
+            "bank": 6,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 203.026,
+            "z": -15.317,
+            "yaw": 160.067,
+            "length": 31.682,
+            "width": 8,
+            "y": 2.772,
+            "rise": 1.243,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 175.95,
+            "z": -5.498,
+            "yaw": 160.068,
+            "length": 25.922,
+            "width": 8,
+            "y": 4.015,
+            "rise": 0.685,
+            "rails": true
+          }
+        },
+        {
+          "arc": {
+            "cx": 197.857,
+            "cz": 92.93,
+            "radius": 100,
+            "width": 8,
+            "from": -109.933,
+            "to": -130.156,
+            "y": [
+              4.699,
+              6.027
+            ],
+            "bank": 6,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 101.919,
+            "z": 43.038,
+            "yaw": 139.844,
+            "length": 82.302,
+            "width": 8,
+            "y": 6.027,
+            "rise": 4.146,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 44.734,
+            "z": 91.288,
+            "yaw": 139.844,
+            "length": 67.339,
+            "width": 8,
+            "y": 10.173,
+            "rise": 3.018,
+            "rails": true
+          }
+        }
+      ]
+    }
+  ],
+  "buildings": [],
+  "landscapeObjects": [],
+  "lights": [
+    {
+      "id": "moon",
+      "type": "directional",
+      "position": {
+        "x": 120,
+        "y": 220,
+        "z": 80
+      },
+      "color": "#bcd0ff",
+      "intensity": 0.55
+    }
+  ],
+  "sky": {
+    "sky": "#0b1020",
+    "fog": {
+      "color": "#0e1424",
+      "near": 40,
+      "far": 320
+    },
+    "hemi": {
+      "sky": "#1b2a44",
+      "ground": "#0a0d12",
+      "intensity": 0.4
+    },
+    "lights": {
+      "count": 8,
+      "reach": 60,
+      "height": 5.4,
+      "spacing": 20,
+      "intensity": 70
+    }
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -200,
+      "z": -160
+    },
+    "exit": {
+      "x": 230,
+      "z": 240
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 8
+    },
+    "alienEnemies": {
+      "count": 2
+    }
+  },
+  "relief": {
+    "baseY": 0,
+    "hillMaxSlope": 0.06,
+    "maxSlope": 0.12,
+    "blend": 14,
+    "hills": [
+      {
+        "id": "basin_lowland",
+        "x": -340,
+        "z": -135.5,
+        "bx": 340,
+        "bz": -135.5,
+        "radius": 344,
+        "height": -7.37
+      },
+      {
+        "id": "trough_foot",
+        "x": -340,
+        "z": -30.6,
+        "bx": 340,
+        "bz": -30.6,
+        "radius": 172,
+        "height": -2.37
+      },
+      {
+        "id": "scarp_south",
+        "x": -340,
+        "z": -36.2,
+        "bx": 340,
+        "bz": -36.2,
+        "radius": 524,
+        "height": 6.05
+      },
+      {
+        "id": "plateau_bench",
+        "x": -340,
+        "z": 46.3,
+        "bx": 340,
+        "bz": 46.3,
+        "radius": 514,
+        "height": 3.66
+      },
+      {
+        "id": "plateau_crest",
+        "x": -340,
+        "z": 244.6,
+        "bx": 340,
+        "bz": 244.6,
+        "radius": 360,
+        "height": 8.65
+      },
+      {
+        "id": "ridge_far_north",
+        "x": -340,
+        "z": 363.8,
+        "bx": 340,
+        "bz": 363.8,
+        "radius": 185,
+        "height": 3.61
+      }
+    ],
+    "pads": [
+      {
+        "id": "lowland_port",
+        "minX": -300,
+        "maxX": 300,
+        "minZ": -300,
+        "maxZ": -60,
+        "y": 0
+      }
+    ]
+  },
+  "kind": "json2"
+}
