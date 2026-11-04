@@ -595,7 +595,7 @@ function normalizeRoad(road, ground) {
       bottomY: r3(top - J.deckThickness),
       topAtMin: r3(topLo),
       topAtMax: r3(topHi),
-      ramp: Math.abs(topHi - topLo) > 0.01,
+      ramp: Math.abs(topHi - topLo) > J.rampEps,
     });
   }
 
@@ -681,7 +681,7 @@ function normalizeArc(a) {
     bottomY: r3(lo - J.deckThickness),
     topAtMin: lo,
     topAtMax: hi,
-    ramp: Math.abs(y1 - y0) > 0.01,
+    ramp: Math.abs(y1 - y0) > J.rampEps,
     rails: !!a.rails,
   };
 }
@@ -838,7 +838,7 @@ function normalizeRoadElements(road) {
       bottomY: r3(top - J.deckThickness),
       topAtMin: topLo,
       topAtMax: topHi,
-      ramp: Math.abs(topHi - topLo) > 0.01,
+      ramp: Math.abs(topHi - topLo) > J.rampEps,
       rails: !!pl.rails,
     });
   }

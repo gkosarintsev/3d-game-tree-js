@@ -547,8 +547,11 @@ export class JsonMap extends SolidField {
           continue;
         }
         const frame = this._deckFrame(d);
-        // знак разницы — направление подъёма: спуск с пролёта тоже наклонный
-        if (Math.abs(d.topAtMax - d.topAtMin) > 0.01) this._incline(d, frame);
+        // знак разницы — направление подъёма: спуск с пролёта тоже наклонный.
+        // Порог общий с нормализатором (`J.rampEps`): подъём меньше него лист
+        // получает плоским и в данных, иначе `topAtMin/topAtMax` обещали бы
+        // наклон, которого нет ни в картинке, ни в опоре
+        if (Math.abs(d.topAtMax - d.topAtMin) > J.rampEps) this._incline(d, frame);
         else this._box(this._deckPlan(d, frame), d.bottomY, d.topY, 'decks', { surface: true, frame });
         if (d.rails) this._deckRails(d, frame);
         this.deckPlates.push({ ...d, road: road.id, roadType: road.type });
