@@ -952,6 +952,16 @@ t('v1 заморожен: rotation у дома и elements у дороги — �
   const e3 = validateLevel(framed).errors;
   assert(e3.some(x => /buildings\[0\]\.districtFrame: поле не описано в схеме/.test(x)),
     `districtFrame принят v1-схемой: ${e3[0] || 'ошибок нет'}`);
+
+  // служебные поля улиц генератора (район, профиль, перекрёсток) — тоже v2:
+  // v1-глава с таким брифом собралась бы плоской улицей без перекрёстков
+  const svc = structuredClone(rawLevel);
+  svc.roads[0].crossing = true;
+  svc.roads[0].grade = 0.05;
+  const e4 = validateLevel(svc).errors;
+  assert(e4.some(x => /roads\[0\]\.crossing: поле не описано в схеме/.test(x))
+    && e4.some(x => /roads\[0\]\.grade: поле не описано в схеме/.test(x)),
+    `служебные поля улицы приняты v1-схемой: ${e4.slice(0, 2).join(' | ') || 'ошибок нет'}`);
 });
 
 t('v1 заморожен: relief, yaw района, полигон и профиль улицы — чужие поля для v1', () => {
@@ -2166,12 +2176,16 @@ function polyDist(poly, x, z) {
 }
 
 /** Концы и углы пластины в локальных осях района — по её же `yaw`, без копии формулы движка. */
-function plateCorners(p) {
+function plateCornersIn(frame, p) {
   const k = p.yaw * Math.PI / 180;
   const ax = Math.cos(k) * p.length / 2, az = Math.sin(k) * p.length / 2;
   const bx = -Math.sin(k) * p.width / 2, bz = Math.cos(k) * p.width / 2;
   return [[ax + bx, az + bz], [ax - bx, az - bz], [-ax + bx, -az + bz], [-ax - bx, -az - bz]]
-    .map(([dx, dz]) => unrotatePoint(SKEW_FRAME, p.x + dx, p.z + dz));
+    .map(([dx, dz]) => (frame ? unrotatePoint(frame, p.x + dx, p.z + dz) : { x: p.x + dx, z: p.z + dz }));
+}
+
+function plateCorners(p) {
+  return plateCornersIn(SKEW_FRAME, p);
 }
 
 t('косой район: улицы — пластины вдоль своих осей, дома — неразвёрнутые планы с rotation', () => {
@@ -2179,8 +2193,16 @@ t('косой район: улицы — пластины вдоль своих 
   const skew = expanded.roads.filter(r => r.id.startsWith('a_'));
   const flat = expanded.roads.filter(r => r.id.startsWith('b_'));
   assert(skew.length >= 4, `косых улиц ${skew.length}, ожидалось не меньше четырёх`);
-  assert(flat.every(r => r.points && !r.elements), 'соосный район уехал в пластины');
-  for (const r of skew) {
+  // в v2 пластиной стал ЛЮБОЙ прогон, а не только косой: у `points`-улицы нет
+  // `y` и `rise` на элемент, значит полотно не ляжет на профиль рельефа (этап 6).
+  // Осевой район при этом остаётся осевым — его пластины стоят на 0° и 90°
+  assert(flat.every(r => !r.points && r.elements), `соосный район v2 остался полосой points`);
+  for (const r of flat) {
+    const yaw = ((r.elements[0].plate.yaw % 180) + 180) % 180;
+    assert(Math.abs(yaw) < 1e-6 || Math.abs(yaw - 90) < 1e-6,
+      `улица ${r.id}: пластина осевого района повёрнута на ${r.elements[0].plate.yaw}°`);
+  }
+  for (const r of skew.filter(x => !/_x\d+_\d+$/.test(x.id))) {
     eq(r.elements.length, 1, `улица ${r.id}: пластин ${r.elements.length}, а прогон один`);
     const p = r.elements[0].plate;
     const cs = plateCorners(p);
@@ -2309,6 +2331,154 @@ t('полигон района режет улицы по краю и отбра
   assert(lengths.length < plain.roads.filter(r => r.id.startsWith('a_')).length,
     `граница не убрала ни одного прогона: ${lengths.join(', ')}`);
   assert(Math.max(...lengths) < 120, `ни один прогон не укоротился: ${lengths.join(', ')}`);
+});
+
+// ------------------------------------------- перекрёстки улиц (этап 6a, v2)
+
+/** План настила нормализованной записи: точный четырёхугольник, а не габарит. */
+function deckPlan(d) {
+  if (d.obb) {
+    const o = d.obb;
+    const p = (sx, sz) => ({ x: o.cx + o.hx * sx * o.c - o.hz * sz * o.s, z: o.cz + o.hx * sx * o.s + o.hz * sz * o.c });
+    return [p(-1, -1), p(-1, 1), p(1, 1), p(1, -1)];
+  }
+  return [
+    { x: d.minX, z: d.minZ }, { x: d.maxX, z: d.minZ },
+    { x: d.maxX, z: d.maxZ }, { x: d.minX, z: d.maxZ },
+  ];
+}
+
+/**
+ * Площадь пересечения двух выпуклых планов (Sutherland–Hodgman). Габарит для
+ * этого неприменим: у косого района 120-метровый прогон шириной 12 м даёт
+ * коробку 122 × 44 м, и две параллельные улицы «пересекались» бы на 1102 м²,
+ * не имея общего метра асфальта.
+ */
+function planOverlap(subject, clip) {
+  let out = subject;
+  for (let i = 0; i < clip.length && out.length; i++) {
+    const a = clip[i], b = clip[(i + 1) % clip.length];
+    const side = p => (b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x);
+    const src = out;
+    out = [];
+    for (let k = 0; k < src.length; k++) {
+      const p = src[k], q = src[(k + 1) % src.length];
+      const sp = side(p), sq = side(q);
+      if (sp >= 0) out.push(p);
+      if ((sp >= 0) !== (sq >= 0)) {
+        const t = sp / (sp - sq);
+        out.push({ x: p.x + t * (q.x - p.x), z: p.z + t * (q.z - p.z) });
+      }
+    }
+  }
+  let s = 0;
+  for (let i = 0; i < out.length; i++) {
+    const a = out[i], b = out[(i + 1) % out.length];
+    s += a.x * b.z - b.x * a.z;
+  }
+  return Math.abs(s) / 2;
+}
+
+t('перекрёстки: прогон обрывается у борта перекрёстка, со-плоскостных наложений нет', () => {
+  const expanded = expandCity(skewRaw());
+  const level = normalizeLevel(expanded);
+  const decks = level.map.roads.filter(r => r.type === 'ground')
+    .flatMap(r => r.decks.map(d => ({ id: r.id, d })));
+  // было 25 пар и 3600 м² наложений на этом же фикстуре (замер `probe/stage6b.mjs`),
+  // 158 пар и 24 367 м² в главе 10: встречные полосы лежали одной плоскостью
+  const bad = [];
+  for (let i = 0; i < decks.length; i++) {
+    for (let k = i + 1; k < decks.length; k++) {
+      const A = decks[i].d, B = decks[k].d;
+      if (Math.abs(A.topY - B.topY) > 0.01) continue;
+      const s = planOverlap(deckPlan(A), deckPlan(B));
+      if (s > 0.01) bad.push(`${decks[i].id}×${decks[k].id} — ${s.toFixed(1)} м²`);
+    }
+  }
+  eq(bad.length, 0, `настилы легли один на другой: ${bad.slice(0, 4).join(', ')}`);
+
+  // перекрёсток — отдельная запись: её видно в `?debug=1` и можно править
+  const nodes = expanded.roads.filter(r => r.crossing);
+  assert(nodes.length >= 6, `перекрёстков ${nodes.length}, ожидалось не меньше шести`);
+  eq(new Set(nodes.map(n => n.id)).size, nodes.length, 'id перекрёстков повторяются');
+  for (const n of nodes) {
+    assert(/^._x\d+_\d+$/.test(n.id), `перекрёсток без имени пары осей: ${n.id}`);
+    const p = n.elements[0].plate;
+    eq(p.length, p.width, `перекрёсток ${n.id}: пластина ${p.length}×${p.width} — не квадрат проезжей части`);
+    eq(n.lamps, false, `перекрёсток ${n.id}: фонарь посреди перекрёстка`);
+    eq(n.type, 'ground', `перекрёсток ${n.id}: наземная часть уехала из 'ground'`);
+    // граница района в фикстуре задана только косому кварталу 'a'; район 'b'
+    // остаётся прямоугольником блока
+    if (!n.id.startsWith('a_')) continue;
+    for (const c of plateCorners(p)) {
+      assert(pointInPoly(SKEW_POLY, c.x, c.z), `перекрёсток ${n.id}: угол выставлен за границу района`);
+    }
+  }
+
+  // вдоль каждой оси пластины стыкуются впритык: ни щели, ни наложения. Разрыв
+  // был бы ступенью на асфальте, наложение — тем же миганием z-buffer, из-за
+  // которого перекрёстки и режут. Прогон живёт в своём ряду, перекрёсток — в оба
+  // ряда, чьи оси пересекает его план: у квадратной пластины интервал вдоль `u`
+  // нужен ряду `z = v`, а интервал вдоль `v` — ряду `x = u`. Оси рядов берутся из
+  // прогонов (перекрёсток осевой линии не задаёт), допуск 0,05 м — на
+  // миллиметровое округрование координат пластин и обратный ход мир → оси района
+  const jointReport = (prefix, frame, deg) => {
+    const localRects = expanded.roads.filter(x => x.id.startsWith(prefix)).map(r => {
+      const p = r.elements[0].plate;
+      const cs = plateCornersIn(frame, p);
+      // ориентация пластины известна из её же угла: прогоны вдоль `u` идут по оси
+      // `x`, прогоны вдоль `v` — по оси `z`, перекрёсток квадратный и попадает в
+      // оба ряда. Без этого длинный прогон попада́л в поперечный ряд, потому что
+      // его план накрывает все оси вдоль себя
+      const localYaw = (((p.yaw - deg) % 180) + 180) % 180;
+      return {
+        id: r.id,
+        kind: r.crossing ? 'node' : (Math.abs(localYaw - 90) < 1e-3 ? 'z' : 'x'),
+        u: [Math.min(...cs.map(c => c.x)), Math.max(...cs.map(c => c.x))],
+        v: [Math.min(...cs.map(c => c.z)), Math.max(...cs.map(c => c.z))],
+      };
+    });
+    const axisLines = along => {
+      const out = [];
+      for (const q of localRects) {
+        if (q.kind !== along) continue;
+        const lat = along === 'x' ? (q.v[0] + q.v[1]) / 2 : (q.u[0] + q.u[1]) / 2;
+        if (!out.some(t => Math.abs(t - lat) <= 0.05)) out.push(lat);
+      }
+      return out;
+    };
+    let joints = 0, rows = 0;
+    for (const [along, lines] of [['x', axisLines('x')], ['z', axisLines('z')]]) {
+      for (const lat of lines) {
+        const list = [];
+        for (const q of localRects) {
+          if (q.kind !== 'node' && q.kind !== along) continue;
+          const [own, other] = along === 'x' ? [q.u, q.v] : [q.v, q.u];
+          if (other[0] - 0.05 <= lat && lat <= other[1] + 0.05) list.push({ id: q.id, from: own[0], to: own[1] });
+        }
+        if (list.length < 2) continue;
+        rows++;
+        list.sort((a, b) => a.from - b.from);
+        for (let i = 1; i < list.length; i++) {
+          joints++;
+          close(list[i].from, list[i - 1].to, 0.05,
+            `район ${prefix}, ряд ${along}:${r3(lat)}: между ${list[i - 1].id} (${r3(list[i - 1].to)}) `
+            + `и ${list[i].id} (${r3(list[i].from)}) разрыв`);
+        }
+      }
+    }
+    return { joints, rows };
+  };
+  const skewJoints = jointReport('a_', SKEW_FRAME, SKEW_YAW);
+  const flatJoints = jointReport('b_', null, 0);
+  assert(skewJoints.rows >= 3, `рядов косого района со стыками ${skewJoints.rows}: сетка не разрезана`);
+  assert(flatJoints.rows >= 8, `рядов осевого района со стыками ${flatJoints.rows}: перекрёстки появились только в косом`);
+  assert(skewJoints.joints + flatJoints.joints >= 40,
+    `стыков ${skewJoints.joints + flatJoints.joints}: улицы не разрезаны на прогоны и перекрёстки`);
+
+  // заморозка v1: там перекрёстков нет и улица остаётся полосой `points`
+  const v1 = expandCity(structuredClone(CITY_RAW));
+  assert(v1.roads.every(r => r.points && !r.crossing), 'глава json уехала в пластины и перекрёстки');
 });
 
 t('район без yaw и с yaw = 0 собираются одинаково: осевая ветка не тронута', () => {

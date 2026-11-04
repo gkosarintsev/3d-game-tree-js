@@ -355,12 +355,14 @@ const CITY_KEYS = ['seed', 'districts'];
 const DISTRICT_KEYS = ['id', 'name', 'style', 'block', 'street', 'lot', 'height',
   'tower', 'archetypes', 'enterableEvery', 'skip', 'courtyard', 'roofs', 'yaw', 'polygon'];
 const DISTRICT_SECTION_KEYS = {
-  street: ['pitch', 'width'],
+  street: ['pitch', 'width', 'grade'],
   lot: ['pitch', 'inset', 'merge'],
   height: ['minFloors', 'maxFloors', 'floorHeight'],
   tower: ['chance', 'floors', 'floorHeight'],
   roofs: ['walkable', 'access', 'parapet'],
 };
+/** Поля секций района, живущие только в v2 (см. `V2_DISTRICT_KEYS`). */
+const V2_DISTRICT_SECTION_KEYS = { street: ['grade'] };
 
 const unknownIn = (obj, allowed) => Object.keys(obj ?? {}).filter(k => !allowed.includes(k));
 
@@ -401,8 +403,20 @@ function cityConfigErrors(city, ground, districts, v2) {
       for (const k of unknownIn(d[section], allowed)) {
         errors.push(`city.districts (${d.id}).${section}: ключ '${k}' генератор не читает — ${section} собрался бы без него`);
       }
+      for (const k of V2_DISTRICT_SECTION_KEYS[section] ?? []) {
+        if (!v2 && d[section]?.[k] !== undefined) {
+          errors.push(`city.districts (${d.id}).${section}: '${k}' — поле v2, а глава 'json': улица района `
+            + 'собиралась бы плоской и на одной отметке. kind \'json2\'');
+        }
+      }
     }
     const spec = districtSpec(d);
+    // предел уклона настила — число профиля улицы (этап 6); 0 значит «плоско»,
+    // круче предела схемы нога не держит, а 0,3 м/м и есть `J.maxSlope`
+    if (spec.street.grade !== undefined && !(spec.street.grade > 0 && spec.street.grade <= J.maxSlope)) {
+      errors.push(`city.districts (${d.id}).street.grade ${spec.street.grade} вне (0; ${J.maxSlope}] — `
+        + `схема и так бракует настил круче ${J.maxSlope} м/м, а нулевой уклон означает плоскую улицу`);
+    }
     const b = d.block;
     if (!b) { errors.push(`city.districts (${d.id}): нет блока — генератору негде встать`); continue; }
     // косой район стоит весь в своих осях, поэтому в землю вписывается его
@@ -509,6 +523,9 @@ export function expandCity(raw, stats) {
 
   const ctx = {
     ground,
+    // улицы v2 — пластины с перекрёстками и профилем по рельефу; v1 (глава 10)
+    // остаётся полосой `points` на одной отметке, поэтому ей нужен явный флаг
+    v2: raw.kind === 'json2',
     rng: makeRng(city.seed ?? 0),
     obstacles: obstacleRects(raw, ground, city.avoid ?? []),
     state: { lots: 0 },
@@ -594,19 +611,41 @@ function generateDistrict(spec, ctx, roadsOut, buildingsOut) {
     // и сравнивать их с локальным лотом габаритом нельзя (замер — этап 5: квадрат
     // вокруг повёрнутого на 45° блока на 1,41 раза больше самого блока)
     obstacles: frame ? ctx.obstacles.map(o => ({ ...o, obb: localObb(o.rect, frame) })) : ctx.obstacles,
+    // служебные поля уличных записей v2: по ним нормализатор отличает настил
+    // генератора (его профиль — дело парсера) от авторской дороги (её отметки
+    // правит рука) и берёт предел уклона района; в модуль главы не доезжают,
+    // как `district` и `archetype` у домов
+    svc: ctx.v2
+      ? { district: spec.id, ...(spec.street.grade !== undefined ? { grade: r3(spec.street.grade) } : {}) }
+      : null,
   };
   const linesX = gridLines(d.block.minX, d.block.maxX, d.street.pitch, edge);
   const linesZ = gridLines(d.block.minZ, d.block.maxZ, d.street.pitch, edge);
   const deckY = r3(ctx.ground.y + J.streetRise);
   const streets = [];
+  // в v2 прогон обрывается у борта перекрёстка, а сам перекрёсток — отдельная
+  // пластина (см. `crossingNodes`); в v1 (`kind: 'json'`) улиц режут только
+  // препятствия и граница района, поэтому глава 10 собирается побайтово
+  const nodes = ctx.v2 ? crossingNodes(d, linesX, linesZ, hW) : null;
 
   // имя улицы — по направлению настила, чтобы дверь ссылалась на тот id,
   // который автор видит в брифе
   for (const [i, z] of linesZ.entries()) {
-    emitStreet(d, ctx, roadsOut, streets, `s_h${i}`, 'x', snap(z), d.block.minX, d.block.maxX, hW, deckY);
+    emitStreet(d, ctx, roadsOut, streets, `s_h${i}`, 'x', snap(z), d.block.minX, d.block.maxX, hW, deckY,
+      nodes && nodes.filter(n => n.z === z).map(n => n.x));
   }
   for (const [i, x] of linesX.entries()) {
-    emitStreet(d, ctx, roadsOut, streets, `s_v${i}`, 'z', snap(x), d.block.minZ, d.block.maxZ, hW, deckY);
+    emitStreet(d, ctx, roadsOut, streets, `s_v${i}`, 'z', snap(x), d.block.minZ, d.block.maxZ, hW, deckY,
+      nodes && nodes.filter(n => n.x === x).map(n => n.z));
+  }
+  if (nodes) {
+    for (const n of nodes) {
+      roadsOut.push({
+        ...d.svc, crossing: true,
+        id: `${d.id}_x${n.i}_${n.j}`, type: 'ground', width: d.street.width, lamps: false,
+        elements: [{ plate: plateOf(d, 'x', n.z, r3(n.x - hW), r3(n.x + hW), hW, deckY) }],
+      });
+    }
   }
 
   for (let j = 0; j + 1 < linesZ.length; j++) {
@@ -626,8 +665,15 @@ function gridLines(min, max, pitch, edge) {
   return out;
 }
 
-/** Улица района: линия с разрезами по препятствиям и по границе района, каждый оставшийся прогон — своя запись. */
-function emitStreet(d, ctx, roadsOut, streets, base, axis, cross, lo, hi, hW, deckY) {
+/**
+ * Улица района: линия с разрезами по препятствиям, по границе района и по
+ * бортам перекрёстков; каждый оставшийся прогон — своя запись.
+ *
+ * `crossings` — координаты осей встречных улиц, по которым прогон обрывается
+ * (v2). Их нет в v1, и тогда улица остаётся полосой от борта до борта: глава 10
+ * обязана собраться побайтово.
+ */
+function emitStreet(d, ctx, roadsOut, streets, base, axis, cross, lo, hi, hW, deckY, crossings) {
   const cuts = [];
   for (const o of d.obstacles) {
     if (!o.streets) continue;
@@ -636,15 +682,20 @@ function emitStreet(d, ctx, roadsOut, streets, base, axis, cross, lo, hi, hW, de
     if (span) cuts.push(span);
   }
   if (d.poly) cuts.push(...polyOutsideCuts(d.poly, axis, cross, lo, hi, hW));
+  // борт перекрёстка — граница прогона без запаса: пластина перекрёстка стоит
+  // ровно в этом интервале, и стык впритык (нулевая площадь наложения) — как
+  // раз то, чего не хватало главе 10 с её 158 парами со-плоскостных наложений
+  if (crossings) for (const t of crossings) cuts.push([r3(t - hW), r3(t + hW)]);
   const runs = freeRuns(lo, hi, cuts);
   runs.forEach(([a, b], k) => {
     const id = `${d.id}_${runs.length === 1 ? base : `${base}_${k}`}`;
     const [p, q] = [snap(a), snap(b)];
-    roadsOut.push(d.frame
-      // косой прогон — пластина: `points` схема требует осевых отрезков, а
-      // настил под углом района живёт в `elements[].plate`
+    roadsOut.push(ctx.v2 || d.frame
+      // прогон v2 — пластина: только так его полотно получает `y` и `rise` на
+      // каждый элемент, а значит и профиль по рельефу (этап 6), и поворот
+      // вместе с косым районом; `points` схемы требуют осевых отрезков
       ? {
-        id, type: 'ground', lamps: true,
+        ...d.svc, id, type: 'ground', lamps: true,
         elements: [{ plate: plateOf(d, axis, cross, p, q, hW, deckY) }],
       }
       : {
@@ -659,16 +710,52 @@ function emitStreet(d, ctx, roadsOut, streets, base, axis, cross, lo, hi, hW, de
   });
 }
 
-/** Пластина косой улицы: центр — повёрнутая середина прогона, длина — вдоль локальной оси. */
+/**
+ * Перекрёстки района: законные пары осей встречных улиц. Прогон обрывается у
+ * их борта, а квадрат `w × w` становится отдельной записью с id — иначе
+ * встречные полосы лежат в одной плоскости и мигают в z-buffer (замер главы 10:
+ * 158 пар, 24 367 м² наложений).
+ *
+ * Пара отбраковывается, если квадрат не влезает в границу района (полотно
+ * торчало бы за косым углом квартала) или если его накрывает препятствие с
+ * проезжей частью: там прогон и так оборван, и площадка асфальта посреди русла
+ * осталась бы островом.
+ */
+function crossingNodes(d, linesX, linesZ, hW) {
+  const out = [];
+  for (const [j, z] of linesZ.entries()) {
+    for (const [i, x] of linesX.entries()) {
+      const square = { minX: r3(x - hW), maxX: r3(x + hW), minZ: r3(z - hW), maxZ: r3(z + hW) };
+      if (d.poly) {
+        const corners = [[square.minX, square.minZ], [square.maxX, square.minZ],
+          [square.maxX, square.maxZ], [square.minX, square.maxZ]];
+        if (!corners.every(([cx, cz]) => pointInPoly(d.poly, cx, cz))) continue;
+      }
+      const reach = {
+        minX: r3(x - hW - STREET_CLEAR), maxX: r3(x + hW + STREET_CLEAR),
+        minZ: r3(z - hW - STREET_CLEAR), maxZ: r3(z + hW + STREET_CLEAR),
+      };
+      if (d.obstacles.some(o => o.streets
+        && (o.obb ? obbHitsRect(o.obb, reach, 0) : rectsIntersect(reach, o.rect)))) continue;
+      out.push({ i, j, x, z });
+    }
+  }
+  return out;
+}
+
+/** Пластина улицы: центр — повёрнутая середина прогона, длина — вдоль локальной оси. */
 function plateOf(d, axis, cross, a, b, hW, deckY) {
   const mid = (a + b) / 2;
-  const c = rotatePoint(d.frame, axis === 'x' ? mid : cross, axis === 'x' ? cross : mid);
+  const f = d.frame;
+  const c = f
+    ? rotatePoint(f, axis === 'x' ? mid : cross, axis === 'x' ? cross : mid)
+    : { x: axis === 'x' ? mid : cross, z: axis === 'x' ? cross : mid };
   return {
     x: r3(c.x), z: r3(c.z),
     // пластина всегда тянется вдоль своей локальной оси X (`length`), поэтому
     // прогон вдоль `z` разворачивается на 90° сверх угла района: без этого его
     // настил лёг бы поперёк улицы, а дом на лоте — «в дорогу»
-    yaw: r3(d.frame.deg + (axis === 'x' ? 0 : 90)),
+    yaw: r3((f ? f.deg : 0) + (axis === 'x' ? 0 : 90)),
     length: r3(b - a), width: r3(2 * hW), y: deckY,
   };
 }
