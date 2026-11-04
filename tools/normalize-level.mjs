@@ -1317,14 +1317,18 @@ function ringSlope(p, field) {
  * нормализации). Район же, по просьбе владельца, стоит на возвышенности **целиком**
  * — значит выравнивать надо его квартал, а не каждый фундамент.
  *
- * План террасы — габарит всех лотов района (улица между кварталами попадает под
- * неё вместе с ними), отметка — поле в центре этого габарита, поэтому район
- * встаёт на уровень своей местности, а не на отметку, придуманную автором. Порядок
- * групп = порядок записей в брифе, поэтому поле детерминировано.
+ * Косой район (`districtFrame` у записей генератора) меряется в **своих осях**:
+ * габарит лотов в мировых координатах — AABB повёрнутого квартала, он больше
+ * самого квартала в (|cos|+|sin|) раз (у 18° — на 20 %, у 45° — в 1,41) и
+ * накрыл бы площадкой чужие улицы и дома. Поэтому лоты разворачиваются кадром
+ * района, их союз считается там же, а в мир уходят центр террасы и `yaw` — тот
+ * же уговор, что у пластины настила и повёрнутой площадки дома (`padWeight`
+ * разворачивает точку кадром площадки, то есть rect задаётся локально).
+ *
+ * Порядок групп = порядок записей в брифе, поэтому поле детерминировано.
  *
  * Ставится ДО нормализации домов: пол корпуса берётся из уже выровненного поля, и
- * все лоты района получают одну отметку. Терраса пока соосна миру — косой район
- * (этап 5) принесёт ей `yaw` и габарит в своих осях.
+ * все лоты района получают одну отметку.
  */
 function addDistrictPads(relief, rawBuildings) {
   const groups = new Map();
@@ -1332,23 +1336,38 @@ function addDistrictPads(relief, rawBuildings) {
     if (!b.district) continue;
     let g = groups.get(b.district);
     if (!g) {
-      g = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+      g = {
+        minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity,
+        frame: b.districtFrame ? frameAt(b.districtFrame.cx, b.districtFrame.cz, b.districtFrame.yaw) : null,
+      };
       groups.set(b.district, g);
     }
+    const f = g.frame;
     for (const p of b.footprint ?? []) {
-      if (p.x < g.minX) g.minX = p.x;
-      if (p.x > g.maxX) g.maxX = p.x;
-      if (p.z < g.minZ) g.minZ = p.z;
-      if (p.z > g.maxZ) g.maxZ = p.z;
+      const q = f ? unrotatePoint(f, p.x, p.z) : p;
+      if (q.x < g.minX) g.minX = q.x;
+      if (q.x > g.maxX) g.maxX = q.x;
+      if (q.z < g.minZ) g.minZ = q.z;
+      if (q.z > g.maxZ) g.maxZ = q.z;
     }
   }
   const pads = [];
   for (const [id, g] of groups) {
+    const hx = (g.maxX - g.minX) / 2, hz = (g.maxZ - g.minZ) / 2;
+    const centre = g.frame
+      ? rotatePoint(g.frame, (g.minX + g.maxX) / 2, (g.minZ + g.maxZ) / 2)
+      : { x: (g.minX + g.maxX) / 2, z: (g.minZ + g.maxZ) / 2 };
     pads.push({
       id: `${id}:терраса`,
-      minX: r3(g.minX), maxX: r3(g.maxX), minZ: r3(g.minZ), maxZ: r3(g.maxZ),
-      y: r3(relief.fieldAt((g.minX + g.maxX) / 2, (g.minZ + g.maxZ) / 2)),
+      // центр rect'а — его же мировая точка покоя: `padWeight` разворачивает
+      // пробу вокруг **центра прямоугольника**, поэтому полуоси берутся из
+      // локального габарита района, а середина — из мира. Смещение центра в
+      // локальных осях уехало бы от квартала на sin·диагональ.
+      minX: r3(centre.x - hx), maxX: r3(centre.x + hx),
+      minZ: r3(centre.z - hz), maxZ: r3(centre.z + hz),
+      y: r3(relief.fieldAt(centre.x, centre.z)),
       blend: relief.plain.blend,
+      yaw: g.frame ? r3(g.frame.deg) : undefined,
     });
   }
   relief.addPads(pads);

@@ -16,7 +16,7 @@ import { normalizeLevel, waterwayFoot, stairRun } from './normalize-level.mjs';
 import { generateModule } from './build-level.mjs';
 import { expandCity, ARCHETYPE_NAMES } from './city.js';
 import { reliefOf } from '../src/relief.js';
-import { r3, frameOf, frameAt, rotatePoint, unrotatePoint, obbHitsRect, obbHitsObb, obbOf, rectsIntersect, rotatedBounds } from '../src/geo2d.js';
+import { r3, frameOf, frameAt, rotatePoint, unrotatePoint, obbHitsRect, obbHitsObb, obbOf, rectsIntersect, rotatedBounds, pointInPoly } from '../src/geo2d.js';
 import { CONFIG } from '../src/config.js';
 
 const J = CONFIG.jsonMap;
@@ -944,6 +944,14 @@ t('v1 заморожен: rotation у дома и elements у дороги — �
   const e2 = validateLevel(el).errors;
   assert(e2.some(x => /roads\[0\]\.elements: поле не описано в схеме/.test(x)),
     `elements принят v1-схемой: ${e2[0] || 'ошибок нет'}`);
+
+  // кадр косого района — служебное поле генератора: у v1 его быть не может, и
+  // схема обязана это назвать, а не пропустить в нормализатор
+  const framed = structuredClone(rawLevel);
+  framed.buildings[0].districtFrame = { cx: 0, cz: 0, yaw: 18 };
+  const e3 = validateLevel(framed).errors;
+  assert(e3.some(x => /buildings\[0\]\.districtFrame: поле не описано в схеме/.test(x)),
+    `districtFrame принят v1-схемой: ${e3[0] || 'ошибок нет'}`);
 });
 
 t('v1 заморожен: relief, yaw района, полигон и профиль улицы — чужие поля для v1', () => {
@@ -2119,6 +2127,196 @@ t('терраса района: одна площадка на квартал, �
   assert(level.map.buildings.every(b => b.district === undefined), 'в модуль попало поле района');
   assert(!generateModule(cityReliefRaw(), 'src/levels/level-12.json').code.includes('"district"'),
     'в закоммиченный модуль доехало служебное поле');
+});
+
+// ------------------------------------------------- косой район (этап 5, v2)
+
+/**
+ * Тот же сид и те же кварталы, но район 'a' повёрнут на 18° вокруг центра своего
+ * блока (−80, −80) и ограничен пятиугольником в **локальных** осях. Земля —
+ * 320 м, а не 300: габарит повёрнутого блока это 120·(|cos 18| + |sin 18|) ≈
+ * 151 м в поперечнике, и на 300 метрах квартал не влез бы — валидатор обязан
+ * назвать это ошибкой, а не молча обрезать район.
+ */
+const SKEW_YAW = 18;
+const SKEW_FRAME = frameAt(-80, -80, SKEW_YAW);
+const SKEW_POLY = [
+  { x: -126, z: -78 }, { x: -82, z: -129 }, { x: -31, z: -123 },
+  { x: -37, z: -51 }, { x: -78, z: -34 },
+];
+
+function skewRaw() {
+  const raw = cityReliefRaw();
+  raw.ground.size = 320;
+  raw.city.districts[0].yaw = SKEW_YAW;
+  raw.city.districts[0].polygon = SKEW_POLY.map(p => ({ ...p }));
+  return raw;
+}
+
+/** Удаление точки от контура: за границей района прощён только шаг пробы. */
+function polyDist(poly, x, z) {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const dx = b.x - a.x, dz = b.z - a.z, len2 = dx * dx + dz * dz;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / len2)) : 0;
+    best = Math.min(best, Math.hypot(x - (a.x + t * dx), z - (a.z + t * dz)));
+  }
+  return best;
+}
+
+/** Концы и углы пластины в локальных осях района — по её же `yaw`, без копии формулы движка. */
+function plateCorners(p) {
+  const k = p.yaw * Math.PI / 180;
+  const ax = Math.cos(k) * p.length / 2, az = Math.sin(k) * p.length / 2;
+  const bx = -Math.sin(k) * p.width / 2, bz = Math.cos(k) * p.width / 2;
+  return [[ax + bx, az + bz], [ax - bx, az - bz], [-ax + bx, -az + bz], [-ax - bx, -az - bz]]
+    .map(([dx, dz]) => unrotatePoint(SKEW_FRAME, p.x + dx, p.z + dz));
+}
+
+t('косой район: улицы — пластины вдоль своих осей, дома — неразвёрнутые планы с rotation', () => {
+  const expanded = expandCity(skewRaw());
+  const skew = expanded.roads.filter(r => r.id.startsWith('a_'));
+  const flat = expanded.roads.filter(r => r.id.startsWith('b_'));
+  assert(skew.length >= 4, `косых улиц ${skew.length}, ожидалось не меньше четырёх`);
+  assert(flat.every(r => r.points && !r.elements), 'соосный район уехал в пластины');
+  for (const r of skew) {
+    eq(r.elements.length, 1, `улица ${r.id}: пластин ${r.elements.length}, а прогон один`);
+    const p = r.elements[0].plate;
+    const cs = plateCorners(p);
+    // концы ОДНОГО борта: углы `plateCorners` различаются поперёк полотна, а
+    // сравнивать надо вдоль него
+    const [a, b] = [cs[0], cs[2]];
+    // поперёк прогона концы совпадают: пластина обязана идти ВДОЛЬ локальной оси
+    // улицы, а не поперёк (замер этапа 5: без +90° у вертикальных прогонов их
+    // настил ложился поперёк района, и дома на лотах «вставали в улицу»)
+    if (r.id.includes('_h')) {
+      close(b.z, a.z, 1e-3, `улица ${r.id}: концы в осях района имеют разные z — полотно не вдоль X`);
+      assert(Math.abs(b.x - a.x) > p.length * 0.99, `улица ${r.id}: длина не легла вдоль X`);
+    } else {
+      close(b.x, a.x, 1e-3, `улица ${r.id}: концы в осях района имеют разные x — полотно не вдоль Z`);
+      assert(Math.abs(b.z - a.z) > p.length * 0.99, `улица ${r.id}: длина не легла вдоль Z`);
+    }
+  }
+  const houses = expanded.buildings.filter(b => b.id.startsWith('a_'));
+  assert(houses.length >= 8, `косых корпусов ${houses.length}`);
+  for (const b of houses) {
+    assert(b.rotation >= SKEW_YAW - 6.01 && b.rotation <= SKEW_YAW + 6.01,
+      `дом ${b.id} вышел за угол района плюс джиттер: ${b.rotation}`);
+    // запись остаётся неразвёрнутой (соглашение v2): стены, комнаты и марши
+    // считаются в осях плана, в мир едет один угол
+    const skewEdges = b.footprint.filter((q, i) => {
+      const n = b.footprint[(i + 1) % b.footprint.length];
+      return Math.abs(q.x - n.x) > 1e-6 && Math.abs(q.z - n.z) > 1e-6;
+    });
+    eq(skewEdges.length, 0, `дом ${b.id}: footprint пошёл наискось — парсер считает стены в осях плана`);
+    const c = unrotatePoint(SKEW_FRAME,
+      (Math.min(...b.footprint.map(p => p.x)) + Math.max(...b.footprint.map(p => p.x))) / 2,
+      (Math.min(...b.footprint.map(p => p.z)) + Math.max(...b.footprint.map(p => p.z))) / 2);
+    assert(Math.abs(c.x) < 160 && Math.abs(c.z) < 160, `дом ${b.id} уехал за землю: ${fmt({ minX: c.x, maxX: c.x, minZ: c.z, maxZ: c.z })}`);
+  }
+  assert(expanded.buildings.filter(b => b.id.startsWith('b_')).every(b => b.rotation === undefined),
+    'соосный район получил поворот домов');
+  // пересечение планов разрешено только соосным корпусам (правило SAT валидатора
+  // v2): лоты косого района имеют РАЗНЫЕ углы, поэтому ни один чужой план не
+  // обязан их пересекать — габарит тут не аргумент, нужен точный OBB
+  const stem = id => id.split('_').slice(0, 2).join('_');
+  const obbOfRecord = b => {
+    const r = {
+      minX: Math.min(...b.footprint.map(p => p.x)), maxX: Math.max(...b.footprint.map(p => p.x)),
+      minZ: Math.min(...b.footprint.map(p => p.z)), maxZ: Math.max(...b.footprint.map(p => p.z)),
+    };
+    return obbOf(r, frameAt((r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2, b.rotation ?? 0));
+  };
+  const clash = [];
+  for (let i = 0; i < houses.length; i++) {
+    for (let k = i + 1; k < houses.length; k++) {
+      if (stem(houses[i].id) === stem(houses[k].id)) continue;
+      if (obbHitsObb(obbOfRecord(houses[i]), obbOfRecord(houses[k]), 0.05)) {
+        clash.push(`${houses[i].id}×${houses[k].id}`);
+      }
+    }
+  }
+  eq(clash.length, 0, `планы чужих лотов пересеклись: ${clash.join(' ')}`);
+  const v = validateLevel(expanded, LEVEL_SPEC_V2);
+  eq(v.errors.length, 0, `ошибки валидатора: ${v.errors.join(' | ')}`);
+  eq(v.warnings.length, 0, `предупреждения валидатора: ${v.warnings.join(' | ')}`);
+  const level = normalizeLevel(expanded);
+  eq(level.warnings.length, 0, `предупреждения нормализатора: ${level.warnings.join(' | ')}`);
+});
+
+t('терраса косого района живёт в его осях, а не в габарите поворота', () => {
+  const level = normalizeLevel(expandCity(skewRaw()));
+  const pad = level.map.relief.pads.find(p => p.id === 'a:терраса');
+  assert(pad, 'косой район не получил террасы');
+  eq(pad.yaw, SKEW_YAW, 'терраса не унаследовала угол района');
+  const frame = frameAt((pad.minX + pad.maxX) / 2, (pad.minZ + pad.maxZ) / 2, pad.yaw);
+  // каждый план лота района обязан лечь в ядро террасы **в её собственных
+  // осях**: в мировых координатах тот же союз — габарит повёрнутого квартала, он
+  // больше самого квартала и накрыл бы чужие улицы (у 18° на 13 %, у 45° в 1,41)
+  const lots = level.map.buildings.filter(b => b.id.startsWith('a_'));
+  const outside = [];
+  for (const b of lots) {
+    for (const p of b.footprint) {
+      const l = unrotatePoint(frame, p.x, p.z);
+      // допуск в сантиметр, а не в микрон: координаты террасы округлены `r3`, и
+      // вершина на грани союза отличается от неё на шум этого округления
+      if (l.x < pad.minX - 0.01 || l.x > pad.maxX + 0.01 || l.z < pad.minZ - 0.01 || l.z > pad.maxZ + 0.01) {
+        outside.push(`${b.id} ${JSON.stringify(l)}`);
+      }
+    }
+  }
+  eq(outside.length, 0, `планы лотов не легли в террасу района: ${outside.slice(0, 3).join(' | ')}`);
+  eq(pad.y, lots.find(b => /^a_\d\d\d$/.test(b.id)).baseY, 'отметка террасы разошлась с полом лота');
+  // плоский район рядом террасу не повернул
+  const flat = level.map.relief.pads.find(p => p.id === 'b:терраса');
+  eq(flat.yaw, undefined, 'осевой район получил поворот террасы');
+  // служебный кадр района не доезжает ни в нормализованные данные, ни в модуль
+  assert(level.map.buildings.every(b => b.districtFrame === undefined),
+    'в данные карты доехал служебный кадр района');
+  const code = generateModule(skewRaw(), 'src/levels/level-12.json').code;
+  assert(!code.includes('districtFrame') && !code.includes('"district"'),
+    'в закоммиченный модуль доехали служебные поля генератора');
+  assert(!code.includes('Предупреждения парсера'), 'модуль косого района несёт предупреждение');
+});
+
+t('полигон района режет улицы по краю и отбраковывает лоты счётчиком', () => {
+  const plain = expandCity(cityReliefRaw());
+  const stats = {};
+  const expanded = expandCity(skewRaw(), stats);
+  assert(stats.lot_outside_polygon >= 1, `лоты вне границы не отбракованы: ${JSON.stringify(stats)}`);
+  const roots = expanded.buildings.filter(b => /^a_\d\d\d$/.test(b.id));
+  const plainRoots = plain.buildings.filter(b => /^a_\d\d\d$/.test(b.id));
+  assert(roots.length < plainRoots.length,
+    `район с границей дал не меньше корпусов, чем без неё: ${roots.length} против ${plainRoots.length}`);
+  for (const b of roots) {
+    const l = unrotatePoint(SKEW_FRAME,
+      (Math.min(...b.footprint.map(p => p.x)) + Math.max(...b.footprint.map(p => p.x))) / 2,
+      (Math.min(...b.footprint.map(p => p.z)) + Math.max(...b.footprint.map(p => p.z))) / 2);
+    assert(pointInPoly(SKEW_POLY, l.x, l.z), `корпус ${b.id} стоит за границей района: ${JSON.stringify(l)}`);
+  }
+  // полотно обязано лежать в границе; наружу его может выставить только шаг
+  // пробы `polyOutsideCuts` (0,5 м) — не габарит и не «примерно»
+  for (const r of expanded.roads.filter(x => x.id.startsWith('a_'))) {
+    for (const c of plateCorners(r.elements[0].plate)) {
+      if (!pointInPoly(SKEW_POLY, c.x, c.z)) {
+        const d = polyDist(SKEW_POLY, c.x, c.z);
+        assert(d <= 0.5 + 1e-6, `улица ${r.id}: угол настила торчит за границу на ${d.toFixed(2)} м`);
+      }
+    }
+  }
+  const lengths = expanded.roads.filter(r => r.id.startsWith('a_')).map(r => r.elements[0].plate.length);
+  assert(lengths.length < plain.roads.filter(r => r.id.startsWith('a_')).length,
+    `граница не убрала ни одного прогона: ${lengths.join(', ')}`);
+  assert(Math.max(...lengths) < 120, `ни один прогон не укоротился: ${lengths.join(', ')}`);
+});
+
+t('район без yaw и с yaw = 0 собираются одинаково: осевая ветка не тронута', () => {
+  const plain = JSON.stringify(expandCity(cityReliefRaw()));
+  const zero = cityReliefRaw();
+  for (const d of zero.city.districts) d.yaw = 0;
+  eq(JSON.stringify(expandCity(zero)), plain, 'yaw = 0 сдвинул кварталы осевого города');
+  eq(JSON.stringify(expandCity(cityReliefRaw())), plain, 'осевой город разбежался между прогонами');
 });
 
 t('глава с рельефом детерминирована: два прогона дают побайтово равный модуль', () => {

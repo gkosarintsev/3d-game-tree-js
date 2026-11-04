@@ -315,6 +315,13 @@ export const LEVEL_SPEC_V2 = {
         fields: {
           ...LEVEL_SPEC.fields.buildings.items.fields,
           rotation: num({ min: -360, max: 360 }),
+          // кадр косого района — служебное поле генератора рядом с `district`: по
+          // нему нормализатор собирает террасу квартала в **осях района** (в
+          // мировых координатах габарит повёрнутого блока больше самого блока).
+          // В модуль главы не доезжает, как и `district`
+          districtFrame: obj({
+            cx: num({ req: true }), cz: num({ req: true }), yaw: num({ min: -180, max: 180, req: true }),
+          }),
         },
       },
     },

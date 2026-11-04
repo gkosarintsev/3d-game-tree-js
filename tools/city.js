@@ -27,7 +27,10 @@
  */
 import { CONFIG } from '../src/config.js';
 import { makeRng } from '../src/rng.js';
-import { pointInPoly, polyEdges, polyRects, r3, rectsIntersect } from '../src/geo2d.js';
+import {
+  pointInPoly, polyEdges, polyRects, r3, rectsIntersect,
+  frameAt, rotatePoint, unrotatePoint, rotatedBounds, obbHitsRect, obbHitsObb, obbOf, signedArea,
+} from '../src/geo2d.js';
 import { normalizeBuilding, normalizeRoad, normalizeWaterway } from './normalize-level.mjs';
 
 const J = CONFIG.jsonMap;
@@ -63,6 +66,15 @@ const TREAD_MIN = 0.28;
 const STAIR_DEPTH = 1.9;
 /** Дальше этого портал от настила улицы не ищется: см. правило 4 в шапке. */
 const MOUTH_REACH = r3(VERGE + 1);
+/**
+ * Джиттер угла корпуса в косом районе: ±6° к углу района. Меньше — квартал
+ * читается одной пластиной, больше — угол 12-метрового корпуса уходит с фасада на
+ * 0,8 м, и дверь, поставленная по локальной улице, перестаёт смотреть на её
+ * настил. Дрожь одна на лот: части стека («башня на подиуме») при разных углах
+ * перестали бы быть соосными, а валидатор v2 бракует пересечение планов
+ * именно у не-соосных домов.
+ */
+const YAW_JITTER = 6;
 
 /** Стиль района — палитра фасадов, доля высотных и типы помещений (plan §3.3). */
 export const CITY_STYLES = {
@@ -106,7 +118,9 @@ const boundsOf = poly => {
 };
 const usable = r => r.maxX - r.minX >= MIN_SIDE && r.maxZ - r.minZ >= MIN_SIDE;
 const planOf = r => ({ minX: r3(r.minX), maxX: r3(r.maxX), minZ: r3(r.minZ), maxZ: r3(r.maxZ) });
-const blocked = (rect, obstacles) => obstacles.some(o => rectsIntersect(rect, o.rect, 0.05));
+const blocked = (rect, obstacles) => obstacles.some(o => (o.obb
+  ? obbHitsRect(o.obb, rect, 0.05)
+  : rectsIntersect(rect, o.rect, 0.05)));
 
 /** Прямоугольник, сдвинутый с каждой стороны на свой запас. */
 const insetRect = (r, x0, x1, z0, z1) => ({
@@ -321,16 +335,25 @@ function districtSpec(d) {
 }
 
 /**
+ * Кадр района: поворот вокруг центра его блока. `yaw` 0 или нет — кадра нет
+ * (`frameAt` отдаёт null), и весь район идёт прежним осевым путём без единой
+ * лишней операции: главы 10 это обязаны касаться побайтово.
+ */
+const districtFrame = d => frameAt(
+  r3((d.block.minX + d.block.maxX) / 2), r3((d.block.minZ + d.block.maxZ) / 2), d.yaw ?? 0,
+);
+
+/**
  * Ключи, которые генератор действительно читает. Неизвестный ключ — ошибка ещё
  * до первого вызова ГПСЧ: секция `city` разворачивается в улицы и дома, и
  * проигнорированное поле означает, что автор получил НЕ то, что написал. Так
  * «косой район» (`yaw`), его граница-многоугольник и профиль улицы по рельефу
- * (`street.grade`) не соберутся молча прямым городом на плоскости — до того,
- * как эти поля появятся в генераторе.
+ * (`street.grade`) не соберутся молча прямым городом на плоскости — поле
+ * добавляется в этот список только вместе с его реализацией.
  */
 const CITY_KEYS = ['seed', 'districts'];
 const DISTRICT_KEYS = ['id', 'name', 'style', 'block', 'street', 'lot', 'height',
-  'tower', 'archetypes', 'enterableEvery', 'skip', 'courtyard', 'roofs'];
+  'tower', 'archetypes', 'enterableEvery', 'skip', 'courtyard', 'roofs', 'yaw', 'polygon'];
 const DISTRICT_SECTION_KEYS = {
   street: ['pitch', 'width'],
   lot: ['pitch', 'inset', 'merge'],
@@ -342,11 +365,19 @@ const DISTRICT_SECTION_KEYS = {
 const unknownIn = (obj, allowed) => Object.keys(obj ?? {}).filter(k => !allowed.includes(k));
 
 /**
+ * Поля v2 в секции `city`. Глава 10 (`kind: 'json'`) их принять не обязана:
+ * заморозка v1 держится не только схемой уровней, но и здесь, потому что `city`
+ * разворачивается **до** валидатора — схема просто не увидела бы район, которого
+ * больше нет. Молчание генератора опаснее ошибки: косой район собрался бы осевым.
+ */
+const V2_DISTRICT_KEYS = ['yaw', 'polygon'];
+
+/**
  * Что запрещено ещё до первого вызова ГПСЧ. Ошибки копятся списком: правка
  * конфигурации района — это цифры, и владелец обязан увидеть все несостыковки
  * за один прогон, а не по одной.
  */
-function cityConfigErrors(city, ground, districts) {
+function cityConfigErrors(city, ground, districts, v2) {
   const errors = [];
   const half = ground.size / 2;
   if (!Number.isInteger(city.seed)) errors.push(`city.seed ${city.seed} — не целое: ГПСЧ mulberry32 работает с 32-битным сидом`);
@@ -361,6 +392,11 @@ function cityConfigErrors(city, ground, districts) {
     for (const k of unknownIn(d, DISTRICT_KEYS)) {
       errors.push(`city.districts (${d.id}): ключ '${k}' генератор не читает — район собрался бы без него`);
     }
+    for (const k of V2_DISTRICT_KEYS) {
+      if (!v2 && d[k] !== undefined) {
+        errors.push(`city.districts (${d.id}): '${k}' — поле v2, а глава 'json': район с ним собрался бы осевым. kind 'json2'`);
+      }
+    }
     for (const [section, allowed] of Object.entries(DISTRICT_SECTION_KEYS)) {
       for (const k of unknownIn(d[section], allowed)) {
         errors.push(`city.districts (${d.id}).${section}: ключ '${k}' генератор не читает — ${section} собрался бы без него`);
@@ -369,8 +405,39 @@ function cityConfigErrors(city, ground, districts) {
     const spec = districtSpec(d);
     const b = d.block;
     if (!b) { errors.push(`city.districts (${d.id}): нет блока — генератору негде встать`); continue; }
-    for (const [k, v] of [['minX', b.minX], ['maxX', b.maxX], ['minZ', b.minZ], ['maxZ', b.maxZ]]) {
-      if (Math.abs(v) > half) errors.push(`city.districts (${d.id}): блок ${k} = ${v} вне земли ${ground.size} м (±${half})`);
+    // косой район стоит весь в своих осях, поэтому в землю вписывается его
+    // ПОВЁРНУТЫЙ габарит: блок 120 м под 45° занимает около 170 м, и проверка
+    // одних лишь `minX..maxZ` пропустила бы район за краем уровня
+    const frame = districtFrame(d);
+    const world = rotatedBounds(b, frame);
+    for (const [k, v] of [['minX', world.minX], ['maxX', world.maxX], ['minZ', world.minZ], ['maxZ', world.maxZ]]) {
+      if (Math.abs(v) > half) {
+        errors.push(`city.districts (${d.id}): ${frame ? 'габарит повёрнутого блока' : 'блок'} ${k} = ${r3(v)} `
+          + `вне земли ${ground.size} м (±${half})`);
+      }
+    }
+    if (d.yaw !== undefined && !(Math.abs(d.yaw) <= 180)) {
+      errors.push(`city.districts (${d.id}): yaw ${d.yaw}° вне [−180; 180] — угол района обязан быть одним поворотом, а не числом оборотов`);
+    }
+    if (d.polygon !== undefined) {
+      if (!Array.isArray(d.polygon)) {
+        errors.push(`city.districts (${d.id}).polygon: нужен список вершин {x, z}, а не '${typeof d.polygon}'`);
+      } else {
+        const poly = d.polygon.map(p => ({ x: r3(p.x), z: r3(p.z) }));
+        if (poly.length < 3) errors.push(`city.districts (${d.id}).polygon: меньше трёх вершин — границей района служит замкнутый контур`);
+        else {
+          const area = Math.abs(signedArea(poly));
+          if (!(area > MIN_SIDE * MIN_SIDE)) {
+            errors.push(`city.districts (${d.id}).polygon: площадь ${r3(area)} м² — контур вырожден или тоньше дома (${MIN_SIDE} м)`);
+          }
+          const pb = boundsOf(poly);
+          if (pb.minX < b.minX - 1e-6 || pb.maxX > b.maxX + 1e-6 || pb.minZ < b.minZ - 1e-6 || pb.maxZ > b.maxZ + 1e-6) {
+            errors.push(`city.districts (${d.id}).polygon: выходит за свой блок (${r3(pb.minX)}…${r3(pb.maxX)} × `
+              + `${r3(pb.minZ)}…${r3(pb.maxZ)} против ${b.minX}…${b.maxX} × ${b.minZ}…${b.maxZ}) — `
+              + 'блок остаётся габаритом полигона, по нему считают сетку улиц, и лоты за его краем не появились бы');
+          }
+        }
+      }
     }
     const sw = spec.street.width / 2 + VERGE;
     for (const s of ['X', 'Z']) {
@@ -403,11 +470,16 @@ function cityConfigErrors(city, ground, districts) {
     if (spec.roofs.parapet > 1.5) errors.push(`city.districts (${d.id}): парапет ${spec.roofs.parapet} выше допуска схемы (1,5 м)`);
   }
   // блоки районов обязаны не пересекаться: у каждого свои улицы, и два квартала
-  // в одном месте дали бы два настила в одной плоскости (мигающий z-buffer)
+  // в одном месте дали бы два настила в одной плоскости (мигающий z-buffer).
+  // Косой блок сравнивается своим ориентированным планом, а не габаритом:
+  // квадрат вокруг района под 45° накрывает полкарты, и по габариту легально
+  // вписанный в его угол сосед считался бы столкновением
   for (let i = 0; i < districts.length; i++) {
     for (let k = i + 1; k < districts.length; k++) {
       const a = districts[i].block, b = districts[k].block;
-      if (a && b && rectsIntersect(a, b, 0.05)) {
+      if (!a || !b) continue;
+      const A = obbOf(a, districtFrame(districts[i])), B = obbOf(b, districtFrame(districts[k]));
+      if (obbHitsObb(A, B, 0.05)) {
         errors.push(`city.districts: блоки '${districts[i].id}' и '${districts[k].id}' пересекаются — улицы обоих районов легли бы одна на другую`);
       }
     }
@@ -431,7 +503,7 @@ export function expandCity(raw, stats) {
   if (!city) return raw;
   const ground = { y: r3(raw.ground?.y ?? 0), size: r3(raw.ground?.size ?? 176) };
   const districts = city.districts ?? [];
-  const errors = cityConfigErrors(city, ground, districts);
+  const errors = cityConfigErrors(city, ground, districts, raw.kind === 'json2');
   if (errors.length) throw new Error(errors.join('\n'));
   if (!districts.length) throw new Error('city.districts пуст: генератор не дал бы ни улицы, ни дома');
 
@@ -498,10 +570,31 @@ function obstacleRects(raw, ground, avoid) {
 
 // ------------------------------------------------------------- район
 
-function generateDistrict(d, ctx, roadsOut, buildingsOut) {
-  const style = CITY_STYLES[d.style];
-  const hW = r3(d.street.width / 2);
+function generateDistrict(spec, ctx, roadsOut, buildingsOut) {
+  const style = CITY_STYLES[spec.style];
+  const hW = r3(spec.street.width / 2);
   const edge = r3(hW + VERGE);
+  const frame = districtFrame(spec);
+  /**
+   * Район считается целиком в **своих осях** (`u` вдоль `minX`, `v` вдоль
+   * `minZ`), а в мир выходит кадром `frameAt` — тем же соглашением, что у
+   * поворотного дома и пластины настила: данные записи остаются неразвёрнутыми,
+   * поворот дописывается одним углом. Поэтому весь код ниже не знает, косой
+   * район или нет, и соосный (кадры нет) собирается побайтово как прежде.
+   *
+   * `poly` — граница района в тех же локальных осях: она режет улицы по краю и
+   * отбраковывает лоты, чей центр вне контура.
+   */
+  const d = {
+    ...spec,
+    frame,
+    poly: spec.polygon ? spec.polygon.map(p => ({ x: r3(p.x), z: r3(p.z) })) : null,
+    // препятствия мира (русло, авторские улицы, дома и `avoid`) в осях района:
+    // у соосного района это те же прямоугольники, у косого — повёрнутые коробки,
+    // и сравнивать их с локальным лотом габаритом нельзя (замер — этап 5: квадрат
+    // вокруг повёрнутого на 45° блока на 1,41 раза больше самого блока)
+    obstacles: frame ? ctx.obstacles.map(o => ({ ...o, obb: localObb(o.rect, frame) })) : ctx.obstacles,
+  };
   const linesX = gridLines(d.block.minX, d.block.maxX, d.street.pitch, edge);
   const linesZ = gridLines(d.block.minZ, d.block.maxZ, d.street.pitch, edge);
   const deckY = r3(ctx.ground.y + J.streetRise);
@@ -533,23 +626,51 @@ function gridLines(min, max, pitch, edge) {
   return out;
 }
 
-/** Улица района: линия с разрезами по препятствиям, каждый оставшийся прогон — своя запись. */
+/** Улица района: линия с разрезами по препятствиям и по границе района, каждый оставшийся прогон — своя запись. */
 function emitStreet(d, ctx, roadsOut, streets, base, axis, cross, lo, hi, hW, deckY) {
   const cuts = [];
-  for (const o of ctx.obstacles) {
+  for (const o of d.obstacles) {
     if (!o.streets) continue;
-    const span = cutBand(o.rect, axis, cross, hW + STREET_CLEAR);
+    const reach = hW + STREET_CLEAR;
+    const span = o.obb ? obbBandSpan(o.obb, axis, cross, reach) : cutBand(o.rect, axis, cross, reach);
     if (span) cuts.push(span);
   }
+  if (d.poly) cuts.push(...polyOutsideCuts(d.poly, axis, cross, lo, hi, hW));
   const runs = freeRuns(lo, hi, cuts);
   runs.forEach(([a, b], k) => {
     const id = `${d.id}_${runs.length === 1 ? base : `${base}_${k}`}`;
-    const points = axis === 'x'
-      ? [{ x: snap(a), y: deckY, z: cross }, { x: snap(b), y: deckY, z: cross }]
-      : [{ x: cross, y: deckY, z: snap(a) }, { x: cross, y: deckY, z: snap(b) }];
-    roadsOut.push({ id, type: 'ground', width: d.street.width, lamps: true, points });
-    streets.push({ id, rect: plateRect(axis, cross, snap(a), snap(b), hW) });
+    const [p, q] = [snap(a), snap(b)];
+    roadsOut.push(d.frame
+      // косой прогон — пластина: `points` схема требует осевых отрезков, а
+      // настил под углом района живёт в `elements[].plate`
+      ? {
+        id, type: 'ground', lamps: true,
+        elements: [{ plate: plateOf(d, axis, cross, p, q, hW, deckY) }],
+      }
+      : {
+        id, type: 'ground', width: d.street.width, lamps: true,
+        points: axis === 'x'
+          ? [{ x: p, y: deckY, z: cross }, { x: q, y: deckY, z: cross }]
+          : [{ x: cross, y: deckY, z: p }, { x: cross, y: deckY, z: q }],
+      });
+    // план для дверей остаётся локальным: дом и его дверь считаются в осях
+    // района, а в мир уезжает уже вся запись целиком (`rotateRecord`)
+    streets.push({ id, rect: plateRect(axis, cross, p, q, hW) });
   });
+}
+
+/** Пластина косой улицы: центр — повёрнутая середина прогона, длина — вдоль локальной оси. */
+function plateOf(d, axis, cross, a, b, hW, deckY) {
+  const mid = (a + b) / 2;
+  const c = rotatePoint(d.frame, axis === 'x' ? mid : cross, axis === 'x' ? cross : mid);
+  return {
+    x: r3(c.x), z: r3(c.z),
+    // пластина всегда тянется вдоль своей локальной оси X (`length`), поэтому
+    // прогон вдоль `z` разворачивается на 90° сверх угла района: без этого его
+    // настил лёг бы поперёк улицы, а дом на лоте — «в дорогу»
+    yaw: r3(d.frame.deg + (axis === 'x' ? 0 : 90)),
+    length: r3(b - a), width: r3(2 * hW), y: deckY,
+  };
 }
 
 const plateRect = (axis, cross, a, b, hW) => (axis === 'x'
@@ -564,6 +685,97 @@ function cutBand(rect, axis, cross, reach) {
   }
   if (rect.minX > cross + reach || rect.maxX < cross - reach) return null;
   return [r3(rect.minZ - STREET_CLEAR), r3(rect.maxZ + STREET_CLEAR)];
+}
+
+/**
+ * Мировой прямоугольник в осях повёрнутого района: тот же прямоугольник,
+ * повёрнутый на −`yaw` вокруг центра блока. Хранится как ориентированная
+ * коробка (`{cx, cz, hx, hz, c, s}` — соглашение `obb` из `src/geo2d.js`),
+ * поэтому и отбраковка лота (`obbHitsRect`), и разрез улицы (`obbBandSpan`)
+ * меряют точный план, а не габарит: габарит повёрнутого на 45° русла перекрыл
+ * бы полрайона, и квартал молча остался бы без домов.
+ */
+function localObb(rect, f) {
+  const c = unrotatePoint(f, (rect.minX + rect.maxX) / 2, (rect.minZ + rect.maxZ) / 2);
+  return {
+    obb: {
+      cx: c.x, cz: c.z,
+      hx: (rect.maxX - rect.minX) / 2, hz: (rect.maxZ - rect.minZ) / 2,
+      // обратный поворот: косинус тот же, синус — с противоположным знаком
+      c: f.c, s: -f.s,
+    },
+  };
+}
+
+/**
+ * Интервал вдоль оси, на котором повёрнутая коробка закрывает полосу улицы
+ * `[cross − reach, cross + reach]`; null — коробка полосы не касается.
+ * Для осевого прямоугольника это ровно `cutBand`, но у косого района русло
+ * лежит под углом, и его пересечение с полосой — уже не проекция габарита.
+ * Полигон коробочки выпуклый, поэтому сечение полосой по одной оси — один
+ * интервал: собираем вершины внутри полосы и точки пересечения рёбер с её
+ * границами, берём крайние проекции.
+ */
+function obbBandSpan(o, axis, cross, reach) {
+  const pts = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      pts.push({
+        x: o.cx + o.hx * sx * o.c - o.hz * sz * o.s,
+        z: o.cz + o.hx * sx * o.s + o.hz * sz * o.c,
+      });
+    }
+  }
+  return polyBandSpan(pts, axis, cross, reach);
+}
+
+function polyBandSpan(poly, axis, cross, reach) {
+  const across = axis === 'x' ? 'z' : 'x';
+  const along = axis === 'x' ? 'x' : 'z';
+  const lo = cross - reach, hi = cross + reach;
+  const at = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const ain = a[across] >= lo && a[across] <= hi;
+    const bin = b[across] >= lo && b[across] <= hi;
+    if (ain) at.push(a[along]);
+    if (ain === bin) continue;
+    // ребро пересекло границу полосы — точка пересечения тоже конец интервала
+    for (const v of [lo, hi]) {
+      if ((a[across] - v) * (b[across] - v) <= 0 && a[across] !== b[across]) {
+        const t = (v - a[across]) / (b[across] - a[across]);
+        at.push(a[along] + t * (b[along] - a[along]));
+      }
+    }
+  }
+  if (!at.length) return null;
+  return [r3(Math.min(...at) - STREET_CLEAR), r3(Math.max(...at) + STREET_CLEAR)];
+}
+
+/**
+ * Запретные интервалы улицы по границе района: полотно обязано лежать внутри
+ * полигона целиком, поэтому пробуются оба его борта. Шаг пробы — сетка
+ * генератора (0,5 м): граница района — не стена и не коллизия, а лишь
+ * выключатель, и точность в полметра для неё избыточна, а вот пропустить
+ * настил, торчащий за косой угол квартала, — значит дать главе мигать
+ * со-плоскостными грани.
+ */
+function polyOutsideCuts(poly, axis, cross, lo, hi, hW) {
+  const at = t => (axis === 'x'
+    ? pointInPoly(poly, t, cross - hW) && pointInPoly(poly, t, cross + hW)
+    : pointInPoly(poly, cross - hW, t) && pointInPoly(poly, cross + hW, t));
+  const cuts = [];
+  let from = null;
+  for (let t = snap(lo); t <= hi + 1e-9; t = snap(t + GRID)) {
+    if (!at(t)) {
+      if (from === null) from = t;
+    } else if (from !== null) {
+      cuts.push([r3(from), r3(t)]);
+      from = null;
+    }
+  }
+  if (from !== null) cuts.push([r3(from), r3(hi)]);
+  return cuts;
 }
 
 function freeRuns(lo, hi, cuts) {
@@ -639,7 +851,13 @@ function generateLot(d, style, cell, ctx, buildings, streets, state) {
   const setback = () => d.lot.inset + (extra > 0 ? snap(rand(rng, 0, extra)) : 0);
   const lot = insetRect(cell, setback(), setback(), setback(), setback());
   if (!usable(lot)) { ctx.bump('lot_too_narrow'); return; }
-  if (blocked(lot, ctx.obstacles)) { ctx.bump('lot_blocked'); return; }
+  // граница района режет и лоты: центр вне контура — квартал там не строится.
+  // Отказ считается счётчиком: «район стал меньше» без причины нельзя ни
+  // проверить, ни починить (то же правило, что у `house_not_rect`)
+  if (d.poly && !pointInPoly(d.poly, (lot.minX + lot.maxX) / 2, (lot.minZ + lot.maxZ) / 2)) {
+    ctx.bump('lot_outside_polygon'); return;
+  }
+  if (blocked(lot, d.obstacles)) { ctx.bump('lot_blocked'); return; }
 
   const courtyard = chance(rng, d.courtyard);
   let name = courtyard ? pick(rng, COURTYARD_NAMES) : pick(rng, d.archetypes);
@@ -664,6 +882,12 @@ function generateLot(d, style, cell, ctx, buildings, streets, state) {
   const enterable = !tower && parts.length === 1 && d.enterableEvery >= 1 && state.lots % d.enterableEvery === 0;
 
   let topY = ctx.ground.y;
+  // угол корпуса косого района: угол квартала плюс дрожь до `YAW_JITTER`. Дрожь
+  // ОДНА на лот и достаётся всем его частям: «башня на подиуме» при разных углах
+  // перестала бы быть соосной, а пересечение планов не-соосных домов валидатор
+  // v2 бракует. Расход ГПСЧ здесь только в косой ветке, поэтому соосный район
+  // (глава 10) остаётся побайтовым
+  const yawDeg = d.frame ? r3(d.frame.deg + rand(rng, -YAW_JITTER, YAW_JITTER)) : null;
   parts.forEach((p, i) => {
     let f = floors[i];
     if (enterable) f = Math.min(f, J.genEnterableFloors);
@@ -691,11 +915,48 @@ function generateLot(d, style, cell, ctx, buildings, streets, state) {
     if (p.stacked) rec.baseY = r3(floorY);
     buildings.push(rec);
     if (enterable) fitEnterable(rec, d, style, ctx, streets);
+    if (d.frame) rotateRecord(rec, d.frame, yawDeg);
     topY = r3(floorY + f * fh);
   });
 }
 
 const lotId = (d, state) => `${d.id}_${String(state.lots).padStart(3, '0')}`;
+
+/**
+ * Запись лота в мир косого района — по тому же соглашению, что у поворотного
+ * дома в брифе: координаты остаются **неразвёрнутыми** (их поворачивает парсер
+ * своим `rotation`), поэтому корпус переводится параллельным переносом — центр
+ * его габарита ставится в повёрнутую точку района, а размеры и взаимные отступы
+ * комнат, маршей и портала не меняются. Поворачивать полигон здесь значило бы
+ * дать косые рёбра плана, которые схема комнат и валидатор фасадов бракует.
+ *
+ * `districtFrame` — служебное поле генератора (в модуль главы не доезжает, как
+ * `archetype` и `district`): по нему нормализатор собирает террасу района в его
+ * собственных осях. Без него габарит повёрнутого квартала стал бы квадратом
+ * вокруг ромба, и подкос склон торчал бы из-под пола угловых домов.
+ */
+function rotateRecord(rec, f, yawDeg) {
+  const b = boundsOf(rec.footprint);
+  const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+  const c = rotatePoint(f, cx, cz);
+  const dx = c.x - cx, dz = c.z - cz;
+  const move = p => ({ x: r3(p.x + dx), z: r3(p.z + dz) });
+  rec.footprint = rec.footprint.map(move);
+  for (const room of rec.rooms ?? []) {
+    room.polygon = room.polygon.map(move);
+    for (const link of room.connections ?? []) {
+      if (!link.portalPosition) continue;
+      link.portalPosition = {
+        x: r3(link.portalPosition.x + dx), y: link.portalPosition.y, z: r3(link.portalPosition.z + dz),
+      };
+    }
+  }
+  for (const st of rec.stairs ?? []) {
+    if (st.position) st.position = { x: r3(st.position.x + dx), z: r3(st.position.z + dz) };
+  }
+  rec.rotation = yawDeg;
+  rec.districtFrame = { cx: f.cx, cz: f.cz, yaw: r3(f.deg) };
+}
 
 /** Этажи по долям частей: последней отдаётся остаток, чтобы сумма совпала с `total`. */
 function stackFloors(total, muls) {
