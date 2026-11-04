@@ -66,6 +66,20 @@ function hasError(errors, ...needles) {
   return hit;
 }
 
+/**
+ * Смотрит ли голова фонаря на осевую полотна. `rotationY` — угол
+ * `Object3D.rotation.y`, а голова `lamp_post` вынесена по локальной +Z
+ * ([src/props.js:59]), поэтому в плане она направлена вдоль `(sin θ, cos θ)`;
+ * проверка требует, чтобы этот вектор совпал с направлением от столба к точке
+ * `axis` — ближайшей точке осевой настила.
+ */
+function facesAxis(lamp, axis, cos = 0.999) {
+  const th = lamp.rotationY * Math.PI / 180;
+  const dx = axis.x - lamp.position.x, dz = axis.z - lamp.position.z;
+  const L = Math.hypot(dx, dz);
+  return L > 1e-6 && ((Math.sin(th) * dx + Math.cos(th) * dz) / L) > cos;
+}
+
 // ---------------------------------------------------------------- глава 9 как данные
 
 t('исходная глава проходит валидатор без ошибок и предупреждений', () => {
@@ -1163,6 +1177,19 @@ const v2Raw = mutate => {
   mutate(raw);
   return raw;
 };
+/**
+ * Улица, к которой приходит нос подъёма: правило «свободный нос моста обязан
+ * лежать на настиле наземной улицы» требует её в каждом брифе, где мост
+ * кончается на земле, поэтому всем тестовым съездам её надо давать. `at` — точка
+ * торца подъёма, улица подбегает к нему сзади по одной оси (стык впритык, без
+ * наложения пластин).
+ */
+const noseStreet = (id, at, dir, run = 24, top = 0.12) => ({
+  id, type: 'ground', width: 8,
+  points: dir === 'x'
+    ? [{ x: at.x - run, y: top, z: at.z }, { x: at.x, y: top, z: at.z }]
+    : [{ x: at.x, y: top, z: at.z - run }, { x: at.x, y: top, z: at.z }],
+});
 
 t('v2: косая пластина настила принимается и доносит до модуля yaw, obb и размеры', () => {
   const raw = v2Raw(r => {
@@ -1301,7 +1328,10 @@ t('опоры косой эстакады стоят вдоль полотна �
 t('v2: наклонная пластина держит опоры, и низ каждой — соffit в своей точке', () => {
   const plate = { x: 0, z: 45, yaw: 0, length: 48, width: 8, y: 0.12, rise: 12 };
   const raw = v2Raw(r => {
-    r.roads = [{ id: 'br_ramp', type: 'bridge', elements: [{ plate }] }];
+    // нос подъёма (u = −24, отметка 0,12) обязан приходить на улицу, иначе
+    // правило «съезд кончается на асфальте» молчит именно там, где оно нужно
+    r.roads = [{ id: 'br_ramp', type: 'bridge', elements: [{ plate }] },
+      noseStreet('st_ramp_toe', { x: -24, z: 45 }, 'x')];
     r.gameplay.exit = { x: 0, z: 45 };
   });
   eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял наклонную пластину');
@@ -1333,18 +1363,57 @@ t('v2: наклонная пластина держит опоры, и низ к
 });
 
 /**
+ * Нос подъёма: свободный торец моста, опущенный к земле, обязан прийти на полотно
+ * наземной улицы (замер глав 10–11: из 6 свободных носов 3 кончались в 4 и 13 м от
+ * улицы, один стоял над домом). Дальность меряется до ПЛАНА улицы, а не до её
+ * осевой: нос в полуметре от борта — это уже обочина. Свободный конец выше
+ * `bridgeMinHeight` над грунтом — устой пролёта, его стыкует автор, и требовать
+ * там улицу значило бы браковать всякое наведение через русло.
+ */
+t('v2: свободный нос подъёма обязан прийти на улицу, устой пролёта — нет', () => {
+  const deck = { x: 0, z: 45, yaw: 0, length: 48, width: 8, y: 0.12, rise: 12 };
+  const bridge = roads => v2Raw(r => {
+    r.roads = [{ id: 'br_nose', type: 'bridge', elements: [{ plate: deck }] }, ...roads];
+    r.gameplay.exit = { x: 0, z: 45 };
+  });
+  hasError(validateLevel(bridge([]), LEVEL_SPEC_V2).errors, 'br_nose', 'не находит наземную улицу');
+  // ближайшая улица называется с расстоянием: «нос в 4 м от асфальта» правится по
+  // тексту ошибки, а не поиском по карте
+  const far = validateLevel(bridge([noseStreet('st_far', { x: -28, z: 45 }, 'x')]), LEVEL_SPEC_V2).errors;
+  assert(hasError(far, 'st_far', '4.000').includes('не находит наземную улицу'),
+    'текст ошибки не про нос');
+  // вровень с полотном — принят
+  eq(validateLevel(bridge([noseStreet('st_toe', { x: -24, z: 45 }, 'x')]), LEVEL_SPEC_V2)
+    .errors.length, 0, 'валидатор не принял съезд, пришедший на улицу');
+  // устой пролёта (конец выше, чем под ним пройти) улицы не требует
+  const span = v2Raw(r => {
+    r.roads = [{ id: 'br_span', type: 'bridge', elements: [{ plate: { ...deck, y: 6 } }] }];
+    r.gameplay.exit = { x: 0, z: 45 };
+  });
+  eq(validateLevel(span, LEVEL_SPEC_V2).errors.length, 0, 'валидатор отбраков устой пролёта');
+  // пятка мерится по ПОЛЮ, а не по «нулю пола мира»: на склоне +3 м нос в 3,12
+  // над нулём остаётся съездом и обязан прийти на улицу
+  const slope = v2Raw(r => {
+    r.relief = { hills: [{ id: 'h_nose', x: -24, z: 45, radius: 60, height: 3 }] };
+    r.roads = [{ id: 'br_nose', type: 'bridge', elements: [{ plate: { ...deck, y: 3.12, rise: 9 } }] }];
+    r.gameplay.exit = { x: 0, z: 45 };
+  });
+  hasError(validateLevel(slope, LEVEL_SPEC_V2).errors, 'br_nose', 'не находит наземную улицу');
+});
+
+/**
  * Съезд перекрывает улицу: колонна в её плане — не ошибка автора, а свойство
  * перекрёстка, поэтому она не ставится и молчит (правило предупреждения остаётся
  * для плоского настила, где асфальт под колонной значит, что автор положил
  * настил на улицу).
- */
-t('v2: опора наклонного схода в план наземной улицы пропускается молча', () => {
+ */t('v2: опора наклонного схода в план наземной улицы пропускается молча', () => {
   const plate = { x: 0, z: 8, yaw: 0, length: 48, width: 8, y: 0.12, rise: 12 };
   const raw = v2Raw(r => {
     r.buildings = [];
     r.roads = [
       { id: 'br_ramp', type: 'bridge', elements: [{ plate }] },
       { id: 'st_band', type: 'ground', width: 8, points: [{ x: -14, y: 0.12, z: 8 }, { x: 14, y: 0.12, z: 8 }] },
+      noseStreet('st_ramp_toe', { x: -24, z: 8 }, 'x'),
     ];
     r.gameplay.exit = { x: 0, z: 8 };
   });
@@ -1361,7 +1430,7 @@ t('v2: опора наклонного схода в план наземной �
   }
 });
 
-t('фонари косой улицы стоят на её бортах и повёрнуты с полотном', () => {
+t('фонари косой улицы стоят на её бортах и смотрят на проезжую часть', () => {
   const raw = v2Raw(r => {
     r.roads = [plateRoad('st_lamps',
       { x: 0, z: 40, yaw: 30, length: 40, width: 6, y: 0.12 }, { width: 6, lamps: true })];
@@ -1376,8 +1445,15 @@ t('фонари косой улицы стоят на её бортах и по�
     const p = unrotatePoint(f, l.position.x, l.position.z);
     assert(Math.abs(Math.abs(p.z - 40) - 4.4) < 2e-3, 'фонарь не на борту полотна');
     assert(Math.abs(p.x) <= 20.001, 'фонарь за торцом полотна');
-    eq(l.rotationY, -30, 'фонарь не повёрнут с полотном');
+    // голова обязана смотреть ОТ столба К ОСЕВОЙ: прежний поворот `−yaw` держал
+    // её перпендикулярно оси в одну сторону с обоих бортов, и половина пар
+    // светила мимо асфальта (замер глав 10–11: 658 вдоль + 290 прочь из 1238)
+    const axis = rotatePoint(f, p.x, 40);
+    assert(facesAxis(l, axis), `фонарь светит мимо полотна: θ=${l.rotationY} при v=${(p.z - 40).toFixed(1)}`);
   }
+  // два столба одного ряда повёрнуты друг против друга: −30 и 150
+  const angles = [...new Set(lamps.map(l => l.rotationY))].sort((a, b) => a - b);
+  eq(angles.length, 2, `поворотов ${angles.length}, ожидалось 2 (по борту)`);
 });
 
 t('предмет на косом уклоне встаёт на плоскость полотна, а за торцом — на грунт', () => {
@@ -1457,7 +1533,8 @@ const arcExit = arc => arcPoint(arc, arc.from + (arc.to - arc.from) * 0.5);
 
 t('v2: дуга настила принимается и доносит до модуля сектор, уклон и крен', () => {
   const raw = v2Raw(r => {
-    r.roads = [arcRoad('rp_arc', ARC, { type: 'bridge' })];
+    r.roads = [arcRoad('rp_arc', ARC, { type: 'bridge' }),
+      noseStreet('st_arc_toe', { x: ARC.radius, z: 0 }, 'z')];
     r.gameplay.exit = arcExit(ARC);
   });
   eq(validateLevel(raw, LEVEL_SPEC_V2).errors.length, 0, 'валидатор не принял дугу');
@@ -1493,7 +1570,8 @@ t('v2: крутая дуга, нулевой размах и выворот че
   hasError(validateLevel(steep, LEVEL_SPEC_V2).errors, 'rp_steep', 'уклон дуги');
   // тот же размах с подъёмом 12 м на ~150 м дуги — норма
   const ok = v2Raw(r => {
-    r.roads = [arcRoad('rp_ok', ARC, { type: 'bridge' })];
+    r.roads = [arcRoad('rp_ok', ARC, { type: 'bridge' }),
+      noseStreet('st_arc_toe', { x: ARC.radius, z: 0 }, 'z')];
     r.gameplay.exit = arcExit(ARC);
   });
   eq(validateLevel(ok, LEVEL_SPEC_V2).errors.length, 0, 'пологий подъём дуги отбракован');
@@ -1711,7 +1789,8 @@ t('v2: опоры дуги стоят двумя рядами по tangent-ра�
   const arc = { ...ARC, from: 0, to: 90, y: [0.12, 6] };
   const raw = v2Raw(r => {
     r.buildings = [];
-    r.roads = [arcRoad('rp_pil', arc, { type: 'bridge' })];
+    r.roads = [arcRoad('rp_pil', arc, { type: 'bridge' }),
+      noseStreet('st_arc_toe', { x: arc.radius, z: 0 }, 'z')];
     r.gameplay.exit = arcExit(arc);
   });
   const { errors } = validateLevel(raw, LEVEL_SPEC_V2);
@@ -1739,7 +1818,7 @@ t('v2: опоры дуги стоят двумя рядами по tangent-ра�
   }
 });
 
-t('v2: фонари дуги стоят на бортах по tangent-рамке', () => {
+t('v2: фонари дуги стоят на бортах по tangent-рамке и смотрят на осевую', () => {
   const arc = { ...ARC, from: 0, to: 90, y: [6, 6], bank: 0 };
   const raw = v2Raw(r => {
     r.buildings = [];
@@ -1759,7 +1838,11 @@ t('v2: фонари дуги стоят на бортах по tangent-рамк�
     assert(Math.abs(Math.abs(rho - arc.radius) - edge) < 2e-3, `фонарь не на борту: радиус ${rho}`);
     eq(l.position.y, 6, 'фонарь не встал на полотно');
     const deg = Math.atan2(l.position.z - arc.cz, l.position.x - arc.cx) * 180 / Math.PI;
-    assert(Math.abs(l.rotationY + deg + 90) < 0.01, `фонарь не повёрнут по касательной: ${l.rotationY} при ${deg}`);
+    // прежний поворот `−(deg + 90)` был верен только внешнему борту: голова
+    // смотрела в центр кольца, и внутренний борт светил мимо полотна
+    const rad = deg * Math.PI / 180;
+    const axis = { x: arc.cx + Math.cos(rad) * arc.radius, z: arc.cz + Math.sin(rad) * arc.radius };
+    assert(facesAxis(l, axis), `фонарь светит мимо осевой: θ=${l.rotationY} при ρ=${rho.toFixed(1)}`);
   }
 });
 
@@ -2734,6 +2817,99 @@ t('район без yaw и с yaw = 0 собираются одинаково: 
   for (const d of zero.city.districts) d.yaw = 0;
   eq(JSON.stringify(expandCity(zero)), plain, 'yaw = 0 сдвинул кварталы осевого города');
   eq(JSON.stringify(expandCity(cityReliefRaw())), plain, 'осевой город разбежался между прогонами');
+});
+
+/**
+ * Съезд авторского моста над кварталом генератора (план §4.6): пластина длиной
+ * 24 м, у её локального начала отметка настила улицы (`ground.y + streetRise`),
+ * подъём 6 м — дальний срез при этом устой, а не нос, и правила не касается.
+ */
+const noseRaw = (deg, toe) => {
+  const raw = structuredClone(CITY_RAW);
+  raw.kind = 'json2';
+  const rad = deg * Math.PI / 180;
+  raw.roads = [{
+    id: 'br_nose', type: 'bridge', width: 12, lamps: true,
+    elements: [{
+      plate: {
+        x: r3(toe.x + Math.cos(rad) * 12), z: r3(toe.z + Math.sin(rad) * 12),
+        yaw: deg, length: 24, width: 12, y: r3(raw.ground.y + J.streetRise), rise: 6,
+      },
+    }],
+  }];
+  return raw;
+};
+
+t('нос подъёма получает улицу: сетка района сдвигает ряд или ставит его под съезд', () => {
+  // ряды вдоль X района 'a': три оси с шагом 40 м, борт 8,1 м от края блока
+  const hLines = out => [...new Set(out.roads.filter(r => /^a_s_h/.test(r.id))
+    .map(r => (r.points ? r.points[0].z : r.elements[0].plate.z)))].sort((a, b) => a - b);
+  const vLines = out => [...new Set(out.roads.filter(r => /^a_s_v/.test(r.id))
+    .map(r => (r.points ? r.points[0].x : r.elements[0].plate.x)))].sort((a, b) => a - b);
+  const BASE = [-132, -92, -52];
+  const run = (deg, toe) => {
+    const stats = {};
+    const expanded = expandCity(noseRaw(deg, toe), stats);
+    const { errors } = validateLevel(expanded, LEVEL_SPEC_V2);
+    const level = normalizeLevel(expanded);
+    const nose = Object.fromEntries(Object.entries(stats).filter(([k]) => k.startsWith('nose')));
+    return {
+      expanded, nose, h: hLines(expanded), v: vLines(expanded),
+      noseErrors: errors.filter(e => /нос подъёма/.test(e)),
+      warnings: level.warnings,
+    };
+  };
+
+  // нос в 22 м от рядов: сдвигать далеко — под съезд встаёт новый ряд
+  const added = run(90, { x: -100, z: -70 });
+  eq(added.noseErrors.length, 0, `съезд не найден на асфальте: ${added.noseErrors.join(' | ')}`);
+  eq(added.warnings.length, 0, `парсер заговорил: ${added.warnings.join(' | ')}`);
+  eq(added.h.join(','), '-132,-92,-70,-52', 'новый ряд не встал под нос');
+  eq(JSON.stringify(added.nose), JSON.stringify({ nose_line_added: 1 }), 'счётчик ряда');
+
+  // нос в 10 м от ряда: тот же асфальт дешевле передвинуть, чем резать квартал
+  const shifted = run(90, { x: -100, z: -82 });
+  eq(shifted.noseErrors.length, 0, `съезд не найден на асфальте: ${shifted.noseErrors.join(' | ')}`);
+  eq(shifted.warnings.length, 0, `парсер заговорил: ${shifted.warnings.join(' | ')}`);
+  eq(shifted.h.join(','), '-132,-82,-52', 'ряд не уехал к носу');
+  eq(JSON.stringify(shifted.nose), JSON.stringify({ nose_line_shifted: 1 }), 'счётчик ряда');
+
+  // нос уже на ряду (в половине ширины улицы): сетка не тронута вовсе
+  const served = run(90, { x: -100, z: -52 });
+  eq(served.noseErrors.length, 0, `съезд не найден на асфальте: ${served.noseErrors.join(' | ')}`);
+  eq(served.h.join(','), BASE.join(','), 'ряд сдвинулся там, где нос и так на асфальте');
+  eq(JSON.stringify(served.nose), '{}', 'счётчики сработали молча');
+
+  // косой подъём: осевой сетке не дать улицу под диагональным срезом, зато
+  // квадрат перекрёстка накрывает нос целиком — ряды подводятся с обеих осей
+  const skew = run(30, { x: -100, z: -70 });
+  eq(skew.noseErrors.length, 0, `косой съезд не найден на асфальте: ${skew.noseErrors.join(' | ')}`);
+  eq(skew.warnings.length, 0, `косой съезд: парсер заговорил ${skew.warnings.join(' | ')}`);
+  assert(skew.nose.nose_skew_at_crossing === 1, `косой нос не назван: ${JSON.stringify(skew.nose)}`);
+  const node = skew.expanded.roads.filter(r => r.crossing)
+    .find(r => Math.abs(r.elements[0].plate.x + 100) < 6 && Math.abs(r.elements[0].plate.z + 70) < 6);
+  assert(node, 'под косым носом не встал перекрёсток');
+
+  // нос вне блоков: району он не нужен, и считает это один раз, а не каждый
+  const outside = structuredClone(noseRaw(90, { x: -100, z: -70 }));
+  outside.city.districts = [outside.city.districts[1]];
+  const lost = {};
+  const lostOut = expandCity(outside, lost);
+  eq(lost.nose_no_district, 1, `нос вне района не посчитан: ${JSON.stringify(lost)}`);
+  assert(validateLevel(lostOut, LEVEL_SPEC_V2).errors.some(e => /нос подъёма/.test(e)),
+    'съезд в чистом поле бракуется молча');
+  // и он же — ближайший к носу ряд района 'b', а не пустота
+  const bLines = hLines(lostOut);
+  assert(bLines.every(z => z > 0), `ряды района 'a' всё-таки вставились под чужой нос: ${bLines}`);
+
+  // v1 (глава 10): сетка района нос не ищет, иначе её модуль разойдётся с парсером
+  const v1 = noseRaw(90, { x: -100, z: -70 });
+  delete v1.kind;
+  const v1Stats = {};
+  const v1Out = expandCity(v1, v1Stats);
+  eq(hLines(v1Out).join(','), BASE.join(','), 'v1-район сдвинул ряды под нос');
+  eq(Object.keys(v1Stats).filter(k => k.startsWith('nose')).length, 0,
+    'v1-разворот тронул машинерию носов');
 });
 
 t('глава с рельефом детерминирована: два прогона дают побайтово равный модуль', () => {

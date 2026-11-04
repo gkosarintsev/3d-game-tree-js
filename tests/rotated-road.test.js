@@ -60,11 +60,20 @@ const RC = Math.cos(YAW), RS = Math.sin(YAW);
  * Развязка из двух пластин одной дороги: косой подъём с земли (уклон 0,15) и
  * плоский верхний настил, который начинается ровно там, где кончился подъём, —
  * цепочка узлов графа собирается внутри одной дороги, а конец подъёма совпадает
- * с началом настила. Косая наземная улица с фонарями стоит в стороне.
+ * с началом настила.
+ *
+ * Косая наземная улица стоит ПОД нижним срезом подъёма и поперёк его оси
+ * (`NOSE` + 90°): свободный нос подъёма — конец на уровне грунта, и схема v2
+ * требует, чтобы такой съезд кончался на асфальте улицы, а не над пустой землёй
+ * (`bridgeNoses` в `tools/normalize-level.mjs`). Параллельная улице съезд не
+ * приняла бы нос (тот же срез, но ступень по торцу), а перпендикулярная даёт
+ * ровно шов: полотно улицы 0,12 м и нос 0,12 м.
  */
 const RAMP = { x: 10, z: 20, yaw: 20, length: 40, width: 8, y: 0.12, rise: 6, rails: true };
 const FLAT = { x: RAMP.x + 45 * RC, z: RAMP.z + 45 * RS, yaw: 20, length: 50, width: 8, y: 6.12, rails: true };
-const STREET = { x: -30, z: -30, yaw: 30, length: 60, width: 8, y: 0.12 };
+/** Срез подъёма, к которому приходит улица (локальное начало пластины в мире). */
+const NOSE = { x: RAMP.x - (RAMP.length / 2) * RC, z: RAMP.z - (RAMP.length / 2) * RS };
+const STREET = { x: NOSE.x, z: NOSE.z, yaw: 110, length: 60, width: 8, y: 0.12 };
 
 const RAW = {
   kind: 'json2',
@@ -154,7 +163,7 @@ function testBrief() {
   if (level.warnings.length) bad.push(`предупреждения парсера: ${level.warnings.join(' | ')}`);
   const st = level.map.roads.find(r => r.id === 'st_diag').decks[0];
   const chain = level.map.roads.find(r => r.id === 'rp_chain').decks;
-  if (st.yaw !== 30) bad.push(`угла улицы нет в данных (${st.yaw})`);
+  if (st.yaw !== 110) bad.push(`угла улицы нет в данных (${st.yaw})`);
   if (!st.obb) bad.push('у косой улицы нет obb');
   if (chain.length !== 2) bad.push(`у развязки ${chain.length} пластин вместо 2`);
   if (chain[0].ramp !== true || chain[1].ramp !== false) bad.push('подъём и настил не различились');
@@ -169,7 +178,7 @@ function testBrief() {
     name: 'Бриф v2: косая цепочка пластин принята, угол и obb дошли до данных карты',
     passed: bad.length === 0,
     info: bad.length ? bad.join('; ')
-      : `2 пластины развязки (${chain[0].topAtMin}→${chain[0].topAtMax} м), улица под 30°, предупреждений 0`,
+      : `2 пластины развязки (${chain[0].topAtMin}→${chain[0].topAtMax} м), улица под 110°, предупреждений 0`,
   };
 }
 
@@ -470,13 +479,20 @@ function testPillarsAndLamps() {
       bad.push(`фонарь не на борту улицы: v=${p.z.toFixed(3)}`);
     }
     if (Math.abs(p.x) > STREET.length / 2 + 1e-3) bad.push('фонарь за торцом улицы');
-    if (l.rotationY !== -30) bad.push(`фонарь повёрнут на ${l.rotationY}° вместо −30°`);
+    // голова `lamp_post` вынесена по локальной +Z, поэтому её мировое
+    // направление — (sin θ, cos θ), и светить она обязана на осевую, а не вдоль
+    // неё: прежний единый поворот `−yaw` разворачивал половину пар прочь с асфальта
+    const th = l.rotationY * Math.PI / 180;
+    const axis = W(STREET, p.x, 0);
+    const dx = axis.x - l.position.x, dz = axis.z - l.position.z;
+    const dot = (Math.sin(th) * dx + Math.cos(th) * dz) / Math.hypot(dx, dz);
+    if (dot < 0.999) bad.push(`фонарь светит мимо полотна: θ=${l.rotationY}, косой угол ${dot.toFixed(3)}`);
   }
   return {
-    name: 'Опоры и фонари стоят вдоль полотна и повёрнуты вместе с ним',
+    name: 'Опоры стоят вдоль полотна и повёрнуты с ним, фонари смотрят на проезжую часть',
     passed: bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ')
-      : `${pillars.length} опор под настилом (${rampPil.length} из них под подъёмом) и ${lamps.length} фонарей на бортах косой улицы`,
+      : `${pillars.length} опор под настилом (${rampPil.length} из них под подъёмом) и ${lamps.length} фонарей на бортах косой улицы, все на асфальт`,
   };
 }
 
@@ -551,7 +567,7 @@ function testDebugIds() {
   const bad = [];
   const street = marks.filter(m => m.text.startsWith('st_diag · пл 1'));
   const chain = marks.filter(m => m.text.startsWith('rp_chain · пл'));
-  if (street.length !== 1 || !street[0].text.includes('· yaw 30°')) {
+  if (street.length !== 1 || !street[0].text.includes('· yaw 110°')) {
     bad.push(`метка косой улицы: ${street.map(m => m.text).join(' | ') || '(нет)'}`);
   }
   if (chain.length !== 2) bad.push(`у развязки ${chain.length} меток пластин`);
@@ -567,7 +583,7 @@ function testDebugIds() {
   return {
     name: 'Метки id различают пластины суффиксом `· yaw N°`',
     passed: bad.length === 0,
-    info: bad.length ? bad.join('; ') : 'улица подписана `· yaw 30°`, подъём — `· yaw 20° · наклон`',
+    info: bad.length ? bad.join('; ') : 'улица подписана `· yaw 110°`, подъём — `· yaw 20° · наклон`',
   };
 }
 

@@ -14,7 +14,7 @@ import {
   polyBounds, polyEdges, polyRects, r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
   rotatedBounds,
 } from '../src/geo2d.js';
-import { normalizeBuilding, normalizeWaterway, resolveRoadElements, toWorld } from './normalize-level.mjs';
+import { bridgeNoses, normalizeBuilding, normalizeWaterway, resolveRoadElements, roadCapsOf, toWorld } from './normalize-level.mjs';
 import { ARCHETYPE_NAMES } from './city.js';
 import { reliefOf } from '../src/relief.js';
 
@@ -426,6 +426,16 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
   const half = size / 2;
   const groundY = raw.ground?.y ?? 0;
   const cell = J.probeCell;
+  // Поле местности для отметки грунта ПОД ТОЧКОЙ: правила вроде «нос подъёма
+  // опознаётся по земле под ним, а не по нулю пола мира» берут его со всеми
+  // авторскими площадками (терраса района — тот же грунт). Проба предельного
+  // уклона ниже строит своё поле по одним холмам: у неё другой смысл, см.
+  // комментарий там. Генератор кварталов (`bridgeNoses` в tools/city.js) меряет
+  // пятку по этому же полю, иначе схема и разворот разъехались бы на первом же
+  // брифе с рельефом.
+  const reliefField = raw.relief
+    ? reliefOf({ ...raw.relief, baseY: raw.relief.baseY ?? groundY })
+    : null;
 
   // --- рельеф: крутизна поля и разумность площадок ---
   // Поле проверяется аналитикой, а не пробой сетки: у холма максимум производной
@@ -459,6 +469,11 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
     // не видит, что их фланги дают вместе круче. Зона пробы — габарит холмов с
     // их радиусами, обрезанный по земле: вне его поле константно и проверять нечего.
     if ((r.hills ?? []).length) {
+      // Предел уклона меряется по ХОЛМАМ, а не по собранному полю с площадками:
+      // парсер раздувает кольцо blend каждой площадки подгонкой (`fitPadBlend`),
+      // и статический проба по финальному полю брак бы вал авторский бриф за
+      // переход, который нормализатор сам же и исправит. Отметка грунта под
+      // объектом (`reliefField` выше) берётся наоборот — со всеми площадками.
       const field = reliefOf({ baseY: r.baseY ?? groundY, hills: r.hills ?? [] });
       let lo = { x: -half, z: -half }, hi = { x: half, z: half };
       for (const h of r.hills) {
@@ -833,6 +848,61 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
     }
   }
 
+  // --- свободный нос подъёма обязан прийти на улицу (v2) ---
+  // Мост заканчивается там, где по нему въезжают: на полотне наземной улицы.
+  // Замер главы 10 показал обратное — из 6 свободных носов 3 кончались в 4 и 13 м
+  // от ближайшей улицы, один стоял над домом `ncc_012`, и маршрут выводил
+  // человека в двор, где обрывается мост. Проверка только для v2: модули глав
+  // 9–10 обязаны побайтово совпадать с парсером, а их носы сегодня именно таковы.
+  if (raw.kind === 'json2') {
+    const streetPlans = [];
+    for (const road of raw.roads ?? []) {
+      if (road.type !== 'ground') continue;
+      const rc = roadRectsOf(road), cp = roadCapsOf(road);
+      // `roadRectsOf` и `roadCapsOf` идут по элементам в одном порядке, поэтому
+      // i-я пластина и её пара срезов соответствуют друг другу
+      for (let i = 0; i < rc.length; i++) {
+        streetPlans.push({
+          id: road.id, rect: rc[i].rect, topLo: rc[i].topLo, gen: road.district !== undefined,
+          a: cp[2 * i], b: cp[2 * i + 1],
+        });
+      }
+    }
+    // список носов — общий с генератором кварталов (`tools/city.js` дотягивает к
+    // ним оси улиц): тот же гейт «стык цепочки», та же пятка по тому же полю
+    for (const cap of bridgeNoses(raw.roads ?? [], groundY, reliefField)) {
+      const label = `roads[${cap.n}] (${cap.road.id})`;
+      const elabel = `${label}: свободный нос подъёма (${cap.x}, ${cap.z}) на отметке ${cap.top}`;
+      let best = null;
+      for (const pl of streetPlans) {
+        const dist = distToDeck(pl.rect, cap.x, cap.z);
+        if (!best || dist < best.dist) best = { ...pl, dist };
+      }
+      const house = planBoxes.find(b => b.rects.some(r => distToDeck(r, cap.x, cap.z) === 0));
+      if (!best || best.dist > J.skybridgeFit) {
+        errors.push(`${elabel} не находит наземную улицу — `
+          + (best ? `ближайшая ${best.id} в ${best.dist.toFixed(3)} м` : 'ни одной наземной дороги в уровне нет')
+          + ` (допуск ${J.skybridgeFit} м): подъём обязан кончаться на полотне улицы, а не`
+          + (house ? ` над домом ${house.label}` : ' над пустой землёй'));
+        continue;
+      }
+      // полотно под носом обязано быть на той же отметке: нос в метре над
+      // асфальтом — не въезд, а стена, и нога её не берёт. Меряется только по
+      // АВТОРСКОЙ улице: отметка генераторной пластины в брифе — намерение, её
+      // парсер кладёт на поле (`profileDistrictStreets`), и сравнивать съезд с
+      // provisional `y` значило бы браковать всякий район не на нуле. Стык с
+      // СОБРАННЫм полотном называет предупреждением парсер — закоммиченная
+      // глава предупреждений не носит, поэтому дыра не пройдёт и оттуда.
+      if (best.gen) continue;
+      const top = deckTopAt(best, cap.x, cap.z);
+      if (Math.abs(top - cap.top) > J.skybridgeFit) {
+        errors.push(`${elabel} сходится с улицей ${best.id} ступенью `
+          + `${Math.abs(top - cap.top).toFixed(3)} м (её полотно ${top}): подъём обязан приходить к `
+          + `улице вровень (допуск ${J.skybridgeFit} м)`);
+      }
+    }
+  }
+
   // --- косая кровля не принимает настил ---
   // Плита примыкающего настила режет ходовую плиту и парапет в осях дома. У
   // повёрнутого корпуса мировая пластина в этих осях не прямоугольник, поэтому
@@ -1061,6 +1131,26 @@ function roadRectsOf(road) {
     });
   }
   return out;
+}
+
+/** Расстояние от точки до плана настила (0 — внутри или впритык): у OBB — в своих осях. */
+function distToDeck(rect, x, z) {
+  const o = rect.obb;
+  if (o) {
+    const du = Math.max(Math.abs((x - o.cx) * o.c + (z - o.cz) * o.s) - o.hx, 0);
+    const dv = Math.max(Math.abs(-(x - o.cx) * o.s + (z - o.cz) * o.c) - o.hz, 0);
+    return r3(Math.hypot(du, dv));
+  }
+  return r3(Math.hypot(Math.max(rect.minX - x, x - rect.maxX, 0), Math.max(rect.minZ - z, z - rect.maxZ, 0)));
+}
+
+/** Отметка верха настила в точке плана — линейно между его торцами (`a`, `b` из `roadCapsOf`). */
+function deckTopAt(plan, x, z) {
+  if (!plan.a || !plan.b) return plan.topLo;
+  const dx = plan.b.x - plan.a.x, dz = plan.b.z - plan.a.z;
+  const len2 = dx * dx + dz * dz;
+  const t = len2 > 1e-9 ? Math.max(0, Math.min(1, ((x - plan.a.x) * dx + (z - plan.a.z) * dz) / len2)) : 0;
+  return r3(plan.a.top + (plan.b.top - plan.a.top) * t);
 }
 
 /** Прямоугольник, отпущенный во все стороны на `d` — допуск примыкания в плане. */

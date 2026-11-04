@@ -142,7 +142,16 @@ const RAW = {
   kind: 'json2',
   metadata: { levelName: 'V2Sweep', name: 'Дуга развязки', hint: '—', units: 'meters' },
   ground: { y: 0, size: 200, color: '#23262c' },
-  roads: [{ id: 'rp_arc', type: 'bridge', width: 8, elements: [{ arc: ARC }] }],
+  roads: [
+    { id: 'rp_arc', type: 'bridge', width: 8, elements: [{ arc: ARC }] },
+    // Нижний срез дуги (40, 0) на 0,12 м — свободный нос: второй элемент той же
+    // дороги отсутствует, а над грунтом конец не поднят (устоем бы не был), и
+    // схема v2 требует под таким съездом полотно наземной улицы (§4.6). Улица
+    // стоит за линией среза (её план касается носа ребром, а не перекрывает его):
+    // иначе квадрат полотна лёг бы со-плоскостно к первому срезу ленты.
+    { id: 'st_land', type: 'ground', width: 8,
+      points: [{ x: 20, y: 0.12, z: -4 }, { x: 60, y: 0.12, z: -4 }] },
+  ],
   buildings: [], landscapeObjects: [], lights: [],
   gameplay: { goal: 'exit', spawn: { x: 0, z: 60 }, exit: { x: EXIT.x, z: EXIT.z }, exitRadius: 4 },
 };
@@ -191,7 +200,9 @@ function testBrief() {
   }
   if (map.sweeps.length !== 1) bad.push(`sweeps: ${map.sweeps.length}`);
   if (!map.sweeps[0]?.tris?.length) bad.push('лента дуги не построена');
-  if (map.geo.decks.length !== 1) bad.push(`мешей настила: ${map.geo.decks.length}`);
+  // два меша настила: лента дуги и полотно принимающей улицы (`st_land`); сама
+  // дуга — ровно одна, это выше проверяет `map.sweeps.length`
+  if (map.geo.decks.length !== 2) bad.push(`мешей настила: ${map.geo.decks.length}`);
   const mid = P(ARC, 90);
   const top = map.topAt(mid.x, mid.z);
   if (top === null || Math.abs(top - surfaceOf(d, 90)) > 1e-9) bad.push(`topAt на середине: ${top}`);

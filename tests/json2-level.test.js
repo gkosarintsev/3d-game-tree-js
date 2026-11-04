@@ -591,6 +591,27 @@ function testRotatedHouses() {
   };
 }
 
+/**
+ * На осевую ли своего полотна смотрит голова фонаря. `rotationY` — угол
+ * `Object3D.rotation.y`, голова вынесена по локальной +Z ([src/props.js:59]),
+ * поэтому направление головы в плане — (sin θ, cos θ).
+ */
+function lampFacesRoad(lamp, road) {
+  const o0 = { x: lamp.position.x, z: lamp.position.z };
+  for (const d of road.decks) {
+    const o = d.obb;
+    if (!o) continue;
+    const u = (o0.x - o.cx) * o.c + (o0.z - o.cz) * o.s;
+    const v = -(o0.x - o.cx) * o.s + (o0.z - o.cz) * o.c;
+    if (Math.abs(u) > d.length / 2 + 1 || Math.abs(v) > d.width / 2 + 3) continue;
+    const th = lamp.rotationY * Math.PI / 180;
+    const ix = v * o.s, iz = -v * o.c;
+    const L = Math.hypot(ix, iz);
+    return L > 1e-6 && (Math.sin(th) * ix + Math.cos(th) * iz) / L > 0.999;
+  }
+  return true;
+}
+
 /** Косые улицы: верх и луч живут в осях пластины, пустой угол габарита пуст. */
 function testRotatedRoads() {
   const map = map11();
@@ -631,6 +652,16 @@ function testRotatedRoads() {
       }
     }
     lamps += road.lamps.length;
+    // фонарь смотрит на осевую СВОЕГО полотна: голова `lamp_post` вынесена по
+    // локальной +Z, поэтому её мировое направление — (sin θ, cos θ), а вектор к
+    // осевой из точки (u, v) в осях пластины равен (v·s, −v·c). Прежний единый
+    // `−yaw` держал голову перпендикулярно оси в однаковую сторону с обоих
+    // бортов, и половина пар светила мимо асфальта.
+    for (const l of road.lamps) {
+      if (!lampFacesRoad(l, road)) {
+        bad.push(`${l.id}: фонарь светит мимо полотна (θ=${l.rotationY})`);
+      }
+    }
   }
   if (roads.length < 2) bad.push(`косых улиц ${roads.length}`);
   if (!lamps) bad.push('у косых улиц нет фонарей — нечего проверять на поворот');

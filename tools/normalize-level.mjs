@@ -76,11 +76,14 @@ export function normalizeLevel(raw) {
     ]),
   ];
   const water = waterwayFoot(channels);
+  // голову фонаря на проезжую часть поворачивает только v2: у v1 (главы 9–10)
+  // `rotationY` обязан остаться прежним, иначе их модули разойдутся с парсером
+  const lampsFaceRoad = (raw.kind ?? 'json') === 'json2';
   for (const road of roads) {
     // перехода не держат колонны: их держат здания, а опора с земли до настила
     // на 27 м проткнула бы кровли и дворы, под которыми переход идёт
     if (road.type !== 'skybridge') road.pillars.push(...bridgePillars(road, ground, obstacles, warnings, water));
-    if (road.withLamps) road.lamps.push(...roadLamps(road, obstacles, warnings, water));
+    if (road.withLamps) road.lamps.push(...roadLamps(road, obstacles, warnings, water, lampsFaceRoad));
   }
 
   const support = makeSupport(ground, roads, buildings, water);
@@ -791,6 +794,99 @@ export function resolveRoadElements(elements) {
 }
 
 /**
+ * Торцы настилов дороги: `{ x, z, top, dx, dz, len, i, side }` — центр среза,
+ * его внешняя нормаль (единичная), отметка верха полотна в этом срезе и длина
+ * элемента вдоль полотна. `i` — адрес в брифе (маркеры `connect` выброшены, как
+ * в `resolveRoadElements`), `side` — `'min'` у локального начала пластины,
+ * `'max'` у её конца.
+ *
+ * У пластины считаются её ЛОКАЛЬНЫЕ концы, повёрнутые кадром `yaw`: мировой
+ * `minX` у настила с `yaw = −180` смотрит на восток, и нос вышел бы не туда. У
+ * дуги срез радиальный (норма — наружу кольца, а ось элемента идёт по
+ * касательной, поэтому прямую полосу торца дуги из неё не построить), у `points`
+ * — конец осевого отрезка. Порядок совпадает с `roadRectsOf` схемы, поэтому
+ * i-я пластина и пара срезов `2i, 2i+1` соответствуют друг другу: и валидатор, и
+ * генератор кварталов меряют нос по одной арифметике (AGENTS — план дороги у
+ * валидатора и у нормализатора общий).
+ */
+export function roadCapsOf(road) {
+  const out = [];
+  if (road.points) {
+    for (let i = 0; i + 1 < road.points.length; i++) {
+      const a = road.points[i], b = road.points[i + 1];
+      const vx = b.x - a.x, vz = b.z - a.z, L = Math.hypot(vx, vz) || 1;
+      out.push({ x: r3(a.x), z: r3(a.z), top: a.y, dx: -vx / L, dz: -vz / L, len: L, i, side: 'min' });
+      out.push({ x: r3(b.x), z: r3(b.z), top: b.y, dx: vx / L, dz: vz / L, len: L, i, side: 'max' });
+    }
+    return out;
+  }
+  let elements = [];
+  try { elements = resolveRoadElements(road.elements ?? []); } catch { return out; }
+  elements.forEach(({ el, i }) => {
+    if (el?.arc) {
+      for (const [side, deg] of [['min', el.arc.from], ['max', el.arc.to]]) {
+        const a = deg * DEG, u = { x: Math.cos(a), z: Math.sin(a) }, s = side === 'min' ? -1 : 1;
+        out.push({ x: r3(el.arc.cx + u.x * el.arc.radius), z: r3(el.arc.cz + u.z * el.arc.radius),
+          top: side === 'min' ? el.arc.y[0] : el.arc.y[1],
+          dx: u.x * s, dz: u.z * s, len: el.arc.radius * Math.abs(el.arc.to - el.arc.from) * DEG, i, side });
+      }
+      return;
+    }
+    const pl = el?.plate;
+    if (!pl) return;
+    const rad = (pl.yaw ?? 0) * DEG, t = { x: Math.cos(rad), z: Math.sin(rad) };
+    for (const [side, s] of [['min', -1], ['max', 1]]) {
+      out.push({ x: r3(pl.x + t.x * s * pl.length / 2), z: r3(pl.z + t.z * s * pl.length / 2),
+        top: side === 'min' ? pl.y : pl.y + (pl.rise ?? 0),
+        dx: t.x * s, dz: t.z * s, len: pl.length, i, side });
+    }
+  });
+  return out;
+}
+
+/**
+ * Свободные носы подъёмов: торцы дорог `type: 'bridge'`, которые обязаны
+ * кончаться на асфальте. Отсекаются два класса, и оба — не съезд:
+ *
+ * * **стык цепочки** — срез другой подъёмной пластины ближе `J.deckJoint`. Судят
+ *   по положению, а не по углу: у стыка «прямая → дуга» нормали соседних
+ *   элементов перпендикулярны, и «совпала нормаль» там никогда не случится.
+ *   Торец наземной улицы в нос не засчитывается: это ровно то примыкание,
+ *   которого правило и требует, иначе генератор, дотянувший улицу к носу, сам бы
+ *   снял проверку.
+ * * **устой пролёта** — конец выше грунта (`relief` в точке, а при её отсутствии
+ *   — `groundY`) на больший зазор, чем под ним пройти (`J.bridgeMinHeight`).
+ *   Свободный верх пролёта, ещё не доехавшего до берега, стыкует автор, и
+ *   требовать там улицу значило бы браковать всякий мост через русло.
+ *
+ * Возвращает `[{ ...cap, n, road }]` в порядке дорог брифа — детерминированно,
+ * потому что по этому списку генератор расставляет оси улиц.
+ *
+ * @param {object[]} roads сырые дороги брифа
+ * @param {number} groundY отметка «пола мира», если рельефа нет
+ * @param {{heightAt:(x:number,z:number)=>number}|null} field поле рельефа
+ *   со всеми авторскими площадками — та же отметка грунта, из которой схема
+ *   меряет пятку (иначе валидатор и разворот разъехались бы на первом брифе)
+ */
+export function bridgeNoses(roads, groundY, field) {
+  const caps = [];
+  for (const [n, road] of roads.entries()) {
+    for (const cap of roadCapsOf(road)) caps.push({ ...cap, n, road });
+  }
+  const deckCaps = caps.filter(c => c.road.type === 'bridge');
+  const out = [];
+  for (const cap of deckCaps) {
+    const joined = deckCaps.some(o => (o.n !== cap.n || o.i !== cap.i || o.side !== cap.side)
+      && Math.hypot(o.x - cap.x, o.z - cap.z) < J.deckJoint);
+    if (joined) continue;
+    const base = field ? field.heightAt(cap.x, cap.z) : groundY;
+    if (cap.top - base > J.bridgeMinHeight) continue;
+    out.push(cap);
+  }
+  return out;
+}
+
+/**
  * Дорога из прямых пластин и дуг (v2): полотно под углом к северу, а значит и
  * твёрдость, и меш живут в собственных осях элемента.
  *
@@ -877,6 +973,10 @@ function normalizeRoadElements(road) {
  * больше `grade · run / 2`), режется пополам с потолком `J.streetSplitMax`;
  * перепад круче `grade` остаётся предупреждением автору, а не тихой картинкой:
  * район с такой улицей надо ставить на плато.
+ *
+ * Последним шагом проверяется стык с авторским подъёмом: нос его пластины,
+ * опущенный к собранному грунту, обязан лечь вровень с тем полотном, которое
+ * вышло ПОСЛЕ фиттинга (см. `bridgeNoses` и комментарий в конце функции).
  */
 function profileDistrictStreets(rawRoads, roads, relief, warnings) {
   const gen = rawRoads.filter(r => r.district !== undefined
@@ -1081,6 +1181,37 @@ function profileDistrictStreets(rawRoads, roads, relief, warnings) {
     const road = roads.find(x => x.id === r.id);
     if (road) road.decks = normalizeRoadElements({ ...r, elements }).decks;
   }
+
+  // --- нос подъёма обязан сойтись с ОКОНЧАТЕЛЬНЫМ полотном улицы ---
+  // В брифе генераторная пластина несёт provisional `y`: её отметку парсер
+  // берёт с поля, поэтому схема сравнивать съезд с ней не вправе и мерит только
+  // «лежит ли нос на асфальте». Здесь настил уже тот, что увидит нога, — и если
+  // район под носом лёг не вровень, это предупреждение автору, а не тихая
+  // ступень в собранной главе (закоммиченная глава предупреждений не носит).
+  const final = [];
+  for (const r of gen) {
+    for (const el of (r.crossing ? r.elements : fitted.get(r.id) ?? [])) {
+      const p = el.plate;
+      final.push({ id: r.id, p, g: axisOf(p) });
+    }
+  }
+  const fieldAt = (x, z) => relief.fieldAt(x, z);
+  for (const nose of bridgeNoses(rawRoads, 0, { heightAt: fieldAt })) {
+    let best = null;
+    for (const f of final) {
+      const du = nose.x - f.p.x, dv = nose.z - f.p.z;
+      const u = du * f.g.c + dv * f.g.s, v = -du * f.g.s + dv * f.g.c;
+      if (Math.abs(v) > f.g.w + J.skybridgeFit || Math.abs(u) > f.g.half + J.skybridgeFit) continue;
+      const t = Math.min(1, Math.max(0, (u + f.g.half) / (2 * f.g.half)));
+      const top = r3(f.p.y + (f.p.rise ?? 0) * t);
+      const d = Math.abs(top - nose.top);
+      if (!best || d < best.d) best = { d, top, id: f.id };
+    }
+    if (!best || best.d <= J.skybridgeFit) continue;
+    warnings.push(`нос подъёма (${nose.x}, ${nose.z}) дороги ${nose.road.id} сходится с улицей `
+      + `${best.id} ступенью ${r3(best.d)} м при допуске ${J.skybridgeFit} (её полотно ${best.top}): `
+      + `району под съездом нужна та же отметка, что и носу`);
+  }
 }
 
 /**
@@ -1207,9 +1338,31 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
   return out;
 }
 
-/** Фонари вдоль настила: шаг J.lampSpacing, по обе стороны на J.lampOffset за краем. */
-function roadLamps(road, obstacles, warnings, water) {
+/**
+ * Фонари вдоль настила: шаг J.lampSpacing, по обе стороны на J.lampOffset за
+ * краем.
+ *
+ * `face` — поворачивать голову на проезжую часть (только `json2`). Голова
+ * `lamp_post` вынесена по локальной +Z ([src/props.js:59]), а `rotationY` — угол
+ * `Object3D.rotation.y`, мировой вектор головы при этом `(sin θ, cos θ)`, поэтому
+ * θ = atan2(hx, hz) для направления `h` от столба к ОСЕВОЙ полотна. Прежний
+ * поворот `−yaw` держал голову перпендикулярно оси настила в одну и ту же
+ * сторону с обоих бортов, поэтому половина пар светила прочь с асфальта, а у
+ * осевых улиц `rotationY = 0` клала её вдоль проезжей части (замер глав 10 и 11
+ * зондом `probe/stage7-lamps.mjs`, фонарь привязан к своей деке по борту: глава
+ * 10 — 658 из 1238 светят вдоль, по 290 на дорогу и прочь; глава 11 до правки —
+ * 24 вдоль и по 10 прочь/на дорогу из 44 осевых, в косом районе — 8 прочь и 8 на
+ * дорогу из 16; после — все 60 главы 11 на дорогу). Главы 9–10 — v1, и там
+ * остаётся прежний поворот: их модули обязаны собраться побайтово.
+ */
+function roadLamps(road, obstacles, warnings, water, face) {
   const out = [];
+  /** Поворот головы на осевую: `axis` — ближайшая точка осевой полотна. */
+  const faceRoad = (axis, p, fallback) => {
+    const dx = axis.x - p.x, dz = axis.z - p.z;
+    const L = Math.hypot(dx, dz);
+    return face && L > 1e-6 ? r3(Math.atan2(dx / L, dz / L) / DEG) : fallback;
+  };
   for (const d of road.decks) {
     // Фонари дуги — по tangent-рамке: на кривой борт поворачивается, и столб,
     // поставленный в мировых осях, «уходил» бы из-под края полотна. Уклонный
@@ -1234,7 +1387,8 @@ function roadLamps(road, obstacles, warnings, water) {
             continue;
           }
           out.push(makeProp(`lamp_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'lamp_post',
-            p.x, arcTopAt(d, am, rho), p.z, { x: 1, y: 1, z: 1 }, 'road_lamp', -yaw));
+            p.x, arcTopAt(d, am, rho), p.z, { x: 1, y: 1, z: 1 }, 'road_lamp',
+            faceRoad({ x: d.cx + Math.cos(am) * d.R, z: d.cz + Math.sin(am) * d.R }, p, -yaw)));
         }
       }
       continue;
@@ -1268,7 +1422,10 @@ function roadLamps(road, obstacles, warnings, water) {
           continue;
         }
         out.push(makeProp(`lamp_${road.id}_${r3(p.x)}_${r3(p.z)}`, 'lamp_post', p.x, d.topY, p.z,
-          { x: 1, y: 1, z: 1 }, 'road_lamp', frame ? -d.yaw : 0));
+          { x: 1, y: 1, z: 1 }, 'road_lamp',
+          faceRoad(frame ? rotatePoint(frame, t, d.cz)
+            : d.axis === 'x' ? { x: t, z: (d.minZ + d.maxZ) / 2 } : { x: (d.minX + d.maxX) / 2, z: t },
+            p, frame ? -d.yaw : 0)));
       }
     }
   }

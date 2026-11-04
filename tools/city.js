@@ -28,10 +28,11 @@
 import { CONFIG } from '../src/config.js';
 import { makeRng } from '../src/rng.js';
 import {
-  pointInPoly, polyEdges, polyRects, r3, rectsIntersect,
+  AXIS_EPS, pointInPoly, polyEdges, polyRects, r3, rectsIntersect,
   frameAt, rotatePoint, unrotatePoint, rotatedBounds, obbHitsRect, obbHitsObb, obbOf, signedArea,
 } from '../src/geo2d.js';
-import { normalizeBuilding, normalizeRoad, normalizeWaterway } from './normalize-level.mjs';
+import { normalizeBuilding, normalizeRoad, normalizeWaterway, bridgeNoses } from './normalize-level.mjs';
+import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
 
@@ -75,6 +76,17 @@ const MOUTH_REACH = r3(VERGE + 1);
  * именно у не-соосных домов.
  */
 const YAW_JITTER = 6;
+
+/**
+ * Как далеко ось улиц района готова уехать к носу подъёма, вместо того чтобы
+ * ставить под него новый ряд. Смысл предела — не портить квартал: сдвинутый ряд
+ * оставляет соседние клетки не уже `2 · edge + MIN_SIDE` (при шаге 40 м и борте
+ * 8,1 м это 21,2 м, то есть сдвиг до 18,8 м), а новый ряд режет прогон пополам,
+ * и половину лотов в получившейся щели генератор отбраковывает. Ближе половины
+ * ширины улицы (`hW`) ряд обслуживает нос и так — он уже под ним, и передвигать
+ * его не за чем.
+ */
+const NOSE_SHIFT = 12;
 
 /** Стиль района — палитра фасадов, доля высотных и типы помещений (plan §3.3). */
 export const CITY_STYLES = {
@@ -521,6 +533,12 @@ export function expandCity(raw, stats) {
   if (errors.length) throw new Error(errors.join('\n'));
   if (!districts.length) throw new Error('city.districts пуст: генератор не дал бы ни улицы, ни дома');
 
+  // тот же грунт, что и у схемы: пятку носа (`bridgeNoses`) валидатор и разворот
+  // обязаны мерить одной арифметикой, иначе район на холме браковался бы по
+  // чужой отметке
+  const reliefField = raw.relief
+    ? reliefOf({ ...raw.relief, baseY: raw.relief.baseY ?? ground.y })
+    : null;
   const ctx = {
     ground,
     // улицы v2 — пластины с перекрёстками и профилем по рельефу; v1 (глава 10)
@@ -528,6 +546,11 @@ export function expandCity(raw, stats) {
     v2: raw.kind === 'json2',
     rng: makeRng(city.seed ?? 0),
     obstacles: obstacleRects(raw, ground, city.avoid ?? []),
+    // свободные носы авторских подъёмов: сетка улиц v2 обязана дать им асфальт
+    // под срезом (правило валидатора «нос кончается на улице» мерит ровно этот
+    // же список — `bridgeNoses`). Во v1 пуст: глава 10 со своими тремя
+    // недотянутыми носами собирается побайтово
+    noses: raw.kind === 'json2' ? bridgeNoses(raw.roads ?? [], ground.y, reliefField) : [],
     state: { lots: 0 },
     bump: key => { if (stats) stats[key] = (stats[key] ?? 0) + 1; },
   };
@@ -535,6 +558,10 @@ export function expandCity(raw, stats) {
   for (const d of districts) {
     generateDistrict(districtSpec(d), ctx, roads, buildings);
   }
+  // нос, не попавший ни в один блок, обслуживает авторскую улицу (или не
+  // обслуживается никем, и валидатор это скажет) — считается один раз, а не
+  // «каждым районом, до которого носу далеко»
+  for (const nose of ctx.noses) if (!nose.claimed) ctx.bump('nose_no_district');
 
   const { city: _drop, ...rest } = raw;
   return {
@@ -621,6 +648,15 @@ function generateDistrict(spec, ctx, roadsOut, buildingsOut) {
   };
   const linesX = gridLines(d.block.minX, d.block.maxX, d.street.pitch, edge);
   const linesZ = gridLines(d.block.minZ, d.block.maxZ, d.street.pitch, edge);
+  // съезд авторского моста обязан прийти на асфальт: ряды сетки передвигаются к
+  // носу (или новый ряд вставляется под него) ДО `crossingNodes` и до эмиссии,
+  // иначе перекрёстки посчитаются по старым осям и под носом встанет дыра
+  const noses = ctx.v2 ? districtNoses(d, ctx) : [];
+  if (noses.length) {
+    const at = key => noses.map(n => n[key]).filter(v => v !== null);
+    alignNoseLines(linesZ, at('serveZ'), d.block.minZ, d.block.maxZ, edge, hW, ctx);
+    alignNoseLines(linesX, at('serveX'), d.block.minX, d.block.maxX, edge, hW, ctx);
+  }
   const deckY = r3(ctx.ground.y + J.streetRise);
   const streets = [];
   // в v2 прогон обрывается у борта перекрёстка, а сам перекрёсток — отдельная
@@ -664,6 +700,72 @@ function gridLines(min, max, pitch, edge) {
   const out = [];
   for (let v = snap(min + edge); v <= max - edge + 1e-6; v = snap(v + pitch)) out.push(v);
   return out;
+}
+
+/**
+ * Носы подъёмов, приходящиеся на этот район, — в его локальных осях и в виде
+ * двух чисел: `serveZ` — ряд вдоль X, полотно которого обязана пересечь пятку
+ * (так мост садится на набережную), `serveX` — ряд вдоль Z. У подъёма, идущего
+ * вдоль одной из осей района, заполнено одно из них; у косого — оба, и нос
+ * попадает в перекрёсток: диагональный ряд район не построит (его сетка
+ * осевая), а площадь узла накроет срез целиком.
+ *
+ * Район, в чьём блоке носа нет, его не обслуживает — такие считает один раз
+ * `expandCity` (`nose_no_district`), а не каждый район по кругу.
+ */
+function districtNoses(d, ctx) {
+  const out = [];
+  const f = d.frame;
+  for (const nose of ctx.noses) {
+    const p = f ? unrotatePoint(f, nose.x, nose.z) : { x: nose.x, z: nose.z };
+    if (p.x < d.block.minX || p.x > d.block.maxX || p.z < d.block.minZ || p.z > d.block.maxZ) continue;
+    if (d.poly && !pointInPoly(d.poly, p.x, p.z)) { ctx.bump('nose_outside_polygon'); continue; }
+    nose.claimed = true;
+    // вектор разворачивается обратным ходом кадра, но без переноса центра
+    const n = f
+      ? { x: nose.dx * f.c + nose.dz * f.s, z: -nose.dx * f.s + nose.dz * f.c }
+      : { x: nose.dx, z: nose.dz };
+    // ось подъёма вдоль локальной X ⇒ улица, принимающая нос, идёт вдоль Z, и
+    // наоборот: полотно должно пересекать мост поперёк, а не продолжать его
+    const deckZ = Math.abs(n.x) < AXIS_EPS;
+    const deckX = Math.abs(n.z) < AXIS_EPS;
+    if (!deckX && !deckZ) ctx.bump('nose_skew_at_crossing');
+    out.push({
+      id: nose.road.id,
+      serveX: deckZ ? null : r3(p.x),
+      serveZ: deckX ? null : r3(p.z),
+    });
+  }
+  return out;
+}
+
+/**
+ * Дотянуть ряд сетки к носу: линия, чья полоса уже накрывает пятку, остаётся;
+ * ближайшая передвигается, если уезжает не дальше `NOSE_SHIFT`; иначе ряд
+ * вставляется. Точка ставится на шаг сетки (`snap`) и не выпускается за борты
+ * блока — за `edge` асфальта район не кладёт, и нос, вставший в вергу, остаётся
+ * делом авторской улицы (счётчик `nose_at_edge` называет его, а не молчит).
+ */
+function alignNoseLines(lines, targets, min, max, edge, hW, ctx) {
+  const lo = snap(min + edge), hi = snap(max - edge);
+  for (const target of targets) {
+    const at = snap(target);
+    if (lines.some(v => Math.abs(v - at) <= hW)) continue;
+    if (at < lo || at > hi) { ctx.bump('nose_at_edge'); continue; }
+    let bi = -1, bd = Infinity;
+    for (const [i, v] of lines.entries()) {
+      const dd = Math.abs(v - at);
+      if (dd < bd) { bd = dd; bi = i; }
+    }
+    if (bi >= 0 && bd <= NOSE_SHIFT) {
+      lines[bi] = at;
+      ctx.bump('nose_line_shifted');
+    } else {
+      lines.push(at);
+      lines.sort((a, b) => a - b);
+      ctx.bump('nose_line_added');
+    }
+  }
 }
 
 /**

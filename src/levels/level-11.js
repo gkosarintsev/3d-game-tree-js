@@ -2761,7 +2761,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_interchange_40_56.6",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 180,
+            "rotationY": 0,
             "position": {
               "x": 40,
               "y": 12,
@@ -2793,7 +2793,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_interchange_20_56.6",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 180,
+            "rotationY": 0,
             "position": {
               "x": 20,
               "y": 12,
@@ -2825,7 +2825,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_interchange_0_56.6",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 180,
+            "rotationY": 0,
             "position": {
               "x": 0,
               "y": 12,
@@ -2857,7 +2857,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_interchange_-20_56.6",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 180,
+            "rotationY": 0,
             "position": {
               "x": -20,
               "y": 12,
@@ -2889,7 +2889,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_interchange_-40_56.6",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 180,
+            "rotationY": 0,
             "position": {
               "x": -40,
               "y": 12,
@@ -2930,7 +2930,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_ave_13.6_-86",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": 13.6,
               "y": 0.12,
@@ -2946,7 +2946,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_ave_26.4_-86",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": 26.4,
               "y": 0.12,
@@ -2962,7 +2962,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_ave_13.6_-66",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": 13.6,
               "y": 0.12,
@@ -2978,7 +2978,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_ave_26.4_-66",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": 26.4,
               "y": 0.12,
@@ -2994,7 +2994,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_ave_13.6_-46",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": 13.6,
               "y": 0.12,
@@ -3010,7 +3010,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_ave_26.4_-46",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": 26.4,
               "y": 0.12,
@@ -3026,7 +3026,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_ave_13.6_-26",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": 13.6,
               "y": 0.12,
@@ -3042,7 +3042,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_ave_26.4_-26",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": 26.4,
               "y": 0.12,
@@ -3099,7 +3099,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_south_35_-70.1",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": 35,
               "y": 0.12,
@@ -3131,7 +3131,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_south_55_-70.1",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": 55,
               "y": 0.12,
@@ -3163,7 +3163,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_south_75_-70.1",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": 75,
               "y": 0.12,
@@ -3195,7 +3195,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_south_95_-70.1",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": 95,
               "y": 0.12,
@@ -3252,7 +3252,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_north_35_55.9",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": 35,
               "y": 0.12,
@@ -3284,7 +3284,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_east_north_55_55.9",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": 55,
               "y": 0.12,
@@ -3349,7 +3349,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-55.9_-64",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": -55.9,
               "y": 0.12,
@@ -3365,7 +3365,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-44.1_-64",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": -44.1,
               "y": 0.12,
@@ -3381,7 +3381,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-55.9_-44",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": -55.9,
               "y": 0.12,
@@ -3397,7 +3397,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-44.1_-44",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": -44.1,
               "y": 0.12,
@@ -3413,7 +3413,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-55.9_-24",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": -55.9,
               "y": 0.12,
@@ -3429,7 +3429,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-44.1_-24",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": -44.1,
               "y": 0.12,
@@ -3445,7 +3445,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-55.9_-4",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": -55.9,
               "y": 0.12,
@@ -3461,7 +3461,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-44.1_-4",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": -44.1,
               "y": 0.12,
@@ -3477,7 +3477,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-55.9_16",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": -55.9,
               "y": 0.12,
@@ -3493,7 +3493,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-44.1_16",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": -44.1,
               "y": 0.12,
@@ -3509,7 +3509,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-55.9_36",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": -55.9,
               "y": 0.12,
@@ -3525,7 +3525,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-44.1_36",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": -44.1,
               "y": 0.12,
@@ -3541,7 +3541,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-55.9_56",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": -55.9,
               "y": 0.12,
@@ -3557,7 +3557,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-44.1_56",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": -44.1,
               "y": 0.12,
@@ -3573,7 +3573,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-55.9_76",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 90,
             "position": {
               "x": -55.9,
               "y": 0.12,
@@ -3589,7 +3589,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_ave_-44.1_76",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": -90,
             "position": {
               "x": -44.1,
               "y": 0.12,
@@ -3646,7 +3646,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_cross_s_-87_-50.1",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": -87,
               "y": 0.12,
@@ -3678,7 +3678,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_cross_s_-67_-50.1",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": -67,
               "y": 0.12,
@@ -3735,7 +3735,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_cross_n_-87_55.9",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": -87,
               "y": 0.12,
@@ -3767,7 +3767,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_west_cross_n_-67_55.9",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": 0,
+            "rotationY": 180,
             "position": {
               "x": -67,
               "y": 0.12,
@@ -3862,7 +3862,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_yaw225_65.162_-66.159",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": -22.5,
+            "rotationY": 157.5,
             "position": {
               "x": 65.162,
               "y": 0.14,
@@ -3933,7 +3933,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_yaw30_-69.896_89.677",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": -30,
+            "rotationY": 150,
             "position": {
               "x": -69.896,
               "y": 0.14,
@@ -3965,7 +3965,7 @@ export const LEVEL_11 = {
             "id": "lamp_rd_yaw30_-52.576_99.677",
             "model": "lamp_post",
             "source": "road_lamp",
-            "rotationY": -30,
+            "rotationY": 150,
             "position": {
               "x": -52.576,
               "y": 0.14,
@@ -4298,7 +4298,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_ave_13.6_-26",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": 13.6,
           "y": 0.12,
@@ -4314,7 +4314,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_ave_13.6_-46",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": 13.6,
           "y": 0.12,
@@ -4330,7 +4330,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_ave_13.6_-66",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": 13.6,
           "y": 0.12,
@@ -4346,7 +4346,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_ave_13.6_-86",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": 13.6,
           "y": 0.12,
@@ -4362,7 +4362,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_ave_26.4_-26",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": 26.4,
           "y": 0.12,
@@ -4378,7 +4378,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_ave_26.4_-46",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": 26.4,
           "y": 0.12,
@@ -4394,7 +4394,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_ave_26.4_-66",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": 26.4,
           "y": 0.12,
@@ -4410,7 +4410,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_ave_26.4_-86",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": 26.4,
           "y": 0.12,
@@ -4442,7 +4442,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_north_35_55.9",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": 35,
           "y": 0.12,
@@ -4474,7 +4474,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_north_55_55.9",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": 55,
           "y": 0.12,
@@ -4490,7 +4490,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_south_35_-70.1",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": 35,
           "y": 0.12,
@@ -4522,7 +4522,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_south_55_-70.1",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": 55,
           "y": 0.12,
@@ -4554,7 +4554,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_south_75_-70.1",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": 75,
           "y": 0.12,
@@ -4586,7 +4586,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_east_south_95_-70.1",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": 95,
           "y": 0.12,
@@ -4618,7 +4618,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_interchange_-20_56.6",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 180,
+        "rotationY": 0,
         "position": {
           "x": -20,
           "y": 12,
@@ -4650,7 +4650,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_interchange_-40_56.6",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 180,
+        "rotationY": 0,
         "position": {
           "x": -40,
           "y": 12,
@@ -4682,7 +4682,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_interchange_0_56.6",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 180,
+        "rotationY": 0,
         "position": {
           "x": 0,
           "y": 12,
@@ -4714,7 +4714,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_interchange_20_56.6",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 180,
+        "rotationY": 0,
         "position": {
           "x": 20,
           "y": 12,
@@ -4746,7 +4746,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_interchange_40_56.6",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 180,
+        "rotationY": 0,
         "position": {
           "x": 40,
           "y": 12,
@@ -4778,7 +4778,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-44.1_-24",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": -44.1,
           "y": 0.12,
@@ -4794,7 +4794,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-44.1_-4",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": -44.1,
           "y": 0.12,
@@ -4810,7 +4810,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-44.1_-44",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": -44.1,
           "y": 0.12,
@@ -4826,7 +4826,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-44.1_-64",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": -44.1,
           "y": 0.12,
@@ -4842,7 +4842,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-44.1_16",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": -44.1,
           "y": 0.12,
@@ -4858,7 +4858,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-44.1_36",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": -44.1,
           "y": 0.12,
@@ -4874,7 +4874,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-44.1_56",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": -44.1,
           "y": 0.12,
@@ -4890,7 +4890,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-44.1_76",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": -90,
         "position": {
           "x": -44.1,
           "y": 0.12,
@@ -4906,7 +4906,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-55.9_-24",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": -55.9,
           "y": 0.12,
@@ -4922,7 +4922,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-55.9_-4",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": -55.9,
           "y": 0.12,
@@ -4938,7 +4938,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-55.9_-44",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": -55.9,
           "y": 0.12,
@@ -4954,7 +4954,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-55.9_-64",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": -55.9,
           "y": 0.12,
@@ -4970,7 +4970,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-55.9_16",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": -55.9,
           "y": 0.12,
@@ -4986,7 +4986,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-55.9_36",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": -55.9,
           "y": 0.12,
@@ -5002,7 +5002,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-55.9_56",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": -55.9,
           "y": 0.12,
@@ -5018,7 +5018,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_ave_-55.9_76",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 90,
         "position": {
           "x": -55.9,
           "y": 0.12,
@@ -5050,7 +5050,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_cross_n_-67_55.9",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": -67,
           "y": 0.12,
@@ -5082,7 +5082,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_cross_n_-87_55.9",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": -87,
           "y": 0.12,
@@ -5098,7 +5098,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_cross_s_-67_-50.1",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": -67,
           "y": 0.12,
@@ -5130,7 +5130,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_west_cross_s_-87_-50.1",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": 0,
+        "rotationY": 180,
         "position": {
           "x": -87,
           "y": 0.12,
@@ -5162,7 +5162,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_yaw225_65.162_-66.159",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": -22.5,
+        "rotationY": 157.5,
         "position": {
           "x": 65.162,
           "y": 0.14,
@@ -5210,7 +5210,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_yaw30_-52.576_99.677",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": -30,
+        "rotationY": 150,
         "position": {
           "x": -52.576,
           "y": 0.14,
@@ -5242,7 +5242,7 @@ export const LEVEL_11 = {
         "id": "lamp_rd_yaw30_-69.896_89.677",
         "model": "lamp_post",
         "source": "road_lamp",
-        "rotationY": -30,
+        "rotationY": 150,
         "position": {
           "x": -69.896,
           "y": 0.14,
