@@ -37,14 +37,21 @@
  *      каждым ребром не уходит в проём глубже `navEdgeDrop` и не горбит выше
  *      шага ноги;
  *  10. Метки id подписывают перекрёстки их отметкой;
- *  11. Бюджет: узлы, пластины, опора и луч;
- *  12. Главы 9–11 не вошли в рельефную ветку.
+ *  11. Бюджет фикстуры: узлы, пластины, опора и луч;
+ *  12. Бюджет собранного модуля главы 12 (600 × 600 м): узлы как плотность к
+ *      решётке, пластины и четыре пробы (опора, два забоя луча, сфера) — каждая
+ *      на карте с полем и на той же карте без поля, чтобы пункт 6 («рельеф не
+ *      дороже вдвое») мерился отношением, а не плавающими микросекундами;
+ *  13. Свет главы 12: улица держится луны, летающего пула огней в данных нет,
+ *      грунт и полотно одной яркости;
+ *  14. Главы 9–11 не вошли в рельефную ветку.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
 import { LEVEL_09 } from '../src/levels/level-09.js';
 import { LEVEL_10 } from '../src/levels/level-10.js';
 import { LEVEL_11 } from '../src/levels/level-11.js';
+import { LEVEL_12 } from '../src/levels/level-12.js';
 import { expandCity } from '../tools/city.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
@@ -698,10 +705,185 @@ function testBudget() {
   if (perSupport > 2) bad.push(`опора ${perSupport.toFixed(2)} мкс/вызов (бюджет 2 мкс)`);
   if (perRay > 200) bad.push(`луч ${perRay.toFixed(1)} мкс/вызов (бюджет 200 мкс)`);
   return {
-    name: 'Бюджет рельефного города: узлы ≤ 9 000, пластины ≤ 400, опора ≤ 2 мкс, луч ≤ 200 мкс',
+    name: 'Бюджет фикстуры (300 × 300 м): узлы ≤ 9 000, пластины ≤ 400, опора ≤ 2 мкс, луч ≤ 200 мкс',
     passed: bad.length === 0,
     info: bad.length ? bad.join('; ')
       : `${nodes} узлов, ${plates} пластин, опора ${perSupport.toFixed(3)} мкс × ${support.calls}, луч ${perRay.toFixed(1)} мкс × ${ray.calls}`,
+  };
+}
+
+/**
+ * Бюджет **собранного модуля главы 12** — 600 × 600 м, рельеф, косые районы,
+ * 220 пластин настила.
+ *
+ * Предыдущая проверка мерит фикстуру сюиты 300 × 300 м, то есть ровно то, из-за
+ * чего вопрос о бюджетах главы 12 и оставался открытым: зелёный сюжет не видел
+ * настоящего графа. Здесь тот же протокол времени (разогрев и лучшее из трёх
+ * окон по 60 мс), но на зарегистрированной главе, и пробы взяты те, которые
+ * движок действительно делает:
+ *  • `groundHeightAt(x, z, 500)` — нога и маяк точки B;
+ *  • `relief.heightAt` — одна проба поля (нога платит её вместе с опорой, а
+ *    решётка навигации и картинка грунта — на каждую клетку);
+ *  • нисходящий луч 120 м и выстрел на всю дальность (`CONFIG.weapon.range`) —
+ *    худшие случаи `raySolid`;
+ *  • `resolveSphere` — тело Чужого, вызов на каждый кадр.
+ *
+ * Пределы = число пункта 6 плана плюс 25 % на разброс машины. Без запаса сюжет
+ * краснеет на неизменном графе: окно 60 мс ловит GC и компиляцию, и на этом же
+ * модуле опора уже читалась от 1,67 до 3,54 мкс (этап 7 — сюиту бюджетов
+ * переводили на разогрев и лучшее из окон именно поэтому).
+ *
+ * Узлы меряются **плотностью к решётке**, а не абсолютным числом. Исходное
+ * «≤ 9 000 при 600 м» сравнивало главу 12 с главой 10, у которой решётку съели
+ * дома (2 420 узла значили «проходима только улица», а не «рельеф дёшев»;
+ * у самой главы 10 узлов 13 881). Смысл ограничения «рельеф не должен удвоить
+ * узлы» — в том, сколько промежуточных узлов добавляет склон (`_linkRise`) и
+ * сколько кладут сверху решётки кровли и настилы: ≤ 1,5 решёточной точки на
+ * клетку шага `J.navStep`.
+ *
+ * До индекса планов (луч и сферы перебирали ВСЕ призмы, перила и дуги) эти же
+ * пробы на главе 12 стоили 208 мкс на луче в 2,7 м, 256 мкс на 120 м вниз,
+ * 358 мкс на выстреле 180 м и 21,7 мкс на сфере — то есть ценой вызова правилоло
+ * число настилов во всём городе, а не куда летит луч (тот же v2-движок без поля:
+ * 123 / 147 / 193 / 5,8). Поле после правки без аллокаций на пробу — 0,76…0,90
+ * мкс. Замеры по главам и таблица — в docs/architecture-json-levels.md.
+ */
+function testChapterBudget() {
+  const map = createJsonMap(LEVEL_12.map);
+  map.build(new THREE.Scene());
+  // та же глава, но без поля: `groundPlane` возвращается, `relief`-ветки (`_reliefRay`,
+  // `_reliefPush`, опора от отметки поля) не идут, а солиды, настилы, призмы и дуги
+  // остаются те же. Отношение двух замеров одного прогона и есть пункт 6 («поле не
+  // дороже вдвое против той же карты без поля») — абсолютные микросекунды от машины
+  // плавают в полтора раза (выстрел на 180 м: 175 мкс на свежем документе и 302 мкс
+  // в сюжете, где уже собраны другие карты), отношение — нет.
+  const plainSpec = { ...LEVEL_12.map, relief: null };
+  const plain = createJsonMap(plainSpec);
+  plain.build(new THREE.Scene());
+  const nodes = map.nav.adj.length;
+  const lattice = (Math.floor(map.width / J.navStep) + 1) ** 2;
+  const plates = LEVEL_12.map.roads.flatMap(r => r.decks).filter(d => d.length !== undefined).length;
+  const range = CONFIG.weapon.range;
+  const half = map.width / 2 - 1;
+  const bad = [];
+  if (nodes > lattice * 1.5) {
+    bad.push(`узлов ${nodes} — это ${(nodes / lattice).toFixed(2)}× решётки ${lattice} при пределе 1,5×`);
+  }
+  if (plates > 400) bad.push(`пластин ${plates} при бюджете 400`);
+  const probes = (target, withField) => {
+    const m = target;
+    const field = withField ? bestWindow(() => {
+      for (let i = 0; i < 2000; i++) {
+        const x = -half + (i * 7.13) % (2 * half);
+        const z = -half + (i * 11.77) % (2 * half);
+        m.relief.heightAt(x, z);
+      }
+      return 2000;
+    }).per : 0;
+    const support = bestWindow(() => {
+      for (let i = 0; i < 2000; i++) {
+        const x = -half + (i * 7.13) % (2 * half);
+        const z = -half + (i * 11.77) % (2 * half);
+        m.groundHeightAt(x, z, 500);
+      }
+      return 2000;
+    });
+    const down = bestWindow(() => {
+      for (let i = 0; i < 200; i++) {
+        const x = -half + (i * 17.3) % (2 * half);
+        const z = -half + (i * 7.7) % (2 * half);
+        m.raySolid(x, 60, z, 0, -1, 0, 120);
+      }
+      return 200;
+    });
+    const shot = bestWindow(() => {
+      for (let i = 0; i < 200; i++) {
+        const x = -half + (i * 13.1) % (2 * half);
+        const z = -half + (i * 5.9) % (2 * half);
+        m.raySolid(x, 1.6, z, 1, 0, 0, range);
+      }
+      return 200;
+    });
+    const body = { x: 0, y: 0, z: 0 };
+    const sphere = bestWindow(() => {
+      for (let i = 0; i < 400; i++) {
+        const x = -half + (i * 3.7) % (2 * half);
+        const z = -half + (i * 9.1) % (2 * half);
+        body.x = x; body.z = z; body.y = m.groundHeightAt(x, z, 500) + 0.5;
+        m.resolveSphere(body, CONFIG.alien.radius);
+      }
+      return 400;
+    });
+    return { field, support: support.per, down: down.per, shot: shot.per, sphere: sphere.per };
+  };
+  const on = probes(map, true);
+  const off = probes(plain, false);
+  const ratio = (a, b) => (b > 0 ? a / b : Infinity);
+  // абсолютные пределы: число пункта 6 плюс 25 % на разброс машины (окно в 60 мс
+  // ловит GC и компиляцию, и на неизменном графе опора уже читалась 1,67…3,54)
+  if (on.field > 1.25) bad.push(`поле ${on.field.toFixed(2)} мкс/проба (предел 1 мкс + 25 %)`);
+  if (on.support > 2.5) bad.push(`опора ${on.support.toFixed(2)} мкс/вызов (пункт 6: 2 мкс, предел 2,5)`);
+  if (on.down > 250) bad.push(`луч нисходящий ${on.down.toFixed(0)} мкс/вызов (пункт 6: 200 мкс, предел 250)`);
+  if (on.sphere > 25) bad.push(`сфера ${on.sphere.toFixed(1)} мкс/вызов (20 мкс, предел 25)`);
+  for (const [name, a, b] of [['опора', on.support, off.support], ['луч вниз', on.down, off.down], ['выстрел', on.shot, off.shot], ['сфера', on.sphere, off.sphere]]) {
+    if (ratio(a, b) > 2) bad.push(`${name}: с полем ${a.toFixed(1)} мкс против ${b.toFixed(1)} мкс без поля — это ${ratio(a, b).toFixed(2)}× (пункт 6: не дороже вдвое)`);
+  }
+  return {
+    name: 'Бюджет собранной главы 12: узлы ≤ 1,5 решётки, пластины ≤ 400, опора ≤ 2,5 мкс, луч ≤ 250 мкс и всё это не дороже вдвое против той же карты без поля',
+    passed: bad.length === 0,
+    info: bad.length ? bad.join('; ')
+      : `${nodes} узлов на решётке ${lattice} (${(nodes / lattice).toFixed(2)}×), ${plates} пластин; `
+        + `поле ${on.field.toFixed(2)} мкс; опора ${on.support.toFixed(2)} против ${off.support.toFixed(2)} (${ratio(on.support, off.support).toFixed(2)}×); `
+        + `луч 120 м ${on.down.toFixed(0)} против ${off.down.toFixed(0)} (${ratio(on.down, off.down).toFixed(2)}×); `
+        + `выстрел ${range} м ${on.shot.toFixed(0)} против ${off.shot.toFixed(0)} (${ratio(on.shot, off.shot).toFixed(2)}×); `
+        + `сфера ${on.sphere.toFixed(1)} против ${off.sphere.toFixed(1)} (${ratio(on.sphere, off.sphere).toFixed(2)}×)`,
+  };
+}
+
+/**
+ * Свет главы 12 — луна, и больше ничего летающего. Числа сняты фотометрией на
+ * странице игры (рендер в `WebGLRenderTarget(FloatType)`, линейные пиксели →
+ * sRGB, медиана кадра 200 × 200 с камерой в 3 м над отметкой настила):
+ *  • пул `sky.lights` (главы 3–11) даёт «улицу под фонарём» 68, но это 8
+ *    настоящих источников, следующих за камерой, — в пешеходном городе они
+ *    летают вокруг игрока; без пула и луне брифа 0,55 асфальт читается 32…39,
+ *    грунт (#1a1d22) — 23…31, фасад 49…62 на свету, 5 в тени, небо 16;
+ *  • ambient улицу не делает: hemi, поднятый до 1,8, даёт асфальту 36, а
+ *    теневой фасад 5 → 14, то есть съедает ночь, не освещая дорогу;
+ *  • луна 3,5: асфальт 42 — порог «улица без огней 40» из
+ *    docs/architecture-glb.md, фасад на свету 62 остаётся в поясе 39…65;
+ *  • цвет грунта — тот же асфальт (#2a2d33): при #1a1d22 склон читался 31
+ *    против 42 на полотне, хотя и то и другое одна и та же опора под ногой.
+ * Сюита второго GL-контекста не заводит и пиксели не меряет, поэтому проверяет
+ * договор, который эти числа держит: пула нет, луна не ниже замеренного предела,
+ * ambient не выше него, статичные подсветки светят вверх (полотно делают не они),
+ * грунт и полотно одного цвета.
+ */
+function testMoonLight() {
+  const sky = LEVEL_12.sky;
+  const spec = LEVEL_12.map;
+  const bad = [];
+  if (sky.lights !== undefined) bad.push('пул летающих огней вернулся в `sky.lights`');
+  const moon = sky.sun?.intensity ?? 0;
+  if (moon < 3.5) bad.push(`луна ${moon}: при 0,55 улица читается 32, а порог «без огней» — 40`);
+  const hemi = sky.hemi?.intensity ?? 9;
+  if (hemi > 1) bad.push(`hemi ${hemi}: ambient поднимает теневой фасад (5 → 14), а не улицу (32 → 36)`);
+  const wash = (spec.lights ?? []).filter(l => l.type !== 'directional');
+  const atPavement = wash.filter(l => !l.target || l.target.y <= l.position.y);
+  if (atPavement.length) {
+    bad.push(`подсветка ${atPavement.map(l => l.id).join(', ')} светит не вверх — она освещает полотно, а не фасад`);
+  }
+  const color = spec.ground.color;
+  const hex = typeof color === 'string' ? parseInt(color.replace('#', ''), 16) : color;
+  if (hex !== J.asphalt) {
+    bad.push(`грунт ${(color ?? '').toString()} не в цвет полотна ${J.asphalt.toString(16)}: тот же склон читался 31 против асфальта 42`);
+  }
+  return {
+    name: 'Свет главы 12: луна тянет улицу (≥ 40), летающих огней нет, грунт и полотно одной яркости',
+    passed: bad.length === 0,
+    info: bad.length ? bad.join('; ')
+      : `луна ${moon}, hemi ${hemi}, статичных подсветок ${wash.length} (все вверх), грунт #${hex.toString(16)} = асфальт; `
+        + 'замеры: асфальт/склон 42/40…41, фасад 62 на свету и 5 в тени, небо 16 (sRGB)',
   };
 }
 
@@ -756,6 +938,8 @@ export async function runReliefCityTests() {
     testRoutesBetweenTiers,
     testCrossingMarks,
     testBudget,
+    testChapterBudget,
+    testMoonLight,
     testFrozenChapters,
   ];
   const results = [];

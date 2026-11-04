@@ -30,7 +30,7 @@ export const LEVEL_12 = {
     "ground": {
       "y": 0,
       "size": 600,
-      "color": "#1a1d22"
+      "color": "#2a2d33"
     },
     "relief": {
       "baseY": 0,
@@ -37172,18 +37172,11 @@ export const LEVEL_12 = {
     "hemi": {
       "sky": "#1b2a44",
       "ground": "#0a0d12",
-      "intensity": 0.4
-    },
-    "lights": {
-      "count": 8,
-      "reach": 60,
-      "height": 5.4,
-      "spacing": 20,
-      "intensity": 70
+      "intensity": 0.7
     },
     "sun": {
       "color": "#bcd0ff",
-      "intensity": 0.55,
+      "intensity": 3.5,
       "position": [
         120,
         220,

@@ -981,25 +981,35 @@ export class JsonMap extends SolidField {
     const base = super.raySolid(ox, oy, oz, dx, dy, dz, maxDist);
     this.groundPlane = gp;
     const limit = base ? base.dist : maxDist;
+    const ux = len > 1e-9 ? dx / len : 0;
+    const uy = len > 1e-9 ? dy / len : 0;
+    const uz = len > 1e-9 ? dz / len : 0;
+    const cand = this._rayCand;
     let best = null;
-    for (const w of this.prisms) {
-      const h = rayWedge(w, ox, oy, oz, dx, dy, dz);
+    cand.length = 0;
+    this._plansOnSegment(this._prismCells, ox, oz, ux, uz, limit, cand);
+    for (const idx of cand) {
+      const h = rayWedge(this.prisms[idx], ox, oy, oz, dx, dy, dz);
       if (h && h.t > 1e-6 && h.t < limit && (!best || h.t < best.dist)) best = { ...h, dist: h.t };
     }
-    for (const w of this.railWedges) {
-      const h = rayWedge(w, ox, oy, oz, dx, dy, dz);
+    cand.length = 0;
+    this._plansOnSegment(this._railCells, ox, oz, ux, uz, limit, cand);
+    for (const idx of cand) {
+      const h = rayWedge(this.railWedges[idx], ox, oy, oz, dx, dy, dz);
       if (h && h.t > 1e-6 && h.t < limit && (!best || h.t < best.dist)) best = { ...h, dist: h.t };
     }
     // дуга — по тем же треугольникам, что её меш: луч видит ровно нарисованную
     // поверхность, а не габарит и не трансцендентное уравнение с `atan2`
-    for (const s of this.sweeps) {
-      const h = raySweep(s, ox, oy, oz, dx, dy, dz);
+    cand.length = 0;
+    this._plansOnSegment(this._sweepCells, ox, oz, ux, uz, limit, cand);
+    for (const idx of cand) {
+      const h = raySweep(this.sweeps[idx], ox, oy, oz, dx, dy, dz);
       if (h && h.dist < limit && (!best || h.dist < best.dist)) best = h;
     }
     // грунт-поле: у луча, уходящего в холм, нет «плоскости земли», куда ему
     // упасть, — он обязан остановиться на склоне
     if (this.relief && len > 1e-9) {
-      const h = this._reliefRay(ox, oy, oz, dx / len, dy / len, dz / len, limit);
+      const h = this._reliefRay(ox, oy, oz, ux, uy, uz, limit);
       if (h && (!best || h.dist < best.dist)) best = h;
     }
     if (!best) return base;
@@ -1064,17 +1074,29 @@ export class JsonMap extends SolidField {
    */
   resolveSphere(c, r) {
     const moved = super.resolveSphere(c, r);
+    const cand = this._sphereCand;
     let fromWedge = false;
-    for (const w of this.prisms) {
-      if (pushOutWedge(c, r, w)) fromWedge = true;
+    // радиус тела Чужого (`CONFIG.alien.radius` = 0,5 м) на порядок меньше
+    // клетки `J.planGrid`, поэтому пояс в одну клетку берёт все прикосновения и
+    // отбрасывает дальние настилы: полная перепись списков стоила 21,7 мкс на
+    // главе 12 против 5,8 на главе 11 при тех же телах
+    cand.length = 0;
+    this._plansAround(this._prismCells, c.x, c.z, cand);
+    for (const idx of cand) {
+      if (pushOutWedge(c, r, this.prisms[idx])) fromWedge = true;
     }
-    for (const w of this.railWedges) {
-      if (pushOutWedge(c, r, w)) fromWedge = true;
+    cand.length = 0;
+    this._plansAround(this._railCells, c.x, c.z, cand);
+    for (const idx of cand) {
+      if (pushOutWedge(c, r, this.railWedges[idx])) fromWedge = true;
     }
     // дуги: та же логика «точное расстояние до поверхности», только сектор
     // кольцевой, поэтому планарная и вертикальная части складываются через hypot
     let fromSweep = false;
-    for (const s of this.sweeps) {
+    cand.length = 0;
+    this._plansAround(this._sweepCells, c.x, c.z, cand);
+    for (const idx of cand) {
+      const s = this.sweeps[idx];
       if (pushOutSweep(c, r, s)) fromSweep = true;
       // кромка полотна с перилами: сфера обязана остановиться о стенку, а не
       // соскользнуть за край — пояс берётся по фактической высоте края
@@ -1313,11 +1335,15 @@ export class JsonMap extends SolidField {
   }
 
   /**
-   * Индекс планов: габариты зданий и призм по клеткам `J.planGrid`. Нужен потому,
-   * что `groundHeightAt` зовётся на каждую пробу ребра графа (12 проб на 6 м в обе
-   * стороны), а `_inBuilding` — на каждую клетку решётки: на районе 600 × 600 м с
-   * сотнями зданий и маршей линейный перебор списков стоит миллионов проверок,
-   * индекс — десятки.
+   * Индекс планов: габариты зданий, призм, перил, дуг и планов русла по клеткам
+   * `J.planGrid`. Нужен потому, что `groundHeightAt` зовётся на каждую пробу
+   * ребра графа (12 проб на 6 м в обе стороны), а `_inBuilding` — на каждую
+   * клетку решётки: на районе 600 × 600 м с сотнями зданий и маршей линейный
+   * перебор списков стоит миллионов проверок, индекс — десятки. Те же списки
+   * перебирали `raySolid` и `resolveSphere` по всем призмам, перилам и дугам на
+   * каждый вызов — на главе 12 проба луча в 2,7 м стоила 208 мкс, то есть цена
+   * вызова зависела от числа настилов во всём городе, а не от того, что луч
+   * летит три метра (замеры бюджета — в разделе «рельеф» docs/architecture-json-levels.md).
    */
   _indexPlans() {
     const g = J.planGrid;
@@ -1336,10 +1362,71 @@ export class JsonMap extends SolidField {
     this._buildingCells = new Map();
     this._prismCells = new Map();
     this._holeCells = new Map();
+    this._railCells = new Map();
+    this._sweepCells = new Map();
     this.buildings.forEach((b, idx) => put(this._buildingCells, this._buildingBoxes[idx], idx));
     this.prisms.forEach((w, idx) => put(this._prismCells, w.world ?? w, idx));
+    this.railWedges.forEach((w, idx) => put(this._railCells, w.world ?? w, idx));
+    this.sweeps.forEach((s, idx) => put(this._sweepCells, s, idx));
     this.holes.forEach((r, idx) => put(this._holeCells, r, idx));
     this._planGrid = g;
+    /** буферы луча и сферы: перебор кандидатов не должен плодить массивы на кадр */
+    this._planSeen = new Set();
+    this._rayCand = [];
+    this._sphereCand = [];
+  }
+
+  /**
+   * Объекты вокруг точки: клетка её плана и соседи (пояс `ring`). В отличие от
+   * `_planAt` список без повторов: потребитель, который двигает саму точку
+   * (выталкивание сферы), применив один объект дважды, вытолкнул бы тело вдвое
+   * сильнее.
+   */
+  _plansAround(cells, x, z, out, ring = 1) {
+    const g = this._planGrid;
+    const ci = Math.floor(x / g), ck = Math.floor(z / g);
+    const seen = this._planSeen;
+    seen.clear();
+    for (let j = ck - ring; j <= ck + ring; j++) {
+      for (let i = ci - ring; i <= ci + ring; i++) {
+        const list = cells.get(this._key(i, j));
+        if (!list) continue;
+        for (const idx of list) {
+          if (seen.has(idx)) continue;
+          seen.add(idx);
+          out.push(idx);
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Объекты, чей план попал в прямоугольник отрезка луча. Кандидатов отдаёт
+   * ровно столько же, сколько находит полная перепись списка: точка удара
+   * лежит внутри плана объекта, поэтому клетка её плана стоит и в списке этого
+   * объекта (пределы растра считаются `floor` от обоих концов, поэтому граница
+   * плана не теряет клетку).
+   */
+  _plansOnSegment(cells, ox, oz, ux, uz, limit, out) {
+    const g = this._planGrid;
+    const ex = ox + ux * limit, ez = oz + uz * limit;
+    const i0 = Math.floor(Math.min(ox, ex) / g), i1 = Math.floor(Math.max(ox, ex) / g);
+    const j0 = Math.floor(Math.min(oz, ez) / g), j1 = Math.floor(Math.max(oz, ez) / g);
+    const seen = this._planSeen;
+    seen.clear();
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const list = cells.get(this._key(i, j));
+        if (!list) continue;
+        for (const idx of list) {
+          if (seen.has(idx)) continue;
+          seen.add(idx);
+          out.push(idx);
+        }
+      }
+    }
+    return out;
   }
 
   /** Индексы объектов, чья клетка плана попала в окрестность точки (3×3 клетки). */

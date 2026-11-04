@@ -14,7 +14,7 @@
  * обязан сходиться с первым после каждой правки брифа.
  */
 import { CONFIG } from './config.js';
-import { cellKey, frameAt, rasterRect, rotatedBounds, unrotatePoint } from './geo2d.js';
+import { frameAt, rotatedBounds } from './geo2d.js';
 
 const J = CONFIG.jsonMap;
 
@@ -50,13 +50,25 @@ function hillAt(h, x, z) {
  * `ease`, чтобы переход площадки в склон не имел излома. Поворот — тот же кадр
  * `frameAt`, что у дома и пластины настила: косая площадка и косой корпус
  * обязаны иметь одинаковую геометрию плана.
+ *
+ * Разворот и проверку делает арифметикой кадра, а не `unrotatePoint`: этот
+ * счётчик зовётся с каждой площадки кармана на каждую пробу поля, и
+ * объект-координата на каждый вызов означал бы мусор в GC там, где меряется
+ * бюджет опоры. Квадрат расстояния до угла сравнивается с квадратом `blend` до
+ * извлечения корня: промах мимо кольца — самый частый ответ.
  */
 function padWeight(p, x, z) {
-  const l = p.frame ? unrotatePoint(p.frame, x, z) : { x, z };
-  const dx = Math.max(l.x - p.maxX, p.minX - l.x, 0);
-  const dz = Math.max(l.z - p.maxZ, p.minZ - l.z, 0);
-  const dist = Math.hypot(dx, dz);
-  return dist >= p.blend ? 0 : ease(1 - dist / p.blend);
+  let lx = x, lz = z;
+  if (p.frame) {
+    const f = p.frame, dx = x - f.cx, dz = z - f.cz;
+    lx = f.cx + dx * f.c + dz * f.s;
+    lz = f.cz - dx * f.s + dz * f.c;
+  }
+  const dx = Math.max(lx - p.maxX, p.minX - lx, 0);
+  const dz = Math.max(lz - p.maxZ, p.minZ - lz, 0);
+  const d2 = dx * dx + dz * dz;
+  if (d2 >= p.blend * p.blend) return 0;
+  return ease(1 - Math.sqrt(d2) / p.blend);
 }
 
 /**
@@ -90,23 +102,39 @@ export function reliefOf(spec = {}) {
    * тысяч проверок на районе. Клетка — `relief.cell` (по умолчанию шаг индекса
    * планов), в неё попадает раздутый план, поэтому проба смотрит только
    * площадки своего кармана; точный вес по-прежнему решает `padWeight`.
+   *
+   * Ключ клетки — число, как `SolidField._key` (src/solids.js), а не строка
+   * `` `${i}:${j}` ``: `heightAt` зовётся на каждую клетку решётки навигации, на
+   * каждый шаг марша луча и на каждую вершину меша грунта — на главе 600 × 600 м
+   * это сотни тысяч проб, и строка на каждую означала бы мусор в GC ровно там,
+   * где меряется бюджет опоры.
    */
   const cell = spec.cell ?? J.planGrid;
   const buckets = new Map();
+  const EMPTY = [];
   for (const p of pads) {
     const world = p.frame ? rotatedBounds(p, p.frame) : p;
-    const zone = {
-      minX: world.minX - p.blend, maxX: world.maxX + p.blend,
-      minZ: world.minZ - p.blend, maxZ: world.maxZ + p.blend,
-    };
-    for (const key of rasterRect(zone, cell)) {
-      const bucket = buckets.get(key);
-      if (bucket) bucket.push(p);
-      else buckets.set(key, [p]);
+    // `− 1e-9` на max, как в rasterRect: грань прямоугольника, легшая ровно на
+    // границу клетки, не должна добавлять column'у за собой
+    const i0 = Math.floor((world.minX - p.blend) / cell);
+    const i1 = Math.floor((world.maxX + p.blend - 1e-9) / cell);
+    const j0 = Math.floor((world.minZ - p.blend) / cell);
+    const j1 = Math.floor((world.maxZ + p.blend - 1e-9) / cell);
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const key = (i + 4096) * 8192 + (j + 4096);
+        const bucket = buckets.get(key);
+        if (bucket) bucket.push(p);
+        else buckets.set(key, [p]);
+      }
     }
   }
   for (const list of buckets.values()) list.sort((a, b) => a.order - b.order);
-  const bucketAt = (x, z) => buckets.get(cellKey(Math.floor(x / cell), Math.floor(z / cell))) ?? [];
+  // `EMPTY` — общий пустой список на промах: `.get(...) ?? []` на каждую пробу
+  // значил бы массив-мусор там, где поля нет вовсе (а таких проб на главе —
+  // большинство)
+  const bucketAt = (x, z) => buckets.get(
+    (Math.floor(x / cell) + 4096) * 8192 + (Math.floor(z / cell) + 4096)) ?? EMPTY;
 
   /** Отметка «природы» — земля без площадок: только холмы и долины над `baseY`. */
   const reliefHeightAt = (x, z) => {
@@ -142,7 +170,15 @@ export function reliefOf(spec = {}) {
    */
   const heightAt = (x, z) => {
     let y = reliefHeightAt(x, z);
-    for (const { pad, weight } of padsAt(x, z)) y += (pad.y - y) * weight;
+    // тот же порядок и та же формула, что у `padsAt`, но без массива и без
+    // объекта на каждую площадку: проба поля вызывается с каждого шага марша
+    // луча и с каждой клетки решётки навигации
+    const list = bucketAt(x, z);
+    for (let k = 0; k < list.length; k++) {
+      const pad = list[k];
+      const w = padWeight(pad, x, z);
+      if (w > 0) y += (pad.y - y) * w;
+    }
     return y;
   };
 
