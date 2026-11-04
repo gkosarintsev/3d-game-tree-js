@@ -363,7 +363,7 @@ const districtFrame = d => frameAt(
  * (`street.grade`) не соберутся молча прямым городом на плоскости — поле
  * добавляется в этот список только вместе с его реализацией.
  */
-const CITY_KEYS = ['seed', 'districts'];
+const CITY_KEYS = ['seed', 'districts', 'track'];
 const DISTRICT_KEYS = ['id', 'name', 'style', 'block', 'street', 'lot', 'height',
   'tower', 'archetypes', 'enterableEvery', 'skip', 'courtyard', 'roofs', 'yaw', 'polygon'];
 const DISTRICT_SECTION_KEYS = {
@@ -398,6 +398,7 @@ function cityConfigErrors(city, ground, districts, v2) {
   for (const k of unknownIn(city, CITY_KEYS)) {
     errors.push(`city: ключ '${k}' генератор не читает — район с ним собрался бы без этого поля`);
   }
+  if (city.track) errors.push(...trackConfigErrors(city.track, ground, v2));
   const seen = new Set();
   for (const d of districts) {
     if (!d.id) { errors.push('city.districts: у района нет id — его улицы и лоты не получат имён'); continue; }
@@ -513,6 +514,350 @@ function cityConfigErrors(city, ground, districts, v2) {
   return errors;
 }
 
+// ------------------------------------------------------------- трасса (глава 13)
+
+/**
+ * Кольцо гоночной трассы (`city.track`) — хребет маршрута: наземные улицы
+ * главы 13 под ним, подъезд по съезду, обход петли, спуск вторым съездом.
+ * Форма задаётся числами и сидом, а не списком координат (решение владельца,
+ * plan §2.2): правка `radius` не требует переписывать дюжину дуг рукой, как это
+ * делает автор в `level-12`.
+ *
+ * Профиль кривизны собирается **скруглением вершин звездообразного полигона**,
+ * а не интегрированием кривизны вдоль оси. Причина — замкнутость: сумма
+ * внешних углов замкнутой петли обязана быть ровно 2π, и интегрированием это
+ * доводится численно, отчего шов кольца расходится на доли градуса (а `arc`
+ * в данных — это `from`/`to`, и нестыкующийся шов нормализатор увидит как
+ * разрыв полотна). У скруглённого полигона и замкнутость, и касательность
+ * стыков следуют из построения: дуга касается обоих своих рёбер по определению
+ * `T = R·tan(|δ|/2)`, а прямая — это остаток ребра между точками касания.
+ */
+export const TRACK_DEFAULTS = {
+  id: 'ring',
+  center: [0, 0],
+  radius: 120,
+  turns: 12,
+  minRadius: 60,
+  curvatureJitter: 0.35,
+  width: 10,
+  bank: 6,
+  grade: 0.08,
+  clearance: 3,
+  amplitude: 4,
+  waves: 2,
+  rails: true,
+  lamps: true,
+  entries: 2,
+};
+const TRACK_KEYS = Object.keys(TRACK_DEFAULTS);
+
+/**
+ * Хорда, на которую коридор набивается в препятствия. Меньше — больше коробок
+ * в `ctx.obstacles` (сравнение лота с каждой стоит `obbHitsRect`), больше —
+ * коробка дугой накрывает соседний лот, который от полотна далеко. 8 м при
+ * ширине полотна 10 м держит ошибку «прямоугольник вместо сектора» в единицах
+ * десятых долей метра.
+ */
+const TRACK_CHORD = 8;
+
+/**
+ * Верх дрожи вершины: при `curvatureJitter ≥ 0,5` звезду можно свернуть так,
+ * что соседняя вершина залезет за центр, и кольцо перестанет быть выпуклым
+ * контуром. Предел проверяется гейтом, а не клампом: тихая правка числа
+ * означала бы, что автор получил форму не из брифа.
+ */
+const TRACK_MAX_JITTER = 0.5;
+
+/**
+ * Минимальный радиус дуги, который ещё можно записать в данные: `V2_ARC.radius`
+ * схемы начинается с 2 м. Скругление тоньше — это угол, а не дуга, и его
+ * эмиссия (этап 3) отдаёт две пластины с общим торцом.
+ */
+export const TRACK_ARC_MIN = 2;
+
+export const trackSpec = t => {
+  const out = { ...TRACK_DEFAULTS, ...t };
+  const c = Array.isArray(t?.center) ? t.center : TRACK_DEFAULTS.center;
+  out.center = { x: r3(c[0] ?? 0), z: r3(c[1] ?? 0) };
+  return out;
+};
+
+/**
+ * Что бракуется в секции `track` до первого вызова ГПСЧ. Числа здесь — единое
+ * место, где предел связывается с причиной: `grade` сравнивается с `J.maxSlope`
+ * (тот же предел, что у схемы для продольного уклона оси), а подъём волны — с
+ * длиной кольца, потому что `amplitude·sin(waves·2π·s/L)` круче всего на
+ * нулевом пересечении, где её тангенс ровно `amplitude·waves·2π/L`.
+ */
+function trackConfigErrors(track, ground, v2) {
+  const errors = [];
+  const t = trackSpec(track);
+  if (!v2) {
+    errors.push('city.track: трасса — поле v2, а глава `kind: \'json\'`: кольцо из дуг и повёрнутых '
+      + 'пластин схема v1 не примет. kind \'json2\'');
+  }
+  for (const k of unknownIn(track, TRACK_KEYS)) {
+    errors.push(`city.track: ключ '${k}' генератор не читает — кольцо собралось бы без него`);
+  }
+  if (typeof t.id !== 'string' || !t.id) {
+    errors.push(`city.track.id '${t.id}' — нужен префикс id элементов полотна ('ring_r1', 'ring_c0')`);
+  }
+  if (!Number.isInteger(t.turns) || t.turns < 3) {
+    errors.push(`city.track.turns ${track.turns} — нужно целое ≥ 3: у двух вершин петля вырождается в прямую туда и обратно`);
+  }
+  if (!(t.radius > 0)) {
+    errors.push(`city.track.radius ${track.radius} — обязателен и больше нуля: по нему задаётся и размер кольца, и предел высот (подъём волны меряется его длиной)`);
+  }
+  if (!(t.minRadius > 0)) errors.push(`city.track.minRadius ${track.minRadius} — должен быть больше нуля: это радиус самого крутого поворота`);
+  if (t.radius < t.minRadius) {
+    errors.push(`city.track: radius ${t.radius} меньше minRadius ${t.minRadius} — скругление не может быть шире, чем сама петля`);
+  }
+  if (!(t.width >= 2 && t.width <= 30)) {
+    errors.push(`city.track.width ${t.width} вне [2; 30] — за тем пределом схема бракует настил`);
+  }
+  if (!(t.minRadius - t.width / 2 > 0.5)) {
+    errors.push(`city.track: minRadius ${t.minRadius} при ширине ${t.width} оставляет внутреннюю кромку на ${r3(t.minRadius - t.width / 2)} м от оси дуги — нужно больше 0,5 м, иначе полотно на повороте сложится в себя`);
+  }
+  if (!(t.grade > 0 && t.grade <= J.maxSlope)) {
+    errors.push(`city.track.grade ${t.grade} вне (0; ${J.maxSlope}] — круче ${J.maxSlope} м/м схема бракует ось настила, а нулевой уклон означает плоское кольцо`);
+  }
+  if (!(Math.abs(t.bank) <= 30)) {
+    errors.push(`city.track.bank ${t.bank}° вне [−30; 30] — за этим пределом крен дуги не принимает схема`);
+  }
+  if (!(t.clearance > 0)) {
+    errors.push(`city.track.clearance ${t.clearance} — зазор полотна над корытом поля обязан быть положительным: при нуле полотно ляжет на грунт, и под кольцом не останется улицы`);
+  }
+  if (!(t.amplitude >= 0)) errors.push(`city.track.amplitude ${t.amplitude} — собственная высотная волна не бывает отрицательной (для провала задай рельеф)`);
+  if (!Number.isInteger(t.waves) || t.waves < 1) errors.push(`city.track.waves ${track.waves} — нужно целое ≥ 1: это число волн на петле`);
+  if (typeof t.rails !== 'boolean' || typeof t.lamps !== 'boolean') {
+    errors.push('city.track: rails и lamps — переключатели (true/false), а не числа');
+  }
+  if (!Number.isInteger(t.entries) || t.entries < 0 || t.entries > 8) {
+    errors.push(`city.track.entries ${track.entries} — нужно целое в [0; 8]: съезды расставляются по слотам длины, и больше восьми на кольцо не встанет`);
+  }
+  if (!(t.curvatureJitter >= 0 && t.curvatureJitter < TRACK_MAX_JITTER)) {
+    errors.push(`city.track.curvatureJitter ${t.curvatureJitter} вне [0; ${TRACK_MAX_JITTER}) — при большей дрожи вершину звезды можно свернуть за центр, и перестанет быть выпуклым контуром (а вместе с ним — и коридор)`);
+  }
+  if (t.radius > 0 && t.turns >= 3) {
+    // самая короткая хорода звезды: две вершины на минимальном радиусе,
+    // разделённые шагом угла (теорема косинусов ⇒ d ≥ 2·ρmin·sin(π/turns))
+    const minEdge = 2 * t.radius * (1 - t.curvatureJitter) * Math.sin(Math.PI / t.turns);
+    if (minEdge < MIN_RUN) {
+      errors.push(`city.track: при turns ${t.turns} и дрожи ${t.curvatureJitter} самое короткое ребро выходит ${r3(minEdge)} м — прямая короче ${MIN_RUN} м, в неё не встанет ни решётка узлов, ни фонарь`);
+    }
+    if (t.amplitude * t.waves > t.grade * t.radius) {
+      errors.push(`city.track: волна ${t.amplitude} м × ${t.waves} не влезает в уклон ${t.grade} м/м на кольце радиуса ${t.radius} м `
+        + `(нужно amplitude·waves ≤ grade·radius = ${r3(t.grade * t.radius)} м·волн): подъём полотна круче предела схема бракует`);
+    }
+    const reach = t.radius * (1 + t.curvatureJitter) + t.width / 2 + VERGE;
+    const cx = Math.abs(t.center.x), cz = Math.abs(t.center.z);
+    if (cx + reach > ground.size / 2 || cz + reach > ground.size / 2) {
+      errors.push(`city.track: кольцо с центром (${cx}, ${cz}) и вылетом ${r3(reach)} м не влезает в землю ${ground.size} м `
+        + `(нужно ≤ ${r3(ground.size / 2)} м с каждой стороны) — полотно за краем уровня не имеет ни опоры, ни картинки`);
+    }
+  }
+  return errors;
+}
+
+/**
+ * Ось кольца: вершины → рёбра → скругления → элементы, и коридор над ними.
+ * Ничего не эмитит в дороги (это этап 3): на выходе профиль кривизны, длина,
+ * прямоугольники коридора для `ctx.obstacles` и точки съездов.
+ *
+ * Расход ГПСЧ фиксирован и не зависит от того, что получилось: **две ноты на
+ * вершину** (доля, на которую радиус звезды уходит от правильного многоугольника,
+ * и доля между `minRadius` и `radius` для скругления) и **три ноты на съезд**
+ * (место в своём слоте, сторона ухода, удлинение пролёта). Отказов здесь нет,
+ * поэтому сжигать «несостоявшиеся» вызовы нечем — число вызовов равно
+ * `turns·2 + entries·3` (план обещал `turns + entries·3`; вторая нота на
+ * вершину появилась, когда скругление стало независимым параметром).
+ */
+export function trackCenterline(spec, ctx) {
+  const rng = ctx.rng;
+  const n = spec.turns;
+  const step = (Math.PI * 2) / n;
+  const verts = [];
+  for (let i = 0; i < n; i++) {
+    const th = i * step;
+    const rho = spec.radius * (1 + spec.curvatureJitter * (2 * rng() - 1));
+    verts.push({
+      x: r3(spec.center.x + Math.cos(th) * rho),
+      z: r3(spec.center.z + Math.sin(th) * rho),
+    });
+  }
+  const edges = verts.map((v, i) => {
+    const w = verts[(i + 1) % n];
+    const dx = w.x - v.x, dz = w.z - v.z, L = Math.hypot(dx, dz);
+    return { x0: v.x, z0: v.z, x1: w.x, z1: w.z, L, ux: dx / L, uz: dz / L };
+  });
+  // знак угла — сторона поворота, величина — раствор дуги в вершине
+  const turn = verts.map((_, i) => {
+    const p = edges[(i - 1 + n) % n], q = edges[i];
+    return Math.atan2(p.ux * q.uz - p.uz * q.ux, p.ux * q.ux + p.uz * q.uz);
+  });
+
+  // скругление: радиус из сида, урезанный так, чтобы касания соседних дуг не
+  // съели прямую короче `MIN_RUN`. Предел — половина запаса каждого из двух
+  // прилежащих рёбер, делённая на `tan(|δ|/2)`: тогда `T_i + T_{i+1} ≤ L − MIN_RUN`
+  // выполняется гарантированно и за один проход, без итераций.
+  //
+  // Дуга тоньше `TRACK_ARC_MIN` (2 м — нижний предел `V2_ARC.radius` схемы) не
+  // просто не эмитится, а **сбрасывается в ноль вместе с касаниями**: иначе
+  // соседние прямые кончались бы в A_i и B_i, разнесённых на `2·T_i`, и в оси
+  // появилась бы дыра (замер первой пробы этого этапа: разрыв 0,0127 м в шве и
+  // в середине кольца, а коридор над ней — две щели по полотно шириной).
+  const R = [], T = [], A = [], B = [];
+  for (let i = 0; i < n; i++) {
+    const t = Math.tan(Math.abs(turn[i]) / 2);
+    const drawn = spec.minRadius + (spec.radius - spec.minRadius) * rng();
+    const cap = t > 0
+      ? Math.min((edges[(i - 1 + n) % n].L - MIN_RUN) / (2 * t), (edges[i].L - MIN_RUN) / (2 * t))
+      : 0;
+    let r = t > 0 ? clamp(Math.min(drawn, cap), 0, spec.radius) : 0;
+    if (r < TRACK_ARC_MIN) r = 0;
+    R[i] = r;
+    T[i] = r * t;
+    A[i] = { x: verts[i].x - edges[(i - 1 + n) % n].ux * T[i], z: verts[i].z - edges[(i - 1 + n) % n].uz * T[i] };
+    B[i] = { x: verts[i].x + edges[i].ux * T[i], z: verts[i].z + edges[i].uz * T[i] };
+  }
+
+  // обход от точки касания A вершины 0: дуга_i, прямая по ребру i, дуга_{i+1}…
+  // последняя прямая кончается ровно в A_0 (те же числа, те же точки), поэтому
+  // шов кольца замкнут построением, а не подгонкой
+  const elements = [];
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    if (R[i] > 0) {
+      const p = edges[(i - 1 + n) % n], q = edges[i];
+      // центр — на биссектрисе угла вершины: `V + (b − a)·R / sin|δ|`. Вектор
+      // `(b − a)` имеет длину ровно `2·sin(|δ|/2)`, поэтому смещение выходит
+      // `R / cos(|δ|/2)` — ровно столько, чтобы окружность коснулась обеих
+      // прямых. Знак δ учитывать не надо: вогнутую вершину (а при дрожи радиуса
+      // их бывает несколько на кольцо) `(b − a)` разворачивает наружу сам
+      const k = R[i] / Math.abs(Math.sin(turn[i]));
+      const cx = verts[i].x + (q.ux - p.ux) * k, cz = verts[i].z + (q.uz - p.uz) * k;
+      const a0 = Math.atan2(A[i].z - cz, A[i].x - cx);
+      const len = R[i] * Math.abs(turn[i]);
+      elements.push({ kind: 'arc', i, cx, cz, radius: R[i], a0, span: turn[i],
+        x0: A[i].x, z0: A[i].z, x1: B[i].x, z1: B[i].z, s0: s, len });
+      s += len;
+    }
+    const j = (i + 1) % n;
+    const len = edges[i].L - T[i] - T[j];
+    if (len > 1e-9) {
+      elements.push({ kind: 'line', i, x0: B[i].x, z0: B[i].z, x1: A[j].x, z1: A[j].z,
+        ux: edges[i].ux, uz: edges[i].uz, s0: s, len });
+      s += len;
+    }
+  }
+  const track = { spec, verts, edges, turn, R, T, elements, length: s, band: [], entries: [] };
+
+  // коридор: полотно плюс верга, набитое хордами по элементам. Он только для
+  // лотов (`streets: false`) — под кольцом идти можно, строить нельзя, и улицы
+  // района обязаны продолжать ехать под подъёмным настилом
+  const bandHalf = r3(spec.width / 2 + VERGE);
+  const pushBand = (x0, z0, x1, z1) => {
+    const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz);
+    if (!(L > 1e-9)) return;
+    const ux = dx / L, uz = dz / L;
+    const obb = { cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, hx: L / 2, hz: bandHalf, c: ux, s: uz };
+    const rect = obbRect(obb);
+    // `obb` хранится коробкой в соглашении `obbFigure` (её же читает
+    // `obbHitsRect`), а `rect` — габарит: повёрнутый район пересчитывает
+    // препятствие по габариту (`localObb`), и без него у косого квартала
+    // коридор исчез бы
+    track.band.push({ rect, obb: { obb }, why: `коридор ${spec.id}`, streets: false, band: true });
+  };
+  for (const el of track.elements) {
+    if (el.kind === 'line') { pushBand(el.x0, el.z0, el.x1, el.z1); continue; }
+    const k = Math.max(1, Math.ceil(el.len / TRACK_CHORD));
+    for (let j = 0; j < k; j++) {
+      const a = el.a0 + el.span * (j / k), b = el.a0 + el.span * ((j + 1) / k);
+      pushBand(el.cx + Math.cos(a) * el.radius, el.cz + Math.sin(a) * el.radius,
+        el.cx + Math.cos(b) * el.radius, el.cz + Math.sin(b) * el.radius);
+    }
+  }
+
+  // съезды: слоты длины с дрожью, сторона ухода (внутрь кольца или наружу) и
+  // удлинение пролёта. Профиль высот и сам настил — этапы 2 и 3; здесь только
+  // точка ухода с петли и её направление
+  for (let k = 0; k < spec.entries; k++) {
+    const pos = (k + 0.5 + (rng() - 0.5) * 0.7) / spec.entries;
+    const at = trackAxisAt(track, pos * track.length);
+    let nx = -at.tz, nz = at.tx;
+    if ((nx * (spec.center.x - at.x) + nz * (spec.center.z - at.z) < 0) === (rng() < 0.5)) {
+      nx = -nx; nz = -nz;
+    }
+    track.entries.push({
+      // `s` остаётся двойным: это параметр оси, а не число брифа (полотно по
+      // нему пишется на этапе 3, и там оно округляется до миллиметра)
+      id: `${spec.id}_e${k}`, n: k, s: at.s, x: at.x, z: at.z, dx: nx, dz: nz,
+      inward: nx * (spec.center.x - at.x) + nz * (spec.center.z - at.z) > 0,
+      runFactor: r3(0.85 + rng() * 0.3),
+    });
+  }
+  return track;
+}
+
+/** Габарит ориентированной коробки (по нему косой район пересчитывает препятствие). */
+function obbRect(o) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const x = o.cx + sx * o.hx * o.c - sz * o.hz * o.s;
+      const z = o.cz + sx * o.hx * o.s + sz * o.hz * o.c;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+  }
+  return { minX: r3(minX), maxX: r3(maxX), minZ: r3(minZ), maxZ: r3(maxZ) };
+}
+
+/**
+ * Точка оси на пройденном расстоянии `s` (обход — modulo длины) и её
+ * касательная. По ней меряются корыто поля (этап 2), установка съезда и
+ * разметка полотна (этап 3): всякий, кто читает ось, обязан делать это этой
+ * функцией, иначе профиль высот и эмиссия разойдутся по фазе.
+ */
+export function trackAxisAt(track, s) {
+  const L = track.length;
+  let u = L > 0 ? s % L : 0;
+  if (u < 0) u += L;
+  const els = track.elements;
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i];
+    const last = i + 1 === els.length;
+    if (u > el.s0 + el.len && !last) continue;
+    const f = el.len > 0 ? clamp((u - el.s0) / el.len, 0, 1) : 0;
+    if (el.kind === 'line') {
+      return { s: u, x: el.x0 + (el.x1 - el.x0) * f, z: el.z0 + (el.z1 - el.z0) * f,
+        tx: el.ux, tz: el.uz, el };
+    }
+    const a = el.a0 + el.span * f, w = Math.sign(el.span);
+    return { s: u, x: el.cx + Math.cos(a) * el.radius, z: el.cz + Math.sin(a) * el.radius,
+      tx: -Math.sin(a) * w, tz: Math.cos(a) * w, el };
+  }
+  return { s: u, x: track.verts[0].x, z: track.verts[0].z, tx: 1, tz: 0, el: null };
+}
+
+/**
+ * Сборка трассы: ось, коридор в препятствия генератора и счётчик районов,
+ * которым петля пересекла блок. Сопровождается до цикла районов — иначе лоты
+ * успели бы встать под полотном.
+ */
+function buildTrack(city, ctx) {
+  const track = trackCenterline(trackSpec(city.track), ctx);
+  for (const o of track.band) ctx.obstacles.push(o);
+  for (const d of city.districts ?? []) {
+    if (!d.block) continue;
+    const box = obbOf(d.block, districtFrame(d));
+    if (track.band.some(o => obbHitsObb(o.obb, box, 0.05))) ctx.bump('district_crossed_by_track');
+  }
+  return track;
+}
+
 /**
  * Разворот `city` в записи брифа. Без секции возвращает вход без изменений —
  * глава 9 обязана собраться побайтово как раньше.
@@ -554,6 +899,9 @@ export function expandCity(raw, stats) {
     state: { lots: 0 },
     bump: key => { if (stats) stats[key] = (stats[key] ?? 0) + 1; },
   };
+  // трасса — до цикла районов: её коридор обязан успеть отбраковать лоты, а
+  // районы позже попросит сдвинуть оси улиц под нос своих съездов (этап 2)
+  ctx.track = city.track ? buildTrack(city, ctx) : null;
   const roads = [], buildings = [];
   for (const d of districts) {
     generateDistrict(districtSpec(d), ctx, roads, buildings);
@@ -638,6 +986,9 @@ function generateDistrict(spec, ctx, roadsOut, buildingsOut) {
     // и сравнивать их с локальным лотом габаритом нельзя (замер — этап 5: квадрат
     // вокруг повёрнутого на 45° блока на 1,41 раза больше самого блока)
     obstacles: frame ? ctx.obstacles.map(o => ({ ...o, obb: localObb(o.rect, frame) })) : ctx.obstacles,
+    // коридор трассы — те же препятствия, но своим списком: отказ лота inside
+    // обязан называться (`lot_in_track_band`), а не раствориться в `lot_blocked`
+    trackBand: (ctx.track?.band ?? []).map(o => (frame ? { obb: localObb(o.rect, frame) } : { rect: o.rect })),
     // служебные поля уличных записей v2: по ним нормализатор отличает настил
     // генератора (его профиль — дело парсера) от авторской дороги (её отметки
     // правит рука) и берёт предел уклона района; в модуль главы не доезжают,
@@ -1054,6 +1405,7 @@ function generateLot(d, style, cell, ctx, buildings, streets, state) {
   if (d.poly && !pointInPoly(d.poly, (lot.minX + lot.maxX) / 2, (lot.minZ + lot.maxZ) / 2)) {
     ctx.bump('lot_outside_polygon'); return;
   }
+  if (blocked(lot, d.trackBand)) { ctx.bump('lot_in_track_band'); return; }
   if (blocked(lot, d.obstacles)) { ctx.bump('lot_blocked'); return; }
 
   const courtyard = chance(rng, d.courtyard);
