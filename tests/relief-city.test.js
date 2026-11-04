@@ -743,10 +743,12 @@ function testBudget() {
  *
  * До индекса планов (луч и сферы перебирали ВСЕ призмы, перила и дуги) эти же
  * пробы на главе 12 стоили 208 мкс на луче в 2,7 м, 256 мкс на 120 м вниз,
- * 358 мкс на выстреле 180 м и 21,7 мкс на сфере — то есть ценой вызова правилоло
- * число настилов во всём городе, а не куда летит луч (тот же v2-движок без поля:
- * 123 / 147 / 193 / 5,8). Поле после правки без аллокаций на пробу — 0,76…0,90
- * мкс. Замеры по главам и таблица — в docs/architecture-json-levels.md.
+ * 358 мкс на выстреле 180 м и 21,7 мкс на сфере — то есть цену вызова определяло
+ * число настилов во всём городе, а не то, куда летит луч (тот же v2-движок без
+ * поля: 123 / 147 / 193 / 5,8). Поле после правки без аллокаций на пробу было
+ * 0,76…0,90 мкс; этап 11 проиндексировал и холмы (перебор всех записей брифа
+ * дорожал с каждой новой сопкой — тот же дефект, что у луча) и снял пробу до
+ * 0,40…0,51 мкс. Замеры по главам и таблица — в docs/architecture-json-levels.md.
  */
 function testChapterBudget() {
   const map = createJsonMap(LEVEL_12.map);
@@ -770,73 +772,127 @@ function testChapterBudget() {
     bad.push(`узлов ${nodes} — это ${(nodes / lattice).toFixed(2)}× решётки ${lattice} при пределе 1,5×`);
   }
   if (plates > 400) bad.push(`пластин ${plates} при бюджете 400`);
-  const probes = (target, withField) => {
-    const m = target;
-    const field = withField ? bestWindow(() => {
-      for (let i = 0; i < 2000; i++) {
-        const x = -half + (i * 7.13) % (2 * half);
-        const z = -half + (i * 11.77) % (2 * half);
-        m.relief.heightAt(x, z);
+  /**
+   * Протокол замера — **итерациями фиксированной длины, вперемешку парами, и
+   * медиана; итерация длинная (5…10 мс), потому что часы браузера квантованы**.
+   *
+   * Хронометраж двух больших карт в одной странице шумит на ±50 %, и перестановка
+   * harness-а шум не убирает (замеры одной и той же собранной главы подряд):
+   *  • этап 10 (лучшее из трёх окон по 60 мс, сначала сторона «с полем», потом
+   *    «без») — опора 1,76× и 2,18× на пороге 2,0: стороны меряются в разные
+   *    моменты, и сюжет краснила или маскировала правку без всякой правки;
+   *  • пачки по 2 мс тем же чередованием — луч вниз 0,74× / 2,43× / 2,38×:
+   *    число вызовов в пачке «плывёт», а короткие пачки не успевают прогреть IC;
+   *  • девять пар по 1000 вызовов опоры (первая версия здесь) — в свежем документе
+   *    1,25…1,60×, а при третьем подряд прогоне сюита в том же документе (в нём
+   *    уже живут четыре собранные главы 12) 1,82× и **2,11×**: 1000 вызовов по
+   *    2 мкс — это 2 мс на итерацию при кванте `performance.now()` 0,1 мс, то
+   *    есть ±5 % только на часах, а GC-пауза целиком съедает короткую итерацию
+   *    одной стороны пары. Граф при этом не менялся: прогон в свежем документе
+   *    снова даёт 1,56…1,60×.
+   *  • здесь: итерация удлинена до 5…10 мс (опора 8000 вызовов, луч 64, выстрел
+   *    48, сфера 600, поле 8000), пар 12, в вердикт — медиана. Квант часов теперь
+   *    ≤ 2 % итерации, а единичная пауза не переносит медиану.
+   * Абсолютные пределы (п. 6: 1 / 2 мкс, 200 / 20 мкс + 25 %) меряются окном в
+   * 60 мс, а не медианой: числа этапа 10 (опора 1,86, луч 102, сфера 13,7)
+   * получены окном, и перекалибровка порогов из-за смены часов не входила в
+   * правку. В вердикт идут оба протокола, и журнал обязан показывать, чем
+   * именно они расходятся: на коротких итерациях медиана двух больших карт в одном
+   * документе отвечала дороже лучшего окна в 2,5…3 раза (поле 1,25…1,30 против
+   * 0,44…0,47, опора 3,90…4,00 против 1,36…1,57) — это была плата за квант
+   * часов, а не свойство поля; на длинных итерациях протоколы сходятся (поле
+   * 0,57…0,99 против 0,47…0,51, опора 1,55…1,66 против 1,30…1,67).
+   */
+  const ITER = 12;
+  const median = (xs) => xs.slice().sort((a, b) => a - b)[xs.length >> 1];
+  const paired = (onFn, offFn) => {
+    const on = [], off = [];
+    for (let k = 0; k < 3; k++) { onFn(); offFn(); }
+    for (let i = 0; i < ITER; i++) {
+      for (const [fn, out] of [[onFn, on], [offFn, off]]) {
+        const t0 = performance.now();
+        const calls = fn();
+        out.push((performance.now() - t0) * 1000 / calls);
       }
-      return 2000;
-    }).per : 0;
-    const support = bestWindow(() => {
-      for (let i = 0; i < 2000; i++) {
-        const x = -half + (i * 7.13) % (2 * half);
-        const z = -half + (i * 11.77) % (2 * half);
-        m.groundHeightAt(x, z, 500);
-      }
-      return 2000;
-    });
-    const down = bestWindow(() => {
-      for (let i = 0; i < 200; i++) {
-        const x = -half + (i * 17.3) % (2 * half);
-        const z = -half + (i * 7.7) % (2 * half);
-        m.raySolid(x, 60, z, 0, -1, 0, 120);
-      }
-      return 200;
-    });
-    const shot = bestWindow(() => {
-      for (let i = 0; i < 200; i++) {
-        const x = -half + (i * 13.1) % (2 * half);
-        const z = -half + (i * 5.9) % (2 * half);
-        m.raySolid(x, 1.6, z, 1, 0, 0, range);
-      }
-      return 200;
-    });
-    const body = { x: 0, y: 0, z: 0 };
-    const sphere = bestWindow(() => {
-      for (let i = 0; i < 400; i++) {
-        const x = -half + (i * 3.7) % (2 * half);
-        const z = -half + (i * 9.1) % (2 * half);
+    }
+    const a = median(on), b = median(off);
+    return { on: a, off: b, ratio: b > 0 ? a / b : Infinity };
+  };
+  /** То же для одной стороны: «поля без поля» не бывает, отношения нет. */
+  const solo = (fn) => {
+    const xs = [];
+    for (let k = 0; k < 3; k++) fn();
+    for (let i = 0; i < ITER; i++) {
+      const t0 = performance.now();
+      const calls = fn();
+      xs.push((performance.now() - t0) * 1000 / calls);
+    }
+    return median(xs);
+  };
+  // одна и та же работа на обеих картах: `map` с полем и `plain` без него;
+  // частные случайные точки — те же, что со времён этапа 6, только повторений
+  // больше (см. протокол выше: итерация обязана стоить 5…10 мс, а не 1…2)
+  const work = (m) => ({
+    field: () => {
+      for (let i = 0; i < 8000; i++) m.relief.heightAt(-half + (i * 7.13) % (2 * half), -half + (i * 11.77) % (2 * half));
+      return 8000;
+    },
+    support: () => {
+      for (let i = 0; i < 8000; i++) m.groundHeightAt(-half + (i * 7.13) % (2 * half), -half + (i * 11.77) % (2 * half), 500);
+      return 8000;
+    },
+    down: () => {
+      for (let i = 0; i < 64; i++) m.raySolid(-half + (i * 17.3) % (2 * half), 60, -half + (i * 7.7) % (2 * half), 0, -1, 0, 120);
+      return 64;
+    },
+    shot: () => {
+      for (let i = 0; i < 48; i++) m.raySolid(-half + (i * 13.1) % (2 * half), 1.6, -half + (i * 5.9) % (2 * half), 1, 0, 0, range);
+      return 48;
+    },
+    sphere: () => {
+      const body = { x: 0, y: 0, z: 0 };
+      for (let i = 0; i < 600; i++) {
+        const x = -half + (i * 3.7) % (2 * half), z = -half + (i * 9.1) % (2 * half);
         body.x = x; body.z = z; body.y = m.groundHeightAt(x, z, 500) + 0.5;
         m.resolveSphere(body, CONFIG.alien.radius);
       }
-      return 400;
-    });
-    return { field, support: support.per, down: down.per, shot: shot.per, sphere: sphere.per };
+      return 600;
+    },
+  });
+  const onW = work(map), offW = work(plain);
+  const field = solo(onW.field);
+  const support = paired(onW.support, offW.support);
+  const down = paired(onW.down, offW.down);
+  const shot = paired(onW.shot, offW.shot);
+  const sphere = paired(onW.sphere, offW.sphere);
+  // окно этапа 10 — для абсолютных пределов, чтобы числа были сравнимы с журналом
+  const win = {
+    field: bestWindow(onW.field).per,
+    support: bestWindow(onW.support).per,
+    down: bestWindow(onW.down).per,
+    shot: bestWindow(onW.shot).per,
+    sphere: bestWindow(onW.sphere).per,
   };
-  const on = probes(map, true);
-  const off = probes(plain, false);
-  const ratio = (a, b) => (b > 0 ? a / b : Infinity);
-  // абсолютные пределы: число пункта 6 плюс 25 % на разброс машины (окно в 60 мс
-  // ловит GC и компиляцию, и на неизменном графе опора уже читалась 1,67…3,54)
-  if (on.field > 1.25) bad.push(`поле ${on.field.toFixed(2)} мкс/проба (предел 1 мкс + 25 %)`);
-  if (on.support > 2.5) bad.push(`опора ${on.support.toFixed(2)} мкс/вызов (пункт 6: 2 мкс, предел 2,5)`);
-  if (on.down > 250) bad.push(`луч нисходящий ${on.down.toFixed(0)} мкс/вызов (пункт 6: 200 мкс, предел 250)`);
-  if (on.sphere > 25) bad.push(`сфера ${on.sphere.toFixed(1)} мкс/вызов (20 мкс, предел 25)`);
-  for (const [name, a, b] of [['опора', on.support, off.support], ['луч вниз', on.down, off.down], ['выстрел', on.shot, off.shot], ['сфера', on.sphere, off.sphere]]) {
-    if (ratio(a, b) > 2) bad.push(`${name}: с полем ${a.toFixed(1)} мкс против ${b.toFixed(1)} мкс без поля — это ${ratio(a, b).toFixed(2)}× (пункт 6: не дороже вдвое)`);
+  if (win.field > 1.25) bad.push(`поле ${win.field.toFixed(2)} мкс/проба окном (предел 1 мкс + 25 %)`);
+  if (win.support > 2.5) bad.push(`опора ${win.support.toFixed(2)} мкс/вызов окном (пункт 6: 2 мкс, предел 2,5)`);
+  if (win.down > 250) bad.push(`луч нисходящий ${win.down.toFixed(0)} мкс/вызов окном (пункт 6: 200 мкс, предел 250)`);
+  if (win.sphere > 25) bad.push(`сфера ${win.sphere.toFixed(1)} мкс/вызов окном (20 мкс, предел 25)`);
+  for (const [name, r] of [['опора', support], ['луч вниз', down], ['выстрел', shot], ['сфера', sphere]]) {
+    if (r.ratio > 2) bad.push(`${name}: с полем ${r.on.toFixed(1)} мкс против ${r.off.toFixed(1)} мкс без поля — это ${r.ratio.toFixed(2)}× (пункт 6: не дороже вдвое)`);
   }
   return {
     name: 'Бюджет собранной главы 12: узлы ≤ 1,5 решётки, пластины ≤ 400, опора ≤ 2,5 мкс, луч ≤ 250 мкс и всё это не дороже вдвое против той же карты без поля',
     passed: bad.length === 0,
-    info: bad.length ? bad.join('; ')
-      : `${nodes} узлов на решётке ${lattice} (${(nodes / lattice).toFixed(2)}×), ${plates} пластин; `
-        + `поле ${on.field.toFixed(2)} мкс; опора ${on.support.toFixed(2)} против ${off.support.toFixed(2)} (${ratio(on.support, off.support).toFixed(2)}×); `
-        + `луч 120 м ${on.down.toFixed(0)} против ${off.down.toFixed(0)} (${ratio(on.down, off.down).toFixed(2)}×); `
-        + `выстрел ${range} м ${on.shot.toFixed(0)} против ${off.shot.toFixed(0)} (${ratio(on.shot, off.shot).toFixed(2)}×); `
-        + `сфера ${on.sphere.toFixed(1)} против ${off.sphere.toFixed(1)} (${ratio(on.sphere, off.sphere).toFixed(2)}×)`,
+    // числа прогона обязательны и в красной строке: без них провал нечем
+    // задокументировать и не с чем сравнить после правки. «против» и «×» —
+    // медиана пар (один протокол на обе стороны), «окном» — абсолютные пределы
+    info: (bad.length ? bad.join('; ') + ' — ' : '')
+      + `${nodes} узлов на решётке ${lattice} (${(nodes / lattice).toFixed(2)}×), ${plates} пластин; `
+        + `поле ${field.toFixed(2)} медианой / ${win.field.toFixed(2)} окном; `
+        + `опора ${support.on.toFixed(2)} против ${support.off.toFixed(2)} (${support.ratio.toFixed(2)}×), окном ${win.support.toFixed(2)}; `
+        + `луч 120 м ${down.on.toFixed(0)} против ${down.off.toFixed(0)} (${down.ratio.toFixed(2)}×), окном ${win.down.toFixed(0)}; `
+        + `выстрел ${range} м ${shot.on.toFixed(0)} против ${shot.off.toFixed(0)} (${shot.ratio.toFixed(2)}×), окном ${win.shot.toFixed(0)}; `
+        + `сфера ${sphere.on.toFixed(1)} против ${sphere.off.toFixed(1)} (${sphere.ratio.toFixed(2)}×), окном ${win.sphere.toFixed(1)}`,
   };
 }
 

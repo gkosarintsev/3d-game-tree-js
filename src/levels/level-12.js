@@ -91,6 +91,33 @@ export const LEVEL_12 = {
           "bz": 363.8,
           "radius": 185,
           "height": 3.61
+        },
+        {
+          "id": "ridge_crest_west",
+          "x": -260,
+          "z": 296,
+          "bx": -140,
+          "bz": 296,
+          "radius": 60,
+          "height": 2.2
+        },
+        {
+          "id": "ridge_crest_centre",
+          "x": -40,
+          "z": 298,
+          "bx": 80,
+          "bz": 298,
+          "radius": 60,
+          "height": 2.2
+        },
+        {
+          "id": "ridge_crest_east",
+          "x": 160,
+          "z": 294,
+          "bx": 280,
+          "bz": 294,
+          "radius": 60,
+          "height": 2
         }
       ],
       "pads": [
@@ -148,7 +175,7 @@ export const LEVEL_12 = {
           "minZ": 152.129,
           "maxZ": 270.13,
           "y": 14.783,
-          "blend": 26.825,
+          "blend": 28.1,
           "yaw": -8
         },
         {
@@ -14171,38 +14198,38 @@ export const LEVEL_12 = {
           },
           {
             "minX": 104,
-            "maxX": 121,
+            "maxX": 120,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.783,
-            "bottomY": 14.183,
+            "topY": 14.796,
+            "bottomY": 14.196,
             "topAtMin": 14.898,
-            "topAtMax": 14.783,
+            "topAtMax": 14.796,
             "ramp": true
           },
           {
-            "minX": 121,
-            "maxX": 158,
+            "minX": 120,
+            "maxX": 157,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.308,
-            "bottomY": 13.708,
-            "topAtMin": 14.783,
-            "topAtMax": 14.308,
+            "topY": 14.347,
+            "bottomY": 13.747,
+            "topAtMin": 14.796,
+            "topAtMax": 14.347,
             "ramp": true
           },
           {
-            "minX": 158,
+            "minX": 157,
             "maxX": 175,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.158,
-            "bottomY": 13.558,
-            "topAtMin": 14.308,
-            "topAtMax": 14.158,
+            "topY": 14.2,
+            "bottomY": 13.6,
+            "topAtMin": 14.347,
+            "topAtMax": 14.2,
             "ramp": true
           },
           {
@@ -14211,10 +14238,10 @@ export const LEVEL_12 = {
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.128,
-            "bottomY": 13.528,
-            "topAtMin": 14.158,
-            "topAtMax": 14.128,
+            "topY": 14.177,
+            "bottomY": 13.577,
+            "topAtMin": 14.2,
+            "topAtMax": 14.177,
             "ramp": true
           },
           {
@@ -14223,34 +14250,34 @@ export const LEVEL_12 = {
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.128,
-            "bottomY": 13.528,
-            "topAtMin": 14.128,
-            "topAtMax": 14.268,
+            "topY": 14.177,
+            "bottomY": 13.577,
+            "topAtMin": 14.177,
+            "topAtMax": 14.313,
             "ramp": true
           },
           {
             "minX": 218,
-            "maxX": 223,
+            "maxX": 224,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.145,
-            "bottomY": 13.545,
-            "topAtMin": 14.268,
-            "topAtMax": 14.145,
+            "topY": 14.157,
+            "bottomY": 13.557,
+            "topAtMin": 14.313,
+            "topAtMax": 14.157,
             "ramp": true
           },
           {
-            "minX": 223,
+            "minX": 224,
             "maxX": 235,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.547,
-            "bottomY": 12.947,
-            "topAtMin": 14.145,
-            "topAtMax": 13.547,
+            "topY": 13.6,
+            "bottomY": 13,
+            "topAtMin": 14.157,
+            "topAtMax": 13.6,
             "ramp": true
           },
           {
@@ -14259,10 +14286,10 @@ export const LEVEL_12 = {
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.417,
-            "bottomY": 12.817,
-            "topAtMin": 13.547,
-            "topAtMax": 13.417,
+            "topY": 13.434,
+            "bottomY": 12.834,
+            "topAtMin": 13.6,
+            "topAtMax": 13.434,
             "ramp": true
           },
           {
@@ -14273,9 +14300,9 @@ export const LEVEL_12 = {
             "axis": "x",
             "topY": 13.415,
             "bottomY": 12.815,
-            "topAtMin": 13.417,
+            "topAtMin": 13.434,
             "topAtMax": 13.415,
-            "ramp": false
+            "ramp": true
           }
         ],
         "fill": [],
@@ -14530,70 +14557,6 @@ export const LEVEL_12 = {
             "position": {
               "x": 97,
               "y": 14.898,
-              "z": 124.4
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            }
-          },
-          {
-            "id": "lamp_rd_plate_ave_250_111.6",
-            "model": "lamp_post",
-            "source": "road_lamp",
-            "rotationY": 0,
-            "position": {
-              "x": 250,
-              "y": 13.415,
-              "z": 111.6
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            }
-          },
-          {
-            "id": "lamp_rd_plate_ave_250_124.4",
-            "model": "lamp_post",
-            "source": "road_lamp",
-            "rotationY": 180,
-            "position": {
-              "x": 250,
-              "y": 13.415,
-              "z": 124.4
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            }
-          },
-          {
-            "id": "lamp_rd_plate_ave_270_111.6",
-            "model": "lamp_post",
-            "source": "road_lamp",
-            "rotationY": 0,
-            "position": {
-              "x": 270,
-              "y": 13.415,
-              "z": 111.6
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            }
-          },
-          {
-            "id": "lamp_rd_plate_ave_270_124.4",
-            "model": "lamp_post",
-            "source": "road_lamp",
-            "rotationY": 180,
-            "position": {
-              "x": 270,
-              "y": 13.415,
               "z": 124.4
             },
             "scale": {
@@ -31880,70 +31843,6 @@ export const LEVEL_12 = {
         "position": {
           "x": 17,
           "y": 14.898,
-          "z": 124.4
-        },
-        "scale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
-        }
-      },
-      {
-        "id": "lamp_rd_plate_ave_250_111.6",
-        "model": "lamp_post",
-        "source": "road_lamp",
-        "rotationY": 0,
-        "position": {
-          "x": 250,
-          "y": 13.415,
-          "z": 111.6
-        },
-        "scale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
-        }
-      },
-      {
-        "id": "lamp_rd_plate_ave_250_124.4",
-        "model": "lamp_post",
-        "source": "road_lamp",
-        "rotationY": 180,
-        "position": {
-          "x": 250,
-          "y": 13.415,
-          "z": 124.4
-        },
-        "scale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
-        }
-      },
-      {
-        "id": "lamp_rd_plate_ave_270_111.6",
-        "model": "lamp_post",
-        "source": "road_lamp",
-        "rotationY": 0,
-        "position": {
-          "x": 270,
-          "y": 13.415,
-          "z": 111.6
-        },
-        "scale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
-        }
-      },
-      {
-        "id": "lamp_rd_plate_ave_270_124.4",
-        "model": "lamp_post",
-        "source": "road_lamp",
-        "rotationY": 180,
-        "position": {
-          "x": 270,
-          "y": 13.415,
           "z": 124.4
         },
         "scale": {
