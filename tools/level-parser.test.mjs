@@ -2481,6 +2481,253 @@ t('перекрёстки: прогон обрывается у борта пе�
   assert(v1.roads.every(r => r.points && !r.crossing), 'глава json уехала в пластины и перекрёстки');
 });
 
+/**
+ * Концы пластины в мире: `yaw` есть у косой (он же задаёт локальную X), у
+ * осевой кадр не собран и локальная X — мировая X, поэтому `topAtMin` относится
+ * к `minX`, а не к «ближайшему спавну» концу.
+ */
+function deckEnds(d) {
+  if (d.yaw === undefined) {
+    const cz = (d.minZ + d.maxZ) / 2;
+    return [{ x: d.minX, z: cz }, { x: d.maxX, z: cz }];
+  }
+  const rad = d.yaw * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad), half = d.length / 2;
+  return [
+    { x: d.cx - c * half, z: d.cz - s * half },
+    { x: d.cx + c * half, z: d.cz + s * half },
+  ];
+}
+
+/** План и отметка полотна пластины в мировой точке — та же плоскость, что у карты. */
+function deckAt(d, x, z) {
+  const rad = (d.yaw ?? 0) * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+  const half = d.length / 2, w = d.width / 2;
+  const cx = d.yaw === undefined ? (d.minX + d.maxX) / 2 : d.cx;
+  const cz = d.yaw === undefined ? (d.minZ + d.maxZ) / 2 : d.cz;
+  const u = (x - cx) * c + (z - cz) * s, v = -(x - cx) * s + (z - cz) * c;
+  return { u, v, half, w, y: d.topAtMin + (d.topAtMax - d.topAtMin) * ((u + half) / (2 * half)) };
+}
+
+/**
+ * Стыки торцов: конец каждого прогона ищёт пластину, чей план его накрывает, и
+ * сравнивает свою отметку с её плоскостью. Перекрёсток при этом попадает всегда,
+ * кренится он вдоль ряда или поперёк: у крена вдоль поперёк его плоскость в этой
+ * точке — средний уровень, ровно тот, что парсер дал прогону.
+ */
+function jointScan(decks) {
+  let joints = 0, worst = 0;
+  for (const A of decks) {
+    for (const p of deckEnds(A.d)) {
+      const ya = deckAt(A.d, p.x, p.z).y;
+      for (const B of decks) {
+        if (B === A) continue;
+        const qb = deckAt(B.d, p.x, p.z);
+        if (Math.abs(qb.u) > qb.half + 0.02 || Math.abs(qb.v) > qb.w + 0.02) continue;
+        joints++;
+        worst = Math.max(worst, Math.abs(ya - qb.y));
+      }
+    }
+  }
+  return { joints, worst };
+}
+
+/** Худший провал настила под поле: опорой там отвечал бы склон, а не асфальт. */
+function worstBurial(decks, field) {
+  let burial = 0;
+  for (const { d } of decks) {
+    const [a, b] = deckEnds(d);
+    const run = Math.hypot(b.x - a.x, b.z - a.z);
+    const k = Math.max(2, Math.round(run / J.navStep));
+    for (let i = 0; i <= k; i++) {
+      const t = i / k;
+      burial = Math.max(burial, field.heightAt(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t)
+        - (d.topAtMin + (d.topAtMax - d.topAtMin) * t));
+    }
+  }
+  return burial;
+}
+
+/**
+ * Худшее расхождение полотна с полем + `streetRise` во внутренних пробах прогона:
+ * концы не мерятся — они нарочно притянуты к плоскости перекрёстка или черезной
+ * улицы и от поля отстают на столько, на сколько им положено.
+ */
+function deckDev(decks, field) {
+  let dev = 0;
+  for (const { d } of decks) {
+    const [a, b] = deckEnds(d);
+    const run = Math.hypot(b.x - a.x, b.z - a.z);
+    const k = Math.max(2, Math.round(run / J.navStep));
+    for (let i = 1; i < k; i++) {
+      const t = i / k;
+      dev = Math.max(dev, Math.abs(field.heightAt(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t)
+        + J.streetRise - (d.topAtMin + (d.topAtMax - d.topAtMin) * t)));
+    }
+  }
+  return dev;
+}
+
+/**
+ * Квартал со СКЛОКОМ внутри: терраса района выравнивает квартал одной плоскостью,
+ * поэтому единственная легитимная причина, по которой полотно генераторной улицы
+ * обязан быть наклонным, — авторский цоколь (не районный дом: его `площадка`
+ * добавляется ПОСЛЕ террасы, и её переходное кольцо гнёт соседние прогоны).
+ *
+ * Позиция и подъём (12×12 в (56, 60) над отметкой террасы на 0,55 м) взяты
+ * перебором — `probe/stage6p.mjs`: меньше поднимать — подъём пропадает в допуске
+ * `streetFit`, больше — перекрёсток перестаёт держать поле одной плоскостью и
+ * парсер начинает предупреждать. Отметка террасы при этом читается из первого
+ * прогона, а не пишется литералом: она следует за холмами фикстуры.
+ */
+function plinthRaw() {
+  const raw = skewRaw();
+  const terraceY = normalizeLevel(expandCity(skewRaw()))
+    .map.relief.pads.find(p => p.id === 'b:терраса').y;
+  raw.buildings.push({
+    id: 'plinth', isEnterable: false, floorsCount: 3, floorHeight: 3.4,
+    baseY: r3(terraceY + 0.55),
+    footprint: [{ x: 56, z: 54 }, { x: 68, z: 54 }, { x: 68, z: 66 }, { x: 56, z: 66 }],
+    rooms: [],
+  });
+  return raw;
+}
+
+t('улицы генератора идут по профилю поля, а перекрёсток держит его одной плоскостью', () => {
+  const expanded = expandCity(plinthRaw());
+  eq(validateLevel(expanded, LEVEL_SPEC_V2).errors.length, 0,
+    'фикстура с авторским цоколем не проходит валидатор');
+  const level = normalizeLevel(expanded);
+  eq(level.warnings.length, 0, `профиль улиц дал предупреждения: ${level.warnings.slice(0, 3).join(' | ')}`);
+  // поле берётся из данных модуля главы — та же арифметика, что у карты, и
+  // проверка «настил не под грунтом» меряет именно то, что увидит нога
+  const field = reliefOf(level.map.relief);
+  const decks = level.map.roads
+    .filter(r => r.decks.some(d => d.length !== undefined))
+    .flatMap(r => r.decks.map(d => ({ id: r.id, d })));
+  assert(decks.length >= 40, `пластин генератора ${decks.length}: профиля проверять не на чем`);
+
+  let tilted = 0, worstSlope = 0;
+  for (const { d } of decks) {
+    const [a, b] = deckEnds(d);
+    const run = Math.hypot(b.x - a.x, b.z - a.z);
+    worstSlope = Math.max(worstSlope, Math.abs(d.topAtMax - d.topAtMin) / Math.max(run, 1e-6));
+    if (Math.abs(d.topAtMax - d.topAtMin) > 0.01) tilted++;
+  }
+  // до этапа 6b все настилы лежали на `ground.y + streetRise`, то есть под
+  // террасой района: 10 из 25 перекрёстков отвечали опорой 2,17–2,48 м
+  // (`probe/stage6e.mjs`), и улица была не дорогой, а канавой
+  close(worstBurial(decks, field), 0, J.streetFit + 1e-3,
+    'настил улицы провалился под поле: опорой там отвечает склон, а не асфальт');
+  // полотно = поле + подъём борта: расхождение в обеих сторонах, а не только
+  // «не ниже грунта» (горб посреди улицы — та же ступень, только вверх)
+  close(deckDev(decks, field), 0, J.streetFit + 1e-3,
+    'полотно разошлось с полем: на улице растёт горб или яма, а не профиль');
+  assert(tilted >= 5, `пластин с подъёмом ${tilted}: улицы легли плоской лентой, а не профилем`);
+  const ys = decks.map(x => x.d.topY);
+  assert(Math.max(...ys) - Math.min(...ys) > 0.3,
+    `разброс отметок настилов ${fmt(Math.max(...ys) - Math.min(...ys))} м: профиль не следует рельефу`);
+  close(worstSlope, 0, J.streetGrade + 1e-3, 'улица круче предела продольного уклона');
+
+  // стык торцов: прогон обязан прийти к плоскости перекрёстка ровно его отметкой,
+  // иначе на асфальте вырастает ступень на всю ширину проезда
+  const joints = jointScan(decks);
+  assert(joints.joints >= 40, `стыков торцов ${joints.joints}: прогоны не сходятся с перекрёстками`);
+  close(joints.worst, 0, 2e-3, 'стык «прогон → перекрёсток» дал ступень: отметки взяты не из одной плоскости');
+
+  // асфальт целиком лежит В ЯДРЕ террасы (вес площадки = 1, поле там ровно
+  // плоское): терраса по одним фундаментам оставляет улицы между блоками на
+  // переходном кольце, и плоскость перекрёстка либо проваливается под грунт,
+  // либо горбит над ним (замер: разброс поля в 12-метровом квадрате `b_x0_0` —
+  // 0,728 м). Проверка по углам, а не по центру: половина `length` без
+  // поперечного `width` дала бы «в ядре» для каждой пластины вдоль её оси
+  for (const [id, terrace] of level.map.relief.pads
+    .filter(p => p.id.endsWith(':терраса')).map(p => [p.id.split(':')[0], p])) {
+    const plates = expanded.roads.filter(r => r.district === id)
+      .flatMap(r => r.elements.map(el => el.plate));
+    assert(plates.length >= 10, `район ${id}: пластин ${plates.length}, инвариант ничего не доказывает`);
+    const f = terrace.yaw ? frameAt((terrace.minX + terrace.maxX) / 2,
+      (terrace.minZ + terrace.maxZ) / 2, terrace.yaw) : null;
+    let outside = 0;
+    for (const p of plates) {
+      for (const q of plateCornersIn(f, p)) {
+        outside = Math.max(outside, terrace.minX - q.x, q.x - terrace.maxX,
+          terrace.minZ - q.z, q.z - terrace.maxZ);
+      }
+    }
+    close(outside, 0, 2e-3, `район ${id}: асфальт вышел за ядро террасы на ${fmt(outside)} м — `
+      + 'улицы ложатся на переходное кольцо поля');
+  }
+
+  // перекрёсток кренится вдоль той оси квадрата, где перепад поля больше: у
+  // пластины один подъём (вдоль локальной X), и поперёк она остаётся
+  // горизонтальной — ряд с бо́льшим перепадом иначе не сойдёт с её плоскостью
+  for (const r of expanded.roads.filter(x => x.crossing)) {
+    const p = r.elements[0].plate;
+    const rad = p.yaw * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad), half = p.length / 2;
+    const along = field.heightAt(p.x + c * half, p.z + s * half)
+      - field.heightAt(p.x - c * half, p.z - s * half);
+    const across = field.heightAt(p.x - s * half, p.z + c * half)
+      - field.heightAt(p.x + s * half, p.z - c * half);
+    assert(Math.abs(along) >= Math.abs(across) - 1e-3,
+      `перекрёсток ${r.id}: крен вдоль оси ${fmt(along)} м меньше перепада поперёк ${fmt(across)} м`);
+    close(p.rise, r3(along), 0.01, `перекрёсток ${r.id}: подъём пластины не равен перепаду поля вдоль её оси`);
+  }
+
+  // без секции рельефа профиль не строится вовсе: главы 9–10 остаются лентой
+  // `ground.y + streetRise`, и их модули обязаны побайтовость не потерять
+  const flat = structuredClone(skewRaw());
+  delete flat.relief;
+  const flatDecks = normalizeLevel(expandCity(flat)).map.roads.flatMap(r => r.decks);
+  assert(flatDecks.length > 10, `пластин без рельефа ${flatDecks.length}`);
+  assert(flatDecks.every(d => Math.abs(d.topY - r3(flat.ground.y + J.streetRise)) < 1e-9),
+    'улица без рельефа уехала с `ground.y + streetRise`');
+});
+
+t('резка прогона и предел уклона: прямая не держит профиль — пластины делятся, причина названа', () => {
+  const fit = J.streetFit, grade = J.streetGrade;
+  const decksOf = level => level.map.roads
+    .flatMap(r => r.decks.filter(d => d.length !== undefined).map(d => ({ id: r.id, d })));
+  const splitOf = level => level.map.roads.filter(r => r.decks.length > 1).length;
+  try {
+    // Штатный режим: под авторским цоколем перепад такой, что одной плоскости
+    // прогонам не хватает — они режутся, и при этом поле всё ещё держится в
+    // допуске, поэтому предупреждений нет
+    const level = normalizeLevel(expandCity(plinthRaw()));
+    eq(level.warnings.length, 0, `резка штатным допуском дала предупреждения: ${level.warnings.slice(0, 2).join(' | ')}`);
+    const split = splitOf(level);
+    assert(split >= 3, `разрезано дорог ${split}: механизм реза не вызывается на реальных данных`);
+    const decks = decksOf(level);
+    const joints = jointScan(decks);
+    assert(joints.joints >= 40, `стыков после резки ${joints.joints}: половины разошлись по ряду`);
+    close(joints.worst, 0, 2e-3, 'разрезанный прогон дал ступень на месте реза');
+    close(deckDev(decks, reliefOf(level.map.relief)), 0, J.streetFit + 1e-3,
+      'резка не довела настил до поля');
+
+    // Тугим допуском потолок глубины (`streetSplitMax`) кончается раньше, чем
+    // поле успевает спрятаться: резка остаётся, но причина обязана быть названа
+    // id улицы, а не молча проглочена
+    J.streetFit = 0.005;
+    const tight = normalizeLevel(expandCity(plinthRaw()));
+    const tightDecks = decksOf(tight);
+    assert(splitOf(tight) >= split && tightDecks.length > decks.length,
+      `тугий допуск дал пластин ${tightDecks.length} против ${decks.length}: резка не следует за допуском`);
+    assert(tight.warnings.some(w => w.includes('держит поле с расхождением') && /_s_|_x\d+_\d+/.test(w)),
+      `потолок реза прошёл молча: ${tight.warnings.slice(0, 2).join(' | ') || 'предупреждений нет'}`);
+
+    // предел уклона — предупреждение автору, а не тихая картинка: район с такой
+    // улицей обязан стоять на плато, а связку ярусов делают рампой или лестницей
+    J.streetFit = fit;
+    J.streetGrade = 0.004;
+    const warn = normalizeLevel(expandCity(plinthRaw()));
+    assert(warn.warnings.length > 0, 'улица круче предела прошла молча');
+    assert(warn.warnings.some(w => w.includes('плато') && /_s_|_x\d+_\d+/.test(w)),
+      `предупреждение не называет улицу и причину: ${warn.warnings.slice(0, 2).join(' | ')}`);
+  } finally {
+    J.streetFit = fit;
+    J.streetGrade = grade;
+  }
+});
+
 t('район без yaw и с yaw = 0 собираются одинаково: осевая ветка не тронута', () => {
   const plain = JSON.stringify(expandCity(cityReliefRaw()));
   const zero = cityReliefRaw();

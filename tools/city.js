@@ -640,6 +640,7 @@ function generateDistrict(spec, ctx, roadsOut, buildingsOut) {
   }
   if (nodes) {
     for (const n of nodes) {
+      if (!n.ok) continue;   // узаконенный надрез без площадки: см. `crossingNodes`
       roadsOut.push({
         ...d.svc, crossing: true,
         id: `${d.id}_x${n.i}_${n.j}`, type: 'ground', width: d.street.width, lamps: false,
@@ -711,33 +712,40 @@ function emitStreet(d, ctx, roadsOut, streets, base, axis, cross, lo, hi, hW, de
 }
 
 /**
- * Перекрёстки района: законные пары осей встречных улиц. Прогон обрывается у
- * их борта, а квадрат `w × w` становится отдельной записью с id — иначе
- * встречные полосы лежат в одной плоскости и мигают в z-buffer (замер главы 10:
- * 158 пар, 24 367 м² наложений).
+ * Перекрёстки района: все пары осей встречных улиц с признанием узла (`ok`).
+ * Прогон обрывается у борта **каждой** пары, а квадрат `w × w` становится
+ * отдельной записью только у узаконенной: иначе встречные полосы лежат в одной
+ * плоскости и мигают в z-buffer (замер главы 10: 158 пар, 24 367 м² наложений).
  *
- * Пара отбраковывается, если квадрат не влезает в границу района (полотно
+ * Узел не узаконен, если квадрат целиком не влезает в границу района (полотно
  * торчало бы за косым углом квартала) или если его накрывает препятствие с
  * проезжей частью: там прогон и так оборван, и площадка асфальта посреди русла
- * осталась бы островом.
+ * осталась бы островом. Надрез при этом остаётся — убирать его значит пустить
+ * обе улицы через центр узла, где их полосы перекрывают друг друга (замер
+ * фикстуры полигона: `a_s_h2` и `a_s_v2_1` легли планами друг на друга и дали
+ * T-стык в обе стороны, то есть ступень 0,081 м, которую нормализатор не может
+ * разрешить, потому что ни одна из плоскостей не главная). Угловой надрез
+ * оставляет в границе района неотсыпанный уголок `w × w` — что и должно быть на
+ * срезанном косым контуром углу квартала.
  */
 function crossingNodes(d, linesX, linesZ, hW) {
   const out = [];
   for (const [j, z] of linesZ.entries()) {
     for (const [i, x] of linesX.entries()) {
       const square = { minX: r3(x - hW), maxX: r3(x + hW), minZ: r3(z - hW), maxZ: r3(z + hW) };
+      let ok = true;
       if (d.poly) {
         const corners = [[square.minX, square.minZ], [square.maxX, square.minZ],
           [square.maxX, square.maxZ], [square.minX, square.maxZ]];
-        if (!corners.every(([cx, cz]) => pointInPoly(d.poly, cx, cz))) continue;
+        ok = corners.every(([cx, cz]) => pointInPoly(d.poly, cx, cz));
       }
       const reach = {
         minX: r3(x - hW - STREET_CLEAR), maxX: r3(x + hW + STREET_CLEAR),
         minZ: r3(z - hW - STREET_CLEAR), maxZ: r3(z + hW + STREET_CLEAR),
       };
-      if (d.obstacles.some(o => o.streets
-        && (o.obb ? obbHitsRect(o.obb, reach, 0) : rectsIntersect(reach, o.rect)))) continue;
-      out.push({ i, j, x, z });
+      if (ok && d.obstacles.some(o => o.streets
+        && (o.obb ? obbHitsRect(o.obb, reach, 0) : rectsIntersect(reach, o.rect)))) ok = false;
+      out.push({ i, j, x, z, ok });
     }
   }
   return out;

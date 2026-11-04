@@ -42,7 +42,7 @@ export function normalizeLevel(raw) {
   const relief = normalizeRelief(raw, ground, warnings);
   // Терраса района ставится ДО нормализации домов: пол корпуса обязан взять
   // отметку уже выровненной террасы, иначе каждый лот требовал бы своего пятачка
-  if (relief) addDistrictPads(relief, raw.buildings ?? []);
+  if (relief) addDistrictPads(relief, raw.buildings ?? [], raw.roads ?? []);
   // Отметка местности в точке — единственная запись о «полу главы»: рельеф там,
   // где секция задана, и прежняя плоскость `ground.y` там, где её нет. Главы 9–11
   // получают ту же константу, поэтому их модули обязаны остаться байт-в-байт.
@@ -57,6 +57,10 @@ export function normalizeLevel(raw) {
     const terraced = new Set((raw.buildings ?? []).filter(b => b.district).map(b => b.id));
     addHousePads(relief, buildings.filter(b => !terraced.has(b.id)));
     relief.finish();
+    // улицы — ПОСЛЕ финальной подгонки колец: держать они обязаны то же собранное
+    // поле, что и карта, а террасу района нормализатор ставит позже, чем
+    // нормализует дорогу
+    profileDistrictStreets(raw.roads ?? [], roads, relief, warnings);
   }
 
   // препятствия для автогенерации: план наземных улиц, габариты зданий и планы
@@ -853,6 +857,233 @@ function normalizeRoadElements(road) {
 }
 
 /**
+ * Улицы генератора — по профилю собранного поля (этап 6b главы 12).
+ *
+ * Пластина держит одну плоскость, поэтому прогону нужны ДВЕ отметки — по его
+ * собственных концам, — а перекрёстку одна: он квадрат, и все четыре борта
+ * обязаны лежать в его плоскости, иначе к нему не подйдёт ни один прогон.
+ * Отметки берутся из поля ПОСЛЕ `relief.finish()`: террасу района нормализатор
+ * ставит позже, чем нормализует дорогу, и до финальной подгонки колец настил
+ * лег бы ниже террасы (замер на косом городе — 10 из 25 перекрёстков отвечали
+ * `groundHeightAt` отметкой поля 2,17–2,48 м вместо асфальта 0,12 м).
+ *
+ * Крен перекрёстка берётся вдоль той оси квадрата, где перепад поля больше:
+ * пластина наклоняется только вдоль своей локальной X, а квадрат от поворота на
+ * 90° меняет план ровно на себя, так что разворачивать его безопасно. Ось с
+ * меньшим перепадом остаётся горизонтальной — прогоны обоих рядов цепляются за
+ * одну плоскость, и на стыке не появляется ступень.
+ *
+ * Прогон, которому одна прямая не держит профиль (разброс поля вокруг хорды
+ * больше `grade · run / 2`), режется пополам с потолком `J.streetSplitMax`;
+ * перепад круче `grade` остаётся предупреждением автору, а не тихой картинкой:
+ * район с такой улицей надо ставить на плато.
+ */
+function profileDistrictStreets(rawRoads, roads, relief, warnings) {
+  const gen = rawRoads.filter(r => r.district !== undefined
+    && Array.isArray(r.elements) && r.elements.length
+    && r.elements.every(el => el.plate && el.connect === undefined));
+  if (!gen.length) return;
+  const heightAt = (x, z) => relief.fieldAt(x, z);
+  // полотно выше поля на `streetRise` — то же соотношение, что у v1 на плоской
+  // земле: настил остаётся выше пола первого этажа террасы и не лежит в одной
+  // плоскости с мешем грунта (со-плоскостные грани мигают в z-buffer)
+  const surfaceAt = (x, z) => r3(heightAt(x, z) + J.streetRise);
+
+  /** Мировая ось пластины: `a` — локальное начало (u = −L/2), `b` — её конец. */
+  function axisOf(p) {
+    const rad = (p.yaw ?? 0) * Math.PI / 180;
+    const c = Math.cos(rad), s = Math.sin(rad);
+    const half = p.length / 2, w = p.width / 2;
+    return {
+      c, s, half, w,
+      u: (x, z) => (x - p.x) * c + (z - p.z) * s,
+      v: (x, z) => -(x - p.x) * s + (z - p.z) * c,
+      a: { x: p.x - c * half, z: p.z - s * half },
+      b: { x: p.x + c * half, z: p.z + s * half },
+    };
+  }
+
+  // плоскости перекрёстков — сначала: они никем не держатся, а торцы прогонов
+  // читаются уже из них
+  const planes = [];
+  for (const r of gen) {
+    if (!r.crossing) continue;
+    for (const el of r.elements) {
+      const p = el.plate, g = axisOf(p);
+      const dzX = -g.s, dzZ = g.c; // локальная +Z — поперёк прогона
+      const dX = surfaceAt(g.b.x, g.b.z) - surfaceAt(g.a.x, g.a.z);
+      const dZ = surfaceAt(p.x + dzX * g.w, p.z + dzZ * g.w)
+        - surfaceAt(p.x - dzX * g.w, p.z - dzZ * g.w);
+      const alongZ = Math.abs(dZ) > Math.abs(dX);
+      const yaw = r3((p.yaw ?? 0) + (alongZ ? 90 : 0));
+      const start = alongZ
+        ? surfaceAt(p.x - dzX * g.w, p.z - dzZ * g.w)
+        : surfaceAt(g.a.x, g.a.z);
+      const rise = r3(alongZ ? dZ : dX);
+      const g2 = axisOf({ ...p, yaw });
+      // площадка перекрёстка держит ОДНУ плоскость: на её борта стыкуются четыре
+      // прогона, поэтому на кривом поле она либо проваливается под грунт, либо
+      // горбит над ним. Сдвиг плоскости центрируют по разбросу поля в квадрате,
+      // а затем поднимают ровно настолько, чтобы провал не превысил `streetFit`:
+      // опорой под асфальтом обязан отвечать настил, а не склон (замер без
+      // центровки: замыкающая улица садилась на 0,019 м ниже поля, а подъём на
+      // максимум недостающего оставлял горб 0,407 м). Если разброс поля в
+      // квадрате больше предела twice — причину называют автору: району нужна
+      // терраса шире квартала, а не улица через кольцо перехода
+      let hi = -Infinity, lo = Infinity;
+      for (let iu = 0; iu <= 4; iu++) {
+        for (let iv = 0; iv <= 4; iv++) {
+          const u = 2 * g2.half * (iu / 4) - g2.half;
+          const v = 2 * g2.w * (iv / 4) - g2.w;
+          const dev = surfaceAt(p.x + u * g2.c - v * g2.s, p.z + u * g2.s + v * g2.c)
+            - (start + rise * (u + g2.half) / (2 * g2.half));
+          hi = Math.max(hi, dev); lo = Math.min(lo, dev);
+        }
+      }
+      let shift = (hi + lo) / 2;
+      if (hi - shift > J.streetFit) shift = hi - J.streetFit;
+      const proud = r3(shift - lo);
+      if (proud > J.streetFit) {
+        warnings.push(`${r.id}: плоскость перекрёстка держит поле с расхождением `
+          + `${proud} м при пределе ${J.streetFit} — полю района нужна терраса шире `
+          + `квартала (или более пологий холм), иначе посреди улицы растёт горб`);
+      }
+      const y = r3(start + shift);
+      const rad = yaw * Math.PI / 180;
+      el.plate = { ...p, yaw, y, rise };
+      planes.push({
+        cx: p.x, cz: p.z, c: Math.cos(rad), s: Math.sin(rad),
+        half: g2.half, w: g2.w, y0: y, rise,
+      });
+    }
+  }
+
+  /** Отметка полотна в точке: плоскость перекрёстка, если точка стоит на его борту. */
+  function levelAt(x, z) {
+    for (const pl of [...planes, ...through]) {
+      const u = (x - pl.cx) * pl.c + (z - pl.cz) * pl.s;
+      const v = -(x - pl.cx) * pl.s + (z - pl.cz) * pl.c;
+      // торец, попавший ВНУТРЬ чужого плана, — T-стык у границы района: черезная
+      // улица держит свой профиль, а замыкающая приходит к её плоскости, иначе на
+      // месте примыкания остаётся ступень (замер — 0,055 м на фикстуре полигона)
+      const interior = pl.run && Math.abs(u) < pl.half - 0.02;
+      const border = !pl.run && Math.abs(u) <= pl.half + 0.02;
+      if ((interior || border) && Math.abs(v) <= pl.w + 0.02) {
+        return r3(pl.y0 + pl.rise * (u + pl.half) / (2 * pl.half));
+      }
+    }
+    return surfaceAt(x, z);
+  }
+
+  // плоскости прогонов прошлого прохода — ими подтягиваются T-стыки (см. `levelAt`)
+  let through = [];
+
+  /**
+   * Расхождение хорды пластины с полотном поля: `dev` — в обе стороны (настил
+   * то проваливается под грунт, то горбит над ним), `bur` — только провал, он же
+   * «опорой отвечает склон, а не асфальт». Торцы в срезку не попадают: конец,
+   * притянутый к чужой плоскости, расходится с полем НАМЕРЕННО — стык настила
+   * важнее профиля, и разрешить ему расходиться только внутри допуска значило бы
+   * заставить прогон резаться на каждом T-стыке, где дети наследуют тот же пин.
+   */
+  function chordDev(p, y0, y1) {
+    const g = axisOf(p);
+    const k = Math.max(2, Math.round(p.length / J.navStep));
+    let dev = 0, bur = 0;
+    for (let i = 1; i < k; i++) {
+      const t = i / k;
+      const d = heightAt(g.a.x + (g.b.x - g.a.x) * t, g.a.z + (g.b.z - g.a.z) * t)
+        - (y0 + (y1 - y0) * t);
+      dev = Math.max(dev, Math.abs(d + J.streetRise));
+      bur = Math.max(bur, d);
+    }
+    return { dev, bur };
+  }
+
+  /** Прогон → список пластин, держащих профиль: прямая не держит поле — резка пополам. */
+  function fitRun(p, depth) {
+    const g = axisOf(p);
+    const y0 = levelAt(g.a.x, g.a.z), y1 = levelAt(g.b.x, g.b.z);
+    const run = p.length;
+    if (chordDev(p, y0, y1).dev > J.streetFit && depth < J.streetSplitMax && run > 2) {
+      const mid = { x: (g.a.x + g.b.x) / 2, z: (g.a.z + g.b.z) / 2 };
+      const yM = levelAt(mid.x, mid.z);
+      const half = r3(run / 2);
+      const mk = (from, fm, to, tm) => fitRun({
+        ...p,
+        x: r3((from.x + to.x) / 2), z: r3((from.z + to.z) / 2),
+        length: half, y: fm, rise: r3(tm - fm),
+      }, depth + 1);
+      return [
+        ...mk(g.a, y0, mid, yM),
+        ...mk(mid, yM, g.b, y1),
+      ];
+    }
+    return [{ ...p, y: y0, rise: r3(y1 - y0) }];
+  }
+
+  // два прохода: первый кладёт прогоны по полю и по плоскостям перекрёстков,
+  // второй подтягивает их торцы к плоскостям соседних прогонов. Плоскости второго
+  // прохода собираются из **окончательных** пластин первого: если бы каждый
+  // прогон читал торцы только что подогнанного соседа, порядок обгона дорог
+  // определял бы отметку, а зависимость «замыкающая ← черезная» обязана быть
+  // одинакова для всего района за один проход
+  const runs = gen.filter(r => !r.crossing);
+  const fitted = new Map();
+  for (let round = 0; round < 2; round++) {
+    const warn = round === 1;
+    const next = [];
+    for (const r of runs) {
+      const grade = r.grade ?? J.streetGrade;
+      const elements = [], plates = [];
+      for (const el of r.elements) {
+        const leaves = fitRun(el.plate, 0);
+        if (warn) {
+          // потолок резов — не оправдание: если и после него плоскость держит
+          // поле хуже допуска, причина называется, а не рисуется молча
+          const dev = Math.max(...leaves.map(p => chordDev(p, p.y, p.y + p.rise).dev));
+          if (dev > J.streetFit) {
+            warnings.push(`${r.id}: прогон держит поле с расхождением ${r3(dev)} м при пределе `
+              + `${J.streetFit} и потолке резов ${J.streetSplitMax} — под улицей перепад, которого `
+              + `хватает на ступень: району нужна терраса шире квартала, а связку ярусов делает `
+              + `дорога-рампа`);
+          }
+          for (const p of leaves) {
+            const slope = Math.abs(p.rise) / Math.max(p.length, 1e-6);
+            if (slope > grade) {
+              warnings.push(`${r.id}: улица даёт уклон ${r3(slope)} м/м на ${r3(p.length)} м `
+                + `при пределе ${grade} — район надо ставить на плато, а связку ярусов делать `
+                + `дорогой-рампом или лестницей`);
+            }
+          }
+        }
+        for (const plate of leaves) {
+          elements.push({ ...el, plate });
+          plates.push(plate);
+        }
+      }
+      fitted.set(r.id, elements);
+      for (const plate of plates) {
+        const g = axisOf(plate);
+        next.push({
+          run: true, cx: plate.x, cz: plate.z, c: g.c, s: g.s,
+          half: g.half, w: g.w, y0: plate.y, rise: plate.rise ?? 0,
+        });
+      }
+    }
+    through = next;
+  }
+
+  for (const r of gen) {
+    const elements = r.crossing
+      ? r.elements.map(el => ({ ...el }))
+      : (fitted.get(r.id) ?? []);
+    const road = roads.find(x => x.id === r.id);
+    if (road) road.decks = normalizeRoadElements({ ...r, elements }).decks;
+  }
+}
+
+/**
  * Опоры эстакады: два ряда ПОД настилом с шагом J.pillarSpacing, сечением
  * J.pillarSection, от грунта до низа настила. Наружная грань опоры отступлена от
  * края плиты на J.pillarEdge — стойка обязана держать полотно, а не стоять в
@@ -1317,6 +1548,11 @@ function ringSlope(p, field) {
  * нормализации). Район же, по просьбе владельца, стоит на возвышенности **целиком**
  * — значит выравнивать надо его квартал, а не каждый фундамент.
  *
+ * План террасы — союз планов лотов **и полотен улиц** района: улица между
+ * последним домом и границей блока остаётся кварталом, и оставь её вне ядра, как
+ * она ляжет на переходное кольцо, где одна плоскость настила не удерживает поле
+ * (замер — `probe/stage6n.mjs`).
+ *
  * Косой район (`districtFrame` у записей генератора) меряется в **своих осях**:
  * габарит лотов в мировых координатах — AABB повёрнутого квартала, он больше
  * самого квартала в (|cos|+|sin|) раз (у 18° — на 20 %, у 45° — в 1,41) и
@@ -1330,7 +1566,7 @@ function ringSlope(p, field) {
  * Ставится ДО нормализации домов: пол корпуса берётся из уже выровненного поля, и
  * все лоты района получают одну отметку.
  */
-function addDistrictPads(relief, rawBuildings) {
+function addDistrictPads(relief, rawBuildings, rawRoads) {
   const groups = new Map();
   for (const b of rawBuildings) {
     if (!b.district) continue;
@@ -1349,6 +1585,32 @@ function addDistrictPads(relief, rawBuildings) {
       if (q.x > g.maxX) g.maxX = q.x;
       if (q.z < g.minZ) g.minZ = q.z;
       if (q.z > g.maxZ) g.maxZ = q.z;
+    }
+  }
+  // Полотна улиц — та же площадь квартала, что и фундаменты: асфальт обязан
+  // лежать в **ядре** террасы, а не на её переходном кольце. Терраса по одному
+  // союзу корпусов оставляет улицы между блоками на склоне перехода, и тогда
+  // плоскость перекрёстка либо проваливается под грунт, либо горбит над ним
+  // (замер: разброс поля в 12-метровом квадрате `b_x0_0` — 0,728 м, то есть
+  // горб того же размера посреди улицы). Пластина лежит в мировых осях (`yaw` —
+  // мировая ориентация), поэтому в локальные оси района её центр и угол
+  // разворачиваются тем же кадром, что и планы лотов.
+  for (const r of rawRoads) {
+    const g = r.district === undefined ? null : groups.get(r.district);
+    if (!g) continue;
+    const f = g.frame;
+    for (const el of r.elements ?? []) {
+      const p = el.plate;
+      if (!p) continue;
+      const q = f ? unrotatePoint(f, p.x, p.z) : p;
+      const rad = ((p.yaw ?? 0) - (f ? f.deg : 0)) * DEG;
+      const c = Math.abs(Math.cos(rad)), s = Math.abs(Math.sin(rad));
+      const hx = c * p.length / 2 + s * p.width / 2;
+      const hz = s * p.length / 2 + c * p.width / 2;
+      if (q.x - hx < g.minX) g.minX = q.x - hx;
+      if (q.x + hx > g.maxX) g.maxX = q.x + hx;
+      if (q.z - hz < g.minZ) g.minZ = q.z - hz;
+      if (q.z + hz > g.maxZ) g.maxZ = q.z + hz;
     }
   }
   const pads = [];
