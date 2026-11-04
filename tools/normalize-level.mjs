@@ -989,6 +989,25 @@ function profileDistrictStreets(rawRoads, roads, relief, warnings) {
   // плоскости с мешем грунта (со-плоскостные грани мигают в z-buffer)
   const surfaceAt = (x, z) => r3(heightAt(x, z) + J.streetRise);
 
+  /**
+   * Поле ПОД КОРИТОМ улицы: максимум поперёк её ширины, а не на осевой.
+   *
+   * Пластина держит одну плоскость и поперёк себя тоже, поэтому улица, идущая
+   * поперёк склона, при фиттинге по осевой закапывает один борт: замер главы 12 —
+   * «проспект плато» `rd_plate_ave` шириной 10 м лёг на склон 0,048 м/м, и его
+   * северная половина ушла под грунт на 0,11–0,24 м, а в переходном кольце
+   * террасы района — на 0,456 м (опорой там отвечает склон, а не асфальт, и на
+   * проезжей части растёт ступень вдоль борта). Максимум поперёк накрывает корыто
+   * целиком; разница с полем с наружной стороны остаётся бортиком насыпи, который
+   * перекрывает толщина плиты (`deckThickness` 0,6 м против подъёма 0,24 м).
+   */
+  function fieldAcross(p, x, z) {
+    const g = axisOf(p);
+    let hi = -Infinity;
+    for (const v of [-g.w, 0, g.w]) hi = Math.max(hi, heightAt(x - v * g.s, z + v * g.c));
+    return hi;
+  }
+
   /** Мировая ось пластины: `a` — локальное начало (u = −L/2), `b` — её конец. */
   function axisOf(p) {
     const rad = (p.yaw ?? 0) * Math.PI / 180;
@@ -1058,8 +1077,11 @@ function profileDistrictStreets(rawRoads, roads, relief, warnings) {
     }
   }
 
-  /** Отметка полотна в точке: плоскость перекрёстка, если точка стоит на его борту. */
-  function levelAt(x, z) {
+  /**
+   * Отметка полотна в точке: плоскость перекрёстка или черезной улицы, если
+   * точка стоит на её борту, — иначе поле ПО КОРЫТУ самой пластины (`fieldAcross`).
+   */
+  function levelAt(p, x, z) {
     for (const pl of [...planes, ...through]) {
       const u = (x - pl.cx) * pl.c + (z - pl.cz) * pl.s;
       const v = -(x - pl.cx) * pl.s + (z - pl.cz) * pl.c;
@@ -1072,7 +1094,7 @@ function profileDistrictStreets(rawRoads, roads, relief, warnings) {
         return r3(pl.y0 + pl.rise * (u + pl.half) / (2 * pl.half));
       }
     }
-    return surfaceAt(x, z);
+    return p ? r3(fieldAcross(p, x, z) + J.streetRise) : surfaceAt(x, z);
   }
 
   // плоскости прогонов прошлого прохода — ими подтягиваются T-стыки (см. `levelAt`)
@@ -1081,10 +1103,12 @@ function profileDistrictStreets(rawRoads, roads, relief, warnings) {
   /**
    * Расхождение хорды пластины с полотном поля: `dev` — в обе стороны (настил
    * то проваливается под грунт, то горбит над ним), `bur` — только провал, он же
-   * «опорой отвечает склон, а не асфальт». Торцы в срезку не попадают: конец,
-   * притянутый к чужой плоскости, расходится с полем НАМЕРЕННО — стык настила
-   * важнее профиля, и разрешить ему расходиться только внутри допуска значило бы
-   * заставить прогон резаться на каждом T-стыке, где дети наследуют тот же пин.
+   * «опорой отвечает склон, а не асфальт». Меряется по КОРЫТУ (см. `fieldAcross`),
+   * а не по осевой: плоскость держит и поперечник, и провал одного борта осевая
+   * просто не видит. Торцы в срезку не попадают: конец, притянутый к чужой
+   * плоскости, расходится с полем НАМЕРЕННО — стык настила важнее профиля, и
+   * разрешить ему расходиться только внутри допуска значило бы заставить прогон
+   * резаться на каждом T-стыке, где дети наследуют тот же пин.
    */
   function chordDev(p, y0, y1) {
     const g = axisOf(p);
@@ -1092,7 +1116,7 @@ function profileDistrictStreets(rawRoads, roads, relief, warnings) {
     let dev = 0, bur = 0;
     for (let i = 1; i < k; i++) {
       const t = i / k;
-      const d = heightAt(g.a.x + (g.b.x - g.a.x) * t, g.a.z + (g.b.z - g.a.z) * t)
+      const d = fieldAcross(p, g.a.x + (g.b.x - g.a.x) * t, g.a.z + (g.b.z - g.a.z) * t)
         - (y0 + (y1 - y0) * t);
       dev = Math.max(dev, Math.abs(d + J.streetRise));
       bur = Math.max(bur, d);
@@ -1103,11 +1127,11 @@ function profileDistrictStreets(rawRoads, roads, relief, warnings) {
   /** Прогон → список пластин, держащих профиль: прямая не держит поле — резка пополам. */
   function fitRun(p, depth) {
     const g = axisOf(p);
-    const y0 = levelAt(g.a.x, g.a.z), y1 = levelAt(g.b.x, g.b.z);
+    const y0 = levelAt(p, g.a.x, g.a.z), y1 = levelAt(p, g.b.x, g.b.z);
     const run = p.length;
     if (chordDev(p, y0, y1).dev > J.streetFit && depth < J.streetSplitMax && run > 2) {
       const mid = { x: (g.a.x + g.b.x) / 2, z: (g.a.z + g.b.z) / 2 };
-      const yM = levelAt(mid.x, mid.z);
+      const yM = levelAt(p, mid.x, mid.z);
       const half = r3(run / 2);
       const mk = (from, fm, to, tm) => fitRun({
         ...p,

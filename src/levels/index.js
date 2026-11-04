@@ -14,6 +14,10 @@
  * Глава 11 — v2 того же формата (`kind: 'json2'`): дома и улицы под углом к северу,
  * настил дугой с подъёмом и поперечным наклоном, развязка. Механизм тот же —
  * `JsonMap`; различие только в полях брифа, которые схема v2 разрешает.
+ * Глава 12 — тот же v2 на 600 × 600 м с плавным рельефом (`relief`): два яруса
+ * (порт и набережные на 0, деловой центр на террасе +14,8 м), связки ярусов —
+ * эстакада и развязка с банкованными дугами, улицы и перекрёстки кладутся по
+ * профилю поля, иглы верхнего яруса соединены переходом, точка B — на кровле.
  */
 import { LEVEL_01 } from './level-01.js';
 import { LEVEL_02 } from './level-02.js';
@@ -26,9 +30,10 @@ import { LEVEL_08 } from './level-08.js';
 import { LEVEL_09 } from './level-09.js';
 import { LEVEL_10 } from './level-10.js';
 import { LEVEL_11 } from './level-11.js';
+import { LEVEL_12 } from './level-12.js';
 
 export const LEVELS = [
   LEVEL_01, LEVEL_02, LEVEL_03, LEVEL_04,
   LEVEL_05, LEVEL_06, LEVEL_07, LEVEL_08,
-  LEVEL_09, LEVEL_10, LEVEL_11,
+  LEVEL_09, LEVEL_10, LEVEL_11, LEVEL_12,
 ];

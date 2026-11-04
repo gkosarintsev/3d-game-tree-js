@@ -23,7 +23,7 @@
  */
 export const LEVEL_12 = {
   "name": "Глава 12. Рельефный мегаполис",
-  "hint": "—",
+  "hint": "Два яруса города: порт и набережные внизу, деловой центр на холме +14 м. Три горбатых моста через реку, эстакада вдоль берега и развязка с банкованными дугами ведут на плато; оттуда — в западную иглу, по переходу между башнями и на её кровлю, где маяк.",
   "map": {
     "kind": "json2",
     "units": "meters",
@@ -104,6 +104,15 @@ export const LEVEL_12 = {
           "blend": 53.905
         },
         {
+          "id": "plate_front",
+          "minX": -50,
+          "maxX": 100,
+          "minZ": 122,
+          "maxZ": 152,
+          "y": 14.783,
+          "blend": 120
+        },
+        {
           "id": "sind:терраса",
           "minX": -288,
           "maxX": -100,
@@ -141,6 +150,34 @@ export const LEVEL_12 = {
           "y": 14.783,
           "blend": 26.825,
           "yaw": -8
+        },
+        {
+          "id": "corp_needle_a:площадка",
+          "minX": -34,
+          "maxX": -12,
+          "minZ": 127,
+          "maxZ": 149,
+          "y": 14.783,
+          "blend": 14
+        },
+        {
+          "id": "corp_needle_b:площадка",
+          "minX": 6,
+          "maxX": 28,
+          "minZ": 127,
+          "maxZ": 149,
+          "y": 14.783,
+          "blend": 14
+        },
+        {
+          "id": "corp_needle_c:площадка",
+          "minX": 70,
+          "maxX": 92,
+          "minZ": 127,
+          "maxZ": 149,
+          "y": 14.783,
+          "blend": 14,
+          "yaw": 12
         }
       ]
     },
@@ -155,6 +192,2221 @@ export const LEVEL_12 = {
       "z": -160
     },
     "buildings": [
+      {
+        "id": "corp_needle_a",
+        "name": "Игла западная",
+        "isEnterable": true,
+        "baseY": 14.783,
+        "floorHeight": 4,
+        "floorsCount": 6,
+        "roofY": 38.783,
+        "facadeMaterial": "glass_steel",
+        "roof": {
+          "walkable": true,
+          "parapet": 1.1
+        },
+        "footprint": [
+          {
+            "x": -34,
+            "z": 127
+          },
+          {
+            "x": -12,
+            "z": 127
+          },
+          {
+            "x": -12,
+            "z": 149
+          },
+          {
+            "x": -34,
+            "z": 149
+          }
+        ],
+        "bounds": {
+          "minX": -34,
+          "maxX": -12,
+          "minZ": 127,
+          "maxZ": 149
+        },
+        "rects": [
+          {
+            "minX": -34,
+            "maxX": -12,
+            "minZ": 127,
+            "maxZ": 149
+          }
+        ],
+        "walls": [
+          {
+            "axis": "z",
+            "minX": -12.175,
+            "maxX": -11.825,
+            "minZ": 127,
+            "maxZ": 149,
+            "facade": true
+          },
+          {
+            "axis": "z",
+            "minX": -34.175,
+            "maxX": -33.825,
+            "minZ": 127,
+            "maxZ": 149,
+            "facade": true
+          },
+          {
+            "axis": "x",
+            "minX": -34,
+            "maxX": -12,
+            "minZ": 126.825,
+            "maxZ": 127.175,
+            "facade": true
+          },
+          {
+            "axis": "x",
+            "minX": -34,
+            "maxX": -12,
+            "minZ": 148.825,
+            "maxZ": 149.175,
+            "facade": true
+          }
+        ],
+        "rooms": [
+          {
+            "id": "corp_needle_a_r0",
+            "type": "lobby",
+            "floor": 0,
+            "rect": {
+              "minX": -34,
+              "maxX": -12,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 14.783
+          },
+          {
+            "id": "corp_needle_a_r1",
+            "type": "office",
+            "floor": 1,
+            "rect": {
+              "minX": -34,
+              "maxX": -12,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 18.783
+          },
+          {
+            "id": "corp_needle_a_r2",
+            "type": "office",
+            "floor": 2,
+            "rect": {
+              "minX": -34,
+              "maxX": -12,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 22.783
+          },
+          {
+            "id": "corp_needle_a_r3",
+            "type": "utility",
+            "floor": 3,
+            "rect": {
+              "minX": -34,
+              "maxX": -12,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 26.783
+          },
+          {
+            "id": "corp_needle_a_r4",
+            "type": "office",
+            "floor": 4,
+            "rect": {
+              "minX": -34,
+              "maxX": -12,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 30.783
+          },
+          {
+            "id": "corp_needle_a_r5",
+            "type": "office",
+            "floor": 5,
+            "rect": {
+              "minX": -34,
+              "maxX": -12,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 34.783
+          }
+        ],
+        "stairs": [
+          {
+            "id": "corp_needle_a_roof",
+            "type": "ladder",
+            "connectsFloors": [
+              5,
+              6
+            ],
+            "y0": 34.783,
+            "y1": 38.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": -28.7,
+              "maxX": -27.3,
+              "minZ": 137.3,
+              "maxZ": 138.70000000000002
+            },
+            "steps": [
+              {
+                "minX": -28.7,
+                "maxX": -27.3,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 35.283
+              },
+              {
+                "minX": -28.7,
+                "maxX": -27.3,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 35.783
+              },
+              {
+                "minX": -28.7,
+                "maxX": -27.3,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 36.283
+              },
+              {
+                "minX": -28.7,
+                "maxX": -27.3,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 36.783
+              },
+              {
+                "minX": -28.7,
+                "maxX": -27.3,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 37.283
+              },
+              {
+                "minX": -28.7,
+                "maxX": -27.3,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 37.783
+              },
+              {
+                "minX": -28.7,
+                "maxX": -27.3,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 38.283
+              }
+            ],
+            "bottom": {
+              "x": -28,
+              "z": 138,
+              "y": 35.283
+            },
+            "top": {
+              "x": -28,
+              "z": 138,
+              "y": 38.283
+            }
+          },
+          {
+            "id": "corp_needle_a_s0",
+            "type": "straight",
+            "connectsFloors": [
+              0,
+              1
+            ],
+            "y0": 14.783,
+            "y1": 18.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": -31,
+              "maxX": -25,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": -31,
+                "maxX": -30.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 15.283
+              },
+              {
+                "minX": -30.25,
+                "maxX": -29.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 15.783
+              },
+              {
+                "minX": -29.5,
+                "maxX": -28.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 16.283
+              },
+              {
+                "minX": -28.75,
+                "maxX": -28,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 16.783
+              },
+              {
+                "minX": -28,
+                "maxX": -27.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 17.283
+              },
+              {
+                "minX": -27.25,
+                "maxX": -26.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 17.783
+              },
+              {
+                "minX": -26.5,
+                "maxX": -25.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 18.283
+              },
+              {
+                "minX": -25.75,
+                "maxX": -25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 18.783
+              }
+            ],
+            "bottom": {
+              "x": -30.625,
+              "z": 143,
+              "y": 15.283
+            },
+            "top": {
+              "x": -25.375,
+              "z": 143,
+              "y": 18.783
+            }
+          },
+          {
+            "id": "corp_needle_a_s1",
+            "type": "straight",
+            "connectsFloors": [
+              1,
+              2
+            ],
+            "y0": 18.783,
+            "y1": 22.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": -21,
+              "maxX": -15,
+              "minZ": 131,
+              "maxZ": 135
+            },
+            "steps": [
+              {
+                "minX": -21,
+                "maxX": -20.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 19.283
+              },
+              {
+                "minX": -20.25,
+                "maxX": -19.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 19.783
+              },
+              {
+                "minX": -19.5,
+                "maxX": -18.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 20.283
+              },
+              {
+                "minX": -18.75,
+                "maxX": -18,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 20.783
+              },
+              {
+                "minX": -18,
+                "maxX": -17.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 21.283
+              },
+              {
+                "minX": -17.25,
+                "maxX": -16.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 21.783
+              },
+              {
+                "minX": -16.5,
+                "maxX": -15.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 22.283
+              },
+              {
+                "minX": -15.75,
+                "maxX": -15,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 22.783
+              }
+            ],
+            "bottom": {
+              "x": -20.625,
+              "z": 133,
+              "y": 19.283
+            },
+            "top": {
+              "x": -15.375,
+              "z": 133,
+              "y": 22.783
+            }
+          },
+          {
+            "id": "corp_needle_a_s2",
+            "type": "straight",
+            "connectsFloors": [
+              2,
+              3
+            ],
+            "y0": 22.783,
+            "y1": 26.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": -31,
+              "maxX": -25,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": -31,
+                "maxX": -30.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 23.283
+              },
+              {
+                "minX": -30.25,
+                "maxX": -29.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 23.783
+              },
+              {
+                "minX": -29.5,
+                "maxX": -28.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 24.283
+              },
+              {
+                "minX": -28.75,
+                "maxX": -28,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 24.783
+              },
+              {
+                "minX": -28,
+                "maxX": -27.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 25.283
+              },
+              {
+                "minX": -27.25,
+                "maxX": -26.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 25.783
+              },
+              {
+                "minX": -26.5,
+                "maxX": -25.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 26.283
+              },
+              {
+                "minX": -25.75,
+                "maxX": -25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 26.783
+              }
+            ],
+            "bottom": {
+              "x": -30.625,
+              "z": 143,
+              "y": 23.283
+            },
+            "top": {
+              "x": -25.375,
+              "z": 143,
+              "y": 26.783
+            }
+          },
+          {
+            "id": "corp_needle_a_s3",
+            "type": "straight",
+            "connectsFloors": [
+              3,
+              4
+            ],
+            "y0": 26.783,
+            "y1": 30.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": -21,
+              "maxX": -15,
+              "minZ": 131,
+              "maxZ": 135
+            },
+            "steps": [
+              {
+                "minX": -21,
+                "maxX": -20.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 27.283
+              },
+              {
+                "minX": -20.25,
+                "maxX": -19.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 27.783
+              },
+              {
+                "minX": -19.5,
+                "maxX": -18.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 28.283
+              },
+              {
+                "minX": -18.75,
+                "maxX": -18,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 28.783
+              },
+              {
+                "minX": -18,
+                "maxX": -17.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 29.283
+              },
+              {
+                "minX": -17.25,
+                "maxX": -16.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 29.783
+              },
+              {
+                "minX": -16.5,
+                "maxX": -15.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 30.283
+              },
+              {
+                "minX": -15.75,
+                "maxX": -15,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 30.783
+              }
+            ],
+            "bottom": {
+              "x": -20.625,
+              "z": 133,
+              "y": 27.283
+            },
+            "top": {
+              "x": -15.375,
+              "z": 133,
+              "y": 30.783
+            }
+          },
+          {
+            "id": "corp_needle_a_s4",
+            "type": "straight",
+            "connectsFloors": [
+              4,
+              5
+            ],
+            "y0": 30.783,
+            "y1": 34.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": -31,
+              "maxX": -25,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": -31,
+                "maxX": -30.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 31.283
+              },
+              {
+                "minX": -30.25,
+                "maxX": -29.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 31.783
+              },
+              {
+                "minX": -29.5,
+                "maxX": -28.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 32.283
+              },
+              {
+                "minX": -28.75,
+                "maxX": -28,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 32.783
+              },
+              {
+                "minX": -28,
+                "maxX": -27.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 33.283
+              },
+              {
+                "minX": -27.25,
+                "maxX": -26.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 33.783
+              },
+              {
+                "minX": -26.5,
+                "maxX": -25.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 34.283
+              },
+              {
+                "minX": -25.75,
+                "maxX": -25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 34.783
+              }
+            ],
+            "bottom": {
+              "x": -30.625,
+              "z": 143,
+              "y": 31.283
+            },
+            "top": {
+              "x": -25.375,
+              "z": 143,
+              "y": 34.783
+            }
+          }
+        ],
+        "doors": [
+          {
+            "id": "corp_needle_a_r0→rd_plate_ave",
+            "room": "corp_needle_a_r0",
+            "target": "rd_plate_ave",
+            "linkType": "main_entrance",
+            "axis": "x",
+            "y": 14.783,
+            "height": 2.1,
+            "rect": {
+              "minX": -23.9,
+              "maxX": -22.1,
+              "minZ": 126.815,
+              "maxZ": 127.185
+            },
+            "inside": {
+              "x": -23,
+              "z": 128.4
+            },
+            "outside": {
+              "x": -23,
+              "z": 125.6
+            }
+          },
+          {
+            "id": "corp_needle_a_r4→sb_needles",
+            "room": "corp_needle_a_r4",
+            "target": "sb_needles",
+            "linkType": "door",
+            "axis": "z",
+            "y": 30.783,
+            "height": 2.1,
+            "rect": {
+              "minX": -12.185,
+              "maxX": -11.815,
+              "minZ": 137.1,
+              "maxZ": 138.9
+            },
+            "inside": {
+              "x": -13.4,
+              "z": 138
+            },
+            "outside": {
+              "x": -10.6,
+              "z": 138
+            }
+          }
+        ]
+      },
+      {
+        "id": "corp_needle_b",
+        "name": "Игла восточная",
+        "isEnterable": true,
+        "baseY": 14.783,
+        "floorHeight": 4,
+        "floorsCount": 8,
+        "roofY": 46.783,
+        "facadeMaterial": "glass_steel",
+        "roof": {
+          "walkable": true,
+          "parapet": 1.1
+        },
+        "footprint": [
+          {
+            "x": 6,
+            "z": 127
+          },
+          {
+            "x": 28,
+            "z": 127
+          },
+          {
+            "x": 28,
+            "z": 149
+          },
+          {
+            "x": 6,
+            "z": 149
+          }
+        ],
+        "bounds": {
+          "minX": 6,
+          "maxX": 28,
+          "minZ": 127,
+          "maxZ": 149
+        },
+        "rects": [
+          {
+            "minX": 6,
+            "maxX": 28,
+            "minZ": 127,
+            "maxZ": 149
+          }
+        ],
+        "walls": [
+          {
+            "axis": "z",
+            "minX": 27.825,
+            "maxX": 28.175,
+            "minZ": 127,
+            "maxZ": 149,
+            "facade": true
+          },
+          {
+            "axis": "z",
+            "minX": 5.825,
+            "maxX": 6.175,
+            "minZ": 127,
+            "maxZ": 149,
+            "facade": true
+          },
+          {
+            "axis": "x",
+            "minX": 6,
+            "maxX": 28,
+            "minZ": 126.825,
+            "maxZ": 127.175,
+            "facade": true
+          },
+          {
+            "axis": "x",
+            "minX": 6,
+            "maxX": 28,
+            "minZ": 148.825,
+            "maxZ": 149.175,
+            "facade": true
+          }
+        ],
+        "rooms": [
+          {
+            "id": "corp_needle_b_r0",
+            "type": "lobby",
+            "floor": 0,
+            "rect": {
+              "minX": 6,
+              "maxX": 28,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 14.783
+          },
+          {
+            "id": "corp_needle_b_r1",
+            "type": "office",
+            "floor": 1,
+            "rect": {
+              "minX": 6,
+              "maxX": 28,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 18.783
+          },
+          {
+            "id": "corp_needle_b_r2",
+            "type": "office",
+            "floor": 2,
+            "rect": {
+              "minX": 6,
+              "maxX": 28,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 22.783
+          },
+          {
+            "id": "corp_needle_b_r3",
+            "type": "utility",
+            "floor": 3,
+            "rect": {
+              "minX": 6,
+              "maxX": 28,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 26.783
+          },
+          {
+            "id": "corp_needle_b_r4",
+            "type": "office",
+            "floor": 4,
+            "rect": {
+              "minX": 6,
+              "maxX": 28,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 30.783
+          },
+          {
+            "id": "corp_needle_b_r5",
+            "type": "office",
+            "floor": 5,
+            "rect": {
+              "minX": 6,
+              "maxX": 28,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 34.783
+          },
+          {
+            "id": "corp_needle_b_r6",
+            "type": "office",
+            "floor": 6,
+            "rect": {
+              "minX": 6,
+              "maxX": 28,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 38.783
+          },
+          {
+            "id": "corp_needle_b_r7",
+            "type": "utility",
+            "floor": 7,
+            "rect": {
+              "minX": 6,
+              "maxX": 28,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 42.783
+          }
+        ],
+        "stairs": [
+          {
+            "id": "corp_needle_b_roof",
+            "type": "ladder",
+            "connectsFloors": [
+              7,
+              8
+            ],
+            "y0": 42.783,
+            "y1": 46.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 21.3,
+              "maxX": 22.7,
+              "minZ": 137.3,
+              "maxZ": 138.70000000000002
+            },
+            "steps": [
+              {
+                "minX": 21.3,
+                "maxX": 22.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 43.283
+              },
+              {
+                "minX": 21.3,
+                "maxX": 22.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 43.783
+              },
+              {
+                "minX": 21.3,
+                "maxX": 22.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 44.283
+              },
+              {
+                "minX": 21.3,
+                "maxX": 22.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 44.783
+              },
+              {
+                "minX": 21.3,
+                "maxX": 22.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 45.283
+              },
+              {
+                "minX": 21.3,
+                "maxX": 22.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 45.783
+              },
+              {
+                "minX": 21.3,
+                "maxX": 22.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 46.283
+              }
+            ],
+            "bottom": {
+              "x": 22,
+              "z": 138,
+              "y": 43.283
+            },
+            "top": {
+              "x": 22,
+              "z": 138,
+              "y": 46.283
+            }
+          },
+          {
+            "id": "corp_needle_b_s0",
+            "type": "straight",
+            "connectsFloors": [
+              0,
+              1
+            ],
+            "y0": 14.783,
+            "y1": 18.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 9,
+              "maxX": 15,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": 9,
+                "maxX": 9.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 15.283
+              },
+              {
+                "minX": 9.75,
+                "maxX": 10.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 15.783
+              },
+              {
+                "minX": 10.5,
+                "maxX": 11.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 16.283
+              },
+              {
+                "minX": 11.25,
+                "maxX": 12,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 16.783
+              },
+              {
+                "minX": 12,
+                "maxX": 12.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 17.283
+              },
+              {
+                "minX": 12.75,
+                "maxX": 13.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 17.783
+              },
+              {
+                "minX": 13.5,
+                "maxX": 14.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 18.283
+              },
+              {
+                "minX": 14.25,
+                "maxX": 15,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 18.783
+              }
+            ],
+            "bottom": {
+              "x": 9.375,
+              "z": 143,
+              "y": 15.283
+            },
+            "top": {
+              "x": 14.625,
+              "z": 143,
+              "y": 18.783
+            }
+          },
+          {
+            "id": "corp_needle_b_s1",
+            "type": "straight",
+            "connectsFloors": [
+              1,
+              2
+            ],
+            "y0": 18.783,
+            "y1": 22.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 19,
+              "maxX": 25,
+              "minZ": 131,
+              "maxZ": 135
+            },
+            "steps": [
+              {
+                "minX": 19,
+                "maxX": 19.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 19.283
+              },
+              {
+                "minX": 19.75,
+                "maxX": 20.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 19.783
+              },
+              {
+                "minX": 20.5,
+                "maxX": 21.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 20.283
+              },
+              {
+                "minX": 21.25,
+                "maxX": 22,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 20.783
+              },
+              {
+                "minX": 22,
+                "maxX": 22.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 21.283
+              },
+              {
+                "minX": 22.75,
+                "maxX": 23.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 21.783
+              },
+              {
+                "minX": 23.5,
+                "maxX": 24.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 22.283
+              },
+              {
+                "minX": 24.25,
+                "maxX": 25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 22.783
+              }
+            ],
+            "bottom": {
+              "x": 19.375,
+              "z": 133,
+              "y": 19.283
+            },
+            "top": {
+              "x": 24.625,
+              "z": 133,
+              "y": 22.783
+            }
+          },
+          {
+            "id": "corp_needle_b_s2",
+            "type": "straight",
+            "connectsFloors": [
+              2,
+              3
+            ],
+            "y0": 22.783,
+            "y1": 26.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 9,
+              "maxX": 15,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": 9,
+                "maxX": 9.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 23.283
+              },
+              {
+                "minX": 9.75,
+                "maxX": 10.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 23.783
+              },
+              {
+                "minX": 10.5,
+                "maxX": 11.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 24.283
+              },
+              {
+                "minX": 11.25,
+                "maxX": 12,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 24.783
+              },
+              {
+                "minX": 12,
+                "maxX": 12.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 25.283
+              },
+              {
+                "minX": 12.75,
+                "maxX": 13.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 25.783
+              },
+              {
+                "minX": 13.5,
+                "maxX": 14.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 26.283
+              },
+              {
+                "minX": 14.25,
+                "maxX": 15,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 26.783
+              }
+            ],
+            "bottom": {
+              "x": 9.375,
+              "z": 143,
+              "y": 23.283
+            },
+            "top": {
+              "x": 14.625,
+              "z": 143,
+              "y": 26.783
+            }
+          },
+          {
+            "id": "corp_needle_b_s3",
+            "type": "straight",
+            "connectsFloors": [
+              3,
+              4
+            ],
+            "y0": 26.783,
+            "y1": 30.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 19,
+              "maxX": 25,
+              "minZ": 131,
+              "maxZ": 135
+            },
+            "steps": [
+              {
+                "minX": 19,
+                "maxX": 19.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 27.283
+              },
+              {
+                "minX": 19.75,
+                "maxX": 20.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 27.783
+              },
+              {
+                "minX": 20.5,
+                "maxX": 21.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 28.283
+              },
+              {
+                "minX": 21.25,
+                "maxX": 22,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 28.783
+              },
+              {
+                "minX": 22,
+                "maxX": 22.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 29.283
+              },
+              {
+                "minX": 22.75,
+                "maxX": 23.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 29.783
+              },
+              {
+                "minX": 23.5,
+                "maxX": 24.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 30.283
+              },
+              {
+                "minX": 24.25,
+                "maxX": 25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 30.783
+              }
+            ],
+            "bottom": {
+              "x": 19.375,
+              "z": 133,
+              "y": 27.283
+            },
+            "top": {
+              "x": 24.625,
+              "z": 133,
+              "y": 30.783
+            }
+          },
+          {
+            "id": "corp_needle_b_s4",
+            "type": "straight",
+            "connectsFloors": [
+              4,
+              5
+            ],
+            "y0": 30.783,
+            "y1": 34.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 9,
+              "maxX": 15,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": 9,
+                "maxX": 9.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 31.283
+              },
+              {
+                "minX": 9.75,
+                "maxX": 10.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 31.783
+              },
+              {
+                "minX": 10.5,
+                "maxX": 11.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 32.283
+              },
+              {
+                "minX": 11.25,
+                "maxX": 12,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 32.783
+              },
+              {
+                "minX": 12,
+                "maxX": 12.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 33.283
+              },
+              {
+                "minX": 12.75,
+                "maxX": 13.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 33.783
+              },
+              {
+                "minX": 13.5,
+                "maxX": 14.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 34.283
+              },
+              {
+                "minX": 14.25,
+                "maxX": 15,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 34.783
+              }
+            ],
+            "bottom": {
+              "x": 9.375,
+              "z": 143,
+              "y": 31.283
+            },
+            "top": {
+              "x": 14.625,
+              "z": 143,
+              "y": 34.783
+            }
+          },
+          {
+            "id": "corp_needle_b_s5",
+            "type": "straight",
+            "connectsFloors": [
+              5,
+              6
+            ],
+            "y0": 34.783,
+            "y1": 38.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 19,
+              "maxX": 25,
+              "minZ": 131,
+              "maxZ": 135
+            },
+            "steps": [
+              {
+                "minX": 19,
+                "maxX": 19.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 35.283
+              },
+              {
+                "minX": 19.75,
+                "maxX": 20.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 35.783
+              },
+              {
+                "minX": 20.5,
+                "maxX": 21.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 36.283
+              },
+              {
+                "minX": 21.25,
+                "maxX": 22,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 36.783
+              },
+              {
+                "minX": 22,
+                "maxX": 22.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 37.283
+              },
+              {
+                "minX": 22.75,
+                "maxX": 23.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 37.783
+              },
+              {
+                "minX": 23.5,
+                "maxX": 24.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 38.283
+              },
+              {
+                "minX": 24.25,
+                "maxX": 25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 38.783
+              }
+            ],
+            "bottom": {
+              "x": 19.375,
+              "z": 133,
+              "y": 35.283
+            },
+            "top": {
+              "x": 24.625,
+              "z": 133,
+              "y": 38.783
+            }
+          },
+          {
+            "id": "corp_needle_b_s6",
+            "type": "straight",
+            "connectsFloors": [
+              6,
+              7
+            ],
+            "y0": 38.783,
+            "y1": 42.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 9,
+              "maxX": 15,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": 9,
+                "maxX": 9.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 39.283
+              },
+              {
+                "minX": 9.75,
+                "maxX": 10.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 39.783
+              },
+              {
+                "minX": 10.5,
+                "maxX": 11.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 40.283
+              },
+              {
+                "minX": 11.25,
+                "maxX": 12,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 40.783
+              },
+              {
+                "minX": 12,
+                "maxX": 12.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 41.283
+              },
+              {
+                "minX": 12.75,
+                "maxX": 13.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 41.783
+              },
+              {
+                "minX": 13.5,
+                "maxX": 14.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 42.283
+              },
+              {
+                "minX": 14.25,
+                "maxX": 15,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 42.783
+              }
+            ],
+            "bottom": {
+              "x": 9.375,
+              "z": 143,
+              "y": 39.283
+            },
+            "top": {
+              "x": 14.625,
+              "z": 143,
+              "y": 42.783
+            }
+          }
+        ],
+        "doors": [
+          {
+            "id": "corp_needle_b_r0→rd_plate_ave",
+            "room": "corp_needle_b_r0",
+            "target": "rd_plate_ave",
+            "linkType": "main_entrance",
+            "axis": "x",
+            "y": 14.783,
+            "height": 2.1,
+            "rect": {
+              "minX": 16.1,
+              "maxX": 17.9,
+              "minZ": 126.815,
+              "maxZ": 127.185
+            },
+            "inside": {
+              "x": 17,
+              "z": 128.4
+            },
+            "outside": {
+              "x": 17,
+              "z": 125.6
+            }
+          },
+          {
+            "id": "corp_needle_b_r4→sb_needles",
+            "room": "corp_needle_b_r4",
+            "target": "sb_needles",
+            "linkType": "door",
+            "axis": "z",
+            "y": 30.783,
+            "height": 2.1,
+            "rect": {
+              "minX": 5.815,
+              "maxX": 6.185,
+              "minZ": 137.1,
+              "maxZ": 138.9
+            },
+            "inside": {
+              "x": 7.4,
+              "z": 138
+            },
+            "outside": {
+              "x": 4.6,
+              "z": 138
+            }
+          }
+        ]
+      },
+      {
+        "id": "corp_needle_c",
+        "name": "Башня под углом",
+        "isEnterable": true,
+        "baseY": 14.783,
+        "floorHeight": 4,
+        "floorsCount": 5,
+        "roofY": 34.783,
+        "facadeMaterial": "glass_steel",
+        "roof": {
+          "walkable": true,
+          "parapet": 1.1
+        },
+        "footprint": [
+          {
+            "x": 70,
+            "z": 127
+          },
+          {
+            "x": 92,
+            "z": 127
+          },
+          {
+            "x": 92,
+            "z": 149
+          },
+          {
+            "x": 70,
+            "z": 149
+          }
+        ],
+        "bounds": {
+          "minX": 70,
+          "maxX": 92,
+          "minZ": 127,
+          "maxZ": 149
+        },
+        "rotation": 12,
+        "rects": [
+          {
+            "minX": 70,
+            "maxX": 92,
+            "minZ": 127,
+            "maxZ": 149
+          }
+        ],
+        "walls": [
+          {
+            "axis": "z",
+            "minX": 69.825,
+            "maxX": 70.175,
+            "minZ": 127,
+            "maxZ": 149,
+            "facade": true
+          },
+          {
+            "axis": "x",
+            "minX": 70,
+            "maxX": 92,
+            "minZ": 126.825,
+            "maxZ": 127.175,
+            "facade": true
+          },
+          {
+            "axis": "x",
+            "minX": 70,
+            "maxX": 92,
+            "minZ": 148.825,
+            "maxZ": 149.175,
+            "facade": true
+          },
+          {
+            "axis": "z",
+            "minX": 91.825,
+            "maxX": 92.175,
+            "minZ": 127,
+            "maxZ": 149,
+            "facade": true
+          }
+        ],
+        "rooms": [
+          {
+            "id": "corp_needle_c_r0",
+            "type": "lobby",
+            "floor": 0,
+            "rect": {
+              "minX": 70,
+              "maxX": 92,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 14.783
+          },
+          {
+            "id": "corp_needle_c_r1",
+            "type": "office",
+            "floor": 1,
+            "rect": {
+              "minX": 70,
+              "maxX": 92,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 18.783
+          },
+          {
+            "id": "corp_needle_c_r2",
+            "type": "office",
+            "floor": 2,
+            "rect": {
+              "minX": 70,
+              "maxX": 92,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 22.783
+          },
+          {
+            "id": "corp_needle_c_r3",
+            "type": "utility",
+            "floor": 3,
+            "rect": {
+              "minX": 70,
+              "maxX": 92,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 26.783
+          },
+          {
+            "id": "corp_needle_c_r4",
+            "type": "office",
+            "floor": 4,
+            "rect": {
+              "minX": 70,
+              "maxX": 92,
+              "minZ": 127,
+              "maxZ": 149
+            },
+            "y": 30.783
+          }
+        ],
+        "stairs": [
+          {
+            "id": "corp_needle_c_roof",
+            "type": "ladder",
+            "connectsFloors": [
+              4,
+              5
+            ],
+            "y0": 30.783,
+            "y1": 34.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 85.3,
+              "maxX": 86.7,
+              "minZ": 137.3,
+              "maxZ": 138.70000000000002
+            },
+            "steps": [
+              {
+                "minX": 85.3,
+                "maxX": 86.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 31.283
+              },
+              {
+                "minX": 85.3,
+                "maxX": 86.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 31.783
+              },
+              {
+                "minX": 85.3,
+                "maxX": 86.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 32.283
+              },
+              {
+                "minX": 85.3,
+                "maxX": 86.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 32.783
+              },
+              {
+                "minX": 85.3,
+                "maxX": 86.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 33.283
+              },
+              {
+                "minX": 85.3,
+                "maxX": 86.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 33.783
+              },
+              {
+                "minX": 85.3,
+                "maxX": 86.7,
+                "minZ": 137.3,
+                "maxZ": 138.7,
+                "top": 34.283
+              }
+            ],
+            "bottom": {
+              "x": 86,
+              "z": 138,
+              "y": 31.283
+            },
+            "top": {
+              "x": 86,
+              "z": 138,
+              "y": 34.283
+            }
+          },
+          {
+            "id": "corp_needle_c_s0",
+            "type": "straight",
+            "connectsFloors": [
+              0,
+              1
+            ],
+            "y0": 14.783,
+            "y1": 18.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 73,
+              "maxX": 79,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": 73,
+                "maxX": 73.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 15.283
+              },
+              {
+                "minX": 73.75,
+                "maxX": 74.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 15.783
+              },
+              {
+                "minX": 74.5,
+                "maxX": 75.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 16.283
+              },
+              {
+                "minX": 75.25,
+                "maxX": 76,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 16.783
+              },
+              {
+                "minX": 76,
+                "maxX": 76.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 17.283
+              },
+              {
+                "minX": 76.75,
+                "maxX": 77.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 17.783
+              },
+              {
+                "minX": 77.5,
+                "maxX": 78.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 18.283
+              },
+              {
+                "minX": 78.25,
+                "maxX": 79,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 18.783
+              }
+            ],
+            "bottom": {
+              "x": 73.375,
+              "z": 143,
+              "y": 15.283
+            },
+            "top": {
+              "x": 78.625,
+              "z": 143,
+              "y": 18.783
+            }
+          },
+          {
+            "id": "corp_needle_c_s1",
+            "type": "straight",
+            "connectsFloors": [
+              1,
+              2
+            ],
+            "y0": 18.783,
+            "y1": 22.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 83,
+              "maxX": 89,
+              "minZ": 131,
+              "maxZ": 135
+            },
+            "steps": [
+              {
+                "minX": 83,
+                "maxX": 83.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 19.283
+              },
+              {
+                "minX": 83.75,
+                "maxX": 84.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 19.783
+              },
+              {
+                "minX": 84.5,
+                "maxX": 85.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 20.283
+              },
+              {
+                "minX": 85.25,
+                "maxX": 86,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 20.783
+              },
+              {
+                "minX": 86,
+                "maxX": 86.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 21.283
+              },
+              {
+                "minX": 86.75,
+                "maxX": 87.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 21.783
+              },
+              {
+                "minX": 87.5,
+                "maxX": 88.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 22.283
+              },
+              {
+                "minX": 88.25,
+                "maxX": 89,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 22.783
+              }
+            ],
+            "bottom": {
+              "x": 83.375,
+              "z": 133,
+              "y": 19.283
+            },
+            "top": {
+              "x": 88.625,
+              "z": 133,
+              "y": 22.783
+            }
+          },
+          {
+            "id": "corp_needle_c_s2",
+            "type": "straight",
+            "connectsFloors": [
+              2,
+              3
+            ],
+            "y0": 22.783,
+            "y1": 26.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 73,
+              "maxX": 79,
+              "minZ": 141,
+              "maxZ": 145
+            },
+            "steps": [
+              {
+                "minX": 73,
+                "maxX": 73.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 23.283
+              },
+              {
+                "minX": 73.75,
+                "maxX": 74.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 23.783
+              },
+              {
+                "minX": 74.5,
+                "maxX": 75.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 24.283
+              },
+              {
+                "minX": 75.25,
+                "maxX": 76,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 24.783
+              },
+              {
+                "minX": 76,
+                "maxX": 76.75,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 25.283
+              },
+              {
+                "minX": 76.75,
+                "maxX": 77.5,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 25.783
+              },
+              {
+                "minX": 77.5,
+                "maxX": 78.25,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 26.283
+              },
+              {
+                "minX": 78.25,
+                "maxX": 79,
+                "minZ": 141,
+                "maxZ": 145,
+                "top": 26.783
+              }
+            ],
+            "bottom": {
+              "x": 73.375,
+              "z": 143,
+              "y": 23.283
+            },
+            "top": {
+              "x": 78.625,
+              "z": 143,
+              "y": 26.783
+            }
+          },
+          {
+            "id": "corp_needle_c_s3",
+            "type": "straight",
+            "connectsFloors": [
+              3,
+              4
+            ],
+            "y0": 26.783,
+            "y1": 30.783,
+            "height": 4,
+            "rotation": 0,
+            "rect": {
+              "minX": 83,
+              "maxX": 89,
+              "minZ": 131,
+              "maxZ": 135
+            },
+            "steps": [
+              {
+                "minX": 83,
+                "maxX": 83.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 27.283
+              },
+              {
+                "minX": 83.75,
+                "maxX": 84.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 27.783
+              },
+              {
+                "minX": 84.5,
+                "maxX": 85.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 28.283
+              },
+              {
+                "minX": 85.25,
+                "maxX": 86,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 28.783
+              },
+              {
+                "minX": 86,
+                "maxX": 86.75,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 29.283
+              },
+              {
+                "minX": 86.75,
+                "maxX": 87.5,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 29.783
+              },
+              {
+                "minX": 87.5,
+                "maxX": 88.25,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 30.283
+              },
+              {
+                "minX": 88.25,
+                "maxX": 89,
+                "minZ": 131,
+                "maxZ": 135,
+                "top": 30.783
+              }
+            ],
+            "bottom": {
+              "x": 83.375,
+              "z": 133,
+              "y": 27.283
+            },
+            "top": {
+              "x": 88.625,
+              "z": 133,
+              "y": 30.783
+            }
+          }
+        ],
+        "doors": [
+          {
+            "id": "corp_needle_c_r0→rd_plate_ave",
+            "room": "corp_needle_c_r0",
+            "target": "rd_plate_ave",
+            "linkType": "main_entrance",
+            "axis": "x",
+            "y": 14.783,
+            "height": 2.1,
+            "rect": {
+              "minX": 80.1,
+              "maxX": 81.9,
+              "minZ": 126.815,
+              "maxZ": 127.185
+            },
+            "inside": {
+              "x": 82.996,
+              "z": 128.61
+            },
+            "outside": {
+              "x": 83.578,
+              "z": 125.871
+            }
+          }
+        ]
+      },
       {
         "id": "sind_001",
         "name": "sind_001",
@@ -11847,146 +14099,182 @@ export const LEVEL_12 = {
         "decks": [
           {
             "minX": -280,
-            "maxX": -264,
+            "maxX": -260,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.644,
-            "bottomY": 14.044,
-            "topAtMin": 14.644,
-            "topAtMax": 14.827,
+            "topY": 14.702,
+            "bottomY": 14.102,
+            "topAtMin": 14.702,
+            "topAtMax": 14.871,
             "ramp": true
           },
           {
-            "minX": -264,
-            "maxX": -251,
+            "minX": -260,
+            "maxX": -237,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.827,
-            "bottomY": 14.227,
-            "topAtMin": 14.827,
-            "topAtMax": 14.885,
+            "topY": 14.871,
+            "bottomY": 14.271,
+            "topAtMin": 14.871,
+            "topAtMax": 14.886,
             "ramp": true
           },
           {
-            "minX": -251,
-            "maxX": -193,
+            "minX": -237,
+            "maxX": -129,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 14.696,
-            "bottomY": 14.096,
-            "topAtMin": 14.885,
-            "topAtMax": 14.696,
+            "topY": 14.556,
+            "bottomY": 13.956,
+            "topAtMin": 14.886,
+            "topAtMax": 14.556,
             "ramp": true
           },
           {
-            "minX": -193,
-            "maxX": -78,
+            "minX": -129,
+            "maxX": -107,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.86,
-            "bottomY": 13.26,
-            "topAtMin": 14.696,
-            "topAtMax": 13.86,
+            "topY": 14.556,
+            "bottomY": 13.956,
+            "topAtMin": 14.556,
+            "topAtMax": 14.613,
             "ramp": true
           },
           {
-            "minX": -78,
-            "maxX": -28,
+            "minX": -107,
+            "maxX": -53,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.324,
-            "bottomY": 12.724,
-            "topAtMin": 13.86,
-            "topAtMax": 13.324,
+            "topY": 14.613,
+            "bottomY": 14.013,
+            "topAtMin": 14.613,
+            "topAtMax": 14.898,
             "ramp": true
           },
           {
-            "minX": -28,
-            "maxX": -7,
+            "minX": -53,
+            "maxX": 104,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.19,
-            "bottomY": 12.59,
-            "topAtMin": 13.324,
-            "topAtMax": 13.19,
-            "ramp": true
-          },
-          {
-            "minX": -7,
-            "maxX": 154,
-            "minZ": 113,
-            "maxZ": 123,
-            "axis": "x",
-            "topY": 13.19,
-            "bottomY": 12.59,
-            "topAtMin": 13.19,
-            "topAtMax": 13.195,
+            "topY": 14.898,
+            "bottomY": 14.298,
+            "topAtMin": 14.898,
+            "topAtMax": 14.898,
             "ramp": false
           },
           {
-            "minX": 154,
-            "maxX": 181,
+            "minX": 104,
+            "maxX": 121,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.195,
-            "bottomY": 12.595,
-            "topAtMin": 13.195,
-            "topAtMax": 13.341,
+            "topY": 14.783,
+            "bottomY": 14.183,
+            "topAtMin": 14.898,
+            "topAtMax": 14.783,
             "ramp": true
           },
           {
-            "minX": 181,
-            "maxX": 217,
+            "minX": 121,
+            "maxX": 158,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.341,
-            "bottomY": 12.741,
-            "topAtMin": 13.341,
-            "topAtMax": 13.704,
+            "topY": 14.308,
+            "bottomY": 13.708,
+            "topAtMin": 14.783,
+            "topAtMax": 14.308,
             "ramp": true
           },
           {
-            "minX": 217,
-            "maxX": 222,
+            "minX": 158,
+            "maxX": 175,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.634,
-            "bottomY": 13.034,
-            "topAtMin": 13.704,
-            "topAtMax": 13.634,
+            "topY": 14.158,
+            "bottomY": 13.558,
+            "topAtMin": 14.308,
+            "topAtMax": 14.158,
             "ramp": true
           },
           {
-            "minX": 222,
-            "maxX": 236,
+            "minX": 175,
+            "maxX": 194,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.193,
-            "bottomY": 12.593,
-            "topAtMin": 13.634,
-            "topAtMax": 13.193,
+            "topY": 14.128,
+            "bottomY": 13.528,
+            "topAtMin": 14.158,
+            "topAtMax": 14.128,
             "ramp": true
           },
           {
-            "minX": 236,
+            "minX": 194,
+            "maxX": 218,
+            "minZ": 113,
+            "maxZ": 123,
+            "axis": "x",
+            "topY": 14.128,
+            "bottomY": 13.528,
+            "topAtMin": 14.128,
+            "topAtMax": 14.268,
+            "ramp": true
+          },
+          {
+            "minX": 218,
+            "maxX": 223,
+            "minZ": 113,
+            "maxZ": 123,
+            "axis": "x",
+            "topY": 14.145,
+            "bottomY": 13.545,
+            "topAtMin": 14.268,
+            "topAtMax": 14.145,
+            "ramp": true
+          },
+          {
+            "minX": 223,
+            "maxX": 235,
+            "minZ": 113,
+            "maxZ": 123,
+            "axis": "x",
+            "topY": 13.547,
+            "bottomY": 12.947,
+            "topAtMin": 14.145,
+            "topAtMax": 13.547,
+            "ramp": true
+          },
+          {
+            "minX": 235,
+            "maxX": 240,
+            "minZ": 113,
+            "maxZ": 123,
+            "axis": "x",
+            "topY": 13.417,
+            "bottomY": 12.817,
+            "topAtMin": 13.547,
+            "topAtMax": 13.417,
+            "ramp": true
+          },
+          {
+            "minX": 240,
             "maxX": 280,
             "minZ": 113,
             "maxZ": 123,
             "axis": "x",
-            "topY": 13.184,
-            "bottomY": 12.584,
-            "topAtMin": 13.193,
-            "topAtMax": 13.184,
+            "topY": 13.415,
+            "bottomY": 12.815,
+            "topAtMin": 13.417,
+            "topAtMax": 13.415,
             "ramp": false
           }
         ],
@@ -11995,13 +14283,13 @@ export const LEVEL_12 = {
         "pillars": [],
         "lamps": [
           {
-            "id": "lamp_rd_plate_ave_3_111.6",
+            "id": "lamp_rd_plate_ave_-43_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 3,
-              "y": 13.19,
+              "x": -43,
+              "y": 14.898,
               "z": 111.6
             },
             "scale": {
@@ -12011,13 +14299,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_3_124.4",
+            "id": "lamp_rd_plate_ave_-43_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 3,
-              "y": 13.19,
+              "x": -43,
+              "y": 14.898,
               "z": 124.4
             },
             "scale": {
@@ -12027,13 +14315,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_23_111.6",
+            "id": "lamp_rd_plate_ave_-23_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 23,
-              "y": 13.19,
+              "x": -23,
+              "y": 14.898,
               "z": 111.6
             },
             "scale": {
@@ -12043,13 +14331,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_23_124.4",
+            "id": "lamp_rd_plate_ave_-23_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 23,
-              "y": 13.19,
+              "x": -23,
+              "y": 14.898,
               "z": 124.4
             },
             "scale": {
@@ -12059,13 +14347,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_43_111.6",
+            "id": "lamp_rd_plate_ave_-3_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 43,
-              "y": 13.19,
+              "x": -3,
+              "y": 14.898,
               "z": 111.6
             },
             "scale": {
@@ -12075,13 +14363,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_43_124.4",
+            "id": "lamp_rd_plate_ave_-3_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 43,
-              "y": 13.19,
+              "x": -3,
+              "y": 14.898,
               "z": 124.4
             },
             "scale": {
@@ -12091,13 +14379,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_63_111.6",
+            "id": "lamp_rd_plate_ave_17_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 63,
-              "y": 13.19,
+              "x": 17,
+              "y": 14.898,
               "z": 111.6
             },
             "scale": {
@@ -12107,13 +14395,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_63_124.4",
+            "id": "lamp_rd_plate_ave_17_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 63,
-              "y": 13.19,
+              "x": 17,
+              "y": 14.898,
               "z": 124.4
             },
             "scale": {
@@ -12123,13 +14411,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_83_111.6",
+            "id": "lamp_rd_plate_ave_37_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 83,
-              "y": 13.19,
+              "x": 37,
+              "y": 14.898,
               "z": 111.6
             },
             "scale": {
@@ -12139,13 +14427,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_83_124.4",
+            "id": "lamp_rd_plate_ave_37_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 83,
-              "y": 13.19,
+              "x": 37,
+              "y": 14.898,
               "z": 124.4
             },
             "scale": {
@@ -12155,13 +14443,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_103_111.6",
+            "id": "lamp_rd_plate_ave_57_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 103,
-              "y": 13.19,
+              "x": 57,
+              "y": 14.898,
               "z": 111.6
             },
             "scale": {
@@ -12171,13 +14459,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_103_124.4",
+            "id": "lamp_rd_plate_ave_57_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 103,
-              "y": 13.19,
+              "x": 57,
+              "y": 14.898,
               "z": 124.4
             },
             "scale": {
@@ -12187,13 +14475,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_123_111.6",
+            "id": "lamp_rd_plate_ave_77_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 123,
-              "y": 13.19,
+              "x": 77,
+              "y": 14.898,
               "z": 111.6
             },
             "scale": {
@@ -12203,13 +14491,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_123_124.4",
+            "id": "lamp_rd_plate_ave_77_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 123,
-              "y": 13.19,
+              "x": 77,
+              "y": 14.898,
               "z": 124.4
             },
             "scale": {
@@ -12219,13 +14507,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_143_111.6",
+            "id": "lamp_rd_plate_ave_97_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 143,
-              "y": 13.19,
+              "x": 97,
+              "y": 14.898,
               "z": 111.6
             },
             "scale": {
@@ -12235,13 +14523,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_143_124.4",
+            "id": "lamp_rd_plate_ave_97_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 143,
-              "y": 13.19,
+              "x": 97,
+              "y": 14.898,
               "z": 124.4
             },
             "scale": {
@@ -12251,13 +14539,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_246_111.6",
+            "id": "lamp_rd_plate_ave_250_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 246,
-              "y": 13.184,
+              "x": 250,
+              "y": 13.415,
               "z": 111.6
             },
             "scale": {
@@ -12267,13 +14555,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_246_124.4",
+            "id": "lamp_rd_plate_ave_250_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 246,
-              "y": 13.184,
+              "x": 250,
+              "y": 13.415,
               "z": 124.4
             },
             "scale": {
@@ -12283,13 +14571,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_266_111.6",
+            "id": "lamp_rd_plate_ave_270_111.6",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 0,
             "position": {
-              "x": 266,
-              "y": 13.184,
+              "x": 270,
+              "y": 13.415,
               "z": 111.6
             },
             "scale": {
@@ -12299,13 +14587,13 @@ export const LEVEL_12 = {
             }
           },
           {
-            "id": "lamp_rd_plate_ave_266_124.4",
+            "id": "lamp_rd_plate_ave_270_124.4",
             "model": "lamp_post",
             "source": "road_lamp",
             "rotationY": 180,
             "position": {
-              "x": 266,
-              "y": 13.184,
+              "x": 270,
+              "y": 13.415,
               "z": 124.4
             },
             "scale": {
@@ -12422,96 +14710,108 @@ export const LEVEL_12 = {
             "minX": -165,
             "maxX": -155,
             "minZ": 20,
-            "maxZ": 36,
+            "maxZ": 34,
             "axis": "z",
             "topY": 6.27,
             "bottomY": 5.67,
             "topAtMin": 6.27,
-            "topAtMax": 7.594,
+            "topAtMax": 7.437,
             "ramp": true
           },
           {
             "minX": -165,
             "maxX": -155,
-            "minZ": 36,
-            "maxZ": 45,
+            "minZ": 34,
+            "maxZ": 43,
             "axis": "z",
-            "topY": 7.594,
-            "bottomY": 6.994,
-            "topAtMin": 7.594,
-            "topAtMax": 8.523,
+            "topY": 7.437,
+            "bottomY": 6.837,
+            "topAtMin": 7.437,
+            "topAtMax": 8.372,
             "ramp": true
           },
           {
             "minX": -165,
             "maxX": -155,
-            "minZ": 45,
-            "maxZ": 68,
+            "minZ": 43,
+            "maxZ": 67,
             "axis": "z",
-            "topY": 8.523,
-            "bottomY": 7.923,
-            "topAtMin": 8.523,
-            "topAtMax": 11.076,
+            "topY": 8.372,
+            "bottomY": 7.772,
+            "topAtMin": 8.372,
+            "topAtMax": 11.067,
             "ramp": true
           },
           {
             "minX": -165,
             "maxX": -155,
-            "minZ": 68,
-            "maxZ": 81,
+            "minZ": 67,
+            "maxZ": 79,
             "axis": "z",
-            "topY": 11.076,
-            "bottomY": 10.476,
-            "topAtMin": 11.076,
-            "topAtMax": 12.35,
+            "topY": 11.067,
+            "bottomY": 10.467,
+            "topAtMin": 11.067,
+            "topAtMax": 12.26,
             "ramp": true
           },
           {
             "minX": -165,
             "maxX": -155,
-            "minZ": 81,
-            "maxZ": 89,
+            "minZ": 79,
+            "maxZ": 91,
             "axis": "z",
-            "topY": 12.35,
-            "bottomY": 11.75,
-            "topAtMin": 12.35,
-            "topAtMax": 13.009,
+            "topY": 12.26,
+            "bottomY": 11.66,
+            "topAtMin": 12.26,
+            "topAtMax": 13.234,
             "ramp": true
           },
           {
             "minX": -165,
             "maxX": -155,
-            "minZ": 89,
-            "maxZ": 97,
+            "minZ": 91,
+            "maxZ": 98,
             "axis": "z",
-            "topY": 13.009,
-            "bottomY": 12.409,
-            "topAtMin": 13.009,
-            "topAtMax": 13.56,
+            "topY": 13.234,
+            "bottomY": 12.634,
+            "topAtMin": 13.234,
+            "topAtMax": 13.688,
             "ramp": true
           },
           {
             "minX": -165,
             "maxX": -155,
-            "minZ": 97,
+            "minZ": 98,
             "maxZ": 105,
             "axis": "z",
-            "topY": 13.56,
-            "bottomY": 12.96,
-            "topAtMin": 13.56,
-            "topAtMax": 14,
+            "topY": 13.688,
+            "bottomY": 13.088,
+            "topAtMin": 13.688,
+            "topAtMax": 14.057,
             "ramp": true
           },
           {
             "minX": -165,
             "maxX": -155,
             "minZ": 105,
+            "maxZ": 109,
+            "axis": "z",
+            "topY": 14.057,
+            "bottomY": 13.457,
+            "topAtMin": 14.057,
+            "topAtMax": 14.44,
+            "ramp": true
+          },
+          {
+            "minX": -165,
+            "maxX": -155,
+            "minZ": 109,
             "maxZ": 113,
             "axis": "z",
-            "topY": 14,
-            "bottomY": 13.4,
-            "topAtMin": 14,
-            "topAtMax": 14.334,
+            "topY": 14.44,
+            "bottomY": 13.84,
+            "topAtMin": 14.44,
+            "topAtMax": 14.651,
             "ramp": true
           }
         ],
@@ -13522,7 +15822,7 @@ export const LEVEL_12 = {
             "topY": 2.28,
             "bottomY": 1.68,
             "topAtMin": 2.28,
-            "topAtMax": 3.81,
+            "topAtMax": 4.022,
             "ramp": true,
             "rails": true
           },
@@ -13545,10 +15845,10 @@ export const LEVEL_12 = {
             "length": 33,
             "width": 8,
             "axis": "x",
-            "topY": 3.81,
-            "bottomY": 3.21,
-            "topAtMin": 3.81,
-            "topAtMax": 5.295,
+            "topY": 4.022,
+            "bottomY": 3.422,
+            "topAtMin": 4.022,
+            "topAtMax": 6.002,
             "ramp": true,
             "rails": true
           },
@@ -13571,10 +15871,10 @@ export const LEVEL_12 = {
             "length": 30,
             "width": 8,
             "axis": "x",
-            "topY": 5.295,
-            "bottomY": 4.695,
-            "topAtMin": 5.295,
-            "topAtMax": 6.645,
+            "topY": 6.002,
+            "bottomY": 5.402,
+            "topAtMin": 6.002,
+            "topAtMax": 7.802,
             "ramp": true,
             "rails": true
           },
@@ -13597,10 +15897,10 @@ export const LEVEL_12 = {
             "length": 40,
             "width": 8,
             "axis": "x",
-            "topY": 6.645,
-            "bottomY": 6.045,
-            "topAtMin": 6.645,
-            "topAtMax": 8.445,
+            "topY": 7.802,
+            "bottomY": 7.202,
+            "topAtMin": 7.802,
+            "topAtMax": 10.202,
             "ramp": true,
             "rails": true
           },
@@ -13623,10 +15923,10 @@ export const LEVEL_12 = {
             "length": 40,
             "width": 8,
             "axis": "x",
-            "topY": 8.445,
-            "bottomY": 7.845,
-            "topAtMin": 8.445,
-            "topAtMax": 10.487,
+            "topY": 10.202,
+            "bottomY": 9.602,
+            "topAtMin": 10.202,
+            "topAtMax": 12.602,
             "ramp": true,
             "rails": true
           },
@@ -13634,25 +15934,77 @@ export const LEVEL_12 = {
             "minX": -64,
             "maxX": -56,
             "minZ": 60,
-            "maxZ": 113,
+            "maxZ": 86.5,
             "obb": {
               "cx": -60,
-              "cz": 86.5,
-              "hx": 26.5,
+              "cz": 73.25,
+              "hx": 13.25,
               "hz": 4,
               "c": 6.123233995736766e-17,
               "s": 1
             },
             "cx": -60,
-            "cz": 86.5,
+            "cz": 73.25,
             "yaw": 90,
-            "length": 53,
+            "length": 26.5,
             "width": 8,
             "axis": "x",
-            "topY": 10.487,
-            "bottomY": 9.887,
-            "topAtMin": 10.487,
-            "topAtMax": 13.667,
+            "topY": 12.602,
+            "bottomY": 12.002,
+            "topAtMin": 12.602,
+            "topAtMax": 14.192,
+            "ramp": true,
+            "rails": true
+          },
+          {
+            "minX": -64,
+            "maxX": -56,
+            "minZ": 86.5,
+            "maxZ": 99.75,
+            "obb": {
+              "cx": -60,
+              "cz": 93.125,
+              "hx": 6.625,
+              "hz": 4,
+              "c": 6.123233995736766e-17,
+              "s": 1
+            },
+            "cx": -60,
+            "cz": 93.125,
+            "yaw": 90,
+            "length": 13.25,
+            "width": 8,
+            "axis": "x",
+            "topY": 14.192,
+            "bottomY": 13.592,
+            "topAtMin": 14.192,
+            "topAtMax": 14.788,
+            "ramp": true,
+            "rails": true
+          },
+          {
+            "minX": -64,
+            "maxX": -56,
+            "minZ": 99.75,
+            "maxZ": 113,
+            "obb": {
+              "cx": -60,
+              "cz": 106.375,
+              "hx": 6.625,
+              "hz": 4,
+              "c": 6.123233995736766e-17,
+              "s": 1
+            },
+            "cx": -60,
+            "cz": 106.375,
+            "yaw": 90,
+            "length": 13.25,
+            "width": 8,
+            "axis": "x",
+            "topY": 14.788,
+            "bottomY": 14.188,
+            "topAtMin": 14.788,
+            "topAtMax": 14.861,
             "ramp": true,
             "rails": true
           }
@@ -13768,7 +16120,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 5.95,
+              "y": 5.987,
               "z": 1.6
             }
           },
@@ -13784,7 +16136,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 5.95,
+              "y": 5.987,
               "z": 1.6
             }
           },
@@ -13800,7 +16152,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 6.49,
+              "y": 6.602,
               "z": 1.6
             }
           },
@@ -13816,7 +16168,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 6.49,
+              "y": 6.602,
               "z": 1.6
             }
           },
@@ -13832,7 +16184,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 3.03,
+              "y": 3.217,
               "z": 1.6
             }
           },
@@ -13848,7 +16200,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 3.03,
+              "y": 3.217,
               "z": 1.6
             }
           },
@@ -13864,7 +16216,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 3.48,
+              "y": 3.782,
               "z": 1.6
             }
           },
@@ -13880,7 +16232,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 3.48,
+              "y": 3.782,
               "z": 1.6
             }
           },
@@ -13896,7 +16248,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 4.492,
+              "y": 5.154,
               "z": 1.6
             }
           },
@@ -13912,7 +16264,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 4.492,
+              "y": 5.154,
               "z": 1.6
             }
           },
@@ -13928,7 +16280,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 4.566,
+              "y": 5.363,
               "z": 1.6
             }
           },
@@ -13944,7 +16296,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 4.566,
+              "y": 5.363,
               "z": 1.6
             }
           },
@@ -13960,7 +16312,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 4.173,
+              "y": 5.15,
               "z": 1.6
             }
           },
@@ -13976,7 +16328,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 4.173,
+              "y": 5.15,
               "z": 1.6
             }
           },
@@ -13992,7 +16344,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 2.885,
+              "y": 4.132,
               "z": 1.6
             }
           },
@@ -14008,7 +16360,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 2.885,
+              "y": 4.132,
               "z": 1.6
             }
           },
@@ -14024,7 +16376,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 2.372,
+              "y": 3.799,
               "z": 1.6
             }
           },
@@ -14040,7 +16392,7 @@ export const LEVEL_12 = {
             },
             "scale": {
               "x": 1.6,
-              "y": 2.372,
+              "y": 3.799,
               "z": 1.6
             }
           },
@@ -14051,12 +16403,12 @@ export const LEVEL_12 = {
             "rotationY": -90,
             "position": {
               "x": -57.2,
-              "y": 5.376,
+              "y": 5.49,
               "z": 10
             },
             "scale": {
               "x": 1.6,
-              "y": 2.019,
+              "y": 3.512,
               "z": 1.6
             }
           },
@@ -14067,12 +16419,12 @@ export const LEVEL_12 = {
             "rotationY": -90,
             "position": {
               "x": -62.8,
-              "y": 5.376,
+              "y": 5.476,
               "z": 10
             },
             "scale": {
               "x": 1.6,
-              "y": 2.019,
+              "y": 3.526,
               "z": 1.6
             }
           },
@@ -14083,12 +16435,12 @@ export const LEVEL_12 = {
             "rotationY": -90,
             "position": {
               "x": -57.2,
-              "y": 6.622,
+              "y": 7.453,
               "z": 26
             },
             "scale": {
               "x": 1.6,
-              "y": 1.529,
+              "y": 2.509,
               "z": 1.6
             }
           },
@@ -14099,12 +16451,12 @@ export const LEVEL_12 = {
             "rotationY": -90,
             "position": {
               "x": -62.8,
-              "y": 6.622,
+              "y": 7.416,
               "z": 26
             },
             "scale": {
               "x": 1.6,
-              "y": 1.529,
+              "y": 2.546,
               "z": 1.6
             }
           },
@@ -14115,12 +16467,12 @@ export const LEVEL_12 = {
             "rotationY": -90,
             "position": {
               "x": -57.2,
-              "y": 7.574,
+              "y": 9.108,
               "z": 38
             },
             "scale": {
               "x": 1.6,
-              "y": 1.19,
+              "y": 1.574,
               "z": 1.6
             }
           },
@@ -14131,12 +16483,12 @@ export const LEVEL_12 = {
             "rotationY": -90,
             "position": {
               "x": -62.8,
-              "y": 7.574,
+              "y": 9.059,
               "z": 38
             },
             "scale": {
               "x": 1.6,
-              "y": 1.19,
+              "y": 1.623,
               "z": 1.6
             }
           }
@@ -14189,66 +16541,40 @@ export const LEVEL_12 = {
             "a1": 70.067,
             "span": 26.703999999999994,
             "y0": 1.35,
-            "y1": 2.772,
+            "y1": 3.213,
             "tanBank": 0.105,
-            "bankTrans": 10.682,
+            "bankTrans": 9.457,
             "width": 8,
             "topY": 1.35,
             "bottomY": 0.75,
             "topAtMin": 1.35,
-            "topAtMax": 2.772,
-            "ramp": true,
-            "rails": true
-          },
-          {
-            "minX": 186.77,
-            "maxX": 219.282,
-            "minZ": -24.478,
-            "maxZ": -6.156,
-            "obb": {
-              "cx": 203.026,
-              "cz": -15.317,
-              "hx": 15.841,
-              "hz": 4,
-              "c": -0.940091926513835,
-              "s": 0.34092106080954615
-            },
-            "cx": 203.026,
-            "cz": -15.317,
-            "yaw": 160.067,
-            "length": 31.682,
-            "width": 8,
-            "axis": "x",
-            "topY": 2.772,
-            "bottomY": 2.172,
-            "topAtMin": 2.772,
-            "topAtMax": 4.015,
+            "topAtMax": 3.213,
             "ramp": true,
             "rails": true
           },
           {
             "minX": 162.402,
-            "maxX": 189.498,
-            "minZ": -13.677,
+            "maxX": 219.282,
+            "minZ": -24.479,
             "maxZ": 2.681,
             "obb": {
-              "cx": 175.95,
-              "cz": -5.498,
-              "hx": 12.961,
+              "cx": 190.842,
+              "cz": -10.899,
+              "hx": 28.802,
               "hz": 4,
-              "c": -0.940097876565651,
-              "s": 0.3409046530582325
+              "c": -0.940091926513835,
+              "s": 0.34092106080954615
             },
-            "cx": 175.95,
-            "cz": -5.498,
-            "yaw": 160.068,
-            "length": 25.922,
+            "cx": 190.842,
+            "cz": -10.899,
+            "yaw": 160.067,
+            "length": 57.604,
             "width": 8,
             "axis": "x",
-            "topY": 4.015,
-            "bottomY": 3.415,
-            "topAtMin": 4.015,
-            "topAtMax": 4.7,
+            "topY": 3.213,
+            "bottomY": 2.613,
+            "topAtMin": 3.213,
+            "topAtMax": 6.205,
             "ramp": true,
             "rails": true
           },
@@ -14265,15 +16591,15 @@ export const LEVEL_12 = {
             "a0": -109.933,
             "a1": -130.156,
             "span": -20.223,
-            "y0": 4.699,
-            "y1": 6.027,
+            "y0": 6.206,
+            "y1": 8.324,
             "tanBank": 0.105,
-            "bankTrans": 8.089,
+            "bankTrans": 6.299,
             "width": 8,
-            "topY": 4.699,
-            "bottomY": 4.099,
-            "topAtMin": 4.699,
-            "topAtMax": 6.027,
+            "topY": 6.206,
+            "bottomY": 5.606,
+            "topAtMin": 6.206,
+            "topAtMax": 8.324,
             "ramp": true,
             "rails": true
           },
@@ -14296,44 +16622,288 @@ export const LEVEL_12 = {
             "length": 82.302,
             "width": 8,
             "axis": "x",
-            "topY": 6.027,
-            "bottomY": 5.427,
-            "topAtMin": 6.027,
-            "topAtMax": 10.173,
+            "topY": 8.324,
+            "bottomY": 7.724,
+            "topAtMin": 8.324,
+            "topAtMax": 13.262,
+            "ramp": true,
+            "rails": true
+          },
+          {
+            "minX": 44.728,
+            "maxX": 73.046,
+            "minZ": 66.518,
+            "maxZ": 92.174,
+            "obb": {
+              "cx": 58.887,
+              "cz": 79.346,
+              "hx": 15.151,
+              "hz": 4,
+              "c": -0.7642914792863121,
+              "s": 0.6448709442131353
+            },
+            "cx": 58.887,
+            "cz": 79.346,
+            "yaw": 139.844,
+            "length": 30.302,
+            "width": 8,
+            "axis": "x",
+            "topY": 13.262,
+            "bottomY": 12.662,
+            "topAtMin": 13.262,
+            "topAtMax": 14.441,
             "ramp": true,
             "rails": true
           },
           {
             "minX": 16.421,
-            "maxX": 73.047,
-            "minZ": 66.518,
-            "maxZ": 116.058,
+            "maxX": 49.887,
+            "minZ": 86.059,
+            "maxZ": 116.057,
             "obb": {
-              "cx": 44.734,
-              "cz": 91.288,
-              "hx": 33.67,
+              "cx": 33.154,
+              "cz": 101.058,
+              "hx": 18.518,
               "hz": 4,
               "c": -0.7642914792863121,
               "s": 0.6448709442131353
             },
-            "cx": 44.734,
-            "cz": 91.288,
+            "cx": 33.154,
+            "cz": 101.058,
             "yaw": 139.844,
-            "length": 67.339,
+            "length": 37.037,
             "width": 8,
             "axis": "x",
-            "topY": 10.173,
-            "bottomY": 9.573,
-            "topAtMin": 10.173,
-            "topAtMax": 13.191,
+            "topY": 14.44,
+            "bottomY": 13.84,
+            "topAtMin": 14.44,
+            "topAtMax": 14.898,
             "ramp": true,
             "rails": true
           }
         ],
         "fill": [],
         "aprons": [],
-        "pillars": [],
+        "pillars": [
+          {
+            "id": "pillar_rd_x_east_166.199_-4.941",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": -160.067,
+            "position": {
+              "x": 166.199,
+              "y": 4.271,
+              "z": -4.941
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.147,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_157.078_-1.436",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 23.370746770784947,
+            "position": {
+              "x": 157.078,
+              "y": 4.523,
+              "z": -1.436
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.611,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_148.896_8.962",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 30.246240312354843,
+            "position": {
+              "x": 148.896,
+              "y": 5.297,
+              "z": 8.962
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.095,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_146.075_4.124",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 30.246240312354843,
+            "position": {
+              "x": 146.075,
+              "y": 4.933,
+              "z": 4.124
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 2.047,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_139.196_15.427",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 37.121733853924695,
+            "position": {
+              "x": 139.196,
+              "y": 5.869,
+              "z": 15.427
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.399,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_135.816_10.962",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": 37.121733853924695,
+            "position": {
+              "x": 135.816,
+              "y": 5.471,
+              "z": 10.962
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 2.074,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_130.59_22.51",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": -139.844,
+            "position": {
+              "x": 130.59,
+              "y": 6.753,
+              "z": 22.51
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.331,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_126.979_18.23",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": -139.844,
+            "position": {
+              "x": 126.979,
+              "y": 6.289,
+              "z": 18.23
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.795,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_117.807_25.969",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": -139.844,
+            "position": {
+              "x": 117.807,
+              "y": 7.362,
+              "z": 25.969
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.442,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_rd_x_east_108.636_33.707",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": -139.844,
+            "position": {
+              "x": 108.636,
+              "y": 8.505,
+              "z": 33.707
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.019,
+              "z": 1.6
+            }
+          }
+        ],
         "lamps": []
+      },
+      {
+        "id": "sb_needles",
+        "type": "skybridge",
+        "width": 3.4,
+        "withLamps": true,
+        "decks": [
+          {
+            "minX": -13,
+            "maxX": 7,
+            "minZ": 136.3,
+            "maxZ": 139.7,
+            "axis": "x",
+            "topY": 30.783,
+            "bottomY": 30.183,
+            "topAtMin": 30.783,
+            "topAtMax": 30.783,
+            "ramp": false
+          }
+        ],
+        "fill": [],
+        "aprons": [],
+        "pillars": [],
+        "lamps": [
+          {
+            "id": "lamp_sb_needles_-3_134.9",
+            "model": "lamp_post",
+            "source": "road_lamp",
+            "rotationY": 0,
+            "position": {
+              "x": -3,
+              "y": 30.783,
+              "z": 134.9
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          {
+            "id": "lamp_sb_needles_-3_141.1",
+            "model": "lamp_post",
+            "source": "road_lamp",
+            "rotationY": 180,
+            "position": {
+              "x": -3,
+              "y": 30.783,
+              "z": 141.1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        ]
       },
       {
         "id": "sind_s_h0_0",
@@ -26199,6 +28769,54 @@ export const LEVEL_12 = {
     ],
     "props": [
       {
+        "id": "bench_plaza_40",
+        "model": "bench",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": 40,
+          "y": 14.783,
+          "z": 134
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "bench_plaza_48",
+        "model": "bench",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": 48,
+          "y": 14.783,
+          "z": 134
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "bench_plaza_56",
+        "model": "bench",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": 56,
+          "y": 14.783,
+          "z": 134
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
         "id": "lamp_br_east_162.6_-105",
         "model": "lamp_post",
         "source": "road_lamp",
@@ -29143,13 +31761,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_103_111.6",
+        "id": "lamp_rd_plate_ave_-23_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 103,
-          "y": 13.19,
+          "x": -23,
+          "y": 14.898,
           "z": 111.6
         },
         "scale": {
@@ -29159,13 +31777,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_103_124.4",
+        "id": "lamp_rd_plate_ave_-23_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 103,
-          "y": 13.19,
+          "x": -23,
+          "y": 14.898,
           "z": 124.4
         },
         "scale": {
@@ -29175,13 +31793,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_123_111.6",
+        "id": "lamp_rd_plate_ave_-3_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 123,
-          "y": 13.19,
+          "x": -3,
+          "y": 14.898,
           "z": 111.6
         },
         "scale": {
@@ -29191,13 +31809,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_123_124.4",
+        "id": "lamp_rd_plate_ave_-3_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 123,
-          "y": 13.19,
+          "x": -3,
+          "y": 14.898,
           "z": 124.4
         },
         "scale": {
@@ -29207,13 +31825,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_143_111.6",
+        "id": "lamp_rd_plate_ave_-43_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 143,
-          "y": 13.19,
+          "x": -43,
+          "y": 14.898,
           "z": 111.6
         },
         "scale": {
@@ -29223,13 +31841,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_143_124.4",
+        "id": "lamp_rd_plate_ave_-43_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 143,
-          "y": 13.19,
+          "x": -43,
+          "y": 14.898,
           "z": 124.4
         },
         "scale": {
@@ -29239,13 +31857,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_23_111.6",
+        "id": "lamp_rd_plate_ave_17_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 23,
-          "y": 13.19,
+          "x": 17,
+          "y": 14.898,
           "z": 111.6
         },
         "scale": {
@@ -29255,13 +31873,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_23_124.4",
+        "id": "lamp_rd_plate_ave_17_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 23,
-          "y": 13.19,
+          "x": 17,
+          "y": 14.898,
           "z": 124.4
         },
         "scale": {
@@ -29271,13 +31889,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_246_111.6",
+        "id": "lamp_rd_plate_ave_250_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 246,
-          "y": 13.184,
+          "x": 250,
+          "y": 13.415,
           "z": 111.6
         },
         "scale": {
@@ -29287,13 +31905,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_246_124.4",
+        "id": "lamp_rd_plate_ave_250_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 246,
-          "y": 13.184,
+          "x": 250,
+          "y": 13.415,
           "z": 124.4
         },
         "scale": {
@@ -29303,13 +31921,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_266_111.6",
+        "id": "lamp_rd_plate_ave_270_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 266,
-          "y": 13.184,
+          "x": 270,
+          "y": 13.415,
           "z": 111.6
         },
         "scale": {
@@ -29319,13 +31937,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_266_124.4",
+        "id": "lamp_rd_plate_ave_270_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 266,
-          "y": 13.184,
+          "x": 270,
+          "y": 13.415,
           "z": 124.4
         },
         "scale": {
@@ -29335,13 +31953,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_3_111.6",
+        "id": "lamp_rd_plate_ave_37_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 3,
-          "y": 13.19,
+          "x": 37,
+          "y": 14.898,
           "z": 111.6
         },
         "scale": {
@@ -29351,13 +31969,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_3_124.4",
+        "id": "lamp_rd_plate_ave_37_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 3,
-          "y": 13.19,
+          "x": 37,
+          "y": 14.898,
           "z": 124.4
         },
         "scale": {
@@ -29367,13 +31985,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_43_111.6",
+        "id": "lamp_rd_plate_ave_57_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 43,
-          "y": 13.19,
+          "x": 57,
+          "y": 14.898,
           "z": 111.6
         },
         "scale": {
@@ -29383,13 +32001,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_43_124.4",
+        "id": "lamp_rd_plate_ave_57_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 43,
-          "y": 13.19,
+          "x": 57,
+          "y": 14.898,
           "z": 124.4
         },
         "scale": {
@@ -29399,13 +32017,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_63_111.6",
+        "id": "lamp_rd_plate_ave_77_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 63,
-          "y": 13.19,
+          "x": 77,
+          "y": 14.898,
           "z": 111.6
         },
         "scale": {
@@ -29415,13 +32033,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_63_124.4",
+        "id": "lamp_rd_plate_ave_77_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 63,
-          "y": 13.19,
+          "x": 77,
+          "y": 14.898,
           "z": 124.4
         },
         "scale": {
@@ -29431,13 +32049,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_83_111.6",
+        "id": "lamp_rd_plate_ave_97_111.6",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 0,
         "position": {
-          "x": 83,
-          "y": 13.19,
+          "x": 97,
+          "y": 14.898,
           "z": 111.6
         },
         "scale": {
@@ -29447,13 +32065,13 @@ export const LEVEL_12 = {
         }
       },
       {
-        "id": "lamp_rd_plate_ave_83_124.4",
+        "id": "lamp_rd_plate_ave_97_124.4",
         "model": "lamp_post",
         "source": "road_lamp",
         "rotationY": 180,
         "position": {
-          "x": 83,
-          "y": 13.19,
+          "x": 97,
+          "y": 14.898,
           "z": 124.4
         },
         "scale": {
@@ -31439,6 +34057,38 @@ export const LEVEL_12 = {
           "x": 90,
           "y": 0.12,
           "z": -176.4
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "lamp_sb_needles_-3_134.9",
+        "model": "lamp_post",
+        "source": "road_lamp",
+        "rotationY": 0,
+        "position": {
+          "x": -3,
+          "y": 30.783,
+          "z": 134.9
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "lamp_sb_needles_-3_141.1",
+        "model": "lamp_post",
+        "source": "road_lamp",
+        "rotationY": 180,
+        "position": {
+          "x": -3,
+          "y": 30.783,
+          "z": 141.1
         },
         "scale": {
           "x": 1,
@@ -33698,7 +36348,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 5.95,
+          "y": 5.987,
           "z": 1.6
         }
       },
@@ -33746,7 +36396,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 2.885,
+          "y": 4.132,
           "z": 1.6
         }
       },
@@ -33778,7 +36428,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 2.372,
+          "y": 3.799,
           "z": 1.6
         }
       },
@@ -33794,7 +36444,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 4.173,
+          "y": 5.15,
           "z": 1.6
         }
       },
@@ -33810,7 +36460,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 4.566,
+          "y": 5.363,
           "z": 1.6
         }
       },
@@ -33826,7 +36476,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 4.492,
+          "y": 5.154,
           "z": 1.6
         }
       },
@@ -33842,7 +36492,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 3.48,
+          "y": 3.782,
           "z": 1.6
         }
       },
@@ -33858,7 +36508,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 3.03,
+          "y": 3.217,
           "z": 1.6
         }
       },
@@ -33874,7 +36524,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 6.49,
+          "y": 6.602,
           "z": 1.6
         }
       },
@@ -33885,12 +36535,12 @@ export const LEVEL_12 = {
         "rotationY": -90,
         "position": {
           "x": -57.2,
-          "y": 5.376,
+          "y": 5.49,
           "z": 10
         },
         "scale": {
           "x": 1.6,
-          "y": 2.019,
+          "y": 3.512,
           "z": 1.6
         }
       },
@@ -33901,12 +36551,12 @@ export const LEVEL_12 = {
         "rotationY": -90,
         "position": {
           "x": -57.2,
-          "y": 6.622,
+          "y": 7.453,
           "z": 26
         },
         "scale": {
           "x": 1.6,
-          "y": 1.529,
+          "y": 2.509,
           "z": 1.6
         }
       },
@@ -33917,12 +36567,12 @@ export const LEVEL_12 = {
         "rotationY": -90,
         "position": {
           "x": -57.2,
-          "y": 7.574,
+          "y": 9.108,
           "z": 38
         },
         "scale": {
           "x": 1.6,
-          "y": 1.19,
+          "y": 1.574,
           "z": 1.6
         }
       },
@@ -33938,7 +36588,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 5.95,
+          "y": 5.987,
           "z": 1.6
         }
       },
@@ -33986,7 +36636,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 2.885,
+          "y": 4.132,
           "z": 1.6
         }
       },
@@ -34018,7 +36668,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 2.372,
+          "y": 3.799,
           "z": 1.6
         }
       },
@@ -34034,7 +36684,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 4.173,
+          "y": 5.15,
           "z": 1.6
         }
       },
@@ -34050,7 +36700,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 4.566,
+          "y": 5.363,
           "z": 1.6
         }
       },
@@ -34066,7 +36716,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 4.492,
+          "y": 5.154,
           "z": 1.6
         }
       },
@@ -34082,7 +36732,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 3.48,
+          "y": 3.782,
           "z": 1.6
         }
       },
@@ -34098,7 +36748,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 3.03,
+          "y": 3.217,
           "z": 1.6
         }
       },
@@ -34114,7 +36764,7 @@ export const LEVEL_12 = {
         },
         "scale": {
           "x": 1.6,
-          "y": 6.49,
+          "y": 6.602,
           "z": 1.6
         }
       },
@@ -34125,12 +36775,12 @@ export const LEVEL_12 = {
         "rotationY": -90,
         "position": {
           "x": -62.8,
-          "y": 5.376,
+          "y": 5.476,
           "z": 10
         },
         "scale": {
           "x": 1.6,
-          "y": 2.019,
+          "y": 3.526,
           "z": 1.6
         }
       },
@@ -34141,12 +36791,12 @@ export const LEVEL_12 = {
         "rotationY": -90,
         "position": {
           "x": -62.8,
-          "y": 6.622,
+          "y": 7.416,
           "z": 26
         },
         "scale": {
           "x": 1.6,
-          "y": 1.529,
+          "y": 2.546,
           "z": 1.6
         }
       },
@@ -34157,17 +36807,342 @@ export const LEVEL_12 = {
         "rotationY": -90,
         "position": {
           "x": -62.8,
-          "y": 7.574,
+          "y": 9.059,
           "z": 38
         },
         "scale": {
           "x": 1.6,
-          "y": 1.19,
+          "y": 1.623,
           "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_108.636_33.707",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": -139.844,
+        "position": {
+          "x": 108.636,
+          "y": 8.505,
+          "z": 33.707
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 1.019,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_117.807_25.969",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": -139.844,
+        "position": {
+          "x": 117.807,
+          "y": 7.362,
+          "z": 25.969
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 1.442,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_126.979_18.23",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": -139.844,
+        "position": {
+          "x": 126.979,
+          "y": 6.289,
+          "z": 18.23
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 1.795,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_130.59_22.51",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": -139.844,
+        "position": {
+          "x": 130.59,
+          "y": 6.753,
+          "z": 22.51
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 1.331,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_135.816_10.962",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 37.121733853924695,
+        "position": {
+          "x": 135.816,
+          "y": 5.471,
+          "z": 10.962
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 2.074,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_139.196_15.427",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 37.121733853924695,
+        "position": {
+          "x": 139.196,
+          "y": 5.869,
+          "z": 15.427
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 1.399,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_146.075_4.124",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 30.246240312354843,
+        "position": {
+          "x": 146.075,
+          "y": 4.933,
+          "z": 4.124
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 2.047,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_148.896_8.962",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 30.246240312354843,
+        "position": {
+          "x": 148.896,
+          "y": 5.297,
+          "z": 8.962
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 1.095,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_157.078_-1.436",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": 23.370746770784947,
+        "position": {
+          "x": 157.078,
+          "y": 4.523,
+          "z": -1.436
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 1.611,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_rd_x_east_166.199_-4.941",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": -160.067,
+        "position": {
+          "x": 166.199,
+          "y": 4.271,
+          "z": -4.941
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 1.147,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "tree_plaza_40",
+        "model": "tree",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": 40,
+          "y": 14.783,
+          "z": 144
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "tree_plaza_56",
+        "model": "tree",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": 56,
+          "y": 14.783,
+          "z": 144
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "tree_quay_-100",
+        "model": "tree",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": -100,
+          "y": 0.021,
+          "z": -56
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "tree_quay_-140",
+        "model": "tree",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": -140,
+          "y": 0.021,
+          "z": -56
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "tree_quay_-20",
+        "model": "tree",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": -20,
+          "y": 0.021,
+          "z": -56
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "tree_quay_100",
+        "model": "tree",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": 100,
+          "y": 0.021,
+          "z": -56
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "tree_quay_160",
+        "model": "tree",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": 160,
+          "y": 0.021,
+          "z": -56
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      {
+        "id": "tree_quay_220",
+        "model": "tree",
+        "source": "authored",
+        "rotationY": 0,
+        "position": {
+          "x": 220,
+          "y": 0.021,
+          "z": -56
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
         }
       }
     ],
-    "lights": [],
+    "lights": [
+      {
+        "id": "wash_needle_a",
+        "type": "spot",
+        "position": {
+          "x": -23,
+          "y": 14.983,
+          "z": 124
+        },
+        "target": {
+          "x": -23,
+          "y": 34.783,
+          "z": 138
+        },
+        "color": "#8ec9ff",
+        "intensity": 90,
+        "distance": 60,
+        "angle": 0.6
+      },
+      {
+        "id": "wash_needle_b",
+        "type": "spot",
+        "position": {
+          "x": 17,
+          "y": 14.983,
+          "z": 124
+        },
+        "target": {
+          "x": 17,
+          "y": 42.783,
+          "z": 138
+        },
+        "color": "#ffd9a8",
+        "intensity": 90,
+        "distance": 70,
+        "angle": 0.6
+      }
+    ],
     "windows": {
       "lit": 0.42
     },
@@ -34219,8 +37194,8 @@ export const LEVEL_12 = {
   "gameplay": {
     "goal": "exit",
     "exit": {
-      "x": 230,
-      "z": 240
+      "x": 17,
+      "z": 138
     },
     "exitRadius": 4,
     "enemies": {

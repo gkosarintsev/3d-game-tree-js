@@ -334,33 +334,51 @@ function testAsphaltRidesTheField() {
   const ctx = builtMap();
   const bad = [];
   let worstDev = 0, worstBurial = 0, tilted = 0, probed = 0;
+  // корыто: поле ПОД широкой пластиной не обязано быть равным полю на осевой, и
+  // настил обязан накрывать именно его (замер главы 12: проспект 10 м на склоне
+  // 0,048 м/м уходил берегом под грунт на 0,24 м, а в кольце террасы — на 0,456)
+  let bedProbed = 0, bedBurial = 0, bedDev = 0, bedWhere = '';
   for (const x of runs(ctx)) {
     const p = x.p;
     const k = Math.max(2, Math.round((2 * p.half) / J.navStep));
     for (let i = 1; i < k; i++) {
       const t = i / k, u = -p.half + 2 * p.half * t;
-      const px = p.cx + u * p.c, pz = p.cz + u * p.s;
       // меряется РИСУНОК: под ногой и под колесом именно он, а не объявленная
       // плоскость листа, чей подъём короче `rampEps` движок не рисует наклоном
       const want = drawnTop(p, u);
-      const f = ctx.field.heightAt(px, pz);
+      const f = ctx.field.heightAt(p.cx + u * p.c, p.cz + u * p.s);
       probed++;
       // провал: грунт выше асфальта — опорой отвечает склон, и улица становится
       // канавой; горб: пластина стоит в воздухе, и под ней видна дыра
       worstBurial = Math.max(worstBurial, f - want);
       worstDev = Math.max(worstDev, Math.abs(f + J.streetRise - want));
+      const hv = Math.max(0.05, p.w - 0.05);
+      let fBed = -Infinity;
+      for (const v of [-hv, 0, hv]) {
+        const bx = p.cx + u * p.c - v * p.s, bz = p.cz + u * p.s + v * p.c;
+        fBed = Math.max(fBed, ctx.field.heightAt(bx, bz));
+      }
+      bedProbed += 3;
+      if (fBed - want > bedBurial) {
+        bedBurial = fBed - want;
+        bedWhere = `${x.id} при u=${u.toFixed(1)}: корыто ${fBed.toFixed(3)} против полотна ${want.toFixed(3)}`;
+      }
+      bedDev = Math.max(bedDev, Math.abs(fBed + J.streetRise - want));
     }
     if (p.ramp) tilted++;
   }
   if (worstBurial > 1e-3) bad.push(`${probed} проб: настил провалился под поле на ${worstBurial.toFixed(4)} м`);
   if (worstDev > J.streetFit + 1e-3) bad.push(`полотно разошлось с полем на ${worstDev.toFixed(4)} м при допуске ${J.streetFit}`);
+  if (bedBurial > 1e-3) bad.push(`${bedProbed} проб по корыту: настил провалился под грунт на ${bedBurial.toFixed(4)} м (${bedWhere})`);
+  if (bedDev > J.streetFit + 1e-3) bad.push(`полотно разошлось с корытом на ${bedDev.toFixed(4)} м при допуске ${J.streetFit}`);
   if (tilted < 5) bad.push(`наклонных пластин ${tilted}: улицы легли плоской лентой, а не профилем`);
   return {
-    name: 'Полотно улицы = поле + streetRise: расхождение в обе стороны в допуске, провала нет',
+    name: 'Полотно улицы = поле + streetRise И ПО КОРЫТУ (максимум поперёк ширины), провала нет',
     passed: bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ')
       : `${probed} проб по ${runs(ctx).length} прогонам, худшее расхождение ${worstDev.toFixed(4)} м (допуск ${J.streetFit}), `
-        + `провал ${worstBurial.toExponential(1)} м, наклонных пластин ${tilted}`,
+        + `провал ${worstBurial.toExponential(1)} м, наклонных пластин ${tilted}; `
+        + `корыто: ${bedProbed} проб, горб ${bedDev.toFixed(4)} м, провал ${bedBurial.toExponential(1)} м`,
   };
 }
 
