@@ -12558,7 +12558,7 @@ export const LEVEL_13 = {
         "id": "ring_ring",
         "type": "bridge",
         "width": 10,
-        "withLamps": true,
+        "withLamps": false,
         "decks": [
           {
             "minX": 102.265,
@@ -14853,7 +14853,7 @@ export const LEVEL_13 = {
         "id": "ring_e0",
         "type": "bridge",
         "width": 10,
-        "withLamps": true,
+        "withLamps": false,
         "decks": [
           {
             "minX": 1.803,
@@ -14924,7 +14924,7 @@ export const LEVEL_13 = {
         "id": "ring_e1",
         "type": "bridge",
         "width": 10,
-        "withLamps": true,
+        "withLamps": false,
         "decks": [
           {
             "minX": -1.562,

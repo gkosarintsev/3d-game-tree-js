@@ -193,7 +193,7 @@
       "amplitude": 4,
       "waves": 2,
       "rails": true,
-      "lamps": true,
+      "lamps": false,
       "entries": 2
     }
   },
