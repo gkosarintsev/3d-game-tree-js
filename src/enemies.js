@@ -743,13 +743,22 @@ export class Enemies {
     const count = opts.count ?? CONFIG.enemies.count;
     const alienCount = opts.alienCount ?? CONFIG.alienEnemies.count;
 
+    // Первая посадка — от точки появления главы, а не от игрока: `spawnAt`
+    // вызывается только на захвате курсора, а до него координаты игрока — с
+    // обзорной камеры предыдущей главы, то есть за плитой нового уровня, где
+    // `randomNavPoint` не находит ни одного узла в требуемом аннулове. `respawn`
+    // без найденного узла молча выходит, поэтому вся команда оставалась на
+    // (0, 0, 0) видимой (замер: после главы 12 у главы 11 — 7 тел из 7 при 1119
+    // узлах, доступных от `map.spawn`).
+    const anchor = map.spawn;
+
     const palette = [0xc0392b, 0x8e44ad, 0x2c3e50, 0x1e824c, 0xb9770e, 0x943126, 0x2e86c1];
     for (let i = 0; i < count; i++) {
       const material = new THREE.MeshStandardMaterial({
         color: palette[i % palette.length], emissive: 0x000000, roughness: .8, metalness: .1,
       });
       const enemy = new Enemy(scene, map, material, () => { this.kills++; });
-      enemy.respawn(player.position);
+      enemy.respawn(anchor);
       this.items.push(enemy);
     }
 
@@ -760,7 +769,7 @@ export class Enemies {
         color: alienPalette[i % alienPalette.length], emissive: 0x000000, roughness: .75, metalness: .2,
       });
       const alien = new AlienEnemy(scene, map, material, player, () => { this.kills++; });
-      alien.respawn(player.position);
+      alien.respawn(anchor);
       this.items.push(alien);
     }
 

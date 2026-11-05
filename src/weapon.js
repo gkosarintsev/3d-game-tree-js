@@ -92,11 +92,17 @@ export class Weapon {
     addEventListener('blur', this._onBlur);
   }
 
-  /** Снимает слушатели и модель с камеры при выгрузке уровня. */
+  /**
+   * Снимает слушатели и модель с камеры при выгрузке уровня. Буферы модели
+   * отдаёт явно: `camera.remove` лишь снимает меш с камеры, а геометрия остаётся
+   * в `renderer.info` до конца жизни страницы — замер показывал +1 геометрию на
+   * каждую перезагрузку главы.
+   */
   dispose() {
     removeEventListener('mousedown', this._onMouseDown);
     removeEventListener('mouseup', this._onMouseUp);
     removeEventListener('blur', this._onBlur);
+    this.group.traverse(o => o.geometry?.dispose?.());
     this.camera.remove(this.group);
   }
 
