@@ -1511,7 +1511,7 @@ export function expandCity(raw, stats) {
     // остаётся полосой `points` на одной отметке, поэтому ей нужен явный флаг
     v2: raw.kind === 'json2',
     rng: makeRng(city.seed ?? 0),
-    obstacles: obstacleRects(raw, ground, city.avoid ?? []),
+    obstacles: obstacleRects(raw, ground),
     // свободные носы авторских подъёмов: сетка улиц v2 обязана дать им асфальт
     // под срезом (правило валидатора «нос кончается на улице» мерит ровно этот
     // же список — `bridgeNoses`). Во v1 пуст: глава 10 со своими тремя
@@ -1569,7 +1569,7 @@ function mergeAuthored(authored, generated) {
  * false`) — под эстакадой и переходом идти можно, а строить в их габарите
  * нельзя; наземная улица автора остаётся проезжей частью и для улиц, и для лотов.
  */
-function obstacleRects(raw, ground, avoid) {
+function obstacleRects(raw, ground) {
   const out = [];
   const push = (rect, why, streets = true) => rect && out.push({ rect, why, streets });
   for (const r of raw.roads ?? []) {
@@ -1585,7 +1585,6 @@ function obstacleRects(raw, ground, avoid) {
   for (const b of raw.buildings ?? []) {
     try { push(normalizeBuilding(b, ground, []).bounds, `здание ${b.id}`); } catch { continue; }
   }
-  for (const a of avoid) push(planOf(a), 'avoid');
   return out;
 }
 
@@ -1610,7 +1609,7 @@ function generateDistrict(spec, ctx, roadsOut, buildingsOut) {
     ...spec,
     frame,
     poly: spec.polygon ? spec.polygon.map(p => ({ x: r3(p.x), z: r3(p.z) })) : null,
-    // препятствия мира (русло, авторские улицы, дома и `avoid`) в осях района:
+    // препятствия мира (русло, авторские улицы и дома) в осях района:
     // у соосного района это те же прямоугольники, у косого — повёрнутые коробки,
     // и сравнивать их с локальным лотом габаритом нельзя (замер — этап 5: квадрат
     // вокруг повёрнутого на 45° блока на 1,41 раза больше самого блока)
