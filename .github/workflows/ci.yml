@@ -5,7 +5,13 @@ name: ci
 #   browser — движок Three.js в браузере, потому что `src/json-map.js:1` импортирует
 #             'three' и npm-зависимостей в репозитории не водится (AGENTS.md, «База»).
 # Браузерный джоб берёт playwright из официального образа, а не из package.json:
-# своего package.json в проекте нет, и CI это правило не отменяет.
+# своего package.json в проекте нет, и CI это правило не отменяет. Сам образ,
+# однако, npm-пакета не несёт — его Dockerfile (utils/docker/Dockerfile.noble)
+# ставит только браузеры в /ms-playwright и вычищает сборочный каталог вместе с
+# пакетом. Поэтому шаг ниже доустанавливает пакет в глобальный префикс
+# контейнера: версия обязана совпадать с тегом образа (ревизии браузеров в
+# /ms-playwright соответствуют ровно ей), а PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+# не даёт постустановке тянуть их повторно.
 
 on:
   push:
@@ -44,10 +50,17 @@ jobs:
       - name: Версия Node в образе
         run: node --version
 
+      - name: Ставка npm-пакета playwright (образ несёт только браузеры)
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: npm install --global --no-audit --no-fund playwright@1.49.0
+
       - name: Браузерные автотесты (каждая сюита в свежей странице)
         # Единственная проверка, вынесенная из вердикта: `NavGraph.randomPoint`
         # сидит на Math.random(), поэтому стартовые точки врагов различаются от
         # прогона к прогону и сюжет краснел 3 раза из 7 (замер —
         # docs/level12-relief-plan.md, этап 10). Красное число печатается строкой
         # `FLAKE`, правки в тест и в физику Чужого оставлены владельцу.
-        run: node tools/ci-browser.mjs --flake "model-level::Враги главы"
+        run: |
+          NODE_PATH="$(npm root --global)" \
+            node tools/ci-browser.mjs --flake "model-level::Враги главы"

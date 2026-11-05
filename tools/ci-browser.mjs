@@ -6,10 +6,12 @@
  * и вызывает её `run*Tests()`. Сама страница при этом не меняется — ни игрового
  * ввода, ни pointer lock сюитам не нужно, они собирают карты прямо из реестра.
  *
- * playwright берётся **не из репозитория**: в официальном образе
- * `mcr.microsoft.com/playwright` он стоит глобально, и сюда попадает по абсолютному
- * пути. Своего `package.json` в проекте нет и не появляется (AGENTS.md, «База»),
- * поэтому узел зависимости от CI не перетекает в код игры.
+ * Playwright берётся **не из репозитория**: своего `package.json` в проекте нет и
+ * не появляется (AGENTS.md, «База»), поэтому узел зависимости от CI не перетекает
+ * в код игры. Официальный образ `mcr.microsoft.com/playwright` несёт из него
+ * только браузеры (его Dockerfile устанавливает пакет во временный каталог и
+ * удаляет его вместе с npm-кэшем), так что джоба `browser` доустанавливает пакет
+ * в глобальный префикс контейнера и передаёт его сюда через `NODE_PATH`.
  *
  * Каждый файл гоняется в свежей странице: сюита `relief-city` мерит бюджет опоры
  * по времени (2,5 мкс на пробу), и в батче из нескольких сюит на одной странице
@@ -47,15 +49,18 @@ const MIME = {
 const SUITE_TIMEOUT_MS = 420_000;
 
 /**
- * Разрешение playwright: локальный `node_modules` (если разработчик поставил его
- * для себя), затем глобальная установка официального образа. ESM по NODE_PATH не
- * ищет, поэтому нужен `require` с абсолютным путём.
+ * Разрешение playwright: `NODE_PATH` (им так задаётся путь в джобе `browser`),
+ * затем обычный подъём по `node_modules`, затем глобальный префикс узла в
+ * контейнере. ESM по `NODE_PATH` не ищет, поэтому нужен `require` с абсолютным
+ * путём; отказ обязан называть испробованные места — без них красная джоба в CI
+ * говорит только «не найден» и не говорит, где именно её искать.
  */
 function loadPlaywright() {
   const require = createRequire(import.meta.url);
+  const globalRoots = ['/usr/local/lib/node_modules/playwright', '/usr/lib/node_modules/playwright'];
   const fromEnvPath = (process.env.NODE_PATH || '').split(delimiter).filter(Boolean)
     .map(dir => resolve(dir, 'playwright'));
-  const candidates = ['playwright', '/usr/local/lib/node_modules/playwright', '/usr/lib/node_modules/playwright', ...fromEnvPath];
+  const candidates = [...fromEnvPath, 'playwright', ...globalRoots];
   for (const c of candidates) {
     try {
       return require(c);
@@ -63,7 +68,8 @@ function loadPlaywright() {
       // пробуем следующее место установки
     }
   }
-  throw new Error('playwright не найден — гоняйте этот скрипт в образе mcr.microsoft.com/playwright');
+  throw new Error(`playwright не найден (пробовал: ${candidates.join(', ') || 'пусто'}) `
+    + '— гоняйте этот скрипт после установки пакета, в CI путь отдаёт NODE_PATH="$(npm root --global)"');
 }
 
 /** Статический сервер над репозиторием: только GET, путь зажимается внутри ROOT. */
