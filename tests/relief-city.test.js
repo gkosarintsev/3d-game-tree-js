@@ -533,8 +533,10 @@ function testBodyWalksTheStreet() {
       // r / cos уклона, поэтому «нога стоит» проверяется с тем же допуском, что
       // и у уклона улицы
       const c = new THREE.Vector3(px, feet + r, pz);
-      const moved = map.resolveSphere(c, r);
-      const sink = feet + r - moved.y;
+      // `resolveSphere` возвращает флаг и двигает тело на месте: `moved.y` вместо
+      // `c.y` давал NaN, и «сфера не проваливается» не проверялось ни разу
+      map.resolveSphere(c, r);
+      const sink = feet + r - c.y;
       if (sink > r + 1e-3) bad.push(`${x.id}: сфера провалилась под полотно на ${sink.toFixed(2)} м`);
     }
   }
