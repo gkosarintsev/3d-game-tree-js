@@ -1373,6 +1373,41 @@ export function trackDecks(ctx, roadsOut, allRoads, allBuildings, districts) {
 }
 
 /**
+ * Запас от кромки съезда до конца разрыва периль петли. `CONFIG.radius` (0,45 м)
+ * — минимальный, при котором тело ещё проходит в стык; 0,5 м взят с шагом
+ * нормализатора (сотые доли метра на торце не оставляют телу сомнений).
+ */
+const TRACK_RAIL_MARGIN = 0.5;
+
+/**
+ * Окна, в которых перила петли расступаются перед съездом, — в пройденных
+ * метрах петли.
+ *
+ * Без разрыва стык съезда с кольцом **невидим для графа**: пластина съезда
+ * выходит из оси петли и проходит сквозь стенку 1,1 м, `bodyClearLine` бракует
+ * именно то ребро, которым цепочка съезда должна вливаться в цепочку кольца, и
+ * `_pruneToSpawn` выбрасывает петлю целиком (замер главы 13 до правки: 168
+ * узлов кольца и головка южного съезда отрезаны, уцелевшими остались 26 узлов
+ * нижних цепочек — тест называл это «на кольце нет ни одного узла графа»).
+ *
+ * Окно шире съезда на запас с каждой стороны, а не равно его ширине: стенка
+ * имеет толщину, и торец окна вровень с кромкой съезда оставил бы телу щель в
+ * ноль.
+ */
+function trackRailWindows(track) {
+  const half = track.spec.width / 2 + TRACK_RAIL_MARGIN;
+  const L = track.length;
+  const out = [];
+  for (const e of track.entries) {
+    const lo = ((e.s - half) % L + L) % L, hi = ((e.s + half) % L + L) % L;
+    // окно через шов кольца — два интервала: иначе у стартового элемента
+    // разрыв оказался бы только с одной стороны стыка
+    if (lo < hi) out.push([lo, hi]); else out.push([lo, L], [0, hi]);
+  }
+  return out;
+}
+
+/**
  * Элементы полотна петли: дуга скругления и пластина прямой, каждая — со своей
  * парой отметок из подгонки `trackFit`.
  *
@@ -1382,31 +1417,57 @@ export function trackDecks(ctx, roadsOut, allRoads, allBuildings, districts) {
  * 0,96 м — замер в комментарии `trackFit`). Подъём и разброс после подгонки
  * меряются заново и здесь же: `rise / length` пролёта не смеет превысить
  * `grade`, которым обещана петля.
+ *
+ * Полотно режется ещё и по **окнам разрыва периль** (`trackRailWindows`): у
+ * настила флаг `rails` покрывной, поэтому единственный способ расступиться
+ * стенке перед съездом — отдать под стык отдельный элемент без ограждения.
  */
 function trackElements(track) {
   const spec = track.spec, fit = track.fit, out = [];
   if (!fit) throw new Error('trackElements: подгонка не посчитана — трассе нужен trackProfile до эмиссии');
+  const windows = trackRailWindows(track);
   for (let k = 0; k < track.elements.length; k++) {
     const el = track.elements[k];
-    const a = r3(fit.v[k]), b = r3(fit.v[(k + 1) % fit.m]);
-    if (el.kind === 'arc') {
+    // разрезы элемента: границы окон, лежащие строго внутри него. Элемент,
+    // целиком попавший под окно или целиком вне его, не режется — лишний шов
+    // в перилах без причины сдвигает счётчик элементов и добавляет ступеньку
+    // на стыке там, где её не просили
+    const cuts = [0, el.len];
+    for (const [lo, hi] of windows) {
+      for (const c of [lo - el.s0, hi - el.s0]) if (c > 1e-6 && c < el.len - 1e-6) cuts.push(c);
+    }
+    cuts.sort((a, b) => a - b);
+    for (let c = 0; c + 1 < cuts.length; c++) {
+      const c0 = cuts[c], c1 = cuts[c + 1];
+      if (c1 - c0 <= 1e-6) continue;
+      const mid = el.s0 + (c0 + c1) / 2;
+      const rails = !!spec.rails && !windows.some(([lo, hi]) => mid >= lo && mid <= hi);
+      // отметки швов, не тронутых разрезом, берутся с тех же `fit.v`, что и
+      // до правки: интерполяция на узле даёт то же число с шумом обратного
+      // хода, а модуль главы обязан сходиться побайтово
+      const a = c0 === 0 ? r3(fit.v[k]) : r3(trackFittedAt(track, el.s0 + c0));
+      const b = c1 === el.len ? r3(fit.v[(k + 1) % fit.m]) : r3(trackFittedAt(track, el.s0 + c1));
+      if (el.kind === 'arc') {
+        out.push({
+          arc: {
+            cx: r3(el.cx), cz: r3(el.cz), radius: r3(el.radius),
+            from: r3((el.a0 + el.span * (c0 / el.len)) * 180 / Math.PI),
+            to: r3((el.a0 + el.span * (c1 / el.len)) * 180 / Math.PI),
+            width: r3(spec.width), y: [a, b], bank: spec.bank, rails,
+          },
+        });
+        continue;
+      }
+      const dx = el.x1 - el.x0, dz = el.z1 - el.z0;
+      const ux = dx / el.len, uz = dz / el.len;
       out.push({
-        arc: {
-          cx: r3(el.cx), cz: r3(el.cz), radius: r3(el.radius),
-          from: r3(el.a0 * 180 / Math.PI), to: r3((el.a0 + el.span) * 180 / Math.PI),
-          width: r3(spec.width), y: [a, b], bank: spec.bank, rails: !!spec.rails,
+        plate: {
+          x: r3(el.x0 + ux * (c0 + c1) / 2), z: r3(el.z0 + uz * (c0 + c1) / 2),
+          yaw: r3(Math.atan2(dz, dx) * 180 / Math.PI),
+          length: r3(c1 - c0), width: r3(spec.width), y: a, rise: r3(b - a), rails,
         },
       });
-      continue;
     }
-    const dx = el.x1 - el.x0, dz = el.z1 - el.z0;
-    out.push({
-      plate: {
-        x: r3(el.x0 + dx / 2), z: r3(el.z0 + dz / 2),
-        yaw: r3(Math.atan2(dz, dx) * 180 / Math.PI),
-        length: r3(el.len), width: r3(spec.width), y: a, rise: r3(b - a), rails: !!spec.rails,
-      },
-    });
   }
   return out;
 }
