@@ -845,25 +845,43 @@ t('полотно после подгонки не прячется под те�
   assert(/спускаться нечему/.test(err), `ошибка не называет причину: ${err}`);
 });
 
-t('съезды в данных: одна пластина от кольца до асфальта, торец вровень с улицей', () => {
+t('съезды в данных: подъём разрезан под стык петли, торец вровень с улицей', () => {
+  // перила съезда не имеют права стоять под стыком с петлёй: стенка, начатая от
+  // носа, вставала в 0,440 / 0,436 м от узлов шва петли — ближе `radius 0,45`,
+  // `bodyClearLine` браковала ребро «съезд → петля», и `_pruneToSpawn` выбрасывала
+  // кольцо целиком. Поэтому подъём — ДВА настила: окно без ограждения под коридор
+  // шва, затем пластина с перилами до улицы. Требование честное и проверяемое:
+  // окно перекрывает полотно петли с запасом, стык двух пластин непрерывен, а нос
+  // всё ещё лежит в плане наземной улицы вровень с её окончательным полотном
   for (const [label, relief] of [['равнина', null], ['мягкая гряда', MILD_SPEC]]) {
     const cover = noseCover({ relief }, 20261105);
     const r = buildDeck(cover.block, { relief }, 20261105);
     assert(r.entries.length === 2, `${label}: съездов ${r.entries.length} при entries 2`);
     for (const e of r.entries) {
-      assert(e.elements.length === 1 && e.elements[0].plate, `${label}/${e.id}: подъём не пластиной`);
-      const p = e.elements[0].plate;
-      assert(p.rise < 0, `${label}/${e.id}: подъём идёт вверх (${p.rise}) — съезд обязан спускаться`);
-      assert(p.length >= 1, `${label}/${e.id}: пластина ${p.length} м — короче минимума схемы`);
-      const slope = Math.abs(p.rise) / p.length;
-      assert(slope <= JJ.maxSlope, `${label}/${e.id}: уклон ${slope.toFixed(4)} круче предела ${JJ.maxSlope}`);
-      const cap = deckCaps(e.elements[0]);
-      // торец подъёма обязан лежать в плане наземной улицы и вровень с её
-      // окончательным полотном — той же отметкой, которую видит нога
-      const asphalt = streetTopAt(r.norm, cap.x1, cap.z1);
-      assert(asphalt, `${label}/${e.id}: нос ${cap.x1.toFixed(1)}, ${cap.z1.toFixed(1)} не в плане наземной улицы`);
-      assert(Math.abs(asphalt.top - cap.y1) <= JJ.skybridgeFit,
-        `${label}/${e.id}: нос ${cap.y1.toFixed(3)} м против асфальта ${asphalt.top.toFixed(3)} м (${asphalt.id}) — ступень больше допуска ${JJ.skybridgeFit}`);
+      assert(e.elements.length === 2,
+        `${label}/${e.id}: элементов ${e.elements.length} — подъём не разрезан под стык петли`);
+      for (const el of e.elements) assert(el.plate, `${label}/${e.id}: подъём не пластиной`);
+      const caps = e.elements.map(deckCaps);
+      assert(caps[0].rails === false, `${label}/${e.id}: под стык петли легла пластина с перилами`);
+      assert(caps[1].rails === true, `${label}/${e.id}: борт улицы остался без ограждения`);
+      assert(caps[0].len >= caps[0].width / 2 + 0.5 - 1e-3,
+        `${label}/${e.id}: окно без периль ${caps[0].len.toFixed(3)} м — не перекрывает полотно ${(caps[0].width / 2).toFixed(2)} м с запасом 0,5 м у шва`);
+      for (const cap of caps) {
+        assert(cap.len >= 1, `${label}/${e.id}: пластина ${cap.len.toFixed(3)} м — короче минимума схемы`);
+        assert(cap.y1 < cap.y0, `${label}/${e.id}: пластина идёт вверх (${(cap.y1 - cap.y0).toFixed(3)} м) — съезд обязан спускаться`);
+        const slope = Math.abs(cap.y1 - cap.y0) / cap.len;
+        assert(slope <= JJ.maxSlope, `${label}/${e.id}: уклон ${slope.toFixed(4)} круче предела ${JJ.maxSlope}`);
+      }
+      // шов пластин одного съезда: те же координаты плана и та же отметка, иначе
+      // нога на подъёме получит ступень там, где генератор обещал гладкий уклон
+      near(caps[1].x0, caps[0].x1, 1e-3, `${label}/${e.id}: стык пластин разъехался по плану`);
+      near(caps[1].z0, caps[0].z1, 1e-3, `${label}/${e.id}: стык пластин разъехался по плану`);
+      near(caps[1].y0, caps[0].y1, 1e-3, `${label}/${e.id}: на стыке пластин ступень ${caps[1].y0 - caps[0].y1} м`);
+      const toe = caps[caps.length - 1];
+      const asphalt = streetTopAt(r.norm, toe.x1, toe.z1);
+      assert(asphalt, `${label}/${e.id}: нос ${toe.x1.toFixed(1)}, ${toe.z1.toFixed(1)} не в плане наземной улицы`);
+      assert(Math.abs(asphalt.top - toe.y1) <= JJ.skybridgeFit,
+        `${label}/${e.id}: нос ${toe.y1.toFixed(3)} м против асфальта ${asphalt.top.toFixed(3)} м (${asphalt.id}) — ступень больше допуска ${JJ.skybridgeFit}`);
     }
   }
 });

@@ -98,8 +98,8 @@ export const LEVEL_13 = {
       ]
     },
     "bounds": {
-      "minX": -300,
-      "maxX": 300,
+      "minX": -307.35,
+      "maxX": 307.35,
       "minZ": -300,
       "maxZ": 300
     },
@@ -13541,12 +13541,12 @@ export const LEVEL_13 = {
             "rotationY": 72.05354382000311,
             "position": {
               "x": 82.052,
-              "y": 3.241,
+              "y": -4,
               "z": 60.757
             },
             "scale": {
               "x": 1.6,
-              "y": 4.641,
+              "y": 11.882,
               "z": 1.6
             }
           },
@@ -13557,12 +13557,12 @@ export const LEVEL_13 = {
             "rotationY": 72.05354382000311,
             "position": {
               "x": 74.822,
-              "y": 3.176,
+              "y": -4,
               "z": 58.415
             },
             "scale": {
               "x": 1.6,
-              "y": 5.504,
+              "y": 12.68,
               "z": 1.6
             }
           },
@@ -14037,12 +14037,12 @@ export const LEVEL_13 = {
             "rotationY": 106.684,
             "position": {
               "x": -65.338,
-              "y": 4.371,
+              "y": -4,
               "z": 65.219
             },
             "scale": {
               "x": 1.6,
-              "y": 6.284,
+              "y": 14.655,
               "z": 1.6
             }
           },
@@ -14053,12 +14053,12 @@ export const LEVEL_13 = {
             "rotationY": 106.684,
             "position": {
               "x": -58.058,
-              "y": 4.442,
+              "y": -4,
               "z": 63.037
             },
             "scale": {
               "x": 1.6,
-              "y": 6.213,
+              "y": 14.655,
               "z": 1.6
             }
           },
@@ -14069,12 +14069,12 @@ export const LEVEL_13 = {
             "rotationY": -66.62478258601136,
             "position": {
               "x": -67.815,
-              "y": 3.595,
+              "y": -4,
               "z": 58.086
             },
             "scale": {
               "x": 1.6,
-              "y": 6.17,
+              "y": 13.764,
               "z": 1.6
             }
           },
@@ -14085,12 +14085,12 @@ export const LEVEL_13 = {
             "rotationY": -66.62478258601136,
             "position": {
               "x": -60.839,
-              "y": 3.538,
+              "y": -4,
               "z": 55.07
             },
             "scale": {
               "x": 1.6,
-              "y": 6.727,
+              "y": 14.265,
               "z": 1.6
             }
           },
@@ -14856,27 +14856,53 @@ export const LEVEL_13 = {
         "withLamps": false,
         "decks": [
           {
-            "minX": 1.803,
-            "maxX": 27.249,
+            "minX": 16.486,
+            "maxX": 27.248,
             "minZ": 113.487,
-            "maxZ": 209.409,
+            "maxZ": 120.543,
             "obb": {
-              "cx": 14.526,
-              "cz": 161.448,
-              "hx": 47.785,
+              "cx": 21.867,
+              "cz": 117.015,
+              "hx": 2.75,
               "hz": 5,
               "c": -0.1630160134013935,
               "s": 0.9866234232850529
             },
-            "cx": 14.526,
-            "cz": 161.448,
+            "cx": 21.867,
+            "cz": 117.015,
             "yaw": 99.382,
-            "length": 95.57,
+            "length": 5.5,
+            "width": 10,
+            "axis": "x",
+            "topY": 14.27,
+            "bottomY": 13.67,
+            "topAtMin": 14.673,
+            "topAtMax": 14.27,
+            "ramp": true,
+            "rails": false
+          },
+          {
+            "minX": 1.802,
+            "maxX": 26.352,
+            "minZ": 118.913,
+            "maxZ": 209.409,
+            "obb": {
+              "cx": 14.077,
+              "cz": 164.161,
+              "hx": 45.035,
+              "hz": 5,
+              "c": -0.1630160134013935,
+              "s": 0.9866234232850529
+            },
+            "cx": 14.077,
+            "cz": 164.161,
+            "yaw": 99.382,
+            "length": 90.07,
             "width": 10,
             "axis": "x",
             "topY": 7.678,
             "bottomY": 7.078,
-            "topAtMin": 14.673,
+            "topAtMin": 14.27,
             "topAtMax": 7.678,
             "ramp": true,
             "rails": true
@@ -14886,34 +14912,34 @@ export const LEVEL_13 = {
         "aprons": [],
         "pillars": [
           {
-            "id": "pillar_ring_e0_25.087_120.841",
+            "id": "pillar_ring_e0_14.735_136.868",
             "model": "concrete_pillar",
             "source": "bridge_pillar",
             "rotationY": -99.382,
             "position": {
-              "x": 25.087,
-              "y": 7.555,
-              "z": 120.841
+              "x": 14.735,
+              "y": 7.558,
+              "z": 136.868
             },
             "scale": {
               "x": 1.6,
-              "y": 6.079,
+              "y": 4.795,
               "z": 1.6
             }
           },
           {
-            "id": "pillar_ring_e0_13.676_143.281",
+            "id": "pillar_ring_e0_12.779_148.708",
             "model": "concrete_pillar",
             "source": "bridge_pillar",
             "rotationY": -99.382,
             "position": {
-              "x": 13.676,
+              "x": 12.779,
               "y": 7.558,
-              "z": 143.281
+              "z": 148.708
             },
             "scale": {
               "x": 1.6,
-              "y": 4.319,
+              "y": 3.916,
               "z": 1.6
             }
           }
@@ -14927,27 +14953,53 @@ export const LEVEL_13 = {
         "withLamps": false,
         "decks": [
           {
-            "minX": -1.562,
+            "minX": 40.3,
             "maxX": 50.656,
             "minZ": -113.002,
-            "maxZ": -70.888,
+            "maxZ": -101.688,
             "obb": {
-              "cx": 24.547,
-              "cz": -91.945,
-              "hx": 28.736,
+              "cx": 45.478,
+              "cz": -107.345,
+              "hx": 2.75,
               "hz": 5,
               "c": -0.8054837544207094,
               "s": 0.5926178544089928
             },
-            "cx": 24.547,
-            "cz": -91.945,
+            "cx": 45.478,
+            "cz": -107.345,
             "yaw": 143.657,
-            "length": 57.471,
+            "length": 5.5,
+            "width": 10,
+            "axis": "x",
+            "topY": 4.977,
+            "bottomY": 4.377,
+            "topAtMin": 5.491,
+            "topAtMax": 4.977,
+            "ramp": true,
+            "rails": false
+          },
+          {
+            "minX": -1.562,
+            "maxX": 46.226,
+            "minZ": -109.743,
+            "maxZ": -70.889,
+            "obb": {
+              "cx": 22.332,
+              "cz": -90.316,
+              "hx": 25.985,
+              "hz": 5,
+              "c": -0.8054837544207094,
+              "s": 0.5926178544089928
+            },
+            "cx": 22.332,
+            "cz": -90.316,
+            "yaw": 143.657,
+            "length": 51.971,
             "width": 10,
             "axis": "x",
             "topY": 0.126,
             "bottomY": -0.474,
-            "topAtMin": 5.491,
+            "topAtMin": 4.977,
             "topAtMax": 0.126,
             "ramp": true,
             "rails": true
@@ -14957,39 +15009,122 @@ export const LEVEL_13 = {
         "aprons": [],
         "pillars": [
           {
-            "id": "pillar_ring_e1_45.112_-102.358",
+            "id": "pillar_ring_e1_40.682_-99.099",
             "model": "concrete_pillar",
             "source": "bridge_pillar",
             "rotationY": -143.657,
             "position": {
-              "x": 45.112,
+              "x": 40.682,
               "y": 0.006,
-              "z": -102.358
+              "z": -99.099
             },
             "scale": {
               "x": 1.6,
-              "y": 4.325,
+              "y": 3.811,
               "z": 1.6
             }
           },
           {
-            "id": "pillar_ring_e1_40.608_-108.479",
+            "id": "pillar_ring_e1_36.178_-105.221",
             "model": "concrete_pillar",
             "source": "bridge_pillar",
             "rotationY": -143.657,
             "position": {
-              "x": 40.608,
+              "x": 36.178,
               "y": 0.006,
-              "z": -108.479
+              "z": -105.221
             },
             "scale": {
               "x": 1.6,
-              "y": 4.325,
+              "y": 3.811,
+              "z": 1.6
+            }
+          },
+          {
+            "id": "pillar_ring_e1_16.846_-90.998",
+            "model": "concrete_pillar",
+            "source": "bridge_pillar",
+            "rotationY": -143.657,
+            "position": {
+              "x": 16.846,
+              "y": 0.006,
+              "z": -90.998
+            },
+            "scale": {
+              "x": 1.6,
+              "y": 1.571,
               "z": 1.6
             }
           }
         ],
         "lamps": []
+      }
+    ],
+    "channels": [
+      {
+        "id": "cut",
+        "bank": "quay",
+        "wade": false,
+        "width": 14,
+        "bedY": -4,
+        "surfaceY": -1.5,
+        "segments": [
+          {
+            "axis": "x",
+            "cross": 60,
+            "halfW": 7,
+            "run": 0,
+            "depth": 0.35,
+            "lo": -307,
+            "hi": 307,
+            "rampRun": 13.333,
+            "bed": {
+              "minX": -307,
+              "maxX": 307,
+              "minZ": 53,
+              "maxZ": 67
+            }
+          }
+        ],
+        "walls": [
+          {
+            "rect": {
+              "minX": -307.35,
+              "maxX": 307.35,
+              "minZ": 52.65,
+              "maxZ": 53
+            }
+          },
+          {
+            "rect": {
+              "minX": -307.35,
+              "maxX": 307.35,
+              "minZ": 67,
+              "maxZ": 67.35
+            }
+          }
+        ],
+        "descents": [],
+        "holes": [
+          {
+            "minX": -307,
+            "maxX": 307,
+            "minZ": 53,
+            "maxZ": 67
+          },
+          {
+            "minX": -307.35,
+            "maxX": 307.35,
+            "minZ": 52.65,
+            "maxZ": 53
+          },
+          {
+            "minX": -307.35,
+            "maxX": 307.35,
+            "minZ": 67,
+            "maxZ": 67.35
+          }
+        ]
       }
     ],
     "props": [
@@ -18322,66 +18457,82 @@ export const LEVEL_13 = {
         }
       },
       {
-        "id": "pillar_ring_e0_13.676_143.281",
+        "id": "pillar_ring_e0_12.779_148.708",
         "model": "concrete_pillar",
         "source": "bridge_pillar",
         "rotationY": -99.382,
         "position": {
-          "x": 13.676,
+          "x": 12.779,
           "y": 7.558,
-          "z": 143.281
+          "z": 148.708
         },
         "scale": {
           "x": 1.6,
-          "y": 4.319,
+          "y": 3.916,
           "z": 1.6
         }
       },
       {
-        "id": "pillar_ring_e0_25.087_120.841",
+        "id": "pillar_ring_e0_14.735_136.868",
         "model": "concrete_pillar",
         "source": "bridge_pillar",
         "rotationY": -99.382,
         "position": {
-          "x": 25.087,
-          "y": 7.555,
-          "z": 120.841
+          "x": 14.735,
+          "y": 7.558,
+          "z": 136.868
         },
         "scale": {
           "x": 1.6,
-          "y": 6.079,
+          "y": 4.795,
           "z": 1.6
         }
       },
       {
-        "id": "pillar_ring_e1_40.608_-108.479",
+        "id": "pillar_ring_e1_16.846_-90.998",
         "model": "concrete_pillar",
         "source": "bridge_pillar",
         "rotationY": -143.657,
         "position": {
-          "x": 40.608,
+          "x": 16.846,
           "y": 0.006,
-          "z": -108.479
+          "z": -90.998
         },
         "scale": {
           "x": 1.6,
-          "y": 4.325,
+          "y": 1.571,
           "z": 1.6
         }
       },
       {
-        "id": "pillar_ring_e1_45.112_-102.358",
+        "id": "pillar_ring_e1_36.178_-105.221",
         "model": "concrete_pillar",
         "source": "bridge_pillar",
         "rotationY": -143.657,
         "position": {
-          "x": 45.112,
+          "x": 36.178,
           "y": 0.006,
-          "z": -102.358
+          "z": -105.221
         },
         "scale": {
           "x": 1.6,
-          "y": 4.325,
+          "y": 3.811,
+          "z": 1.6
+        }
+      },
+      {
+        "id": "pillar_ring_e1_40.682_-99.099",
+        "model": "concrete_pillar",
+        "source": "bridge_pillar",
+        "rotationY": -143.657,
+        "position": {
+          "x": 40.682,
+          "y": 0.006,
+          "z": -99.099
+        },
+        "scale": {
+          "x": 1.6,
+          "y": 3.811,
           "z": 1.6
         }
       },
@@ -18904,12 +19055,12 @@ export const LEVEL_13 = {
         "rotationY": 106.684,
         "position": {
           "x": -58.058,
-          "y": 4.442,
+          "y": -4,
           "z": 63.037
         },
         "scale": {
           "x": 1.6,
-          "y": 6.213,
+          "y": 14.655,
           "z": 1.6
         }
       },
@@ -18936,12 +19087,12 @@ export const LEVEL_13 = {
         "rotationY": -66.62478258601136,
         "position": {
           "x": -60.839,
-          "y": 3.538,
+          "y": -4,
           "z": 55.07
         },
         "scale": {
           "x": 1.6,
-          "y": 6.727,
+          "y": 14.265,
           "z": 1.6
         }
       },
@@ -18968,12 +19119,12 @@ export const LEVEL_13 = {
         "rotationY": 106.684,
         "position": {
           "x": -65.338,
-          "y": 4.371,
+          "y": -4,
           "z": 65.219
         },
         "scale": {
           "x": 1.6,
-          "y": 6.284,
+          "y": 14.655,
           "z": 1.6
         }
       },
@@ -19000,12 +19151,12 @@ export const LEVEL_13 = {
         "rotationY": -66.62478258601136,
         "position": {
           "x": -67.815,
-          "y": 3.595,
+          "y": -4,
           "z": 58.086
         },
         "scale": {
           "x": 1.6,
-          "y": 6.17,
+          "y": 13.764,
           "z": 1.6
         }
       },
@@ -19720,12 +19871,12 @@ export const LEVEL_13 = {
         "rotationY": 72.05354382000311,
         "position": {
           "x": 74.822,
-          "y": 3.176,
+          "y": -4,
           "z": 58.415
         },
         "scale": {
           "x": 1.6,
-          "y": 5.504,
+          "y": 12.68,
           "z": 1.6
         }
       },
@@ -19816,12 +19967,12 @@ export const LEVEL_13 = {
         "rotationY": 72.05354382000311,
         "position": {
           "x": 82.052,
-          "y": 3.241,
+          "y": -4,
           "z": 60.757
         },
         "scale": {
           "x": 1.6,
-          "y": 4.641,
+          "y": 11.882,
           "z": 1.6
         }
       },

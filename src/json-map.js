@@ -902,8 +902,13 @@ export class JsonMap extends SolidField {
       const l = w.frame ? unrotatePoint(w.frame, x, z) : null;
       const u = l ? l.x : (w.axis === 'x' ? x : z);
       const v = l ? l.z : (w.axis === 'x' ? z : x);
-      if (u < w.lo || u > w.hi || v < w.v0 || v > w.v1) continue;
-      const t = w.topAt(u);
+      // допуск обратного хода — те же 1e-9, что внутри `topAt`: узел цепочки
+      // ставится вращением кадра и обратный ход возвращает его на грань плана с
+      // шумом в 1e-16 м, а без допуска собственный торец настила опору не даёт
+      // (замер главы 13: узел `d:ring_ring:9:0` — `null` на грани и 14,388 м в
+      // миллиметре от неё, из-за чего `_edgeSupported` браковал ребро шва)
+      if (u < w.lo - 1e-9 || u > w.hi + 1e-9 || v < w.v0 - 1e-9 || v > w.v1 + 1e-9) continue;
+      const t = w.topAt(Math.min(w.hi, Math.max(w.lo, u)));
       if (t !== null && (best === null || t > best)) best = t;
     }
     return best;

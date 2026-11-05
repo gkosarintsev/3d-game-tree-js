@@ -5,9 +5,11 @@
  * то, что насчитал генератор. Полотно главы 13 — не картинка над городом: оно
  * обязано быть дорогой, то есть опорой ноги, препятствием для луча и ребром графа
  * ровно на своей отметке, — а съезд приводить на наземную улицу без ступени.
- * Обязательность петли для маршрута A→B сюжет НЕ утверждает: замер показал
- * наземный путь в 374 м против 700 м петли, и цифра названа в 9-м сценарии
- * (вопрос владельцу § 10.6, а не зелёное молчание).
+ * Обязательность петли для маршрута A→B держат ДАННЫЕ (вопрос § 10.6 закрыт):
+ * коридор между кварталами перерзан руслом `cut` с `wade: false`, и 9-й сценарий
+ * бракует сюжет, если до B доходит обход без полотна. До русла замер был
+ * 115 узлов / 374 м по грунту против 637 м через кольцо — то есть трасса висела
+ * бы в главе декорацией к маршруту, а не его хребтом.
  *
  * Фикстура — НЕ синтетическая: собранный модуль `LEVEL_13` и его же бриф
  * `src/levels/level-13.json`, развёрнутый парсером прямо в браузере. Так сюжет
@@ -29,7 +31,7 @@
  *   7. Нос съезда встаёт вровень с крышкой перекрёстка (ступени нет);
  *   8. Граф — одна связная сеть, и каждый узел стоит на своей опоре;
  *   9. Маршрут A→B существует и проходим по рёбрам; шлюзы обоих съездов в сети,
- *      обход по земле измерен и назван числом;
+ *      коридор перерзан руслом — обход без полотна бракует сюжет;
  *  10. Луч и сфера на ленте сходятся с опорой (картинка = нога);
  *  11. Света на петле нет — страж закрытого вопроса § 10.5 (флага `lamps` в
  *      секции тоже нет: «уклонный настил фонарей не носит» снимал их со всей
@@ -120,14 +122,15 @@ function axisPoint(d, f) {
 /**
  * Пробы по элементу идут от `INSET` до `1 − INSET`, а не от торца до торца.
  *
- * Точка ровно на срезе дуги не принадлежит ни её сектору, ни призме стыкуемой
- * пластины: сравнение угла (`δ` против `[0, span]`) и сравнение локальной `u`
- * оба строгие, и на общем шве опора падает к полю (замер главы: осевая дуги при
- * f=0 отвечает 0,561 м против полотна 4,409 м). Это не дыра главы 13 — так же
- * ведут себя дуги глав 11–12, — и тело через шов не роняет: сфера радиуса 0,5
- * опирается на соседние пробы, а шов по отметке держит сюжет 2. Мерить же опоры,
- * луча и крена на самой границе нельзя — она красит сюиту без изменения
- * геометрии.
+ * Причина — луч, а не опора. Опора на самом срезе теперь отвечает полотно:
+ * разрез дуги входит в её сектор (допуск `arcDelta`), а грань пластины принимает
+ * локальную `u` на торце (`_prismTopAt`) — замер главы 13 при f=0 и f=1 даёт
+ * расхождение 0 м. Нисходящий **луч** на точном разрезе ленты промахивается: он
+ * бьёт по треугольникам меша, а не по аналитической поверхности, — замер тех же
+ * двух точек: 0,561 м против полотна 4,409 м и 4,712 м против 11,402 м. Стоит
+ * отойти на `1e-9` доли развёртки — луч сходится с опорой. Мерить же крен, перила
+ * и луч на самой границе нельзя: она красит сюиту без изменения геометрии, а шов
+ * по отметке держит сюжет 2.
  */
 const INSET_F = (d) => Math.min(0.02, 0.25 / d.len);
 
@@ -150,6 +153,27 @@ function edgePoint(d, f, side) {
 /** Конец элемента в мировых координатах (для швов). */
 function deckEnds(d) {
   return [axisPoint(d, 0), axisPoint(d, 1)];
+}
+
+/**
+ * Съезды как ДОРОГИ, а не как настилы: подъём разрезан под стык с петлёй — окно
+ * без периль у кольца и пластина с перилами до улицы, — поэтому у одного съезда
+ * настилов два. «Стык с петлёй» у него начало первого, «нос» — конец последнего;
+ * считать съезды по настилам значило бы искать нос в середине подъёма, в воздухе.
+ */
+function rampRoads() {
+  const byRoad = new Map();
+  for (const d of built().ring) {
+    if (d.road === RING_ID) continue;
+    if (!byRoad.has(d.road)) byRoad.set(d.road, []);
+    byRoad.get(d.road).push(d);
+  }
+  return [...byRoad.entries()].map(([road, decks]) => ({
+    road,
+    decks,
+    ringEnd: axisPoint(decks[0], 0),
+    toeEnd: axisPoint(decks[decks.length - 1], 1),
+  }));
 }
 
 /**
@@ -232,7 +256,7 @@ function testBriefPipeline() {
 function testRingIsOneSealedRibbon() {
   const { ring } = built();
   const loop = ring.filter((d) => d.road === RING_ID);
-  const entries = ring.filter((d) => d.road !== RING_ID);
+  const entries = rampRoads();
   const bad = [];
   const arcs = loop.filter((d) => d.arc);
   const plates = loop.filter((d) => !d.arc);
@@ -260,26 +284,37 @@ function testRingIsOneSealedRibbon() {
   }
   // перила есть везде, кроме окон у съездов, и окна ровно там, где съезд
   // входит в полосу петли: иначе разрыв — дыра в ограждении на пустом месте, а
-  // не стык. Точка входа съезда — начало его собственной оси (`f = 0` лежит на
-  // осевой петли), и она обязана накрываться элементом без периль
+  // не стык. Точка входа съезда — начало его собственной оси (первый настил
+  // подъёма стартует на осевой петли), и она обязана накрываться элементом без
+  // периль
   const railless = loop.filter((d) => !d.rails);
   if (railless.length < TRACK.entries || railless.length > 2 * TRACK.entries) {
     bad.push(`элементов без периль ${railless.length} — при ${TRACK.entries} съездах их бывает от одного до двух на съезд (окно стыка режет один элемент или два соседних)`);
   }
   for (const e of entries) {
-    const j = axisPoint(e, 0);
+    const j = e.ringEnd;
     const cover = trackCover(j.x, j.z);
     if (!cover.some((d) => d.road === RING_ID && !d.rails)) {
       bad.push(`стык съезда ${e.road} (петля в ${j.x.toFixed(1)}, ${j.z.toFixed(1)}, ${j.y.toFixed(2)} м) накрыт элементом с перилами — кольцо не расступается, и ребро съезд→петля бракуется`);
+    }
+    // расступается и сам съезд: его стенка, начатая от носа, стояла в 0,440 м от
+    // узла шва петли — ближе `radius 0,45`, и `bodyClearLine` бракуют ребро
+    // «съезд → петля» по той же причине, что и стенка кольца
+    if (e.decks[0].rails) {
+      bad.push(`${e.road}: подъём начат пластиной с перилами — стенка съезда встаёт в ${TRACK.width / 2} м от оси петли, то есть над её узлами шва`);
+    }
+    const winLen = e.decks[0].arc ? e.decks[0].R * Math.abs(e.decks[0].span * DEG) : e.decks[0].length;
+    if (winLen < TRACK.width / 2 + 0.5 - 1e-3) {
+      bad.push(`${e.road}: окно без периль ${winLen.toFixed(3)} м — не перекрывает полотно петли с запасом 0,5 м у шва`);
+    }
+    if (!e.decks[e.decks.length - 1].rails) {
+      bad.push(`${e.road}: борт улицы остался без ограждения`);
     }
   }
   const reach = TRACK.width / 2 + 0.5 + 0.1;
   for (const d of railless) {
     const p = axisPoint(d, 0.5);
-    const nearest = Math.min(...entries.map((e) => {
-      const j = axisPoint(e, 0);
-      return Math.hypot(p.x - j.x, p.z - j.z);
-    }));
+    const nearest = Math.min(...entries.map((e) => Math.hypot(p.x - e.ringEnd.x, p.z - e.ringEnd.z)));
     if (nearest > reach) bad.push(`элемент без периль (${p.x.toFixed(1)}, ${p.z.toFixed(1)}) в ${nearest.toFixed(1)} м от ближайшего съезда — разрыв ограждения не у стыка`);
   }
   return {
@@ -456,12 +491,11 @@ function testRailsBlockTheDrop() {
 }
 
 function testNoseLandsOnStreet() {
-  const { map, ring } = built();
+  const { map } = built();
   const bad = [];
   const info = [];
-  for (const d of ring.filter((x) => x.road !== RING_ID)) {
-    const [a, b] = deckEnds(d);
-    const nose = a.y <= b.y ? a : b;
+  for (const rv of rampRoads()) {
+    const nose = rv.ringEnd.y <= rv.toeEnd.y ? rv.ringEnd : rv.toeEnd;
     // крышка перекрёстка или пластина улицы, чей план накрывает нос
     let hit = null;
     for (const road of LEVEL_13.map.roads) {
@@ -480,15 +514,15 @@ function testNoseLandsOnStreet() {
         hit = { id: road.id, y };
       }
     }
-    if (!hit) { bad.push(`${d.road}: нос ${nose.x.toFixed(1)}, ${nose.z.toFixed(1)} не накрыт планом наземной улицы`); continue; }
+    if (!hit) { bad.push(`${rv.road}: нос ${nose.x.toFixed(1)}, ${nose.z.toFixed(1)} не накрыт планом наземной улицы`); continue; }
     const step = Math.abs(nose.y - hit.y);
-    if (step > 1e-6) bad.push(`${d.road}: ступень на носу ${step.toFixed(4)} м (полотно ${nose.y.toFixed(3)}, ${hit.id} ${hit.y.toFixed(3)})`);
+    if (step > 1e-6) bad.push(`${rv.road}: ступень на носу ${step.toFixed(4)} м (полотно ${nose.y.toFixed(3)}, ${hit.id} ${hit.y.toFixed(3)})`);
     const support = map.groundHeightAt(nose.x, nose.z, 500);
-    if (Math.abs(support - hit.y) > 0.02) bad.push(`${d.road}: опора на носе ${support.toFixed(3)} м против улицы ${hit.y.toFixed(3)} м`);
+    if (Math.abs(support - hit.y) > 0.02) bad.push(`${rv.road}: опора на носе ${support.toFixed(3)} м против улицы ${hit.y.toFixed(3)} м`);
     if (map.isBlocked(nose.x, nose.z, Math.max(CONFIG.radius, J.navEdgeProbe), support + 0.02, PLAYER_H)) {
-      bad.push(`${d.road}: нос ${hit.id} заблокирован — с съезда на улицу не войти`);
+      bad.push(`${rv.road}: нос ${hit.id} заблокирован — с съезда на улицу не войти`);
     }
-    info.push(`${d.road}: нос ${nose.x.toFixed(1)}, ${nose.z.toFixed(1)} на ${nose.y.toFixed(3)} м = ${hit.id} (${hit.y.toFixed(3)} м), ступень ${step.toExponential(1)} м`);
+    info.push(`${rv.road}: нос ${nose.x.toFixed(1)}, ${nose.z.toFixed(1)} на ${nose.y.toFixed(3)} м = ${hit.id} (${hit.y.toFixed(3)} м), ступень ${step.toExponential(1)} м`);
   }
   return {
     name: 'Съезд приводит на наземную улицу: нос вровень с крышкой перекрёстка, ступени и блокады нет',
@@ -583,7 +617,7 @@ function worseOf(a, b) {
 function testRoutePassesOverTrackAndGround() {
   const { map } = built();
   const nav = map.nav;
-  const NAME = 'Маршрут A→B проходим по рёбрам и по земле, и по петле; шлюзы съездов в сети, обязательность хребта измерена (§ 10.6)';
+  const NAME = 'Маршрут A→B проходим по рёбрам и идёт по петле; шлюзы съездов в сети, коридор перерзан (§ 10.6 закрыт)';
   const sp = map.spec.spawn, exit = LEVEL_13.gameplay.exit;
   // индексы узлов: `findPath` зовёт `nearestNode` сам и ждёт ТОЧКУ, а обход без
   // полотна меряется обходом по индексам
@@ -597,6 +631,16 @@ function testRoutePassesOverTrackAndGround() {
   if (!path || path.length < 4) {
     return { name: NAME, passed: false, info: `маршрут не найден (${path ? path.length : 0} узлов)` };
   }
+  // конец маршрута обязан быть узлом у B, а не просто «что-то нашёл»: `findPath`
+  // возвращает цепочку от точки до точки, и сюжет, меряющий только `length ≥ 4`,
+  // пропускал сеть, где северного квартала нет вовсе (замер на устаревшем
+  // прогоне: 6093 узлов, ни одного севернее z=150, ближайший к B — в 360 м, а
+  // маршрут из 115 узлов оставался «зелёным»)
+  const end = path[path.length - 1];
+  const endOff = Math.hypot(end.x - nav.pos[bi].x, end.y - nav.pos[bi].y, end.z - nav.pos[bi].z);
+  const biOff = Math.hypot(nav.pos[bi].x - exit.x, nav.pos[bi].z - exit.z);
+  if (endOff > 1e-6) bad.push(`маршрут кончается не в узле B — ${endOff.toFixed(1)} м от него`);
+  if (biOff > J.navStep) bad.push(`ближайший к B узел в ${biOff.toFixed(1)} м от точки B (решётка ${J.navStep} м) — до выхода ноге не дойти`);
   const ground = walkNumbers(map, path);
   // узлы полотна и их разбивка по дорогам: вершина маршрута берётся с кольца, а
   // гистограмма нужна, чтобы «узла на кольце нет» не выглядело молчанием
@@ -644,13 +688,13 @@ function testRoutePassesOverTrackAndGround() {
       if (p.z > 100) gateN++; else if (p.z < 0) gateS++;
     }
   }
-  if (!gateN) bad.push('с полотна нет ни одного наземного узла севернее z=100 — съезд ring_e0 не влился в квартал d0');
+  if (!gateN) bad.push(`с полотна нет ни одного наземного узла севернее z=100 — съезд ring_e0 не влился в квартал d0 (узлов на полотне ${ribbon.length}, шлюзов юг ${gateS}, узлов ${nav.pos.length}, рёбер ${nav.adj.reduce((a, x) => a + x.length, 0)})`);
   if (!gateS) bad.push('с полотна нет ни одного наземного узла южнее z=0 — съезд ring_e1 не влился к спавну');
-  // обязательность: тот же обход графа, но узлы ленты запрещены. Если до B
-  // доходит и так — трасса не хребет, а альтернатива: число чести для вопроса
-  // § 10.6, а не молчание. Замер: наземный маршрут короче петли, поэтому
-  // кратчайший путь A→B по полотна не идёт (`ground.onRibbonNodes` = 0), и
-  // утверждать обратное тестом значило бы закрасить цифру
+  // обязательность держат данные: русло `cut` с `wade: false` перерезает коридор
+  // между кварталами, поэтому обход графа с запрещёнными узлами ленты обязан до B
+  // НЕ доходить. Пока вопрос § 10.6 был открыт, сюжет только мерил и называл
+  // число (374 м по грунту против 637 м петлёй); закрыт — и молчание стало бы
+  // регрессией, а не цифрой
   const banned = new Set(ribbon);
   const seen = new Set([ai]);
   const queue = [ai];
@@ -659,13 +703,17 @@ function testRoutePassesOverTrackAndGround() {
     for (const nb of nav.adj[cur] || []) if (!seen.has(nb) && !banned.has(nb)) { seen.add(nb); queue.push(nb); }
   }
   const bypass = seen.has(bi);
+  if (bypass) bad.push(`до B доходит обход без полотна (${seen.size} наземных узлов) — коридор проходим, трасса снова альтернатива, а не хребет`);
+  // и кратчайший маршрут обязан идти по ленте: если русло перерезал коридор, но
+  // путь всё равно наземный, значит сеть замкнулась в обход русла по краю плитки
+  if (!ground.onRibbonNodes) bad.push(`кратчайший путь A→B не встаёт на полотно (${ground.meters.toFixed(0)} м, узлов на ленте 0)`);
   return {
     name: NAME,
     passed: bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ')
-      : `по земле ${path.length} узлов / ${ground.meters.toFixed(0)} м (на полотне ${ground.onRibbonNodes}); через кольцо ${viaTrack.meters.toFixed(0)} м; `
+      : `A→B ${path.length} узлов / ${ground.meters.toFixed(0)} м, из них ${ground.onRibbonNodes} стоят на полотне (конец маршрута в ${biOff.toFixed(2)} м от B, сеть ${nav.pos.length} узлов); сверка с отдельным маршрутом через кольцо ${viaTrack.meters.toFixed(0)} м; `
         + `шлюзов съездов ${gateN} (север) и ${gateS} (юг); узлов на полотне ${ribbon.length} (${roads}); `
-        + `обход A→B без полотна ${bypass ? `найден (${seen.size} наземных узлов) — трасса пока лишь быстрый путь, а не хребет (вопрос § 10.6)` : 'не найден — хребет держит'}; `
+        + `обход A→B без полотна ${bypass ? `найден (${seen.size} наземных узлов)` : 'не найден — коридор держит русло'}; `
         + `худший провал ${w.worstDrop.toFixed(2)} м (предел ${J.navEdgeDrop}), горб ${w.worstHump.toFixed(2)} м, подъём ребра ${w.worstRise.toFixed(2)} м при шаге ноги ${STEP.toFixed(2)}`,
   };
 }

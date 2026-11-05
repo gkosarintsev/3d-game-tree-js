@@ -197,6 +197,20 @@
       "entries": 2
     }
   },
+  "waterways": [
+    {
+      "id": "cut",
+      "width": 14,
+      "bedY": -4,
+      "surfaceY": -1.5,
+      "bank": "quay",
+      "wade": false,
+      "points": [
+        { "x": -300, "z": 60 },
+        { "x": 300, "z": 60 }
+      ]
+    }
+  ],
   "roads": [],
   "buildings": [],
   "landscapeObjects": [],

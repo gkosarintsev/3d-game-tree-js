@@ -1351,25 +1351,60 @@ export function trackDecks(ctx, roadsOut, allRoads, allBuildings, districts) {
     elements: trackElements(track),
   });
   for (const e of track.entries) {
-    const dx = e.toe.x - e.x, dz = e.toe.z - e.z;
     roadsOut.push({
       id: e.id, type: 'bridge', width: r3(spec.width), lamps: !!spec.lamps,
       trackRole: 'entry', trackId: spec.id,
-      elements: [{
-        plate: {
-          x: r3(e.x + dx / 2), z: r3(e.z + dz / 2),
-          // угол — в тех же градусах, что `yaw` у пластины района и у поворотного
-          // дома; `unrotatePoint` требует объект кадра, а разворот одной пары
-          // синусов здесь стоит дешевле, чем лишняя аллокация на каждый съезд
-          yaw: r3(Math.atan2(dz, dx) * 180 / Math.PI),
-          length: r3(Math.hypot(dx, dz)), width: r3(spec.width),
-          // `y` — верх на НАЧАЛЕ оси, то есть на петле: съезд всегда идёт под
-          // уклон, и `rise` остаётся отрицательным
-          y: r3(e.toe.ringTop), rise: r3(e.toe.top - e.toe.ringTop), rails: !!spec.rails,
-        },
-      }],
+      elements: rampElements(e, spec),
     });
   }
+}
+
+/**
+ * Съезд — пластина от оси петли до наземной улицы, разрезанная у кольца на
+ * элемент **без ограждения** и элемент с ним.
+ *
+ * Окно разрыва периль (`trackRailWindows`) расступается только на петле: под
+ * стык отдаётся пластина без `rails`. Перина самого съезда при этом стоит от его
+ * оси на `width/2` и кончается ровно на его кольцевом носе, то есть в 0,44 м от
+ * узла шва петли (замер главы 13, nose `ring_e0` → узел `d:ring_ring:6:0`), а
+ * тело проходит в `CONFIG.radius = 0,45` м — стенка бракует и это ребро, и
+ * цепочка рвётся там же, где её только что склеили. Правило «под каждый стык
+ * съезда — элемент без периль» поэтому держит обе стороны стыка, а не одну.
+ *
+ * Отметки разрезаются так, что второй пролёт начинается ровно там, где кончился
+ * первый (оба числа уже в `r3`), и верх на уличном носе остаётся прежним:
+ * ступеньки в 1 мм на съезде не появляется, а `topAtMin/topAtMax` нормализатор
+ * читает как подъём, а не как шум.
+ */
+function rampElements(e, spec) {
+  const dx = e.toe.x - e.x, dz = e.toe.z - e.z;
+  const total = Math.hypot(dx, dz);
+  const plate = (f0, f1, y, rise, rails) => {
+    const mid = (f0 + f1) / 2;
+    return {
+      plate: {
+        x: r3(e.x + dx * mid), z: r3(e.z + dz * mid),
+        // угол — в тех же градусах, что `yaw` у пластины района и у поворотного
+        // дома; `unrotatePoint` требует объект кадра, а разворот одной пары
+        // синусов здесь стоит дешевле, чем лишняя аллокация на каждый съезд
+        yaw: r3(Math.atan2(dz, dx) * 180 / Math.PI),
+        length: r3(total * (f1 - f0)), width: r3(spec.width),
+        // `y` — верх на НАЧАЛЕ оси, то есть на петле: съезд всегда идёт под
+        // уклон, и `rise` остаётся отрицательным
+        y: r3(y), rise: r3(rise), rails,
+      },
+    };
+  };
+  const ringTop = e.toe.ringTop, toeTop = e.toe.top;
+  const win = spec.width / 2 + TRACK_RAIL_MARGIN;
+  if (total - win <= 1e-6) return [plate(0, 1, ringTop, toeTop - ringTop, false)];
+  const k = win / total;
+  const yMid = r3(ringTop + (toeTop - ringTop) * k);
+  const yRing = r3(ringTop);
+  return [
+    plate(0, k, yRing, yMid - yRing, false),
+    plate(k, 1, yMid, r3(toeTop) - yMid, !!spec.rails),
+  ];
 }
 
 /**
