@@ -1,0 +1,53 @@
+name: ci
+
+# Два джоба, ровно как два рантайма проекта:
+#   node    — пайплайн «бриф → модуль» и арифметика парсера, зависимостей нет;
+#   browser — движок Three.js в браузере, потому что `src/json-map.js:1` импортирует
+#             'three' и npm-зависимостей в репозитории не водится (AGENTS.md, «База»).
+# Браузерный джоб берёт playwright из официального образа, а не из package.json:
+# своего package.json в проекте нет, и CI это правило не отменяет.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Приёмка закоммиченных брифов (детерминизм, warnings, байты, атрибуция)
+        run: node tools/check-levels.mjs
+
+      - name: Сюита парсера глав из брифа
+        run: node tools/level-parser.test.mjs
+
+      - name: Сюита рельефа
+        run: node tools/relief.test.mjs
+
+      - name: Сюита трассы-кольца
+        run: node tools/track.test.mjs
+
+  browser:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.49.0-noble
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Версия Node в образе
+        run: node --version
+
+      - name: Браузерные автотесты (каждая сюита в свежей странице)
+        # Единственная проверка, вынесенная из вердикта: `NavGraph.randomPoint`
+        # сидит на Math.random(), поэтому стартовые точки врагов различаются от
+        # прогона к прогону и сюжет краснел 3 раза из 7 (замер —
+        # docs/level12-relief-plan.md, этап 10). Красное число печатается строкой
+        # `FLAKE`, правки в тест и в физику Чужого оставлены владельцу.
+        run: node tools/ci-browser.mjs --flake "model-level::Враги главы"

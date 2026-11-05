@@ -1,0 +1,54 @@
+#!/bin/sh
+# Локальный гейт перед коммитом. Ставится одной командой (хук живёт в .git/hooks и
+# потому относится к машине, а не к репозиторию — в git он сам не попадает):
+#
+#   tr -d '\r' < tools/pre-commit > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#
+# Именно `tr`, а не `cp`: `core.autocrlf` на Windows отдаёт рабочий файл с CRLF, а
+# shebang `#!/bin/sh\r` интерпретатор не находит, и хук молча не запускается.
+#
+# Гоняет только то, что измеряется секундами и что ломается ровно тем, что лежит
+# в индексе: брифы, парсер и арифметику генератора. Браузерные сюиты в хук не
+# входят — они минуты, и их держит джоба `browser` в .github/workflows/ci.yml;
+# хук не заменяет CI, он не даёт закоммитить то, что покраснело уже сейчас.
+
+briefs=''
+parser=0
+relief=0
+track=0
+
+for f in $(git diff --cached --name-only --diff-filter=ACMR); do
+  case $f in
+    # собранный модуль без правки брифа (или наоборот) — ловит парсер-сюита,
+    # поэтому любой JS под src/ или tools/ тянет её за собой
+    src/levels/level-*.json) briefs="$briefs $f" ;;
+    src/levels/level-*.js | src/*.js | tools/*.js | tools/*.mjs) parser=1 ;;
+    src/relief.js) relief=1; parser=1 ;;
+    src/json-map.js | src/geo2d.js | src/solids.js | src/building.js) parser=1 ;;
+  esac
+  # трассу-кольцо разворачивает генератор города, рельеф читает он же
+  case $f in
+    tools/city.js | tools/relief.test.mjs | tools/track.test.mjs) track=1; relief=1; parser=1 ;;
+  esac
+done
+
+# пробелы в путях этого репозитория нет, поэтому $briefs раскрывается без кавычек
+for b in $briefs; do
+  echo "pre-commit: приёмка брифа $b"
+  node tools/check-levels.mjs "$b" || exit 1
+done
+
+if [ $parser = 1 ]; then
+  echo 'pre-commit: парсер глав из брифа (134 проверки, включая побайтовость JSON Schema)'
+  node tools/level-parser.test.mjs || exit 1
+fi
+if [ $relief = 1 ]; then
+  echo 'pre-commit: аналитическое поле рельефа'
+  node tools/relief.test.mjs || exit 1
+fi
+if [ $track = 1 ]; then
+  echo 'pre-commit: трасса-кольцо в генераторе города'
+  node tools/track.test.mjs || exit 1
+fi
+
+exit 0
