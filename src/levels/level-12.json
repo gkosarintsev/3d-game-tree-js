@@ -1,4 +1,5 @@
 {
+  "$schema": "./level-v2.schema.json",
   "metadata": {
     "levelName": "level-12",
     "name": "Глава 12. Рельефный мегаполис",

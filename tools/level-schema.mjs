@@ -15,7 +15,7 @@ import {
   rotatedBounds,
 } from '../src/geo2d.js';
 import { bridgeNoses, normalizeBuilding, normalizeWaterway, resolveRoadElements, roadCapsOf, toWorld } from './normalize-level.mjs';
-import { ARCHETYPE_NAMES } from './city.js';
+import { ARCHETYPE_NAMES, STYLE_NAMES, DISTRICT_DEFAULTS, TRACK_DEFAULTS, TRACK_MAX_JITTER } from './city.js';
 import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
@@ -43,171 +43,315 @@ const bool = (opts = {}) => ({ kind: 'boolean', ...opts });
 const color = (opts = {}) => ({ kind: 'color', ...opts });
 const obj = (fields, opts = {}) => ({ kind: 'object', fields, ...opts });
 const arr = (items, opts = {}) => ({ kind: 'array', items, ...opts });
-const V2XZ = obj({ x: num({ req: true }), z: num({ req: true }) });
-const V3XYZ = obj({ x: num({ req: true }), y: num({ req: true }), z: num({ req: true }) });
+const V2XZ = obj({ x: num({ req: true, doc: 'м: мировая координата X' }), z: num({ req: true, doc: 'м: мировая координата Z' }) }, { doc: 'точка в плане (метры)' });
+const V3XYZ = obj({ x: num({ req: true, doc: 'м: мировая координата X' }), y: num({ req: true, doc: 'м: мировая отметка' }), z: num({ req: true, doc: 'м: мировая координата Z' }) }, { doc: 'точка в мире (метры)' });
+/**
+ * Описание полей брифа. Каждый лист несёт `doc` — смысл, единицу и источник
+ * предела или дефолта, — и `default`, только если код действительно подставляет
+ * значение при отсутствии поля. Ни `doc`, ни `default` не участвуют в проверке:
+ * `checkValue` читает `kind/min/max/enum/req/items/fields` и больше ничего. Они
+ * нужны `tools/export-schema.mjs`, который печатает JSON Schema draft-07 —
+ * единственный артефакт, который автор (или ИИ) может прочитать ДО запуска
+ * пайплайна. Отсюда правило брифа: число, равное `default` из схемы, в бриф не
+ * пишут — ср. `city.track` главы 13, где 14 полей из 15 дословно повторяли
+ * `TRACK_DEFAULTS`, и правка радиуса в генераторе осталась бы невидимой в данных
+ * главы.
+ *
+ * `default` обязан приходить из того же объекта, который подставляет его в коде
+ * (`CONFIG.jsonMap`, `CONFIG.fog/sun/hemi/night/terrain`, `DISTRICT_DEFAULTS` и
+ * `TRACK_DEFAULTS` из tools/city.js), иначе схема станет второй правдой.
+ */
+
+/**
+ * Секция `city` описана здесь ради экспортируемой схемы: `expandCity` вырезает
+ * `city` из брифа ДО валидатора, поэтому `validateLevel` её не видит и это
+ * описание ничего не проверяет. Без него JSON Schema отвергал бы каждый бриф
+ * глав 10–13.
+ *
+ * Списки ключей живут в гейтах генератора (`CITY_KEYS`, `DISTRICT_KEYS`,
+ * `DISTRICT_SECTION_KEYS`, `V2_DISTRICT_KEYS`, `V2_DISTRICT_SECTION_KEYS` и
+ * `TRACK_KEYS` в tools/city.js), а совпадение описания с гейтом сторожит сюита
+ * `ключи city в схеме равны гейтам генератора`: расхождение означает, что
+ * редактор подсказывает автору ключ, который пайплайн бракует, или наоборот —
+ * молчит о ключе, который генератор не читает.
+ */
+const DISTRICT_STREET_V1 = obj({
+  pitch: num({ min: 8, default: DISTRICT_DEFAULTS.street.pitch, doc: 'м: шаг улиц квартала' }),
+  width: num({ min: 2, default: DISTRICT_DEFAULTS.street.width, doc: 'м: ширина проезжей части' }),
+}, { doc: 'сетка улиц района' });
+
+/** Район v1 — тот же, без косого квартала и профиля улицы. */
+const CITY_DISTRICT_V1 = obj({
+  id: str({ req: true, doc: 'имя района: по нему строятся id лотов `<id>_<номер>` и префикс вытеснения авторской записи' }),
+  name: str({ doc: 'название для человека' }),
+  style: str({ enum: STYLE_NAMES, default: DISTRICT_DEFAULTS.style, doc: 'набор материалов фасада квартала' }),
+  block: obj({
+    minX: num({ req: true, doc: 'м: граница AABB квартала в мировых осях' }),
+    maxX: num({ req: true, doc: 'м: граница AABB квартала' }),
+    minZ: num({ req: true, doc: 'м: граница AABB квартала' }),
+    maxZ: num({ req: true, doc: 'м: граница AABB квартала' }),
+  }, { req: true, doc: 'прямоугольник квартала; при `polygon` (v2) это габарит полигона, и по нему мелится сетка' }),
+  street: DISTRICT_STREET_V1,
+  lot: obj({
+    pitch: num({ min: 4, default: DISTRICT_DEFAULTS.lot.pitch, doc: 'м: шаг лотов' }),
+    inset: num({ min: 0, default: DISTRICT_DEFAULTS.lot.inset, doc: 'м: отступ корпуса от границы лота' }),
+    merge: num({ min: 0, max: 1, default: DISTRICT_DEFAULTS.lot.merge, doc: 'доля лотов, склеенных в один корпус' }),
+  }, { doc: 'сетка лотов квартала' }),
+  height: obj({
+    minFloors: num({ min: 1, default: DISTRICT_DEFAULTS.height.minFloors, doc: 'эт: нижний предел этажности' }),
+    maxFloors: num({ min: 1, default: DISTRICT_DEFAULTS.height.maxFloors, doc: 'эт: верхний предел этажности (вводимый дом ограничен J.enterableFloors)' }),
+    floorHeight: num({ min: 2.4, max: 8, default: DISTRICT_DEFAULTS.height.floorHeight, doc: 'м: высота этажа' }),
+  }, { doc: 'разброс этажности квартала' }),
+  tower: obj({
+    chance: num({ min: 0, max: 1, default: DISTRICT_DEFAULTS.tower.chance, doc: 'доля лотов, ставших башней' }),
+    floors: arr(num({ min: 1 }), { minItems: 2, maxItems: 2, default: DISTRICT_DEFAULTS.tower.floors, doc: 'эт: [min, max] этажности башни' }),
+    floorHeight: num({ min: 2.4, max: 8, default: DISTRICT_DEFAULTS.tower.floorHeight, doc: 'м: высота этажа башни' }),
+  }, { doc: 'башни района: доля лотов и их этажность' }),
+  archetypes: arr(str({ enum: ARCHETYPE_NAMES }), { default: DISTRICT_DEFAULTS.archetypes, doc: 'разрешённые формы корпуса; ритм ГПСЧ района значим: снять форму — сдвинуть счётчики всех последующих лотов' }),
+  enterableEvery: num({ min: 1, default: DISTRICT_DEFAULTS.enterableEvery, doc: 'лот-кандидат (ровно один прямоугольник плана, не башня) открывается каждому N-му; отказ — счётчик house_not_rect / house_no_stair / house_no_entrance, а не молчание' }),
+  skip: num({ min: 0, max: 1, default: DISTRICT_DEFAULTS.skip, doc: 'доля лотов, оставленных пустыми' }),
+  courtyard: num({ min: 0, max: 1, default: DISTRICT_DEFAULTS.courtyard, doc: 'доля лотов, ставших замкнутым двором (формы u / t / l / bar_pair)' }),
+  roofs: obj({
+    walkable: bool({ default: DISTRICT_DEFAULTS.roofs.walkable, doc: 'true — кровля становится опорой и по ней идёт граф навигации' }),
+    access: num({ min: 0, max: 1, default: DISTRICT_DEFAULTS.roofs.access, doc: 'доля домов с выходом на кровлю' }),
+    parapet: num({ min: 0, max: 1.5, default: DISTRICT_DEFAULTS.roofs.parapet, doc: 'м: высота парапета кровли' }),
+  }, { doc: 'кровля квартала: ходовая ли она и у скольких домов есть выход на неё' }),
+}, { doc: 'квартал генератора (v1): размеры лота, отметки и план марша никогда не берутся из Math.random' });
+
+/** Район v2: тот же плюс косой квартал и профиль улицы по полю. */
+const CITY_DISTRICT_V2 = obj({
+  ...CITY_DISTRICT_V1.fields,
+  street: obj({
+    ...DISTRICT_STREET_V1.fields,
+    grade: num({ min: 0, max: J.maxSlope, default: J.streetGrade, doc: 'м/м: подъём проезжей части района по профилю поля. Это НЕ крутизна грунта (relief.maxSlope) и не уклон настила' }),
+  }, { doc: 'сетка улиц квартала (v2: плюс профиль улицы по рельефу)' }),
+  yaw: num({ min: -180, max: 180, default: 0, doc: 'град: поворот всего квартала вокруг центра блока; buildings[].rotation района тогда = yaw + джиттер ±6°' }),
+  polygon: arr(V2XZ, { minItems: 3, doc: 'м: контур квартала; режет прогоны улиц и отбраковывает лоты, чей центр вне контура (счётчик lot_outside_polygon)' }),
+}, { doc: CITY_DISTRICT_V1.doc });
+
+const CITY_TRACK = obj({
+  id: str({ default: TRACK_DEFAULTS.id, doc: 'приставка id настилов трассы' }),
+  center: arr(num({}), { minItems: 2, maxItems: 2, default: TRACK_DEFAULTS.center, doc: 'м: центр звезды оси [x, z]' }),
+  radius: num({ min: 10, default: TRACK_DEFAULTS.radius, doc: 'м: радиус вершины звезды. Это НЕ радиус дуги: дуга стоит на биссектрисе угла вершины, а её радиус даёт скругление' }),
+  turns: num({ min: 3, default: TRACK_DEFAULTS.turns, doc: 'вершин звезды = число поворотов петли; внешние углы замкнутого контура обязаны дать ровно 2π' }),
+  minRadius: num({ min: 2, default: TRACK_DEFAULTS.minRadius, doc: 'м: радиус САМОГО КРУТОГО поворота — нижний предел скругления, а не «радиус петли»; внутренняя кромка требует minRadius − width/2 > 0,5 м, иначе полотно сложится на повороте' }),
+  curvatureJitter: num({ min: 0, max: TRACK_MAX_JITTER, default: TRACK_DEFAULTS.curvatureJitter, doc: 'доля дрожью радиуса между minRadius и radius; предел — гейт, а не кламп: при ≥ 0,5 звезду можно свернуть невыпуклой' }),
+  width: num({ min: 2, max: 30, default: TRACK_DEFAULTS.width, doc: 'м: ширина полотна' }),
+  bank: num({ min: -30, max: 30, default: TRACK_DEFAULTS.bank, doc: 'град: крен на дугах (ноль на обоих срезах, переход — половиной косинуса)' }),
+  grade: num({ min: 0, max: J.maxSlope, default: TRACK_DEFAULTS.grade, doc: 'м/м: продольный уклон оси; он же ограничивает раскрутку крена' }),
+  clearance: num({ min: 0, default: TRACK_DEFAULTS.clearance, doc: 'м: зазор полотна над корытом поля; обязан превышать J.streetRise, иначе съезд стартует ниже асфальта, который принимает' }),
+  amplitude: num({ min: 0, default: TRACK_DEFAULTS.amplitude, doc: 'м: половина высоты высотной волны; вместе с `waves` ограничена пределом grade · Lmin, чтобы волна не нарушила уклон' }),
+  waves: num({ min: 1, default: TRACK_DEFAULTS.waves, doc: 'число полуволн волны по длине петли' }),
+  rails: bool({ default: TRACK_DEFAULTS.rails, doc: 'перила на настилах; на стыке съезда генератор режет окно без периль (11 м на петле и 5,5 м на подъёме у каждого носа)' }),
+  lamps: bool({ default: TRACK_DEFAULTS.lamps, doc: 'фонари на полотне. Правило «уклонный настил фонарей не носит» снимает свет со всех наклонных пластин, а высотная волна делает наклонным каждый настил трассы — поэтому в главе 13 стоит false (закрытый вопрос § 10.5)' }),
+  entries: num({ min: 0, default: TRACK_DEFAULTS.entries, doc: 'число съездов; каждый обязан найти наземную улицу (bridgeNoses), иначе подъём кончится в воздухе' }),
+}, { doc: 'кольцевая трасса: ось — скруглением звезды, профиль — наименьшая g-липшицева мажоранта требования, эмиссия — одна дорога type bridge с разрезом в одном шве' });
+
+const CITY_SPEC_V1 = obj({
+  seed: num({ req: true, doc: 'целое: сид ГПСЧ mulberry32. Единственный источник случайности квартала, и **порядок вызовов значим**: снять один гейт — сдвинуть счётчики всех последующих районов, поэтому перегенерированный модуль коммитится вместе с правкой' }),
+  districts: arr(CITY_DISTRICT_V1, { minItems: 1, req: true, doc: 'районы генератора' }),
+}, { doc: 'секция генератора кварталов (tools/city.js): разворачивается парсером в обычные roads/buildings и в модуль главы не доезжает. Для `validateLevel` невидима, необязательна и описана ради JSON Schema брифа' });
+
+const CITY_SPEC_V2 = obj({
+  seed: CITY_SPEC_V1.fields.seed,
+  districts: arr(CITY_DISTRICT_V2, { minItems: 1, req: true, doc: CITY_SPEC_V1.fields.districts.doc }),
+  track: CITY_TRACK,
+}, { doc: CITY_SPEC_V1.doc });
 
 export const LEVEL_SPEC = obj({
+  // путь к exported-схеме: подсказка редактору и ИИ, где лежат описания полей.
+  // Значение выбирается по `kind` (`./level.schema.json` для v1,
+  // `./level-v2.schema.json` для `json2`); в модуль главы ключ не доезжает
+  $schema: str({ doc: 'путь к JSON Schema этого брифа; v1 — ./level.schema.json, v2 — ./level-v2.schema.json' }),
+  // переключатель версии живёт в брифе, поэтому v1 обязан принимать и явную
+  // подпись: `normalizeLevel` ставит `raw.kind ?? 'json'`, и автор, написавший
+  // 'json' честно, получал бы «поле не описано в схеме» за то же самое значение
+  kind: str({ enum: ['json'], doc: 'версия брифа: v1 (оси мира); в v2 поле обязательное и принимает только `json2`' }),
   metadata: obj({
-    levelName: str({ req: true }),
-    name: str({ req: true }),
-    hint: str({ req: true }),
-    engine: str(),
-    units: str({ enum: ['meters'], req: true }),
-  }, { req: true }),
-  ground: obj({ y: num(), size: num({ min: 20, req: true }), color: color() }),
+    levelName: str({ req: true, doc: 'имя главы для пайплайна (level-13) — по нему CLI выводит имя экспорта' }),
+    name: str({ req: true, doc: 'заголовок главы в HUD' }),
+    hint: str({ req: true, doc: 'подсказка игроку о пути A→B' }),
+    engine: str({ doc: 'служебная подпись исходника, движок не читает' }),
+    units: str({ enum: ['meters'], req: true, doc: 'единицы брифа: все длины и высоты — метры, углы — градусы' }),
+    notes: str({ doc: 'зачем в главе такие числа и куда сядет игрок (например, «spawn — на стыке двух настилов подъёма»); движок не читает, это rationale для правящего главу' }),
+  }, { req: true, doc: 'шапка брифа: имя для пайплайна, заголовок и подсказка для игрока; в модуль доезжают name и hint' }),
+  ground: obj({
+    y: num({ default: 0, doc: 'отметка «пола мира»; с `relief` гасится (см. src/relief.js)' }),
+    size: num({ min: 20, req: true, doc: 'сторона квадратной плиты грунта в метрах; за её краем isBlocked истинна' }),
+    color: color({ default: J.asphalt, doc: 'цвет грунта' }),
+  }, { doc: 'плита мира' }),
   roads: arr(obj({
-    id: str({ req: true }),
-    type: str({ enum: ROAD_TYPES, req: true }),
-    width: num({ min: 2, max: 30, req: true }),
-    lamps: bool(),
-    points: arr(V3XYZ, { minItems: 2, req: true }),
-  }), { req: true }),
+    id: str({ req: true, doc: 'уникальный id улицы; узлы графа и метки debugIds привязаны к нему' }),
+    type: str({ enum: ROAD_TYPES, req: true, doc: 'ground — по грунту, bridge — настил над водой/улицей, embankment — полотно на откосе, skybridge — настил без опор с земли, торцы в дверь или кровлю' }),
+    width: num({ min: 2, max: 30, req: true, doc: 'м: ширина полотна; в v2 при `elements` ширина живёт в каждом элементе (здесь можно не указывать)' }),
+    lamps: bool({ default: false, doc: 'ставить ли автогенерированные фонари вдоль улицы (шаг J.lampSpacing)' }),
+    points: arr(V3XYZ, { minItems: 2, req: true, doc: 'осевая polyline в метрах; в v2 альтернатива `elements`' }),
+  }, { doc: 'одна улица: id, тип, ширина и ось — либо (v1) polyline, либо (v2) цепочка `elements`' }), { req: true, doc: 'авторские улицы; генератор добавляет свои кварталы поверх' }),
   // река, канал, сточная канава: осевые рёбра в плане, дно ниже уровня земли;
   // берег — отвесная набережная (quay) или откос (slope), брод — сходы в русло
   waterways: arr(obj({
-    id: str({ req: true }),
-    width: num({ min: 2, max: 120, req: true }),
-    bedY: num({ req: true }),
-    surfaceY: num({ req: true }),
-    bank: str({ enum: BANK_TYPES, req: true }),
-    bankRun: num({ min: 1 }),
-    wade: bool(),
+    id: str({ req: true, doc: 'уникальный id русла' }),
+    width: num({ min: 2, max: 120, req: true, doc: 'м: ширина между береговыми рёбрами' }),
+    bedY: num({ req: true, doc: 'м: отметка дна; ниже `ground.y`, иначе русло не прорежет плиту' }),
+    surfaceY: num({ req: true, doc: 'м: отметка зеркала воды (картинка, не опора)' }),
+    bank: str({ enum: BANK_TYPES, req: true, doc: 'quay — отвесная набережная, slope — откос с заложением из J.maxSlope' }),
+    bankRun: num({ min: 1, doc: 'м: заложение откоса; по умолчанию (ground.y − bedY) / J.maxSlope для slope, 0 для quay' }),
+    wade: bool({ default: true, doc: 'true — дно свободно (нужно ≥ 2 схода), false — поперёк дна блокер, и граф обрывается у уреза' }),
     ramps: arr(obj({
-      at: obj({ x: num({ req: true }), z: num({ req: true }) }, { req: true }),
-      width: num({ min: 2, max: 12 }),
-    })),
-    points: arr(V2XZ, { minItems: 2, req: true }),
-  })),
+      at: obj({ x: num({ req: true, doc: 'м: мировая X центра схода' }), z: num({ req: true, doc: 'м: мировая Z центра схода' }) }, { req: true, doc: 'м: центр схода на береговом рёбре' }),
+      width: num({ min: 2, max: 12, default: J.rampWidth, doc: 'м: ширина пандуса схода' }),
+    }, { doc: 'один сход: центр на берегу и ширина пандуса' }), { doc: 'сходы в русло; без них карниз береговой стенки не отпускает обратно' }),
+    points: arr(V2XZ, { minItems: 2, req: true, doc: 'м: осевая polyline русла в плане' }),
+  }, { doc: 'одно русло: ширина, отметки дна и воды, берег и сходы' }), { doc: 'русла: прорезают плиту грунта планами дна и держат твёрдость призмами' }),
   buildings: arr(obj({
-    id: str({ req: true }),
-    name: str(),
+    id: str({ req: true, doc: 'уникальный id дома; лоты генератора имеют форму `<id района>_<номер>`' }),
+    name: str({ doc: 'название для метки debugIds; по умолчанию — id' }),
     // «чем построен этот корпус» — поле брифа и генератора (tools/city.js);
     // нормализатор его не читает, в модуль главы он не доезжает
-    archetype: str({ enum: ARCHETYPE_NAMES }),
+    archetype: str({ enum: ARCHETYPE_NAMES, doc: 'форма корпуса у генератора; в брифе — только подпись происхождения, в модуль не доезжает' }),
     // «к какому району генератора относится лот» — то же служебное поле: по нему
     // нормализатор ставит одну террасу района, в модуль главы не доезжает
-    district: str(),
-    isEnterable: bool(),
+    district: str({ doc: 'id района, чью террасу и кадр получает лот; в модуль не доезжает' }),
+    isEnterable: bool({ default: true, doc: 'false — корпус только декор фасада: этажи считаются ритмом, плит и маршей нет (потолок этажей тогда J.shellFloorsMax)' }),
     // потолок этажей — J.shellFloorsMax только для невводимых башен (их этажи —
     // ритм фасада, плит нет); вводимый дом ограничен J.enterableFloors — проверется геометрией
-    floorsCount: num({ min: 1, max: J.shellFloorsMax, req: true }),
-    floorHeight: num({ min: 2.4, max: 8, req: true }),
-    baseY: num(),
-    facadeMaterial: str(),
+    floorsCount: num({ min: 1, max: J.shellFloorsMax, req: true, doc: 'эт: число этажей; вводимый дом ограничен J.enterableFloors (проверяется геометрией, а не этим максимумом)' }),
+    floorHeight: num({ min: 2.4, max: 8, req: true, doc: 'м: высота этажа; все отметки перекрытий и маршей считаются от baseY + floorsCount · floorHeight' }),
+    baseY: num({ doc: 'м: пол первого этажа; по умолчанию — опора грунта под центром дома' }),
+    facadeMaterial: str({ default: 'concrete', doc: 'имя материала фасада; по нему ряды окон и вывесок берут надстройку из byMaterial' }),
     roof: obj({
-      walkable: bool(),
-      parapet: num({ min: 0, max: 1.5 }),
-    }),
-    footprint: arr(V2XZ, { minItems: 4, req: true }),
+      walkable: bool({ default: false, doc: 'true — кровля становится опорой (парапет J.parapetHeight по краю, маяк точки B может встать на неё); false — плита только картинка' }),
+      parapet: num({ min: 0, max: 1.5, default: J.parapetHeight, doc: 'м: высота парапета ходовой кровли; 0 у non-walkable' }),
+    }, { doc: 'кровля: плита на союзе footprint минус шахты маршей' }),
+    footprint: arr(V2XZ, { minItems: 4, req: true, doc: 'м: замкнутый полигон плана дома (ГПСЧ-сетка комнат вписывается в него)' }),
     rooms: arr(obj({
-      id: str({ req: true }),
-      floor: num({ min: 0, req: true }),
-      type: str({ enum: ROOM_TYPES, req: true }),
-      polygon: arr(V2XZ, { minItems: 4, req: true }),
+      id: str({ req: true, doc: 'уникальный id комнаты' }),
+      floor: num({ min: 0, req: true, doc: 'эт: этаж комнаты (0 — пол на baseY)' }),
+      type: str({ enum: ROOM_TYPES, req: true, doc: 'назначение: выводимый ряд витрин неона опирается на торговые типы' }),
+      polygon: arr(V2XZ, { minItems: 4, req: true, doc: 'м: план комнаты; обязан лежать внутри footprint и не пересекать другие комнаты' }),
       connections: arr(obj({
-        target: str({ req: true }),
+        target: str({ req: true, doc: 'id комнаты или улицы/настила по ту сторону проёма' }),
         portalPosition: V3XYZ,
-        linkType: str({ enum: LINK_TYPES }),
-      })),
-    }), { req: true }),
+        linkType: str({ enum: LINK_TYPES, doc: 'main_entrance / door / back_entrance: по нему нормализатор ставит проём и связывает внешний узел с решёткой дома' }),
+      }, { doc: 'одна дверь: id цели за проёмом, точка портала и тип связки' }), { doc: 'двери комнаты; проём (rect), а не точка портала, решает связность' }),
+    }, { doc: 'одна комната: этаж, назначение, план и двери' }), { req: true, doc: 'комнаты дома: решётка пола и граф навигации строятся по ним' }),
     stairs: arr(obj({
-      id: str({ req: true }),
-      connectsFloors: arr(num({ min: 0 }), { minItems: 2, maxItems: 2, req: true }),
-      type: str({ enum: STAIR_TYPES, req: true }),
+      id: str({ req: true, doc: 'уникальный id марша' }),
+      connectsFloors: arr(num({ min: 0 }), { minItems: 2, maxItems: 2, req: true, doc: 'эт: [с, по] — концы марша; цепочка обязана быть непрерывной от пола до кровли, иначе _pruneToSpawn отсечёт решётку' }),
+      type: str({ enum: STAIR_TYPES, req: true, doc: 'straight / l_shape / spiral / ladder; беговая длина ограничена stairRun (J.maxStairSlope), у ladder — J.maxRise на проступь' }),
       position: V2XZ,
-      rotation: num(),
-      dimensions: obj({ width: num({ min: 1, req: true }), length: num({ min: 1, req: true }), height: num() }),
-    })),
-  })),
+      rotation: num({ default: 0, doc: 'град: поворот марша в собственных осях дома' }),
+      dimensions: obj({ width: num({ min: 1, req: true, doc: 'м: ширина марша (для лестницы) или сторона шахты' }), length: num({ min: 1, req: true, doc: 'м: беговая длина марша' }), height: num({ doc: 'м: высота подъёма; по умолчанию шаг этажа' }) }, { doc: 'габарит шахты марша; для ladder по умолчанию J.ladderShaft × J.ladderShaft' }),
+    }, { doc: 'один марш: какие этажи связывает, какой формы и где стоит его шахта' }), { doc: 'марши дома' }),
+  }, { doc: 'один дом: план footprint, этажность, комнаты с дверями и марши; отметки считаются от baseY' }), { doc: 'авторские дома; кварталы генератора добавляются через `city`' }),
   landscapeObjects: arr(obj({
-    id: str({ req: true }),
-    model: str({ enum: J.models, req: true }),
+    id: str({ req: true, doc: 'уникальный id предмета' }),
+    model: str({ enum: J.models, req: true, doc: 'имя модели из src/props.js; набор моделей открыт наружу как CONFIG.jsonMap.models' }),
     position: V3XYZ,
-    rotation: obj({ x: num(), y: num(), z: num() }),
-    scale: obj({ x: num({ min: 0.05 }), y: num({ min: 0.05 }), z: num({ min: 0.05 }) }),
-  })),
+    rotation: obj({ x: num({ default: 0, doc: 'град' }), y: num({ default: 0, doc: 'град: азимут модели' }), z: num({ default: 0, doc: 'град' }) }, { doc: 'поворот по осям Object3D' }),
+    scale: obj({ x: num({ min: 0.05, default: 1, doc: 'доля исходного размера модели' }), y: num({ min: 0.05, default: 1, doc: 'доля исходного размера модели' }), z: num({ min: 0.05, default: 1, doc: 'доля исходного размера модели' }) }, { doc: 'масштаб модели по осям Object3D' }),
+  }, { doc: 'авторский декор: solids и навигации не создаёт (правило про декор в AGENTS.md)' }), { doc: 'предметы ландшафта' }),
   lights: arr(obj({
-    id: str({ req: true }),
-    type: str({ enum: LIGHT_TYPES, req: true }),
+    id: str({ req: true, doc: 'уникальный id источника' }),
+    type: str({ enum: LIGHT_TYPES, req: true, doc: 'point / spot / directional; настоящий directional в сцене один — «луна», она держит тени' }),
     position: V3XYZ,
     target: V3XYZ,
-    color: color(),
-    intensity: num({ min: 0, max: 400 }),
-    distance: num({ min: 0 }),
-    angle: num({ min: 0, max: 1.57 }),
-  })),
+    color: color({ default: 0xffcf9a, doc: 'цвет огня' }),
+    intensity: num({ min: 0, max: 400, default: CONFIG.night.intensity, doc: 'безразмерная яркость Three.js; предел на главу — J.maxRealLights настоящих источников' }),
+    distance: num({ min: 0, default: CONFIG.night.reach, doc: 'м: радиус гасания (0 — без гасания)' }),
+    angle: num({ min: 0, max: 1.57, default: 0.7, doc: 'рад: раствор пятна только для spot' }),
+  }, { doc: 'один источник: тип, позиция, цель, цвет, яркость и радиус гасания' }), { doc: 'статичные источники света уровня; мойки направлены вверх, на корпуса' }),
   // светящиеся окна фасадов: само наличие секции включает ритм, числа — это
   // переопределение `CONFIG.jsonMap.windows` (включатель по той же причине, что у
   // `waterways`: глава 9 обязана собраться ровно как раньше)
   windows: obj({
-    spacing: num({ min: 0, max: 12 }),   // 0 — дому окна не рисуются вовсе
-    width: num({ min: 0.2, max: 6 }),
-    height: num({ min: 0.2, max: 6 }),
-    sill: num({ min: 0, max: 3 }),
-    offset: num({ min: 0.01, max: 1 }),
-    lit: num({ min: 0, max: 1 }),
-  }),
+    spacing: num({ min: 0, max: 12, default: J.windows.spacing, doc: 'м: ритм окон вдоль грани; 0 — дому окна не рисуются вовсе' }),
+    width: num({ min: 0.2, max: 6, default: J.windows.width, doc: 'м: ширина квада' }),
+    height: num({ min: 0.2, max: 6, default: J.windows.height, doc: 'м: высота квада' }),
+    sill: num({ min: 0, max: 3, default: J.windows.sill, doc: 'м: подоконник от пола этажа' }),
+    offset: num({ min: 0.01, max: 1, default: J.windows.offset, doc: 'м: вынос квада за грань стены' }),
+    lit: num({ min: 0, max: 1, default: J.windows.lit, doc: 'доля окон светящимися (ГПСЧ вывода, солёный шаг на каждый отсчёт)' }),
+  }, { doc: 'включатель + переопределение ряда окон: картинку выводит JsonMap, модуль главы этих чисел не содержит; по facadeMaterial работает надстройка byMaterial' }),
   // мусор кровель и тротуаров: наличие секции включает вывод, ритмы —
   // переопределение `CONFIG.jsonMap.clutter` (картинка считается картой, как окна)
   clutter: obj({
-    tall: num({ min: 3, max: 200 }),
-    head: num({ min: 1.5, max: 12 }),     // м: свободный зазор над предметом
+    tall: num({ min: 3, max: 200, default: J.clutter.tall, doc: 'м: предмет выше этого считается высоким и бракуется над кровлей' }),
+    head: num({ min: 1.5, max: 12, default: J.clutter.head, doc: 'м: свободный зазор над предметом, иначе он бракуется' }),
     roof: obj({
-      edge: num({ min: 0.4, max: 8 }),    // м: отступ предмета от борта кровли
-      step: num({ min: 1, max: 20 }),     // м: шаг сетки на кровле
-      keep: num({ min: 0, max: 1 }),      // доля слотов, занятая мусором
-      perHouse: num({ min: 0, max: 12 }), // штук: не больше этого на дом
-    }),
+      edge: num({ min: 0.4, max: 8, default: J.clutter.roof.edge, doc: 'м: отступ предмета от борта кровли' }),
+      step: num({ min: 1, max: 20, default: J.clutter.roof.step, doc: 'м: шаг сетки на кровле' }),
+      keep: num({ min: 0, max: 1, default: J.clutter.roof.keep, doc: 'доля слотов, занятая мусором' }),
+      perHouse: num({ min: 0, max: 12, default: J.clutter.roof.perHouse, doc: 'штук: не больше этого на дом' }),
+    }, { doc: 'сетка мусора на кровле дома' }),
     street: obj({
-      every: num({ min: 4, max: 60 }),    // м: шаг вдоль настила
-      inset: num({ min: 0.3, max: 6 }),   // м: насколько предмет уйдёт с полотна к борту
-      minLamp: num({ min: 0, max: 12 }),  // м: не ближе этого к уже поставленному предмету
-      keep: num({ min: 0, max: 1 }),
-    }),
-  }),
+      every: num({ min: 4, max: 60, default: J.clutter.street.every, doc: 'м: шаг вдоль настила' }),
+      inset: num({ min: 0.3, max: 6, default: J.clutter.street.inset, doc: 'м: насколько предмет уйдёт с полотна к борту' }),
+      minLamp: num({ min: 0, max: 12, default: J.clutter.street.minLamp, doc: 'м: не ближе этого к уже поставленному предмету или фонарю' }),
+      keep: num({ min: 0, max: 1, default: J.clutter.street.keep, doc: 'доля слотов, занятая мусором' }),
+    }, { doc: 'ряд мусора вдоль тротуара/настила' }),
+  }, { doc: 'включатель + переопределение ряда мусора кровель и тротуаров' }),
   // неон и билборды: наличие секции включает вывод, числа — переопределение
   // `CONFIG.jsonMap.signage` (панели считает карта, как окна и мусор)
   signage: obj({
-    minFloors: num({ min: 1, max: 40 }),  // эт: дома ниже вывесок не носят
-    minRun: num({ min: 2, max: 40 }),     // м: минимальный бег фасадной грани
-    edge: num({ min: 0.2, max: 8 }),      // м: отступ панели от угла фасада
-    step: num({ min: 2, max: 40 }),       // м: шаг слотов вдоль грани
-    width: arr(num({ min: 0.5, max: 30 }), { minItems: 2, maxItems: 2 }), // [min, max] м
-    minWidth: num({ min: 0.5, max: 20 }),  // м: уже этого панель — полоска, слот прочеркнут
-    panelFloors: num({ min: 1, max: 12 }),// эт: высота панели через этажи
-    perFace: num({ min: 1, max: 8 }),     // штук: не больше N панелей на грань
-    keep: num({ min: 0, max: 1 }),        // доля слотов, занятая вывесками
-    offset: num({ min: 0.02, max: 2 }),   // м: вынос за грань стены
-  }),
+    minFloors: num({ min: 1, max: 40, default: J.signage.minFloors, doc: 'эт: дома ниже вывесок не носят' }),
+    minRun: num({ min: 2, max: 40, default: J.signage.minRun, doc: 'м: минимальный бег фасадной грани' }),
+    edge: num({ min: 0.2, max: 8, default: J.signage.edge, doc: 'м: отступ панели от угла фасада' }),
+    step: num({ min: 2, max: 40, default: J.signage.step, doc: 'м: шаг слотов вдоль грани' }),
+    width: arr(num({ min: 0.5, max: 30 }), { minItems: 2, maxItems: 2, default: J.signage.width, doc: '[min, max] м: разброс ширины панели' }),
+    minWidth: num({ min: 0.5, max: 20, default: J.signage.minWidth, doc: 'м: уже этого панель — полоска, слот прочёркнут' }),
+    panelFloors: num({ min: 1, max: 12, default: J.signage.panelFloors, doc: 'эт: высота панели через этажи; пояс клампится по floorsCount − floors' }),
+    perFace: num({ min: 1, max: 8, default: J.signage.perFace, doc: 'штук: не больше N панелей на грань' }),
+    keep: num({ min: 0, max: 1, default: J.signage.keep, doc: 'доля слотов, занятая вывесками' }),
+    offset: num({ min: 0.02, max: 2, default: J.signage.offset, doc: 'м: вынос за грань стены' }),
+  }, { doc: 'включатель + переопределение ряда вывесок; byMaterial — надстройка над базой, а не замена' }),
   sky: obj({
-    sky: color(),
-    fog: obj({ color: color(), near: num({ min: 1 }), far: num({ min: 2 }) }),
-    sun: obj({ color: color(), intensity: num({ min: 0, max: 10 }), position: arr(num({}), { minItems: 3, maxItems: 3 }) }),
-    hemi: obj({ sky: color(), ground: color(), intensity: num({ min: 0, max: 10 }) }),
+    sky: color({ default: CONFIG.sky, doc: 'цвет неба (фон сцены)' }),
+    fog: obj({
+      color: color({ default: CONFIG.fog.color, doc: 'цвет тумана' }),
+      near: num({ min: 1, default: CONFIG.fog.near, doc: 'м: начало тумана' }),
+      far: num({ min: 2, default: CONFIG.fog.far, doc: 'м: полное затемнение; правки этой пары — стиль главы, дефолта в брифе не требуется' }),
+    }, { doc: 'туман; секция мержится как { ...CONFIG.fog, ...sky.fog }' }),
+    sun: obj({
+      color: color({ default: CONFIG.sun.color, doc: 'цвет «луны»' }),
+      intensity: num({ min: 0, max: 10, default: CONFIG.sun.intensity, doc: 'яркость «луны»: единственный источник теней и яркость улицы (правило «достоинство луны, а не подсветок»)' }),
+      position: arr(num({}), { minItems: 3, maxItems: 3, default: CONFIG.sun.position, doc: '[x, y, z] мир: направление «луны»' }),
+    }, { doc: 'мержится как { ...CONFIG.sun, ...sky.sun }' }),
+    hemi: obj({
+      sky: color({ default: CONFIG.hemi.sky, doc: 'цвет верхнего полусферического света' }),
+      ground: color({ default: CONFIG.hemi.ground, doc: 'цвет нижнего полусферического света' }),
+      intensity: num({ min: 0, max: 10, default: CONFIG.hemi.intensity, doc: 'яркость полусферического света' }),
+    }, { doc: 'мержится как { ...CONFIG.hemi, ...sky.hemi }' }),
     // пул огней, переставляемых на опорные точки рядом с камерой (src/night-lights.js)
     lights: obj({
-      count: num({ min: 0, max: 8 }), reach: num({ min: 1 }), height: num({ min: 0 }),
-      spacing: num({ min: 1 }), intensity: num({ min: 0, max: 400 }),
-    }),
-  }),
+      count: num({ min: 0, max: 8, default: CONFIG.night.count, doc: 'штук: настоящих источников в пуле; по наличию этой секции заводится NightLights, без неё глава живёт на «луне» (глава 12)' }),
+      reach: num({ min: 1, default: CONFIG.night.reach, doc: 'м: радиус поиска опорных точек вокруг камеры' }),
+      height: num({ min: 0, default: CONFIG.night.height, doc: 'м: подъём огня над опорной точкой' }),
+      spacing: num({ min: 1, default: CONFIG.night.spacing, doc: 'м: минимальное разнос огней' }),
+      intensity: num({ min: 0, max: 400, default: CONFIG.night.intensity, doc: 'яркость одного огня пула' }),
+    }, { doc: 'пул src/night-lights.js переставляет count огней на map.openPositions() рядом с камерой' }),
+  }, { doc: 'ночь главы как данные: слияние с дефолтами делает game.js, номеров глав карта не знает' }),
   gameplay: obj({
-    goal: str({ enum: ['exit'], req: true }),
+    goal: str({ enum: ['exit'], req: true, doc: 'цель главы; в брифах только exit (дойти до точки B), coin-главы живут в уровнях-улицах глав 5–8' }),
     spawn: V2XZ,
     exit: V2XZ,
-    exitRadius: num({ min: 1, max: 40 }),
-    enemies: obj({ count: num({ min: 0, max: 30 }) }),
-    alienEnemies: obj({ count: num({ min: 0, max: 30 }) }),
+    exitRadius: num({ min: 1, max: 40, default: CONFIG.terrain.exitRadius, doc: 'м: радиус зачётной зоны точки B' }),
+    enemies: obj({ count: num({ min: 0, max: 30, doc: 'штук: человек-противники; без секции — CONFIG.enemies.count' }) }, { doc: 'число пеших противников главы' }),
+    alienEnemies: obj({ count: num({ min: 0, max: 30, doc: 'штук: Чужие; без секции — CONFIG.alienEnemies.count' }) }, { doc: 'число Чужих главы' }),
     // Автомобили уровня: сколько их и где они стоят (src/vehicle.js). Точки задаёт
     // автор, а не генератор: на кольце главы 13 все настилы наклонные, а
     // `_collectAnchors` снимает наклонные из `openPositions()`, поэтому опорных
     // точек, откуда стоянка взялась бы сама, на петле нет вовсе.
     cars: obj({
-      count: num({ min: 0, max: 8, req: true }),
-      spots: arr(obj({ x: num({ req: true }), z: num({ req: true }), yaw: num({ min: -360, max: 360 }) }),
-        { minItems: 0, maxItems: 8 }),
-    }),
-  }, { req: true }),
-});
+      count: num({ min: 0, max: 8, req: true, doc: 'штук: обязан равняться длине spots, иначе невыполнимое обещание — ошибка схемы' }),
+      spots: arr(obj({ x: num({ req: true, doc: 'м' }), z: num({ req: true, doc: 'м' }), yaw: num({ min: -360, max: 360, default: 0, doc: 'град: азимут кузова' }) },
+        { doc: 'одна стоянка: центр кузова в плане и его азимут' }),
+        { minItems: 0, maxItems: 8, doc: 'точки стоянок: отметку y дописывает нормализатор по опоре точки, автор её не пишет' }),
+    }, { doc: 'машины главы; без секции список пуст, поэтому главы 9–12 побайтовы без неё' }),
+  }, { req: true, doc: 'цель главы: точка A (spawn), точка B (exit), противники и автомобили' }),
+  // описание для экспортируемой схемы: валидатор этой секции не видит
+  // (`expandCity` вырезает её до `validateLevel`)
+  city: CITY_SPEC_V1,
+}, { doc: 'бриф главы v1 (`kind: json`): улицы и дома в осях мира, русла, свет и цель A→B. Длины и высоты — метры, углы — градусы; чего в брифе не написано, берётся из CONFIG.jsonMap' });
 
 /**
  * Схема v2 — поворотный город (`kind: 'json2'`, глава 11). От v1 отличается ровно
@@ -227,15 +371,15 @@ export const LEVEL_SPEC = obj({
 // конца; так пластины стыкуются цепочкой (верх конца = `y + rise` следующей), а
 // «наклон» остаётся тем же одним пролётом, что и в v1, только повёрнутым.
 const V2_PLATE = obj({
-  x: num({ req: true }),
-  z: num({ req: true }),
-  yaw: num({ min: -360, max: 360 }),
-  length: num({ min: 1, req: true }),
-  width: num({ min: 2, max: 30, req: true }),
-  y: num({ req: true }),
-  rise: num(),
-  rails: bool(),
-});
+  x: num({ req: true, doc: 'м: мировой центр пластины' }),
+  z: num({ req: true, doc: 'м: мировой центр пластины' }),
+  yaw: num({ min: -360, max: 360, default: 0, doc: 'град: поворот вокруг центра; `connect: tangent` переносит только угол, позицию автор задаёт сам' }),
+  length: num({ min: 1, req: true, doc: 'м: длина вдоль собственной оси (ось от −length/2 до +length/2)' }),
+  width: num({ min: 2, max: 30, req: true, doc: 'м: ширина полотна поперёк оси' }),
+  y: num({ req: true, doc: 'м: верх наса **на локальном начале** (u = −length/2), не в мировом minX; при yaw = −180 начало смотрит на восток' }),
+  rise: num({ default: 0, doc: 'м: перепад верха от начала к концу; уклон = rise / length, предел J.maxSlope' }),
+  rails: bool({ default: false, doc: 'перила по обеим кромкам; `railSide` в v2 сознательно не вводится (закрытый вопрос § 10.7 плана главы 13)' }),
+}, { doc: 'прямая пластина настила v2' });
 
 // Дуга-настил v2: кольцевой сектор с продольным подъёмом и поперечным наклоном.
 // Углы — градусы (как `yaw` и `rotation`), обход от `from` к `to`; `y` — верх на
@@ -243,16 +387,16 @@ const V2_PLATE = obj({
 // Дуга, а не цепочка пластин: касательная и кривизна у неё непрерывны, и по ней
 // поедет машина; у полилинии рамка рвётся на каждом стыке.
 const V2_ARC = obj({
-  cx: num({ req: true }),
-  cz: num({ req: true }),
-  radius: num({ min: 2, req: true }),
-  from: num({ min: -360, max: 360, req: true }),
-  to: num({ min: -360, max: 360, req: true }),
-  width: num({ min: 2, max: 30, req: true }),
-  y: arr(num(), { minItems: 2, maxItems: 2, req: true }),
-  bank: num({ min: -30, max: 30 }),
-  rails: bool(),
-});
+  cx: num({ req: true, doc: 'м: мировой центр окружности дуги' }),
+  cz: num({ req: true, doc: 'м: мировой центр окружности дуги' }),
+  radius: num({ min: 2, req: true, doc: 'м: радиус осевой дуги; при ширине полотна 8 м радиус < 4 м даёт отрицательную внутреннюю кромку и бракуется схемой' }),
+  from: num({ min: -360, max: 360, req: true, doc: 'град: начало обхода' }),
+  to: num({ min: -360, max: 360, req: true, doc: 'град: конец обхода' }),
+  width: num({ min: 2, max: 30, req: true, doc: 'м: ширина полотна' }),
+  y: arr(num(), { minItems: 2, maxItems: 2, req: true, doc: 'м: [верх на from, верх на to]; продольный уклон — перепад / длина дуги' }),
+  bank: num({ min: -30, max: 30, default: 0, doc: 'град: крен в середине сектора, ноль на обоих срезах, переход — половиной косинуса; длина перехода считается из двух пределов (остаток J.maxSlope после продольного уклона и сам продольный уклон)' }),
+  rails: bool({ default: false, doc: 'перила по обеим кромкам' }),
+}, { doc: 'дуга-настил v2: точная поверхность по углу, радиусу и крену' });
 
 // Плавный рельеф v2 (`docs/level12-relief-plan.md`, п. 4.1). Холм и долина —
 // одна запись: капсула в плане (`x, z` — начало, `bx, bz` — конец; без них это
@@ -260,46 +404,48 @@ const V2_ARC = obj({
 // секции `basins` в данных нет: две списочные формы одного и того же поля
 // разошлись бы при первой правке.
 const V2_HILL = obj({
-  id: str(),
-  x: num({ req: true }),
-  z: num({ req: true }),
-  bx: num(),
-  bz: num(),
-  radius: num({ min: 2, req: true }),
-  height: num({ min: -60, max: 60, req: true }),
-});
+  id: str({ doc: 'имя для метки и для текста ошибки предельного уклона' }),
+  x: num({ req: true, doc: 'м: начало капсулы' }),
+  z: num({ req: true, doc: 'м: начало капсулы' }),
+  bx: num({ doc: 'м: конец капсулы; без пары к (x,z) это круг' }),
+  bz: num({ doc: 'м: конец капсулы' }),
+  radius: num({ min: 2, req: true, doc: 'м: радиус capsule' }),
+  height: num({ min: -60, max: 60, req: true, doc: 'м: подъём над полем; отрицательное — провал (долина). Крутизна холма ограничена relief.hillMaxSlope' }),
+}, { doc: 'холм-капсула поля высот' });
 
 // Авторская площадка: терраса района, площадь, насыпь. Отметка `y` держится в
 // ядре прямоугольника, а к полю переход идёт за `blend` (по умолчанию —
 // `relief.blend`). Поворот — вокруг центра прямоугольника, тем же кадром, что у
 // дома и пластины настила.
 const V2_PAD = obj({
-  id: str(),
-  minX: num({ req: true }),
-  maxX: num({ req: true }),
-  minZ: num({ req: true }),
-  maxZ: num({ req: true }),
-  y: num({ req: true }),
-  blend: num({ min: 1, max: 200 }),
-  yaw: num({ min: -360, max: 360 }),
-});
+  id: str({ doc: 'имя для текста предупреждения о нехватке переходной зоны' }),
+  minX: num({ req: true, doc: 'м: сторона ядра площадки (ось X, мировая до yaw)' }),
+  maxX: num({ req: true, doc: 'м: сторона ядра площадки' }),
+  minZ: num({ req: true, doc: 'м: сторона ядра площадки' }),
+  maxZ: num({ req: true, doc: 'м: сторона ядра площадки' }),
+  y: num({ req: true, doc: 'м: отметка ядра; смешивается с полем весом, поэтому соседние террасы обязаны не перекрываться произвольно' }),
+  blend: num({ min: 1, max: 200, doc: 'м: ширина переходной зоны к полю; по умолчанию relief.blend, предел J.relief.maxBlend' }),
+  yaw: num({ min: -360, max: 360, default: 0, doc: 'град: поворот вокруг центра прямоугольника' }),
+}, { doc: 'площадка поля высот (терраса района, площадь, насыпь)' });
 
 const V2_RELIEF = obj({
-  baseY: num(),
-  maxSlope: num({ min: 0.01, max: 0.3 }),
-  hillMaxSlope: num({ min: 0.01, max: 0.3 }),
-  blend: num({ min: 1, max: 200 }),
-  cell: num({ min: 2, max: 60 }),
-  hills: arr(V2_HILL, { minItems: 1, maxItems: J.relief.maxHills }),
-  pads: arr(V2_PAD, { minItems: 1 }),
-});
+  baseY: num({ doc: 'м: нулевая отметка поля; по умолчанию ground.y' }),
+  maxSlope: num({ min: 0.01, max: 0.3, default: J.relief.maxSlope, doc: 'м/м: предел крутизны **поля** (уклон грунта). Не путать с `J.maxSlope` — пределом настила, и с `city.districts[].street.grade` — подъёмом проезжей части' }),
+  hillMaxSlope: num({ min: 0.01, max: 0.3, default: J.relief.hillMaxSlope, doc: 'м/м: предел крутизны отдельного холма (1,5 · height / radius); умножение на 1,5 — аналитический максимум производной капсулы' }),
+  blend: num({ min: 1, max: 200, default: J.relief.blend, doc: 'м: ширина перехода площадки к полю по умолчанию' }),
+  cell: num({ min: 2, max: 60, default: J.planGrid, doc: 'м: сторона клетки индекса рельефа (цена пробы, не геометрия)' }),
+  hills: arr(V2_HILL, { minItems: 1, maxItems: J.relief.maxHills, doc: 'холмы поля; лимит J.relief.maxHills' }),
+  pads: arr(V2_PAD, { minItems: 1, doc: 'площадки поля' }),
+}, { doc: 'аналитическое поле высот: при наличии секции гасится groundPlane («пол мира — ноль» больше не опора)' });
 
 export const LEVEL_SPEC_V2 = {
   ...LEVEL_SPEC,
+  doc: 'бриф главы v2 (`kind: json2`): тот же формат плюс поворотные дома, пластины и дуги настилов, аналитический рельеф, косые районы и `city.track`',
   fields: {
     ...LEVEL_SPEC.fields,
-    kind: str({ enum: ['json2'], req: true }),
+    kind: str({ enum: ['json2'], req: true, doc: 'версия брифа: json2 — поворотные дома, пластины и дуги настилов, рельеф, косые районы и city.track; v1 бракует эти поля явно, чтобы косой бриф не собрался молча прямоугольником' }),
     relief: V2_RELIEF,
+    city: CITY_SPEC_V2,
     roads: {
       ...LEVEL_SPEC.fields.roads,
       items: {
@@ -309,23 +455,24 @@ export const LEVEL_SPEC_V2 = {
           // у дороги из пластин ширина живёт в каждой пластине: полотно развязки
           // законно расширяется, и дублировать его в двух местах — значит дать
           // им разойтись при первой правке
-          width: num({ min: 2, max: 30 }),
-          points: arr(V3XYZ, { minItems: 2 }),
+          width: num({ min: 2, max: 30, doc: 'м: ширина полотна; при `elements` живёт в каждом элементе, здесь можно не указывать (нормализатор тогда берёт максимум пластин)' }),
+          points: arr(V3XYZ, { minItems: 2, doc: 'м: осевая polyline; в v2 альтернатива `elements`, оба сразу — ошибка' }),
           // `connect:'tangent'` — маркер, а не форма: следующий элемент обязан
           // быть пластиной, чей `yaw` даст касательная предыдущего
-          elements: arr(obj({ plate: V2_PLATE, arc: V2_ARC, connect: str({ enum: ['tangent'] }) }), { minItems: 1 }),
+          elements: arr(obj({ plate: V2_PLATE, arc: V2_ARC, connect: str({ enum: ['tangent'], doc: 'маркер: следующему элементу переносится только угол (касательная предыдущего), позицию автор задаёт сам' }) },
+            { doc: 'один элемент цепочки: пластина ИЛИ дуга (или маркер касательной) — ровно одна форма на запись' }), { minItems: 1, doc: 'цепочка пластин и дуг вместо polyline: полотно развязки, мост, подъём съезда' }),
           // служебные поля улиц генератора (v2): по первому нормализатор
           // отличает настил квартала от авторской дороги, по второму берёт
           // предел уклона района, третье помечает перекрёсток — пластину,
           // обрезаемую прогонами с четырёх сторон. В модуль главы не доезжают
-          district: str(),
-          grade: num({ min: 0, max: J.maxSlope }),
-          crossing: bool(),
+          district: str({ doc: 'id района-владельца (служебное поле генератора): по нему нормализатор отличает настил квартала от авторской дороги; в модуль не доезжает' }),
+          grade: num({ min: 0, max: J.maxSlope, doc: 'м/м: предел уклона района для этой улицы; разрез и подгонка пластин по профилю поля (`profileDistrictStreets`) считаются от него' }),
+          crossing: bool({ default: false, doc: 'true — перекрёсток: одна квадратная пластина с id `<район>_x<i>_<j>`, к плоскости которой пинятся торцы прогонов' }),
           // служебные поля трассы (`city.track`): петля и съезд различаются по
           // первому, второй держит id секции — по ним метка `debugIds` подписывает
           // шов и носы, а сюита считает крылья. В модуль главы не доезжают
-          trackRole: str({ enum: ['ring', 'entry'] }),
-          trackId: str(),
+          trackRole: str({ enum: ['ring', 'entry'], doc: 'роль настила трассы: петля или съезд; нужна debugIds и сюите, в модуль не доезжает' }),
+          trackId: str({ doc: 'id секции city.track, чей это настил; в модуль не доезжает' }),
         },
       },
     },
@@ -335,14 +482,16 @@ export const LEVEL_SPEC_V2 = {
         ...LEVEL_SPEC.fields.buildings.items,
         fields: {
           ...LEVEL_SPEC.fields.buildings.items.fields,
-          rotation: num({ min: -360, max: 360 }),
+          rotation: num({ min: -360, max: 360, default: 0, doc: 'град: поворот дома вокруг центра габарита footprint; весь внутренний расчёт идёт в своих осях, в мире корпус держит OBB (габарит в коллизиях запретил бы невидимые стены по пустым углам)' }),
           // кадр косого района — служебное поле генератора рядом с `district`: по
           // нему нормализатор собирает террасу квартала в **осях района** (в
           // мировых координатах габарит повёрнутого блока больше самого блока).
           // В модуль главы не доезжает, как и `district`
           districtFrame: obj({
-            cx: num({ req: true }), cz: num({ req: true }), yaw: num({ min: -180, max: 180, req: true }),
-          }),
+            cx: num({ req: true, doc: 'м: центр поворота района' }),
+            cz: num({ req: true, doc: 'м: центр поворота района' }),
+            yaw: num({ min: -180, max: 180, req: true, doc: 'град: yaw района; терраса квартала собирается в осях района, а не мира' }),
+          }, { doc: 'кадр косого района (служебное поле генератора): в модуль не доезжает' }),
         },
       },
     },

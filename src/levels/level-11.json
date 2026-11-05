@@ -1,4 +1,5 @@
 {
+  "$schema": "./level-v2.schema.json",
   "kind": "json2",
   "metadata": {
     "levelName": "level-11",

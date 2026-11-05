@@ -9,12 +9,16 @@
  * Браузерные автотесты карты (tests/*.test.js) стоят отдельно: здесь Three.js не
  * нужен и не запускается.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { validateLevel, LEVEL_SPEC_V2 } from './level-schema.mjs';
+import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel, waterwayFoot, stairRun } from './normalize-level.mjs';
 import { generateModule } from './build-level.mjs';
-import { expandCity, ARCHETYPE_NAMES } from './city.js';
+import { schemaText, SCHEMA_FILES } from './export-schema.mjs';
+import {
+  expandCity, ARCHETYPE_NAMES, DISTRICT_DEFAULTS, TRACK_DEFAULTS,
+  CITY_KEYS, DISTRICT_KEYS, DISTRICT_SECTION_KEYS, V2_DISTRICT_KEYS, V2_DISTRICT_SECTION_KEYS, TRACK_KEYS,
+} from './city.js';
 import { reliefOf } from '../src/relief.js';
 import { r3, frameOf, frameAt, rotatePoint, unrotatePoint, obbHitsRect, obbHitsObb, obbOf, rectsIntersect, rotatedBounds, pointInPoly } from '../src/geo2d.js';
 import { CONFIG } from '../src/config.js';
@@ -1080,8 +1084,13 @@ t('v2 принимает rotation: валидатор молчит, а моду�
 });
 
 t('v1 не принимает ни kind json2, ни сам бриф v2', () => {
+  // с тех пор как v1 стала описывать `kind` (бриф v1 вправе написать 'json'
+  // явно), отказ приходит не как «поля нет в схеме», а как «значение вне
+  // перечисления» — проверка обязана называть именно это, иначе v1 приняла бы
+  // json2 молча
   const errors = validateLevel(structuredClone(V2_RAW)).errors;
-  hasError(errors, 'kind', 'поле не описано в схеме');
+  hasError(errors, 'kind', 'вне перечисления');
+  hasError(errors, 'rotation', 'поле не описано в схеме');
 });
 
 t('косой дом, доставший углом до улицы, — ошибка; тот же план без поворота — норма', () => {
@@ -3070,6 +3079,186 @@ t('gameplay.cars: стоянка в русле вне настила — пре�
   const y = inWater.built.gameplay.cars.spots[0].y;
   assert(y < built.map.ground.y,
     `точка дала опору ${y} при грунте ${built.map.ground.y} — над ней настил, и тест мерит не то русло`);
+});
+
+// ------------------------------------------------- схема брифа как JSON Schema
+
+// Экспортируемая draft-07 схема — единственный артефакт, который редактор и ИИ
+// читают ДО запуска пайплайна. Она производная от DSL (tools/export-schema.mjs),
+// и проверяется здесь тремя способами: побайтовое совпадение с выводом экспортёра
+// (детерминизм), полнота описаний и дефолтов (схема не имеет права молчать или
+// переписывать число генератора своими словами) и приемка всех закоммиченных
+// брифов самим подмножеством draft-07, который мы печатаем (иначе экспортёр
+// выдавал бы файл, отвергающий законную главу — как это сделал бы пропущенный
+// `kind: 'json'` в v1).
+const BRIEFS = ['09', '10', '11', '12', '13'].map(n => `src/levels/level-${n}.json`);
+
+/** Subset-валидатор draft-07: ровно теKeywords, которые печатает экспортёр. */
+function checkJsonSchema(value, schema, path, errors) {
+  if (schema.oneOf) {
+    // color: число ИЛИ строка-хекс; достаточно пройти одной ветке
+    if (!schema.oneOf.some(br => !checkJsonSchema(value, br, path, []))) {
+      errors.push(`${path}: не подходит ни под одну ветку oneOf`);
+    }
+    return;
+  }
+  switch (schema.type) {
+    case 'number':
+      if (typeof value !== 'number' || !Number.isFinite(value)) { errors.push(`${path}: ожидалось число`); return; }
+      if (schema.minimum !== undefined && value < schema.minimum) errors.push(`${path}: ${value} < minimum ${schema.minimum}`);
+      if (schema.maximum !== undefined && value > schema.maximum) errors.push(`${path}: ${value} > maximum ${schema.maximum}`);
+      return;
+    case 'string':
+      if (typeof value !== 'string') { errors.push(`${path}: ожидалась строка`); return; }
+      if (schema.enum && !schema.enum.includes(value)) errors.push(`${path}: '${value}' вне enum`);
+      if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`${path}: '${value}' не в pattern ${schema.pattern}`);
+      return;
+    case 'boolean':
+      if (typeof value !== 'boolean') errors.push(`${path}: ожидалось true|false`);
+      return;
+    case 'array':
+      if (!Array.isArray(value)) { errors.push(`${path}: ожидался массив`); return; }
+      if (schema.minItems !== undefined && value.length < schema.minItems) errors.push(`${path}: меньше ${schema.minItems} элементов`);
+      if (schema.maxItems !== undefined && value.length > schema.maxItems) errors.push(`${path}: больше ${schema.maxItems} элементов`);
+      value.forEach((v, i) => checkJsonSchema(v, schema.items, `${path}[${i}]`, errors));
+      return;
+    case 'object': {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) { errors.push(`${path}: ожидался объект`); return; }
+      for (const key of schema.required ?? []) {
+        if (value[key] === undefined) errors.push(`${path}.${key}: обязательное поле отсутствует`);
+      }
+      for (const [key, sub] of Object.entries(schema.properties ?? {})) {
+        if (value[key] !== undefined) checkJsonSchema(value[key], sub, `${path}.${key}`, errors);
+      }
+      if (schema.additionalProperties === false) {
+        for (const key of Object.keys(value)) {
+          if (!(key in (schema.properties ?? {}))) errors.push(`${path}.${key}: поля нет в схеме`);
+        }
+      }
+      return;
+    }
+    default:
+      errors.push(`${path}: схема дала узел без известного type (${JSON.stringify(schema.type)})`);
+  }
+}
+
+t('закоммиченные JSON Schema совпадают с выводом экспортёра побайтово', () => {
+  for (const { spec, title, out } of SCHEMA_FILES) {
+    const fresh = schemaText(spec, title);
+    const committed = readFileSync(out, 'utf8').replace(/\r\n/g, '\n');
+    assert(committed === fresh,
+      `${out.split(/[\\/]/).pop()}: расходится с DSL на ${committed.length - fresh.length} символов — перезапустите node tools/export-schema.mjs`);
+  }
+});
+
+t('экспортированная схема принимает каждый закоммиченный бриф', () => {
+  for (const file of BRIEFS) {
+    const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
+    const { spec, title } = raw.kind === 'json2' ? SCHEMA_FILES[1] : SCHEMA_FILES[0];
+    const errors = [];
+    checkJsonSchema(raw, renderFor(spec, title), '', errors);
+    assert(errors.length === 0, `${file}: rejected — ${errors.slice(0, 4).join(' | ')}`);
+  }
+});
+
+/** Корень exported-схемы ровно в том виде, в каком он лежит в файле. */
+function renderFor(spec, title) {
+  return JSON.parse(schemaText(spec, title));
+}
+
+t('схема отбраковывает ключ, которого в ней нет, и число вне предела', () => {
+  const v1 = renderFor(SCHEMA_FILES[0].spec, SCHEMA_FILES[0].title);
+  const stray = structuredClone(JSON.parse(readFileSync(resolve(ROOT, BRIEFS[0]), 'utf8')));
+  stray.tunnel = 1;
+  const errors = [];
+  checkJsonSchema(stray, v1, '', errors);
+  hasError(errors, '.tunnel', 'поля нет в схеме');
+
+  const out = structuredClone(stray);
+  out.ground.size = 1;
+  const e2 = [];
+  checkJsonSchema(out, v1, '', e2);
+  hasError(e2, 'ground.size', 'minimum');
+});
+
+t('у каждого адресуемого поля обеих схем есть описание', () => {
+  const PRIM = new Set(['number', 'string', 'boolean', 'color']);
+  const missing = [];
+  const walk = (node, path, isField) => {
+    if (!node || typeof node !== 'object') return;
+    if ((isField || node.kind === 'object') && !node.doc) missing.push(path);
+    if (node.kind === 'object') {
+      for (const [k, sub] of Object.entries(node.fields ?? {})) walk(sub, `${path}.${k}`, true);
+    } else if (node.kind === 'array') {
+      // примитивный элемент массива описывает сам массив («[min, max] этажности»)
+      walk(node.items, `${path}[]`, !PRIM.has(node.items?.kind));
+    }
+  };
+  walk(LEVEL_SPEC, '', true);
+  walk(LEVEL_SPEC_V2, 'v2', true);
+  assert(missing.length === 0, `без описания: ${missing.slice(0, 8).join(', ')} (всего ${missing.length})`);
+});
+
+t('ключи city в схеме равны гейтам генератора, а дефолты — его значениям', () => {
+  const cityV1 = LEVEL_SPEC.fields.city;
+  const cityV2 = LEVEL_SPEC_V2.fields.city;
+  const keys = o => Object.keys(o).sort().join(',');
+
+  eq(keys(cityV2.fields), keys(Object.fromEntries(CITY_KEYS.map(k => [k, 1]))),
+    'ключи city v2 не равны CITY_KEYS');
+  // v1 описывает `seed` и `districts`, а `track` — поле v2: гейт сидит в
+  // trackConfigErrors (`кольцо из дуг и повёрнутых пластин схема v1 не примет`),
+  // поэтому в v1-схеме секции нет, и сюжет обязан назвать этот единственный ключ
+  eq(keys(cityV1.fields), keys(Object.fromEntries(CITY_KEYS.filter(k => k !== 'track').map(k => [k, 1]))),
+    'ключи city v1 не равны CITY_KEYS без track');
+
+  const dV1 = cityV1.fields.districts.items.fields;
+  const dV2 = cityV2.fields.districts.items.fields;
+  eq(keys(dV2), keys(Object.fromEntries(DISTRICT_KEYS.map(k => [k, 1]))),
+    'ключи района v2 не равны DISTRICT_KEYS');
+  eq(keys(dV1), keys(Object.fromEntries(DISTRICT_KEYS.filter(k => !V2_DISTRICT_KEYS.includes(k)).map(k => [k, 1]))),
+    'ключи района v1 не равны DISTRICT_KEYS без v2-полей');
+
+  for (const [section, allowed] of Object.entries(DISTRICT_SECTION_KEYS)) {
+    const v2only = V2_DISTRICT_SECTION_KEYS[section] ?? [];
+    eq(keys(dV1[section].fields), keys(Object.fromEntries(allowed.filter(k => !v2only.includes(k)).map(k => [k, 1]))),
+      `ключи района.${section} v1 не равны DISTRICT_SECTION_KEYS`);
+    eq(keys(dV2[section].fields), keys(Object.fromEntries(allowed.map(k => [k, 1]))),
+      `ключи района.${section} v2 не равны DISTRICT_SECTION_KEYS`);
+  }
+
+  const track = cityV2.fields.track.fields;
+  eq(keys(track), keys(Object.fromEntries(TRACK_KEYS.map(k => [k, 1]))),
+    'ключи city.track не равны TRACK_KEYS');
+
+  // дефолт, не равный значению генератора, — это вторая правда о числе: схема
+  // обещает автору одно, а expandCity подставляет другое; сравнение через JSON,
+  // потому что `tower.floors` и `track.center` — массивы (ссылка не равна себе)
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const bad = [];
+  for (const [k, v] of Object.entries(DISTRICT_DEFAULTS)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      for (const [sub, val] of Object.entries(v)) {
+        const node = dV2[k]?.fields?.[sub];
+        if (!node || !same(node.default, val)) bad.push(`city.districts[].${k}.${sub} → ${JSON.stringify(node?.default)} ≠ ${JSON.stringify(val)}`);
+      }
+    } else if (!dV2[k] || !same(dV2[k].default, v)) {
+      bad.push(`city.districts[].${k} → ${JSON.stringify(dV2[k]?.default)} ≠ ${JSON.stringify(v)}`);
+    }
+  }
+  for (const [k, v] of Object.entries(TRACK_DEFAULTS)) {
+    if (!track[k] || !same(track[k].default, v)) bad.push(`city.track.${k} → ${JSON.stringify(track[k]?.default)} ≠ ${JSON.stringify(v)}`);
+  }
+  assert(bad.length === 0, `default в схеме разошёлся с генератором: ${bad.slice(0, 6).join(' | ')}`);
+});
+
+t('$schema каждого брифа ведёт к существующему файлу своей версии', () => {
+  const want = v => v === 'json2' ? './level-v2.schema.json' : './level.schema.json';
+  for (const file of BRIEFS) {
+    const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
+    eq(raw.$schema, want(raw.kind), `${file}: $schema не соответствует kind '${raw.kind ?? 'json'}'`);
+    assert(existsSync(resolve(ROOT, 'src/levels', raw.$schema)), `${file}: ${raw.$schema} не существует`);
+  }
 });
 
 // ---------------------------------------------------------------- служебное

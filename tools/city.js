@@ -324,8 +324,11 @@ const COURTYARD_NAMES = ['u', 't', 'l', 'bar_pair'];
 
 // ------------------------------------------------------------- разворот секции
 
-/** Значения по умолчанию: район описывает геометрию квартала и стиль, остальное — допущения. */
-const DISTRICT_DEFAULTS = {
+/** Значения по умолчанию: район описывает геометрию квартала и стиль, остальное — допущения.
+ * Экспортированы: `tools/level-schema.mjs` берёт из них `default:` экспортируемой
+ * JSON-схемы брифа, чтобы автор (и ИИ) видел дефолт там же, где его применяет
+ * генератор, а не в повторе тех же чисел в брифе. */
+export const DISTRICT_DEFAULTS = {
   style: 'mixed',
   street: { pitch: 46, width: 14 },
   lot: { pitch: 12, inset: 1.6, merge: 0.3 },
@@ -363,10 +366,10 @@ const districtFrame = d => frameAt(
  * (`street.grade`) не соберутся молча прямым городом на плоскости — поле
  * добавляется в этот список только вместе с его реализацией.
  */
-const CITY_KEYS = ['seed', 'districts', 'track'];
-const DISTRICT_KEYS = ['id', 'name', 'style', 'block', 'street', 'lot', 'height',
+export const CITY_KEYS = ['seed', 'districts', 'track'];
+export const DISTRICT_KEYS = ['id', 'name', 'style', 'block', 'street', 'lot', 'height',
   'tower', 'archetypes', 'enterableEvery', 'skip', 'courtyard', 'roofs', 'yaw', 'polygon'];
-const DISTRICT_SECTION_KEYS = {
+export const DISTRICT_SECTION_KEYS = {
   street: ['pitch', 'width', 'grade'],
   lot: ['pitch', 'inset', 'merge'],
   height: ['minFloors', 'maxFloors', 'floorHeight'],
@@ -374,7 +377,7 @@ const DISTRICT_SECTION_KEYS = {
   roofs: ['walkable', 'access', 'parapet'],
 };
 /** Поля секций района, живущие только в v2 (см. `V2_DISTRICT_KEYS`). */
-const V2_DISTRICT_SECTION_KEYS = { street: ['grade'] };
+export const V2_DISTRICT_SECTION_KEYS = { street: ['grade'] };
 
 const unknownIn = (obj, allowed) => Object.keys(obj ?? {}).filter(k => !allowed.includes(k));
 
@@ -384,7 +387,7 @@ const unknownIn = (obj, allowed) => Object.keys(obj ?? {}).filter(k => !allowed.
  * разворачивается **до** валидатора — схема просто не увидела бы район, которого
  * больше нет. Молчание генератора опаснее ошибки: косой район собрался бы осевым.
  */
-const V2_DISTRICT_KEYS = ['yaw', 'polygon'];
+export const V2_DISTRICT_KEYS = ['yaw', 'polygon'];
 
 /**
  * Что запрещено ещё до первого вызова ГПСЧ. Ошибки копятся списком: правка
@@ -549,7 +552,13 @@ export const TRACK_DEFAULTS = {
   lamps: true,
   entries: 2,
 };
-const TRACK_KEYS = Object.keys(TRACK_DEFAULTS);
+/**
+ * Ключи, которые генератор читает в `city.track`. Экспортированы: сюжет
+ * `tools/level-parser.test.mjs` сверяет с ними `fields` секции в
+ * `tools/level-schema.mjs`, потому что `city` разворачивается до валидатора и
+ * опечатка в схеме здесь осталась бы невидимой для geometric-прохода.
+ */
+export const TRACK_KEYS = Object.keys(TRACK_DEFAULTS);
 
 /**
  * Хорда, на которую коридор набивается в препятствия. Меньше — больше коробок
@@ -566,7 +575,7 @@ const TRACK_CHORD = 8;
  * контуром. Предел проверяется гейтом, а не клампом: тихая правка числа
  * означала бы, что автор получил форму не из брифа.
  */
-const TRACK_MAX_JITTER = 0.5;
+export const TRACK_MAX_JITTER = 0.5;
 
 /**
  * Минимальный радиус дуги, который ещё можно записать в данные: `V2_ARC.radius`
