@@ -1,0 +1,22 @@
+равнина | съездов 1: чистых 31/120, первый сид 3 {"district_crossed_by_track":1,"nose_skew_at_crossing":1,"lots":13,"lot_in_track_band":3}
+   89× норм: gameplay.exit #, #: не над зданием и не над настилом — маяк повиснет
+   1× roads[##] (ring_e#): свободный нос подъёма (-##.###, ##.###) на отметке #.################ не находи
+равнина | съездов 2: чистых 78/120, первый сид 2 {"district_crossed_by_track":1,"nose_skew_at_crossing":2,"nose_line_added":2,"lots":81,"fallback_bar_pair":3,"superblock_narrow":24,"lot_in_track_band":16,"fallback_u":5,"house_not_rect":1,"enterable":1}
+   37× норм: gameplay.exit #, #: не над зданием и не над настилом — маяк повиснет
+   5× норм: gameplay.spawn #, #: внутри стены — игрок родится запертым
+   2× roads[##] (ring_e#): свободный нос подъёма (##.###, -##.###) на отметке #.################ не находи
+мягкая гряда | съездов 1: чистых 113/120, первый сид 1 {"district_crossed_by_track":1,"nose_skew_at_crossing":1,"lots":10,"lot_in_track_band":2}
+   1× roads[##] (ring_e#): свободный нос подъёма (-###.###, -###.###) на отметке #.## не находит наземную 
+   1× roads[##] (ring_e#): свободный нос подъёма (###.###, ###.##) на отметке #.### не находит наземную ул
+мягкая гряда | съездов 2: чистых 105/120, первый сид 2 {"district_crossed_by_track":1,"nose_skew_at_crossing":2,"nose_line_added":2,"lots":81,"fallback_bar_pair":3,"superblock_narrow":24,"lot_in_track_band":16,"fallback_u":5,"house_not_rect":1,"enterable":1,"track_deck_under_terrace":2}
+   7× норм: gameplay.spawn #, #: внутри стены — игрок родится запертым
+гряда 12 | съездов 1: чистых 43/120, первый сид 5 {"district_crossed_by_track":1,"nose_skew_at_crossing":1,"nose_line_shifted":2,"lots":15,"fallback_stepped3":1,"fallback_bar_pair":1,"lot_in_track_band":4}
+   71× норм: relief: площадке plate_front не хватает переходной зоны ### м — кольцо даёт уклон #.### м/м пр
+   71× норм: relief: площадке d#:терраса не хватает переходной зоны ### м — кольцо даёт уклон #.### м/м при
+   19× норм: relief: площадке lowland_port не хватает переходной зоны ### м — кольцо даёт уклон #.### м/м п
+   3× норм: нос подъёма (-##.###, -##.###) дороги ring_e# сходится с улицей d#_x#_# ступенью #.### м при д
+гряда 12 | съездов 2: чистых 30/120, первый сид 1 {"district_crossed_by_track":1,"nose_skew_at_crossing":2,"nose_line_added":2,"lots":153,"fallback_bar_pair":6,"superblock_narrow":16,"lot_too_narrow":26,"lot_in_track_band":21,"fallback_u":4,"house_not_rect":1,"track_toe_moved":2,"track_deck_under_terrace":13}
+   73× норм: relief: площадке d#:терраса не хватает переходной зоны ### м — кольцо даёт уклон #.### м/м при
+   58× норм: relief: площадке plate_front не хватает переходной зоны ### м — кольцо даёт уклон #.### м/м пр
+   4× норм: нос подъёма (##.###, ###.###) дороги ring_e# сходится с улицей d#_x#_# ступенью #.### м при до
+   4× норм: нос подъёма (-##.###, -##.###) дороги ring_e# сходится с улицей d#_x#_# ступенью #.### м при д

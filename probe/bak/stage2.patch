@@ -1,0 +1,461 @@
+diff --git a/docs/prompts/003.md b/docs/prompts/003.md
+index c186fc8..0bd4d61 100644
+--- a/docs/prompts/003.md
++++ b/docs/prompts/003.md
+@@ -13,8 +13,22 @@
+ 
+ - [x] сделай генератор города на основе docs/004.md  Нужен гигантский интересный город. Река и мосты через нее, небоскребы. Не обязательно в каждый дом можно войти, можно делать просто низкополигональные дома. Должно быть много вариантов домов, в идеале много домов должны быть уникальными. Разбей задачу на этапы. Формируй json чтобы максимально задействовать существующий механизм уровня, как это сделано для уровня 9. Если нужно, расширяй формат json новыми параметрами. Сделай уровень (главу) 10 с этим городом.
+ 
+-- [ ] сделай существующий генератор города для уровня 10 как v1 (и связанные с ним элементы движка игры) и создай новую версию v2 для уровня 11. уровень 11 сделать маленьким, но чтобы там были все возможные элементы города. в v2 дома остаются как есть, прямоугольные, но могут быть поставлены под углом к северу. дороги и мосты - так же под углом к северу. мост может идти под углом к горизонту (подъем или спуск). особое внимание уделить дорогам и мостам, например дорога может идти вверх и одновременно плавно поворачивать по окружности. позже я добавлю автомобили и поэтому дороги должны быть качественными с точки зрения вождения, как играх-симуляторах гонок. на уровне 11 сделать развязку - дорога поднимается вверх по окружности на мост.
++- [x] сделай существующий генератор города для уровня 10 как v1 (и связанные с ним элементы движка игры) и создай новую версию v2 для уровня 11. уровень 11 сделать маленьким, но чтобы там были все возможные элементы города. в v2 дома остаются как есть, прямоугольные, но могут быть поставлены под углом к северу. дороги и мосты - так же под углом к северу. мост может идти под углом к горизонту (подъем или спуск). особое внимание уделить дорогам и мостам, например дорога может идти вверх и одновременно плавно поворачивать по окружности. позже я добавлю автомобили и поэтому дороги должны быть качественными с точки зрения вождения, как играх-симуляторах гонок. на уровне 11 сделать развязку - дорога поднимается вверх по окружности на мост.
+ 
+-- [ ] кажется AGENTS.md слишком большой, решить что в нём не обязательно и вынести в отдельные файлы в директорию docs, оставить на них ссылки в AGENTS.md если нужно
++- [x] кажется AGENTS.md слишком большой, решить что в нём не обязательно и вынести в отдельные файлы в директорию docs, оставить на них ссылки в AGENTS.md если нужно
+ 
+-- [ ] на уровне 10 видел небольшой дом с лестницей внутри, лестница была под крутым наклоном и как будто упиралась в потолок следующего этажа, зайти на следующий этаж Чужим не получалось
++- [x] на уровне 10 видел небольшой дом с лестницей внутри (например id=sind_183_r0), лестница была под крутым наклоном и как будто упиралась в потолок следующего этажа, зайти на следующий этаж Чужим не получалось
++
++- [x] когда чужой перелезает с потолка верхнего этажа на крышу, анимация странная: плоскость поворота оказывается перпендикулярна направлению взгляда. и со стены дома на крышу тоже как-то не так, куда-то вбок поворачивается при анимации а не вперед
++
++- [x] уровень 11. дом, в который можно войти, поставь косо, чтобы проверить комнаты и лестницы
++
++- [x] уровень 11. по лестнице be_roof могу залезть на крышу, но не могу слезть с крыши
++
++- [x] уровень 11, подъем на мост в линии соприкосновении с мостом не совпадает. ты пытался сгладить, но все равно стык получился неровный. можно ли исправить полотно подъема так, чтобы он идеально совпадал с горизонталью моста?
++смотри пункт
++4. Стык креновой дуги, перила и съезд (глава 11, `rd_interchange`)
++в docs/defects-v2-plan.md
++
++- [ ] сделать уровень 12, за основу взять уровень 10, но версия движка уровня должна быть v2. обрати внимание на дороги. подъем к мосту должен соприкасаться с дорогой а не с домами. дороги должны быть расположены логично для города. с перекрестками и развязками. рельеф (ландшафт) местности не должен быть плоским, нужны подъемы и спуски, в том числе под домами. целые районы могут стоять на некоторой возвышенности.
++при необходимости доработай json формат уровня, добавь туда параметры. например, район может быть обозначен многоугольником (если генератор уровня не очень сложно доработать). дома не должны быть параллельны направлению на север, некоторые дома или улицы могут идти под углом. фонари повернуты на дорогу, а не вдоль дороги как сейчас. смотри так же docs/004.md
+diff --git a/src/config.js b/src/config.js
+index 6bcf3cf..a3e5925 100644
+--- a/src/config.js
++++ b/src/config.js
+@@ -138,6 +138,8 @@ export const CONFIG = {
+     // плавный рельеф (src/relief.js): аналитическое поле высот главы
+     relief: {
+       blend: 14,           // м: ширина переходной зоны между площадкой (пэдом) и склоном
++      maxBlend: 120,       // м: предел, до которого парсер раздувает переход площадки;
++                           // дальше — предупреждение: отметку или холм правит автор
+       maxSlope: 0.12,      // м/м: предел градиента ПОСЛЕ релаксации парсером. Не maxSlope
+                            // дороги: 0,3 нога держит, но решётка узлов 6 м на таком склоне
+                            // даёт перепад 1,8 м и требует трёхкратного мельчения
+diff --git a/src/relief.js b/src/relief.js
+index c92bbc0..dfdf849 100644
+--- a/src/relief.js
++++ b/src/relief.js
+@@ -14,7 +14,7 @@
+  * обязан сходиться с первым после каждой правки брифа.
+  */
+ import { CONFIG } from './config.js';
+-import { frameAt, unrotatePoint } from './geo2d.js';
++import { cellKey, frameAt, rasterRect, rotatedBounds, unrotatePoint } from './geo2d.js';
+ 
+ const J = CONFIG.jsonMap;
+ 
+@@ -76,13 +76,38 @@ export function reliefOf(spec = {}) {
+     radius: h.radius,
+     height: h.height,
+   }));
+-  const pads = (spec.pads ?? []).map(p => ({
++  const pads = (spec.pads ?? []).map((p, i) => ({
+     minX: p.minX, maxX: p.maxX, minZ: p.minZ, maxZ: p.maxZ,
+     y: p.y,
+     blend: p.blend ?? blend,
+     frame: p.yaw ? frameAt((p.minX + p.maxX) / 2, (p.minZ + p.maxZ) / 2, p.yaw) : null,
++    order: i,
+   }));
+ 
++  /**
++   * Индекс площадок: кольцо blend раздувает прямоугольник площадки в зону её
++   * влияния, и перебор всех площадок на каждую пробу решётки узлов — это сотни
++   * тысяч проверок на районе. Клетка — `relief.cell` (по умолчанию шаг индекса
++   * планов), в неё попадает раздутый план, поэтому проба смотрит только
++   * площадки своего кармана; точный вес по-прежнему решает `padWeight`.
++   */
++  const cell = spec.cell ?? J.planGrid;
++  const buckets = new Map();
++  for (const p of pads) {
++    const world = p.frame ? rotatedBounds(p, p.frame) : p;
++    const zone = {
++      minX: world.minX - p.blend, maxX: world.maxX + p.blend,
++      minZ: world.minZ - p.blend, maxZ: world.maxZ + p.blend,
++    };
++    for (const key of rasterRect(zone, cell)) {
++      const bucket = buckets.get(key);
++      if (bucket) bucket.push(p);
++      else buckets.set(key, [p]);
++    }
++  }
++  for (const list of buckets.values()) list.sort((a, b) => a.order - b.order);
++  const bucketAt = (x, z) => buckets.get(cellKey(Math.floor(x / cell), Math.floor(z / cell))) ?? [];
++
+   /** Отметка «природы» — земля без площадок: только холмы и долины над `baseY`. */
+   const reliefHeightAt = (x, z) => {
+     let y = baseY;
+@@ -96,7 +121,7 @@ export function reliefOf(spec = {}) {
+    */
+   const padsAt = (x, z) => {
+     const out = [];
+-    for (const p of pads) {
++    for (const p of bucketAt(x, z)) {
+       const w = padWeight(p, x, z);
+       if (w > 0) out.push({ pad: p, weight: w });
+     }
+diff --git a/tools/level-schema.mjs b/tools/level-schema.mjs
+index 968db94..53ee21d 100644
+--- a/tools/level-schema.mjs
++++ b/tools/level-schema.mjs
+@@ -241,11 +241,51 @@ const V2_ARC = obj({
+   rails: bool(),
+ });
+ 
++// Плавный рельеф v2 (`docs/level12-relief-plan.md`, п. 4.1). Холм и долина —
++// одна запись: капсула в плане (`x, z` — начало, `bx, bz` — конец; без них это
++// точка) с радиусом и высотой. Отрицательная высота — провал, поэтому отдельной
++// секции `basins` в данных нет: две списочные формы одного и того же поля
++// разошлись бы при первой правке.
++const V2_HILL = obj({
++  id: str(),
++  x: num({ req: true }),
++  z: num({ req: true }),
++  bx: num(),
++  bz: num(),
++  radius: num({ min: 2, req: true }),
++  height: num({ min: -60, max: 60, req: true }),
++});
++
++// Авторская площадка: терраса района, площадь, насыпь. Отметка `y` держится в
++// ядре прямоугольника, а к полю переход идёт за `blend` (по умолчанию —
++// `relief.blend`). Поворот — вокруг центра прямоугольника, тем же кадром, что у
++// дома и пластины настила.
++const V2_PAD = obj({
++  id: str(),
++  minX: num({ req: true }),
++  maxX: num({ req: true }),
++  minZ: num({ req: true }),
++  maxZ: num({ req: true }),
++  y: num({ req: true }),
++  blend: num({ min: 1, max: 200 }),
++  yaw: num({ min: -360, max: 360 }),
++});
++
++const V2_RELIEF = obj({
++  baseY: num(),
++  maxSlope: num({ min: 0.01, max: 0.3 }),
++  blend: num({ min: 1, max: 200 }),
++  cell: num({ min: 2, max: 60 }),
++  hills: arr(V2_HILL, { minItems: 1, maxItems: J.relief.maxHills }),
++  pads: arr(V2_PAD, { minItems: 1 }),
++});
++
+ export const LEVEL_SPEC_V2 = {
+   ...LEVEL_SPEC,
+   fields: {
+     ...LEVEL_SPEC.fields,
+     kind: str({ enum: ['json2'], req: true }),
++    relief: V2_RELIEF,
+     roads: {
+       ...LEVEL_SPEC.fields.roads,
+       items: {
+@@ -368,6 +408,43 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
+   const groundY = raw.ground?.y ?? 0;
+   const cell = J.probeCell;
+ 
++  // --- рельеф: крутизна поля и разумность площадок ---
++  // Поле проверяется аналитикой, а не пробой сетки: у холма максимум производной
++  // известен на бумаге (`1,5 · height / radius` на половине радиуса — замер в
++  // `tools/relief.test.mjs`), и автор обязан получить число в тексте ошибки, а не
++  // «где-то круто» после растеризации 600 × 600 м.
++  if (raw.relief) {
++    const r = raw.relief;
++    const maxSlope = r.maxSlope ?? J.relief.maxSlope;
++    if ((r.baseY ?? 0) !== groundY) {
++      warnings.push(`relief.baseY ${r.baseY ?? 0} не совпал с ground.y ${groundY}: опорным верхом главы станет baseY`);
++    }
++    for (const [n, h] of (r.hills ?? []).entries()) {
++      const label = `relief.hills[${n}] (${h.id ?? 'без id'})`;
++      if ((h.bx === undefined) !== (h.bz === undefined)) {
++        errors.push(`${label}: у капсулы задан только один конец (bx/bz) — второй парсер взял бы как центр холма`);
++      }
++      const peak = 1.5 * Math.abs(h.height) / h.radius;
++      if (peak > maxSlope + 1e-9) {
++        errors.push(`${label}: склон круче предела рельефа — максимум ${peak.toFixed(3)} м/м (1,5 · ${Math.abs(h.height)} / ${h.radius}) `
++          + `при допустимых ${maxSlope}; радиус обязан быть не меньше ${(1.5 * Math.abs(h.height) / maxSlope).toFixed(0)} м `
++          + 'или высота меньше');
++      }
++    }
++    for (const [n, p] of (r.pads ?? []).entries()) {
++      const label = `relief.pads[${n}] (${p.id ?? 'без id'})`;
++      if (!(p.minX < p.maxX) || !(p.minZ < p.maxZ)) {
++        errors.push(`${label}: вырожденная площадка (${p.minX}…${p.maxX} × ${p.minZ}…${p.maxZ}) — опора в её ядре нечем не держится`);
++      }
++      const reach = Math.max(p.blend ?? r.blend ?? J.relief.blend, 0);
++      if (p.minX - reach < -half || p.maxX + reach > half
++        || p.minZ - reach < -half || p.maxZ + reach > half) {
++        errors.push(`${label}: площадка с переходной зоной ${reach} м выходит за землю ${size} м — `
++          + 'кольцо blend обрезано, и у её края уклон не ограничен');
++      }
++    }
++  }
++
+   // --- дороги: осевые последовательные точки и разумные уклоны ---
+   const roadRects = [];
+   for (const [n, road] of (raw.roads ?? []).entries()) {
+diff --git a/tools/normalize-level.mjs b/tools/normalize-level.mjs
+index e417146..88b395f 100644
+--- a/tools/normalize-level.mjs
++++ b/tools/normalize-level.mjs
+@@ -18,6 +18,7 @@ import {
+   subtractRect, unionBounds, frameOf, frameAt, obbHitsRect, obbHitsObb, obbOf, unrotatePoint, rotatePoint,
+   arcBounds, arcDelta, arcBankAt,
+ } from '../src/geo2d.js';
++import { reliefOf } from '../src/relief.js';
+ 
+ const J = CONFIG.jsonMap;
+ const DEG = Math.PI / 180;
+@@ -38,10 +39,16 @@ export function normalizeLevel(raw) {
+     size: r3(raw.ground?.size ?? 176),
+     color: raw.ground?.color ?? J.asphalt,
+   };
++  const relief = normalizeRelief(raw, ground, warnings);
++  // Отметка местности в точке — единственная запись о «полу главы»: рельеф там,
++  // где секция задана, и прежняя плоскость `ground.y` там, где её нет. Главы 9–11
++  // получают ту же константу, поэтому их модули обязаны остаться байт-в-байт.
++  ground.land = relief ? ((x, z) => relief.fieldAt(x, z)) : (() => ground.y);
+ 
+   const buildings = (raw.buildings ?? []).map(b => normalizeBuilding(b, ground, warnings));
+   const roads = (raw.roads ?? []).map(r => normalizeRoad(r, ground));
+   const channels = (raw.waterways ?? []).map(w => normalizeWaterway(w, ground));
++  if (relief) addHousePads(relief, buildings, warnings);
+ 
+   // препятствия для автогенерации: план наземных улиц, габариты зданий и планы
+   // береговых стенок со сходами — опора или фонарь, выросшие посреди асфальта,
+@@ -97,7 +104,7 @@ export function normalizeLevel(raw) {
+   }
+ 
+   const gp = raw.gameplay ?? {};
+-  checkPoints(gp, buildings, roads, channels, warnings);
++  checkPoints(gp, buildings, roads, channels, warnings, relief);
+ 
+   return {
+     name: raw.metadata.name,
+@@ -114,6 +121,9 @@ export function normalizeLevel(raw) {
+       kind: raw.kind ?? 'json',
+       units: 'meters',
+       ground,
++      // рельеф едет в модуль как данные поля (холмы и площадки), а не как растер
++      // высот: и парсер, и карта пересчитывают `heightAt` общей функцией
++      ...(relief ? { relief: relief.plain } : {}),
+       bounds: worldBounds(buildings, roads, channels, ground),
+       // точка A живёт в карте: движок передаёт createMap только map-секцию, а
+       // spawn нужен карте, чтобы найти опору под ногами до построения графа
+@@ -154,7 +164,12 @@ function normalizeBuilding(b, ground, warnings) {
+   const footprint = normalizePolygon(b.footprint, `${b.id}.footprint`, errors);
+   if (errors.length) throw new Error(errors.join('\n'));
+   const bb = polyBounds(footprint);
+-  const baseY = r3(b.baseY ?? ground.y);
++  // Пол главы под домом — отметка местности в его центре, а не `ground.y`:
++  // корпус на склоне без авторской baseY утонул бы в холм на половину его высоты.
++  // Без рельефа `land` — та же константа, поэтому главы 9–10 не двигаются.
++  const houseFrame = frameOf(bb, b.rotation ?? 0);
++  const houseCenter = rotatePoint(houseFrame, (bb.minX + bb.maxX) / 2, (bb.minZ + bb.maxZ) / 2);
++  const baseY = r3(b.baseY ?? ground.land(houseCenter.x, houseCenter.z));
+   const floorHeight = r3(b.floorHeight);
+ 
+   const walls = new Map();
+@@ -860,7 +875,7 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
+           const px = d.cx + Math.cos(am) * rho;
+           const pz = d.cz + Math.sin(am) * rho;
+           const bottom = arcTopAt(d, am, rho) - J.deckThickness;
+-          const footY = water ? (water(px, pz) ?? ground.y) : ground.y;
++          const footY = water ? (water(px, pz) ?? ground.land(px, pz)) : ground.land(px, pz);
+           // у начала подъёма настил ещё у земли: колонны там некуда расти
+           if (bottom - footY <= 1.0) continue;
+           const plan = obbOf({
+@@ -887,7 +902,11 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
+     // Осевая пластина v1 остаётся прежним правилом: пролёт с `rise` держат торцы,
+     // и модули глав 9–10 от этого не меняются.
+     const plate = d.length !== undefined;
+-    if (!plate && (d.ramp || d.bottomY - ground.y <= 1.0)) continue;
++    // «настил у земли» мерится по местности под его центром, а не по плоскости
++    // `ground.y`: пролёт, врезанный в холм, своей опорой держит склон, и колонны
++    // под ним выросли бы внутри грунта
++    const landAt = ground.land((d.minX + d.maxX) / 2, (d.minZ + d.maxZ) / 2);
++    if (!plate && (d.ramp || d.bottomY - landAt <= 1.0)) continue;
+     // у повёрнутой пластины опоры стоят в её осях: ряд идёт вдоль полотна, а не
+     // вдоль мировой оси, иначе колонны выстроились бы поперёк косой эстакады
+     const frame = deckFrame(d);
+@@ -913,7 +932,7 @@ function bridgePillars(road, ground, obstacles, warnings, water) {
+         // у начала подъёма настил ещё у земли: колонны там некуда расти — тот же
+         // гейт по высоте, что у дуги (для плоского пролёта он заведомо проходится)
+         const bottom = plate ? deckTopAt(d, p.x, p.z) - J.deckThickness : d.bottomY;
+-        const footY = water ? (water(p.x, p.z) ?? ground.y) : ground.y;
++        const footY = water ? (water(p.x, p.z) ?? ground.land(p.x, p.z)) : ground.land(p.x, p.z);
+         if (bottom - footY <= 1.0) continue;
+         const hit = frame
+           ? obstacles.find(ob => obbHitsObb(ob.rect, plan, 0.05))
+@@ -1174,19 +1193,138 @@ export function waterwayFoot(channels) {
+ }
+ 
+ 
++// ------------------------------------------------------------------- рельеф главы
++
++/**
++ * Рельеф главы: `plain` — данные поля (они едут в модуль главы), `fieldAt` —
++ * та же арифметика, которой парсер ставит опоры, основания колонн и фонари.
++ *
++ * Площадки-«пэды» парсер выводит сам: корпус обязан стоять на своей отметке
++ * `baseY`, а не на склоне под ним, и то же нужно наземному настилу. Ширину
++ * переходной зоны считает парсер, а не автор: площадке, которая выше природы на
++ * 6 м, нельзя переходить в склон за 14 м — это уклон 0,43 м/м, круче предела и
++ * дороги, и рельефа; поле тогда перестаёт быть плавным ровно там, где к нему
++ * примыкает дом.
++ */
++function normalizeRelief(raw, ground, warnings) {
++  const spec = raw.relief;
++  if (!spec) return null;
++  const maxSlope = spec.maxSlope ?? J.relief.maxSlope;
++  const plain = {
++    baseY: r3(spec.baseY ?? ground.y),
++    maxSlope,
++    blend: r3(spec.blend ?? J.relief.blend),
++    cell: r3(spec.cell ?? J.planGrid),
++    hills: (spec.hills ?? []).map(h => ({
++      id: h.id, x: r3(h.x), z: r3(h.z),
++      bx: h.bx === undefined ? undefined : r3(h.bx),
++      bz: h.bz === undefined ? undefined : r3(h.bz),
++      radius: r3(h.radius), height: r3(h.height),
++    })),
++    pads: (spec.pads ?? []).map(p => ({
++      id: p.id, minX: r3(p.minX), maxX: r3(p.maxX), minZ: r3(p.minZ), maxZ: r3(p.maxZ),
++      y: r3(p.y), blend: r3(p.blend ?? spec.blend ?? J.relief.blend), yaw: p.yaw,
++    })),
++  };
++  // «природа» — поле без площадок: именно к ней подгоняется переход каждой
++  // площадки, потому что соседние площадки её не касаются (они свои ядра)
++  const nature = reliefOf({ baseY: plain.baseY, hills: plain.hills });
++  const relief = {
++    plain,
++    field: null,
++    fieldAt: (x, z) => relief.field.heightAt(x, z),
++    addPads(list) {
++      for (const p of list) {
++        const { need } = fitPadBlend(p, nature, maxSlope);
++        if (need > J.relief.maxBlend + 0.5) {
++          warnings.push(`relief: площадке ${p.id ?? '?'} не хватает переходной зоны ${J.relief.maxBlend} м — `
++            + `кольцо даёт уклон ${(need / J.relief.maxBlend * maxSlope).toFixed(2)} м/м при пределе ${maxSlope}; `
++            + 'нужно сбросить отметку площадки или раздвинуть холм');
++        }
++        plain.pads.push(p);
++      }
++      relief.field = reliefOf(plain);
++    },
++  };
++  for (const p of plain.pads) fitPadBlend(p, nature, maxSlope);
++  relief.field = reliefOf(plain);
++  return relief;
++}
++
++/**
++ * Площадка корпуса под каждым домом: план — габарит footprint в собственных
++ * осях дома, отметка — его `baseY`, поворот — его `rotation`. Повёрнутый дом без
++ * повёрнутой площадки давал бы площадку-габарит, а под её углом склон торчал бы
++ * из-под пола.
++ */
++function addHousePads(relief, buildings, warnings) {
++  relief.addPads(buildings.map(b => ({
++    id: `${b.id}:площадка`,
++    minX: r3(b.bounds.minX), maxX: r3(b.bounds.maxX),
++    minZ: r3(b.bounds.minZ), maxZ: r3(b.bounds.maxZ),
++    y: b.baseY,
++    blend: relief.plain.blend,
++    yaw: b.rotation ?? undefined,
++  })));
++}
++
++/**
++ * Ширина перехода площадки из предела уклона: пробуем кольцо на расстоянии
++ * `blend`, считаем, какой ширины просит разница отметок (`|Δ| / maxSlope`), и
++ * повторяем — природа на новом кольце другая. Цикл сходится за 2–3 шага: поле
++ * холма монотонно, а каждый следующий шаг шире предыдущего.
++ *
++ * @returns {{blend:number, need:number}} подобранная ширина и то, что просило
++ *          поле на последнем шаге (по нему — предупреждение про предел)
++ */
++function fitPadBlend(p, nature, maxSlope) {
++  const frame = p.yaw ? frameAt((p.minX + p.maxX) / 2, (p.minZ + p.maxZ) / 2, p.yaw) : null;
++  let blend = p.blend;
++  let need = 0;
++  for (let i = 0; i < 5; i++) {
++    need = ringProbes(p, blend, frame)
++      .reduce((m, q) => Math.max(m, Math.abs(p.y - nature.heightAt(q.x, q.z)) / maxSlope), 0);
++    if (need <= blend + 0.5 || need >= J.relief.maxBlend) break;
++    blend = need;
++  }
++  p.blend = r3(Math.min(Math.max(blend, need), J.relief.maxBlend));
++  return { blend: p.blend, need };
++}
++
++/** Углы и середины рёбер кольца площадки (в её осях, вынесенные в мир кадром). */
++function ringProbes(p, blend, frame) {
++  const ring = {
++    minX: p.minX - blend, maxX: p.maxX + blend,
++    minZ: p.minZ - blend, maxZ: p.maxZ + blend,
++  };
++  const xs = [ring.minX, (ring.minX + ring.maxX) / 2, ring.maxX];
++  const zs = [ring.minZ, (ring.minZ + ring.maxZ) / 2, ring.maxZ];
++  const pts = [];
++  for (const x of xs) for (const z of zs) {
++    if (x !== (ring.minX + ring.maxX) / 2 && z !== (ring.minZ + ring.maxZ) / 2) continue;
++    pts.push(frame ? rotatePoint(frame, x, z) : { x, z });
++  }
++  return pts;
++}
++
+ // ------------------------------------------------------------------- предметы и опоры
+ 
+ /**
+  * Функция опоры по плану: верх настила дороги, если точка в его прямоугольнике
+  * (у наклонного пролёта — отметка наклонной плоскости под этой точкой), иначе низ
+- * перекрытия первого этажа здания (baseY), иначе дно русла, иначе земля. Предмет,
+- * поставленный на отметку ниже своей опоры, утонул бы в асфальте, а выше — висел.
++ * перекрытия первого этажа здания (baseY), иначе дно русла, иначе **местность** —
++ * `relief.heightAt` там, где рельеф задан, и плоскость `ground.y` там, где нет.
++ * Предмет, поставленный на отметку ниже своей опоры, утонул бы в асфальте, а
++ * выше — висел.
++ *
++ * Дно русла старше поля: холм, пересечённый рекой, под водой не стоит, и опора
++ * там, где грунт вырезан, обязана быть отметкой дна.
+  */
+ function makeSupport(ground, roads, buildings, water) {
+   const plates = roads.flatMap(r => r.decks);
+   const plots = buildings.map(b => ({ box: buildingBox(b), y: b.baseY }));
+   return (x, z) => {
+-    let y = water ? (water(x, z) ?? ground.y) : ground.y;
++    let y = water ? (water(x, z) ?? ground.land(x, z)) : ground.land(x, z);
+     for (const d of plates) {
+       if (!deckHolds(d, x, z)) continue;
+       const top = deckTopAt(d, x, z);
+@@ -1271,7 +1409,7 @@ function makeProp(id, model, x, y, z, scale, source, rotationY = 0) {
+ }
+ 
+ /** Проверка точек главы: спавн не в стене, точка B на чём-то стоит. */
+-function checkPoints(gp, buildings, roads, channels, warnings) {
++function checkPoints(gp, buildings, roads, channels, warnings, relief) {
+   // стены и план дома лежат в его собственных осях, поэтому мировая точка
+   // сначала разворачивается в них: иначе проба косого корпуса давала бы
+   // «внутри габарита» там, где фасад только смотрит углом
+@@ -1294,7 +1432,10 @@ function checkPoints(gp, buildings, roads, channels, warnings) {
+       warnings.push(`${key} ${p.x}, ${p.z}: в русле, вне настила и здания — точка встанет на дно`);
+     }
+   }
+-  if (gp.exit && !onSomething(gp.exit.x, gp.exit.z)) {
++  if (gp.exit && !relief && !onSomething(gp.exit.x, gp.exit.z)) {
++    // Своя местность тоже держит точку: поле непрерывно и ограничено уклоном,
++    // поэтому маяк на открытом склоне главы с рельефом стоит на земле, а не
++    // висит над ней — «не над настилом» было бы ложным предупреждением
+     warnings.push(`gameplay.exit ${gp.exit.x}, ${gp.exit.z}: не над зданием и не над настилом — маяк повиснет`);
+   }
+ }

@@ -223,13 +223,14 @@ export class Enemy {
 
   /** Ставит врага на свободный узел навигации вдали от игрока. */
   respawn(playerPos) {
-    const nodes = this.map.nav.pos;
-    let node = nodes[Math.floor(Math.random() * nodes.length)];
+    let node = null;
     for (let i = 0; i < 120; i++) {
-      const p = nodes[Math.floor(Math.random() * nodes.length)];
+      const p = this.map.randomNavPoint(playerPos.x, playerPos.z, 180);
+      if (!p) continue;
       const d = Math.hypot(p.x - playerPos.x, p.z - playerPos.z);
       if (d >= this.cfg.spawnDistance && d < 180) { node = p; break; }
     }
+    if (!node) return;
 
     this.group.position.set(node.x, node.y, node.z);
     this.group.rotation.set(0, Math.random() * Math.PI * 2, 0);
@@ -649,13 +650,14 @@ export class AlienEnemy extends AlienBody {
   /** Возрождение на свободном узле навигации вдали от игрока. */
   respawn(playerPos) {
     const cfg = this.cfgEnemy;
-    const nodes = this.map.nav.pos;
-    let node = nodes[Math.floor(Math.random() * nodes.length)];
+    let node = null;
     for (let i = 0; i < 120; i++) {
-      const p = nodes[Math.floor(Math.random() * nodes.length)];
+      const p = this.map.randomNavPoint(playerPos.x, playerPos.z, 180);
+      if (!p) continue;
       const d = Math.hypot(p.x - playerPos.x, p.z - playerPos.z);
       if (d >= cfg.spawnDistance && d < 180) { node = p; break; }
     }
+    if (!node) return;
 
     this.pos.set(node.x, node.y + this.cfg.radius, node.z);
     this.up.set(0, 1, 0);
@@ -787,7 +789,7 @@ export class Enemies {
     const b = this.map.bounds;
     for (const e of this.items) {
       e.shift(dx, dz);
-      if (!e.offstage && (Math.abs(e.position.x) > b.maxX || Math.abs(e.position.z) > b.maxZ)) {
+      if (!e.offstage && (e.position.x < b.minX || e.position.x > b.maxX || e.position.z < b.minZ || e.position.z > b.maxZ)) {
         e.despawn();
       }
     }

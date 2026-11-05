@@ -102,7 +102,9 @@ export class Weapon {
 
   /** Выстрел, если пауза между выстрелами истекла. */
   _tryFire() {
-    if (this.cooldown > 0) return;
+    // из-за руля не стреляют: винтовка осталась в руках пешехода, а преследующая
+    // камера смотрит на кузов, поэтому луч пошёл бы по асфальту за кормой
+    if (this.cooldown > 0 || this.player.vehicle) return;
     const w = CONFIG.weapon;
     this.cooldown = w.fireDelay;
     this.recoil = 1;
@@ -139,7 +141,11 @@ export class Weapon {
 
   update(dt) {
     if (this.cooldown > 0) this.cooldown -= dt;
-    if (this.firing && this.player.isLocked && this.cooldown <= 0) this._tryFire();
+    // в кузове модель оружия убираем: она висит на камере, а камера теперь
+    // смотрит на машину со стороны — винтовка легла бы поверх её крыши
+    const driving = !!this.player.vehicle;
+    this.group.visible = !driving;
+    if (this.firing && this.player.isLocked && !driving && this.cooldown <= 0) this._tryFire();
 
     // отдача: ствол уходит назад и вверх, затем плавно возвращается
     this.recoil = Math.max(0, this.recoil - dt * 7);

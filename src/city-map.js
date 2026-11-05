@@ -234,6 +234,7 @@ export class CityMap extends SolidField {
    * домов собирает buildBuildingGeometry; индексируются они в indexSolids().
    */
   build(scene) {
+    this.sceneObjects = [];
     const c = this.cfg;
     const mats = {
       asphalt: new THREE.MeshStandardMaterial({ color: c.asphalt, roughness: 1, metalness: 0 }),
@@ -243,10 +244,12 @@ export class CityMap extends SolidField {
       stairs: new THREE.MeshStandardMaterial({ color: c.stairs, roughness: .9, metalness: .05 }),
     };
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(this.width, this.depth), mats.asphalt);
+    const groundGeo = new THREE.PlaneGeometry(this.width, this.depth);
+    const ground = new THREE.Mesh(groundGeo, mats.asphalt);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
+    this.sceneObjects.push({ mesh: ground, geo: groundGeo, mat: mats.asphalt });
 
     this.solids = [];
 
@@ -269,13 +272,28 @@ export class CityMap extends SolidField {
 
     const add = (geos, mat) => {
       if (!geos.length) return;
-      const mesh = new THREE.Mesh(mergeGeometries(geos, false), mat);
+      const g = mergeGeometries(geos, false);
+      const mesh = new THREE.Mesh(g, mat);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
+      this.sceneObjects.push({ mesh, geo: g, mat });
     };
     add(plotGeos, mats.plot);
     for (const key of Object.keys(parts)) add(parts[key], mats[key]);
+  }
+
+  /**
+   * Снимает со сцены меши города, их геометрии и свои материалы: всё создано
+   * `build` для себя, общих материалов у города нет.
+   */
+  dispose() {
+    for (const o of this.sceneObjects ?? []) {
+      o.mesh.parent?.remove(o.mesh);
+      o.geo?.dispose?.();
+      o.mat?.dispose?.();
+    }
+    this.sceneObjects = [];
   }
 
   /** План города: кварталы, улицы и стены домов текущего этажа. */

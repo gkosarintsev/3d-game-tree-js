@@ -167,15 +167,19 @@ export function buildDecor(scene, map) {
   };
 
   const add = (geos, mat) => {
-    if (!geos.length) return;
-    const mesh = new THREE.Mesh(mergeGeometries(geos, false), mat);
+    if (!geos.length) return [];
+    const g = mergeGeometries(geos, false);
+    const mesh = new THREE.Mesh(g, mat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     scene.add(mesh);
+    return [{ mesh, geo: g, mat }];
   };
-  add(trunkGeos, mats.trunk);
-  add(leafGeos, mats.leaf);
-  add(poleGeos, mats.pole);
-  add(bulbGeos, mats.bulb);
-  add(propGeos, mats.prop);
+  const out = [];
+  out.push(...add(trunkGeos, mats.trunk));
+  out.push(...add(leafGeos, mats.leaf));
+  out.push(...add(poleGeos, mats.pole));
+  out.push(...add(bulbGeos, mats.bulb));
+  out.push(...add(propGeos, mats.prop));
+  return out;
 }

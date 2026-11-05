@@ -26,6 +26,16 @@ export class Hud {
       'color:#e8f1ff;font:600 15px "Segoe UI",sans-serif;' +
       'text-shadow:0 1px 4px rgba(0,0,0,.65);pointer-events:none;';
     document.body.appendChild(this.chapterEl);
+
+    // подсказка у машины: «F — сесть» / «F — выйти». Отдельный элемент, а не
+    // строка помощи: строка помощи постоянная, а эта живёт только в радиусе
+    // посадки и исчезает, стоит отойти
+    this.carHintEl = document.createElement('div');
+    this.carHintEl.style.cssText =
+      'position:absolute;bottom:16%;left:50%;transform:translateX(-50%);' +
+      'color:#ffe6a8;font:600 17px "Segoe UI",sans-serif;' +
+      'text-shadow:0 2px 6px rgba(0,0,0,.8);pointer-events:none;opacity:0;';
+    document.body.appendChild(this.carHintEl);
   }
 
   /** Клик по оверлею запрашивает захват курсора (обработчик задаёт игра). */
@@ -58,21 +68,49 @@ export class Hud {
     });
   }
 
-  /** Подсказки управления под выбранную роль. */
+  /**
+   * Подсказки управления под выбранную роль. Пешечный текст запоминается, потому
+   * что `setDrivingHelp` подменяет его за рулём и обязан вернуть ровно то, что
+   * было, — иначе подсказка про удар лапой пропала бы после первой поездки.
+   */
   setRole(role) {
-    if (role === 'alien') {
-      this.helpEl.innerHTML = `
+    this._driveHelp = `
+        <b>За рулём</b><br>
+        <kbd>W</kbd><kbd>S</kbd> — газ и тормоз, <kbd>A</kbd><kbd>D</kbd> — руль<br>
+        <kbd>F</kbd> — выйти из машины<br>
+        Мышь и стрельба в поездке не работают, урон по водителю не проходит.`;
+    this._roleHelp = role === 'alien' ? `
         <b>Чужой</b><br>
         <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — движение<br>
         <kbd>Мышь</kbd> — обзор, <kbd>Shift</kbd> — бег<br>
-        <kbd>ЛКМ</kbd> — удар рукой, <kbd>Space</kbd> — прыжок вперёд, <kbd>Esc</kbd> — пауза`;
-    } else {
-      this.helpEl.innerHTML = `
+        <kbd>ЛКМ</kbd> — удар рукой, <kbd>Space</kbd> — прыжок вперёд, <kbd>F</kbd> — машина, <kbd>Esc</kbd> — пауза` : `
         <b>Управление</b><br>
         <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — движение<br>
         <kbd>Мышь</kbd> — обзор, <kbd>Shift</kbd> — бег<br>
-        <kbd>ЛКМ</kbd> — огонь, <kbd>Space</kbd> — прыжок, <kbd>Esc</kbd> — пауза`;
-    }
+        <kbd>ЛКМ</kbd> — огонь, <kbd>Space</kbd> — прыжок, <kbd>F</kbd> — машина, <kbd>Esc</kbd> — пауза`;
+    this.helpEl.innerHTML = this._roleHelp;
+  }
+
+  /** За рулём — свои подсказки; пешком — прежние, роль не меняется. */
+  setDrivingHelp(isDriving) {
+    if (!this._roleHelp) return; // роль ещё не выбрана (экран выбора персонажа)
+    this.helpEl.innerHTML = isDriving ? this._driveHelp : this._roleHelp;
+  }
+
+  /**
+   * Подсказка у машины: 'enter' — сто́ит рядом свободная, 'exit' — игрок за
+   * рулём, null — спрятать. Разметку держит здесь же класс, а не игра: движок
+   * передаёт только смысл, DOM трогает только `hud` (см. AGENTS.md, «Стиль»).
+   */
+  showCarHint(kind) {
+    // состояние меняется раз за поездку, а зовётся каждый кадр: перетирание
+    // innerHTML на каждом кадре добавляло бы раскладку в горячий цикл
+    if (this._carHintKind === kind) return;
+    this._carHintKind = kind;
+    this.carHintEl.innerHTML = kind === 'enter'
+      ? '<kbd>F</kbd> — сесть в машину'
+      : kind === 'exit' ? '<kbd>F</kbd> — выйти' : '';
+    this.carHintEl.style.opacity = kind ? '1' : '0';
   }
 
   /** Метка текущей главы в углу игрового экрана. */
@@ -237,8 +275,8 @@ export class Hud {
     this._hitTimer = setTimeout(() => { this.hitEl.style.opacity = '0'; }, 100);
   }
 
-  /** Рисует миникарту: план текущего этажа, монеты, врагов, точку B и маркер игрока. */
-  drawMinimap(map, coins, playerPos, forward, enemies, exit = null) {
+  /** Рисует миникарту: план текущего этажа, монеты, врагов, машины, точку B и маркер игрока. */
+  drawMinimap(map, coins, playerPos, forward, enemies, exit = null, cars = null) {
     const size = this.minimap.width;
     const ctx = this.ctx;
 
@@ -262,6 +300,23 @@ export class Hud {
         ctx.beginPath();
         ctx.arc(u * size, v * size, size * 0.014, 0, Math.PI * 2);
         ctx.fill();
+      });
+    }
+
+    // Машины — чертой вдоль своей оси, а не точкой: на петле главы 13 кузов
+    // стоит на полосе настила, и точка не отличала бы его от врага
+    if (cars) {
+      ctx.strokeStyle = 'rgba(146,214,255,.95)';
+      ctx.lineWidth = 2;
+      cars.forEachVisible((pos, yaw) => {
+        const [u, v] = map.worldToNormalized(pos.x, pos.z);
+        const r = size * 0.022;
+        // направление носа в мире — (cos yaw, −sin yaw); по осям миникарты
+        // (u — X, v — Z) та же развёртка, поэтому приращения идут с тем знаком
+        ctx.beginPath();
+        ctx.moveTo(u * size - Math.cos(yaw) * r, v * size + Math.sin(yaw) * r);
+        ctx.lineTo(u * size + Math.cos(yaw) * r, v * size - Math.sin(yaw) * r);
+        ctx.stroke();
       });
     }
 

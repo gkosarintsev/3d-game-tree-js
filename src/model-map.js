@@ -691,6 +691,19 @@ export class ModelMap extends SolidField {
     ctx.textBaseline = 'top';
     ctx.fillText(onStreet ? 'Улица' : 'Крыша', 10, 10);
   }
+
+  /**
+   * Снимает со сцену меши района и их геометрии. Материалы приходят из кэша
+   * GLTFLoader (src/glb.js) и переживают смену главы — их не убираем, как и
+   * пропы в JsonMap (AGENTS.md про «не трогать общие материалы»).
+   */
+  dispose() {
+    for (const mesh of this.modelMeshes ?? []) {
+      mesh.parent?.remove(mesh);
+      mesh.geometry?.dispose?.();
+    }
+    this.modelMeshes = [];
+  }
 }
 
 /**

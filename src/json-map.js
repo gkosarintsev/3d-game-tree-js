@@ -892,8 +892,11 @@ export class JsonMap extends SolidField {
    * пересекаются); null — ни одна не накрывает.
    */
   _prismTopAt(x, z) {
+    const out = this._tmpIdx;
+    out.length = 0;
+    this._plansAround(this._prismCells, x, z, out, 0);
     let best = null;
-    for (const idx of this._planAt(this._prismCells, x, z, 0)) {
+    for (const idx of out) {
       const w = this.prisms[idx];
       // клетка индекса (24 м) гораздо шире плана призмы: без проверки
       // попадания в сам прямоугольник верх настила протекал бы на точки
@@ -1397,6 +1400,10 @@ export class JsonMap extends SolidField {
     this._planSeen = new Set();
     this._rayCand = [];
     this._sphereCand = [];
+    /** временный буфер индексов планов: _prismTopAt и _inChannel берутся из
+     *  groundHeightAt каждый кадр каждого тела — без него каждый вызов плодил
+     *  массив в _planAt (см. комментарий у topAt, стр. 931-935) */
+    this._tmpIdx = [];
   }
 
   /**
@@ -1487,7 +1494,10 @@ export class JsonMap extends SolidField {
    */
   _inChannel(x, z) {
     if (!this.holes.length) return false;
-    for (const idx of this._planAt(this._holeCells, x, z, 0)) {
+    const out = this._tmpIdx;
+    out.length = 0;
+    this._plansAround(this._holeCells, x, z, out, 0);
+    for (const idx of out) {
       const r = this.holes[idx];
       if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
     }

@@ -635,6 +635,7 @@ export class TerrainMap extends SolidField {
    * — силуэт горы не распадается на ступени по 4 юнита.
    */
   build(scene) {
+    this.sceneObjects = [];
     const rockGeos = [];
     const woodGeos = [];
     const { cell, half, N } = this;
@@ -657,27 +658,40 @@ export class TerrainMap extends SolidField {
     if (tri.length) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(tri, 3));
-      // Соседние клетки ставят одинаковые вершины на общем ребре решётки.
-      // mergeVertices сваривает их в одну, и нормали усредняются — иначе
-      // каждый треугольник даёт свою плоскую грань и гора выглядит гранёной,
-      // хотя её силуэт уже гладкий.
       const welded = mergeVertices(g);
       welded.computeVertexNormals();
       const mesh = new THREE.Mesh(welded, rockMat);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
+      this.sceneObjects.push({ mesh, geo: welded, mat: rockMat });
     }
 
     const add = (geos, mat) => {
       if (!geos.length) return;
-      const mesh = new THREE.Mesh(mergeGeometries(geos, false), mat);
+      const g = mergeGeometries(geos, false);
+      const mesh = new THREE.Mesh(g, mat);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
+      this.sceneObjects.push({ mesh, geo: g, mat });
     };
     add(rockGeos, rockMat);
     add(woodGeos, new THREE.MeshStandardMaterial({ color: 0x6e4b2c, roughness: 0.85, metalness: 0 }));
+  }
+
+  /**
+   * Снимает со сцены меши рельефа и их геометрии/материалы: всё создано
+   * `build` для себя, общих материалов у рельефа нет (AGENTS.md про
+   * dispose-контракт классов карт).
+   */
+  dispose() {
+    for (const o of this.sceneObjects ?? []) {
+      o.mesh.parent?.remove(o.mesh);
+      o.geo?.dispose?.();
+      o.mat?.dispose?.();
+    }
+    this.sceneObjects = [];
   }
 
   /**

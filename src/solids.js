@@ -439,11 +439,11 @@ export class SolidField {
    * isBlocked/groundHeightAt конкретной карты — без обхода мешей.
    */
   rayHitDistance(ox, oy, oz, dx, dy, dz, maxDist) {
-    const step = 0.6;
+    const { step, radius, yOffset, height, eps } = CONFIG.ray;
     for (let t = step; t <= maxDist; t += step) {
       const x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
-      if (this.isBlocked(x, z, 0.18, y - 0.15, 0.3)) return t;
-      if (this.groundHeightAt(x, z, y) > y + 0.02) return t;
+      if (this.isBlocked(x, z, radius, y - yOffset, height)) return t;
+      if (this.groundHeightAt(x, z, y) > y + eps) return t;
     }
     return maxDist;
   }

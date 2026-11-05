@@ -584,6 +584,20 @@ export const TRACK_ARC_MIN = 2;
  */
 export const TRACK_ARC_SLIVER = 1;
 
+/**
+ * Пол длины куска полотна, который схема v2 ещё примет (`V2_PLATE.length`
+ * начинается с 1 м). Целые элементы его уже держат: дуга короче метра
+ * сбрасывается в угол (`TRACK_ARC_SLIVER`), прямая — не короче `MIN_RUN`. Но
+ * **окно перил** режет полотно, где его поставил стык съезда, и граница окна
+ * может лечь ближе метра к торцу элемента: кусок тоньше пола не собрался бы
+ * вовсе, и кольцо браковалось схемой пост-фактум (замер зонда: на рунах 25 и
+ * 101 падают пластины `ring_ring` длиной 0,041 и 0,126 м — самое окно перил).
+ * Кусок тоньше пола вливается в соседа со стороны окна: открытый борт только
+ * растёт за пределы номинального окна и страж стыка держится, а сращивать
+ * кусок с соседом-ограждением нельзя — стенка встала бы поперёк перехода.
+ */
+export const TRACK_PIECE_MIN = 1;
+
 export const trackSpec = t => {
   const out = { ...TRACK_DEFAULTS, ...t };
   const c = Array.isArray(t?.center) ? t.center : TRACK_DEFAULTS.center;
@@ -1397,7 +1411,7 @@ function rampElements(e, spec) {
   };
   const ringTop = e.toe.ringTop, toeTop = e.toe.top;
   const win = spec.width / 2 + TRACK_RAIL_MARGIN;
-  if (total - win <= 1e-6) return [plate(0, 1, ringTop, toeTop - ringTop, false)];
+  if (total - win < TRACK_PIECE_MIN - 1e-9) return [plate(0, 1, ringTop, toeTop - ringTop, false)];
   const k = win / total;
   const yMid = r3(ringTop + (toeTop - ringTop) * k);
   const yRing = r3(ringTop);
@@ -1457,10 +1471,23 @@ function trackRailWindows(track) {
  * настила флаг `rails` покрывной, поэтому единственный способ расступиться
  * стенке перед съездом — отдать под стык отдельный элемент без ограждения.
  */
-function trackElements(track) {
+export function trackElements(track) {
   const spec = track.spec, fit = track.fit, out = [];
   if (!fit) throw new Error('trackElements: подгонка не посчитана — трассе нужен trackProfile до эмиссии');
   const windows = trackRailWindows(track);
+  // «отрезок полотна лежит в окне» — тест по **перекрытию отрезков** в
+  // пройденных метрах петли, а не по его середине: после слияния куска,
+  // тоньше пола схемы, середина укрупнённого куска может выйти за пределы
+  // окна, и по середине стенка встала бы поперёк перехода. Проб через ±L
+  // петли достаточно, потому что куски шов не переходят: он стоит на
+  // границе элементов (замыкается построением в `trackCenterline`)
+  const touch = (p0, p1) => {
+    const len = p1 - p0;
+    for (const base of [p0 - track.length, p0, p0 + track.length]) {
+      for (const [lo, hi] of windows) if (base < hi && base + len > lo) return true;
+    }
+    return false;
+  };
   for (let k = 0; k < track.elements.length; k++) {
     const el = track.elements[k];
     // разрезы элемента: границы окон, лежащие строго внутри него. Элемент,
@@ -1472,11 +1499,33 @@ function trackElements(track) {
       for (const c of [lo - el.s0, hi - el.s0]) if (c > 1e-6 && c < el.len - 1e-6) cuts.push(c);
     }
     cuts.sort((a, b) => a - b);
+    for (let i = cuts.length - 2; i > 0; i--) {
+      if (cuts[i + 1] - cuts[i] <= 1e-6) cuts.splice(i, 1);
+    }
+    // куски тоньше пола схемы (комментарий TRACK_PIECE_MIN) вливаются в соседа
+    // со стороны окна; каждый проход убирает один кусок, поэтому цикл конечен
+    for (;;) {
+      let merged = false;
+      for (let i = 0; i + 1 < cuts.length; i++) {
+        if (r3(cuts[i + 1] - cuts[i]) >= TRACK_PIECE_MIN) continue;
+        let drop;
+        if (i === 0) drop = 1;
+        else if (i === cuts.length - 2) drop = i;
+        else drop = touch(el.s0 + cuts[i - 1], el.s0 + cuts[i + 1]) ? i : i + 1;
+        cuts.splice(drop, 1);
+        merged = true;
+        break;
+      }
+      if (!merged) break;
+    }
     for (let c = 0; c + 1 < cuts.length; c++) {
       const c0 = cuts[c], c1 = cuts[c + 1];
       if (c1 - c0 <= 1e-6) continue;
-      const mid = el.s0 + (c0 + c1) / 2;
-      const rails = !!spec.rails && !windows.some(([lo, hi]) => mid >= lo && mid <= hi);
+      // ограждение — по **перекрытию куска с окном**, а не по его середине:
+      // после сливания куска-огрызка с соседом середина может выйти за
+      // пределы окна, и по старой пробе стенка встала бы поперёк перехода —
+      // то самое ребро стыка, ради которого окно режут
+      const rails = !!spec.rails && !touch(el.s0 + c0, el.s0 + c1);
       // отметки швов, не тронутых разрезом, берутся с тех же `fit.v`, что и
       // до правки: интерполяция на узле даёт то же число с шумом обратного
       // хода, а модуль главы обязан сходиться побайтово

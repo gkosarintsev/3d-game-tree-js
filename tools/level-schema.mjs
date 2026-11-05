@@ -197,6 +197,15 @@ export const LEVEL_SPEC = obj({
     exitRadius: num({ min: 1, max: 40 }),
     enemies: obj({ count: num({ min: 0, max: 30 }) }),
     alienEnemies: obj({ count: num({ min: 0, max: 30 }) }),
+    // Автомобили уровня: сколько их и где они стоят (src/vehicle.js). Точки задаёт
+    // автор, а не генератор: на кольце главы 13 все настилы наклонные, а
+    // `_collectAnchors` снимает наклонные из `openPositions()`, поэтому опорных
+    // точек, откуда стоянка взялась бы сама, на петле нет вовсе.
+    cars: obj({
+      count: num({ min: 0, max: 8, req: true }),
+      spots: arr(obj({ x: num({ req: true }), z: num({ req: true }), yaw: num({ min: -360, max: 360 }) }),
+        { minItems: 0, maxItems: 8 }),
+    }),
   }, { req: true }),
 });
 
@@ -981,6 +990,44 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
     if (!pos) continue;
     if (Math.abs(pos.x) > half || Math.abs(pos.z) > half) {
       errors.push(`${key}: точка ${pos.x}, ${pos.z} вне земли ${raw.ground?.size} м`);
+    }
+  }
+
+  // --- автомобили: обещанное число, точки в кадре, корпус ни во что не упирается ---
+  // Мерится корпус с его поворотом, а не точка-центр: центр ничего не говорит о
+  // том, куда смотрит капот, и повёрнутый в фасад корпус точка бы не выдала
+  const carsGp = raw.gameplay?.cars;
+  if (carsGp) {
+    const spots = carsGp.spots ?? [];
+    if (carsGp.count !== spots.length) {
+      errors.push(`gameplay.cars: count ${carsGp.count} не совпал с числом точек (${spots.length}) — `
+        + 'движок ставит ровно по списку, и вторая цифра читалась бы как обещание, которого данные не отдают');
+    }
+    const boxes = [];
+    for (const [n, p] of spots.entries()) {
+      const label = `gameplay.cars.spots[${n}] (${p.x}, ${p.z}, yaw ${p.yaw ?? 0}°)`;
+      if (Math.abs(p.x) > half || Math.abs(p.z) > half) {
+        errors.push(`${label}: точка вне земли ${size} м — машина встанет за её краем, где ни опоры, ни дороги нет`);
+        continue;
+      }
+      const box = obbOf(rectAround(p.x, p.z, CONFIG.car.length, CONFIG.car.width), frameAt(p.x, p.z, p.yaw ?? 0));
+      for (const b of normBuildings) {
+        const outline = obbOf(b.bounds, frameOf(b.bounds, b.rotation ?? 0));
+        if (obbHitsObb(outline, box, 0.05)) {
+          errors.push(`${label}: корпус лег в план дома ${b.id} — машина внутри фасада не видна с улиц, `
+            + 'и подойти к ней нельзя; уведи точку или поверни её');
+          break;
+        }
+      }
+      boxes.push({ label, box });
+    }
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        if (obbHitsObb(boxes[i].box, boxes[j].box)) {
+          errors.push(`${boxes[i].label} и ${boxes[j].label}: планы машин пересеклись — два корпуса на одном `
+            + 'асфальте, и игрок видит только ближайший: вторую машину он не находит');
+        }
+      }
     }
   }
 

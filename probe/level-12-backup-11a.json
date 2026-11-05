@@ -1,0 +1,2098 @@
+{
+  "metadata": {
+    "levelName": "level-12",
+    "name": "Глава 12. Рельефный мегаполис",
+    "hint": "Два яруса города: порт и набережные внизу, деловой центр на холме +14 м. Три горбатых моста через реку, эстакада вдоль берега и развязка с банкованными дугами ведут на плато; оттуда — в западную иглу, по переходу между башнями и на её кровлю, где маяк.",
+    "engine": "AI-First Three.js Pipeline",
+    "units": "meters"
+  },
+  "ground": {
+    "y": 0,
+    "size": 600,
+    "color": "#2a2d33"
+  },
+  "windows": {
+    "lit": 0.42
+  },
+  "clutter": {
+    "roof": {
+      "perHouse": 4
+    },
+    "street": {
+      "every": 26
+    }
+  },
+  "signage": {
+    "keep": 0.75,
+    "width": [
+      3.5,
+      6.5
+    ]
+  },
+  "city": {
+    "seed": 20261104,
+    "districts": [
+      {
+        "id": "sind",
+        "name": "Портовая промзона",
+        "style": "industrial",
+        "block": {
+          "minX": -290,
+          "maxX": -100,
+          "minZ": -296,
+          "maxZ": -176
+        },
+        "street": {
+          "pitch": 44,
+          "width": 16,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 13,
+          "inset": 2,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 1,
+          "maxFloors": 5,
+          "floorHeight": 4.6
+        },
+        "tower": {
+          "chance": 0.05,
+          "floors": [
+            12,
+            20
+          ],
+          "floorHeight": 5
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "bar_pair",
+          "cross",
+          "stepped2"
+        ],
+        "enterableEvery": 3,
+        "skip": 0.05,
+        "courtyard": 0.1,
+        "roofs": {
+          "walkable": true,
+          "access": 0.5,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "skit",
+        "name": "Трущобы Ист-сайда",
+        "style": "kitsch",
+        "block": {
+          "minX": 60,
+          "maxX": 290,
+          "minZ": -273,
+          "maxZ": -207
+        },
+        "street": {
+          "pitch": 34,
+          "width": 12,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 10,
+          "inset": 1.5,
+          "merge": 0.5
+        },
+        "height": {
+          "minFloors": 3,
+          "maxFloors": 12,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            16,
+            34
+          ],
+          "floorHeight": 3.9
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "t",
+          "cross",
+          "stepped2",
+          "bar_pair"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": -14,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "nkab",
+        "name": "Кабуки на плато",
+        "style": "slum",
+        "block": {
+          "minX": -280,
+          "maxX": -120,
+          "minZ": 145,
+          "maxZ": 265
+        },
+        "street": {
+          "pitch": 30,
+          "width": 10,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 9,
+          "inset": 1.5,
+          "merge": 0.5
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 7,
+          "floorHeight": 3.1
+        },
+        "tower": {
+          "chance": 0.03,
+          "floors": [
+            10,
+            18
+          ],
+          "floorHeight": 3.4
+        },
+        "archetypes": [
+          "box",
+          "l",
+          "u",
+          "bar_pair",
+          "stepped2",
+          "podium_tower"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.03,
+        "courtyard": 0.2,
+        "yaw": 22,
+        "roofs": {
+          "walkable": true,
+          "access": 0.4,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "ncc",
+        "name": "Корпоративный центр на плато",
+        "style": "corporate",
+        "block": {
+          "minX": -30,
+          "maxX": 230,
+          "minZ": 150,
+          "maxZ": 270
+        },
+        "street": {
+          "pitch": 40,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 10,
+          "inset": 1.5,
+          "merge": 0.5
+        },
+        "height": {
+          "minFloors": 4,
+          "maxFloors": 16,
+          "floorHeight": 3.8
+        },
+        "tower": {
+          "chance": 0.14,
+          "floors": [
+            24,
+            52
+          ],
+          "floorHeight": 4.4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "t",
+          "cross",
+          "stepped2",
+          "stepped3",
+          "podium_tower"
+        ],
+        "enterableEvery": 3,
+        "skip": 0.02,
+        "courtyard": 0.16,
+        "yaw": -8,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      }
+    ]
+  },
+  "waterways": [
+    {
+      "id": "river",
+      "width": 60,
+      "bedY": -4,
+      "surfaceY": -1.5,
+      "bank": "quay",
+      "wade": true,
+      "points": [
+        {
+          "x": -300,
+          "z": -120
+        },
+        {
+          "x": 300,
+          "z": -120
+        }
+      ],
+      "ramps": [
+        {
+          "at": {
+            "x": -260,
+            "z": -125
+          },
+          "width": 6
+        },
+        {
+          "at": {
+            "x": -20,
+            "z": -125
+          },
+          "width": 6
+        },
+        {
+          "at": {
+            "x": 100,
+            "z": -125
+          },
+          "width": 6
+        },
+        {
+          "at": {
+            "x": 260,
+            "z": -125
+          },
+          "width": 6
+        }
+      ]
+    }
+  ],
+  "roads": [
+    {
+      "id": "rd_quay_s",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        {
+          "x": -280,
+          "y": 0.12,
+          "z": -170
+        },
+        {
+          "x": 280,
+          "y": 0.12,
+          "z": -170
+        }
+      ]
+    },
+    {
+      "id": "rd_quay_n",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        {
+          "x": -280,
+          "y": 0.12,
+          "z": -69
+        },
+        {
+          "x": 280,
+          "y": 0.12,
+          "z": -69
+        }
+      ]
+    },
+    {
+      "id": "rd_port_ave",
+      "type": "ground",
+      "width": 8,
+      "lamps": true,
+      "points": [
+        {
+          "x": -20,
+          "y": 0.12,
+          "z": -290
+        },
+        {
+          "x": -20,
+          "y": 0.12,
+          "z": -175
+        }
+      ]
+    },
+    {
+      "id": "rd_low_link",
+      "type": "ground",
+      "width": 8,
+      "lamps": true,
+      "points": [
+        {
+          "x": -90,
+          "y": 0.12,
+          "z": -250
+        },
+        {
+          "x": 50,
+          "y": 0.12,
+          "z": -250
+        }
+      ]
+    },
+    {
+      "id": "rd_plate_ave",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        {
+          "x": -280,
+          "y": 14.702,
+          "z": 118
+        },
+        {
+          "x": -260,
+          "y": 14.871,
+          "z": 118
+        },
+        {
+          "x": -237,
+          "y": 14.886,
+          "z": 118
+        },
+        {
+          "x": -129,
+          "y": 14.556,
+          "z": 118
+        },
+        {
+          "x": -107,
+          "y": 14.613,
+          "z": 118
+        },
+        {
+          "x": -53,
+          "y": 14.898,
+          "z": 118
+        },
+        {
+          "x": 104,
+          "y": 14.898,
+          "z": 118
+        },
+        {
+          "x": 120,
+          "y": 14.796,
+          "z": 118
+        },
+        {
+          "x": 157,
+          "y": 14.347,
+          "z": 118
+        },
+        {
+          "x": 175,
+          "y": 14.2,
+          "z": 118
+        },
+        {
+          "x": 194,
+          "y": 14.177,
+          "z": 118
+        },
+        {
+          "x": 218,
+          "y": 14.313,
+          "z": 118
+        },
+        {
+          "x": 224,
+          "y": 14.157,
+          "z": 118
+        },
+        {
+          "x": 235,
+          "y": 13.6,
+          "z": 118
+        },
+        {
+          "x": 240,
+          "y": 13.434,
+          "z": 118
+        },
+        {
+          "x": 280,
+          "y": 13.415,
+          "z": 118
+        }
+      ]
+    },
+    {
+      "id": "rd_scarp_ave",
+      "type": "ground",
+      "width": 10,
+      "lamps": true,
+      "points": [
+        {
+          "x": -160,
+          "y": 0.12,
+          "z": -64
+        },
+        {
+          "x": -160,
+          "y": 0.141,
+          "z": -56
+        },
+        {
+          "x": -160,
+          "y": 0.264,
+          "z": -50
+        },
+        {
+          "x": -160,
+          "y": 0.575,
+          "z": -43
+        },
+        {
+          "x": -160,
+          "y": 0.996,
+          "z": -37
+        },
+        {
+          "x": -160,
+          "y": 1.767,
+          "z": -29
+        },
+        {
+          "x": -160,
+          "y": 3.55,
+          "z": -14
+        },
+        {
+          "x": -160,
+          "y": 4.071,
+          "z": -9
+        },
+        {
+          "x": -160,
+          "y": 6.27,
+          "z": 20
+        },
+        {
+          "x": -160,
+          "y": 7.437,
+          "z": 34
+        },
+        {
+          "x": -160,
+          "y": 8.372,
+          "z": 43
+        },
+        {
+          "x": -160,
+          "y": 11.067,
+          "z": 67
+        },
+        {
+          "x": -160,
+          "y": 12.26,
+          "z": 79
+        },
+        {
+          "x": -160,
+          "y": 13.234,
+          "z": 91
+        },
+        {
+          "x": -160,
+          "y": 13.688,
+          "z": 98
+        },
+        {
+          "x": -160,
+          "y": 14.057,
+          "z": 105
+        },
+        {
+          "x": -160,
+          "y": 14.44,
+          "z": 109
+        },
+        {
+          "x": -160,
+          "y": 14.651,
+          "z": 113
+        }
+      ]
+    },
+    {
+      "id": "br_west",
+      "type": "bridge",
+      "width": 12,
+      "lamps": true,
+      "elements": [
+        {
+          "plate": {
+            "x": -192,
+            "z": -150,
+            "yaw": 90,
+            "length": 30,
+            "width": 12,
+            "y": 0.12,
+            "rise": 2.88,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -192,
+            "z": -119.75,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": 0,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -192,
+            "z": -89.25,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": -2.88,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "br_mid",
+      "type": "bridge",
+      "width": 12,
+      "lamps": true,
+      "elements": [
+        {
+          "plate": {
+            "x": 60,
+            "z": -150,
+            "yaw": 90,
+            "length": 30,
+            "width": 12,
+            "y": 0.12,
+            "rise": 2.88,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 60,
+            "z": -119.75,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": 0,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 60,
+            "z": -89.25,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": -2.88,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "br_east",
+      "type": "bridge",
+      "width": 12,
+      "lamps": true,
+      "elements": [
+        {
+          "plate": {
+            "x": 170,
+            "z": -150,
+            "yaw": 90,
+            "length": 30,
+            "width": 12,
+            "y": 0.12,
+            "rise": 2.88,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 170,
+            "z": -119.75,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": 0,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 170,
+            "z": -89.25,
+            "yaw": 90,
+            "length": 30.5,
+            "width": 12,
+            "y": 3,
+            "rise": -2.88,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "rd_fly_e",
+      "type": "bridge",
+      "width": 8,
+      "lamps": false,
+      "elements": [
+        {
+          "plate": {
+            "x": -60,
+            "z": -141,
+            "yaw": 90,
+            "length": 48,
+            "width": 8,
+            "y": 0.12,
+            "rise": 2.16,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": -100,
+            "yaw": 90,
+            "length": 34,
+            "width": 8,
+            "y": 2.28,
+            "rise": 1.742,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": -66.5,
+            "yaw": 90,
+            "length": 33,
+            "width": 8,
+            "y": 4.022,
+            "rise": 1.98,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": -35,
+            "yaw": 90,
+            "length": 30,
+            "width": 8,
+            "y": 6.002,
+            "rise": 1.8,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": 0,
+            "yaw": 90,
+            "length": 40,
+            "width": 8,
+            "y": 7.802,
+            "rise": 2.4,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": 40,
+            "yaw": 90,
+            "length": 40,
+            "width": 8,
+            "y": 10.202,
+            "rise": 2.4,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": 73.25,
+            "yaw": 90,
+            "length": 26.5,
+            "width": 8,
+            "y": 12.602,
+            "rise": 1.59,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": 93.125,
+            "yaw": 90,
+            "length": 13.25,
+            "width": 8,
+            "y": 14.192,
+            "rise": 0.596,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": -60,
+            "z": 106.375,
+            "yaw": 90,
+            "length": 13.25,
+            "width": 8,
+            "y": 14.788,
+            "rise": 0.073,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "rd_x_east",
+      "type": "bridge",
+      "width": 8,
+      "lamps": false,
+      "elements": [
+        {
+          "plate": {
+            "x": 262.334,
+            "z": -53.765,
+            "yaw": 133.364,
+            "length": 28.156,
+            "width": 8,
+            "y": 0.12,
+            "rise": 1.23,
+            "rails": true
+          }
+        },
+        {
+          "arc": {
+            "cx": 187.236,
+            "cz": -105.326,
+            "radius": 90,
+            "width": 8,
+            "from": 43.363,
+            "to": 70.067,
+            "y": [
+              1.35,
+              3.213
+            ],
+            "bank": 6,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 190.842,
+            "z": -10.899,
+            "yaw": 160.067,
+            "length": 57.604,
+            "width": 8,
+            "y": 3.213,
+            "rise": 2.992,
+            "rails": true
+          }
+        },
+        {
+          "arc": {
+            "cx": 197.857,
+            "cz": 92.93,
+            "radius": 100,
+            "width": 8,
+            "from": -109.933,
+            "to": -130.156,
+            "y": [
+              6.206,
+              8.324
+            ],
+            "bank": 6,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 101.919,
+            "z": 43.038,
+            "yaw": 139.844,
+            "length": 82.302,
+            "width": 8,
+            "y": 8.324,
+            "rise": 4.938,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 58.887,
+            "z": 79.346,
+            "yaw": 139.844,
+            "length": 30.302,
+            "width": 8,
+            "y": 13.262,
+            "rise": 1.179,
+            "rails": true
+          }
+        },
+        {
+          "plate": {
+            "x": 33.154,
+            "z": 101.058,
+            "yaw": 139.844,
+            "length": 37.037,
+            "width": 8,
+            "y": 14.44,
+            "rise": 0.458,
+            "rails": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "sb_needles",
+      "type": "skybridge",
+      "width": 3.4,
+      "lamps": true,
+      "points": [
+        {
+          "x": -13,
+          "y": 30.783,
+          "z": 138
+        },
+        {
+          "x": 7,
+          "y": 30.783,
+          "z": 138
+        }
+      ]
+    }
+  ],
+  "buildings": [
+    {
+      "id": "corp_needle_a",
+      "name": "Игла западная",
+      "floorsCount": 6,
+      "floorHeight": 4,
+      "baseY": 14.783,
+      "facadeMaterial": "glass_steel",
+      "roof": {
+        "walkable": true,
+        "parapet": 1.1
+      },
+      "footprint": [
+        {
+          "x": -34,
+          "z": 127
+        },
+        {
+          "x": -12,
+          "z": 127
+        },
+        {
+          "x": -12,
+          "z": 149
+        },
+        {
+          "x": -34,
+          "z": 149
+        }
+      ],
+      "rooms": [
+        {
+          "id": "corp_needle_a_r0",
+          "floor": 0,
+          "type": "lobby",
+          "polygon": [
+            {
+              "x": -34,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 149
+            },
+            {
+              "x": -34,
+              "z": 149
+            }
+          ],
+          "connections": [
+            {
+              "target": "rd_plate_ave",
+              "portalPosition": {
+                "x": -23,
+                "y": 0,
+                "z": 127
+              },
+              "linkType": "main_entrance"
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_a_r1",
+          "floor": 1,
+          "type": "office",
+          "polygon": [
+            {
+              "x": -34,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 149
+            },
+            {
+              "x": -34,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_a_r2",
+          "floor": 2,
+          "type": "office",
+          "polygon": [
+            {
+              "x": -34,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 149
+            },
+            {
+              "x": -34,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_a_r3",
+          "floor": 3,
+          "type": "utility",
+          "polygon": [
+            {
+              "x": -34,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 149
+            },
+            {
+              "x": -34,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_a_r4",
+          "floor": 4,
+          "type": "office",
+          "polygon": [
+            {
+              "x": -34,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 149
+            },
+            {
+              "x": -34,
+              "z": 149
+            }
+          ],
+          "connections": [
+            {
+              "target": "sb_needles",
+              "portalPosition": {
+                "x": -12,
+                "y": 30.783,
+                "z": 138
+              },
+              "linkType": "door"
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_a_r5",
+          "floor": 5,
+          "type": "office",
+          "polygon": [
+            {
+              "x": -34,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 127
+            },
+            {
+              "x": -12,
+              "z": 149
+            },
+            {
+              "x": -34,
+              "z": 149
+            }
+          ]
+        }
+      ],
+      "stairs": [
+        {
+          "id": "corp_needle_a_s0",
+          "type": "straight",
+          "connectsFloors": [
+            0,
+            1
+          ],
+          "position": {
+            "x": -28,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_a_s1",
+          "type": "straight",
+          "connectsFloors": [
+            1,
+            2
+          ],
+          "position": {
+            "x": -18,
+            "z": 133
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_a_s2",
+          "type": "straight",
+          "connectsFloors": [
+            2,
+            3
+          ],
+          "position": {
+            "x": -28,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_a_s3",
+          "type": "straight",
+          "connectsFloors": [
+            3,
+            4
+          ],
+          "position": {
+            "x": -18,
+            "z": 133
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_a_s4",
+          "type": "straight",
+          "connectsFloors": [
+            4,
+            5
+          ],
+          "position": {
+            "x": -28,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_a_roof",
+          "type": "ladder",
+          "connectsFloors": [
+            5,
+            6
+          ],
+          "position": {
+            "x": -28,
+            "z": 138
+          }
+        }
+      ]
+    },
+    {
+      "id": "corp_needle_b",
+      "name": "Игла восточная",
+      "floorsCount": 8,
+      "floorHeight": 4,
+      "baseY": 14.783,
+      "facadeMaterial": "glass_steel",
+      "roof": {
+        "walkable": true,
+        "parapet": 1.1
+      },
+      "footprint": [
+        {
+          "x": 6,
+          "z": 127
+        },
+        {
+          "x": 28,
+          "z": 127
+        },
+        {
+          "x": 28,
+          "z": 149
+        },
+        {
+          "x": 6,
+          "z": 149
+        }
+      ],
+      "rooms": [
+        {
+          "id": "corp_needle_b_r0",
+          "floor": 0,
+          "type": "lobby",
+          "polygon": [
+            {
+              "x": 6,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 149
+            },
+            {
+              "x": 6,
+              "z": 149
+            }
+          ],
+          "connections": [
+            {
+              "target": "rd_plate_ave",
+              "portalPosition": {
+                "x": 17,
+                "y": 0,
+                "z": 127
+              },
+              "linkType": "main_entrance"
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_b_r1",
+          "floor": 1,
+          "type": "office",
+          "polygon": [
+            {
+              "x": 6,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 149
+            },
+            {
+              "x": 6,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_b_r2",
+          "floor": 2,
+          "type": "office",
+          "polygon": [
+            {
+              "x": 6,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 149
+            },
+            {
+              "x": 6,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_b_r3",
+          "floor": 3,
+          "type": "utility",
+          "polygon": [
+            {
+              "x": 6,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 149
+            },
+            {
+              "x": 6,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_b_r4",
+          "floor": 4,
+          "type": "office",
+          "polygon": [
+            {
+              "x": 6,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 149
+            },
+            {
+              "x": 6,
+              "z": 149
+            }
+          ],
+          "connections": [
+            {
+              "target": "sb_needles",
+              "portalPosition": {
+                "x": 6,
+                "y": 30.783,
+                "z": 138
+              },
+              "linkType": "door"
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_b_r5",
+          "floor": 5,
+          "type": "office",
+          "polygon": [
+            {
+              "x": 6,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 149
+            },
+            {
+              "x": 6,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_b_r6",
+          "floor": 6,
+          "type": "office",
+          "polygon": [
+            {
+              "x": 6,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 149
+            },
+            {
+              "x": 6,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_b_r7",
+          "floor": 7,
+          "type": "utility",
+          "polygon": [
+            {
+              "x": 6,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 127
+            },
+            {
+              "x": 28,
+              "z": 149
+            },
+            {
+              "x": 6,
+              "z": 149
+            }
+          ]
+        }
+      ],
+      "stairs": [
+        {
+          "id": "corp_needle_b_s0",
+          "type": "straight",
+          "connectsFloors": [
+            0,
+            1
+          ],
+          "position": {
+            "x": 12,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_b_s1",
+          "type": "straight",
+          "connectsFloors": [
+            1,
+            2
+          ],
+          "position": {
+            "x": 22,
+            "z": 133
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_b_s2",
+          "type": "straight",
+          "connectsFloors": [
+            2,
+            3
+          ],
+          "position": {
+            "x": 12,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_b_s3",
+          "type": "straight",
+          "connectsFloors": [
+            3,
+            4
+          ],
+          "position": {
+            "x": 22,
+            "z": 133
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_b_s4",
+          "type": "straight",
+          "connectsFloors": [
+            4,
+            5
+          ],
+          "position": {
+            "x": 12,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_b_s5",
+          "type": "straight",
+          "connectsFloors": [
+            5,
+            6
+          ],
+          "position": {
+            "x": 22,
+            "z": 133
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_b_s6",
+          "type": "straight",
+          "connectsFloors": [
+            6,
+            7
+          ],
+          "position": {
+            "x": 12,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_b_roof",
+          "type": "ladder",
+          "connectsFloors": [
+            7,
+            8
+          ],
+          "position": {
+            "x": 22,
+            "z": 138
+          }
+        }
+      ]
+    },
+    {
+      "id": "corp_needle_c",
+      "name": "Башня под углом",
+      "floorsCount": 5,
+      "floorHeight": 4,
+      "baseY": 14.783,
+      "facadeMaterial": "glass_steel",
+      "roof": {
+        "walkable": true,
+        "parapet": 1.1
+      },
+      "rotation": 12,
+      "footprint": [
+        {
+          "x": 70,
+          "z": 127
+        },
+        {
+          "x": 92,
+          "z": 127
+        },
+        {
+          "x": 92,
+          "z": 149
+        },
+        {
+          "x": 70,
+          "z": 149
+        }
+      ],
+      "rooms": [
+        {
+          "id": "corp_needle_c_r0",
+          "floor": 0,
+          "type": "lobby",
+          "polygon": [
+            {
+              "x": 70,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 149
+            },
+            {
+              "x": 70,
+              "z": 149
+            }
+          ],
+          "connections": [
+            {
+              "target": "rd_plate_ave",
+              "portalPosition": {
+                "x": 81,
+                "y": 0,
+                "z": 127
+              },
+              "linkType": "main_entrance"
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_c_r1",
+          "floor": 1,
+          "type": "office",
+          "polygon": [
+            {
+              "x": 70,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 149
+            },
+            {
+              "x": 70,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_c_r2",
+          "floor": 2,
+          "type": "office",
+          "polygon": [
+            {
+              "x": 70,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 149
+            },
+            {
+              "x": 70,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_c_r3",
+          "floor": 3,
+          "type": "utility",
+          "polygon": [
+            {
+              "x": 70,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 149
+            },
+            {
+              "x": 70,
+              "z": 149
+            }
+          ]
+        },
+        {
+          "id": "corp_needle_c_r4",
+          "floor": 4,
+          "type": "office",
+          "polygon": [
+            {
+              "x": 70,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 127
+            },
+            {
+              "x": 92,
+              "z": 149
+            },
+            {
+              "x": 70,
+              "z": 149
+            }
+          ]
+        }
+      ],
+      "stairs": [
+        {
+          "id": "corp_needle_c_s0",
+          "type": "straight",
+          "connectsFloors": [
+            0,
+            1
+          ],
+          "position": {
+            "x": 76,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_c_s1",
+          "type": "straight",
+          "connectsFloors": [
+            1,
+            2
+          ],
+          "position": {
+            "x": 86,
+            "z": 133
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_c_s2",
+          "type": "straight",
+          "connectsFloors": [
+            2,
+            3
+          ],
+          "position": {
+            "x": 76,
+            "z": 143
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_c_s3",
+          "type": "straight",
+          "connectsFloors": [
+            3,
+            4
+          ],
+          "position": {
+            "x": 86,
+            "z": 133
+          },
+          "dimensions": {
+            "width": 6,
+            "length": 4
+          }
+        },
+        {
+          "id": "corp_needle_c_roof",
+          "type": "ladder",
+          "connectsFloors": [
+            4,
+            5
+          ],
+          "position": {
+            "x": 86,
+            "z": 138
+          }
+        }
+      ]
+    }
+  ],
+  "landscapeObjects": [
+    {
+      "id": "tree_quay_-140",
+      "model": "tree",
+      "position": {
+        "x": -140,
+        "y": 0.021,
+        "z": -56
+      }
+    },
+    {
+      "id": "tree_quay_-100",
+      "model": "tree",
+      "position": {
+        "x": -100,
+        "y": 0.021,
+        "z": -56
+      }
+    },
+    {
+      "id": "tree_quay_-20",
+      "model": "tree",
+      "position": {
+        "x": -20,
+        "y": 0.021,
+        "z": -56
+      }
+    },
+    {
+      "id": "tree_quay_100",
+      "model": "tree",
+      "position": {
+        "x": 100,
+        "y": 0.021,
+        "z": -56
+      }
+    },
+    {
+      "id": "tree_quay_160",
+      "model": "tree",
+      "position": {
+        "x": 160,
+        "y": 0.021,
+        "z": -56
+      }
+    },
+    {
+      "id": "tree_quay_220",
+      "model": "tree",
+      "position": {
+        "x": 220,
+        "y": 0.021,
+        "z": -56
+      }
+    },
+    {
+      "id": "bench_plaza_40",
+      "model": "bench",
+      "position": {
+        "x": 40,
+        "y": 14.783,
+        "z": 134
+      }
+    },
+    {
+      "id": "bench_plaza_48",
+      "model": "bench",
+      "position": {
+        "x": 48,
+        "y": 14.783,
+        "z": 134
+      }
+    },
+    {
+      "id": "bench_plaza_56",
+      "model": "bench",
+      "position": {
+        "x": 56,
+        "y": 14.783,
+        "z": 134
+      }
+    },
+    {
+      "id": "tree_plaza_40",
+      "model": "tree",
+      "position": {
+        "x": 40,
+        "y": 14.783,
+        "z": 144
+      }
+    },
+    {
+      "id": "tree_plaza_56",
+      "model": "tree",
+      "position": {
+        "x": 56,
+        "y": 14.783,
+        "z": 144
+      }
+    }
+  ],
+  "lights": [
+    {
+      "id": "moon",
+      "type": "directional",
+      "position": {
+        "x": 120,
+        "y": 220,
+        "z": 80
+      },
+      "color": "#bcd0ff",
+      "intensity": 3.5
+    },
+    {
+      "id": "wash_needle_a",
+      "type": "spot",
+      "position": {
+        "x": -23,
+        "y": 14.983,
+        "z": 124
+      },
+      "target": {
+        "x": -23,
+        "y": 34.783,
+        "z": 138
+      },
+      "color": "#8ec9ff",
+      "intensity": 90,
+      "distance": 60,
+      "angle": 0.6
+    },
+    {
+      "id": "wash_needle_b",
+      "type": "spot",
+      "position": {
+        "x": 17,
+        "y": 14.983,
+        "z": 124
+      },
+      "target": {
+        "x": 17,
+        "y": 42.783,
+        "z": 138
+      },
+      "color": "#ffd9a8",
+      "intensity": 90,
+      "distance": 70,
+      "angle": 0.6
+    }
+  ],
+  "sky": {
+    "sky": "#0b1020",
+    "fog": {
+      "color": "#0e1424",
+      "near": 40,
+      "far": 320
+    },
+    "hemi": {
+      "sky": "#1b2a44",
+      "ground": "#0a0d12",
+      "intensity": 0.7
+    }
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -200,
+      "z": -160
+    },
+    "exit": {
+      "x": 17,
+      "z": 138
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 8
+    },
+    "alienEnemies": {
+      "count": 2
+    }
+  },
+  "relief": {
+    "baseY": 0,
+    "hillMaxSlope": 0.06,
+    "maxSlope": 0.12,
+    "blend": 14,
+    "hills": [
+      {
+        "id": "basin_lowland",
+        "x": -340,
+        "z": -135.5,
+        "bx": 340,
+        "bz": -135.5,
+        "radius": 344,
+        "height": -7.37
+      },
+      {
+        "id": "trough_foot",
+        "x": -340,
+        "z": -30.6,
+        "bx": 340,
+        "bz": -30.6,
+        "radius": 172,
+        "height": -2.37
+      },
+      {
+        "id": "scarp_south",
+        "x": -340,
+        "z": -36.2,
+        "bx": 340,
+        "bz": -36.2,
+        "radius": 524,
+        "height": 6.05
+      },
+      {
+        "id": "plateau_bench",
+        "x": -340,
+        "z": 46.3,
+        "bx": 340,
+        "bz": 46.3,
+        "radius": 514,
+        "height": 3.66
+      },
+      {
+        "id": "plateau_crest",
+        "x": -340,
+        "z": 244.6,
+        "bx": 340,
+        "bz": 244.6,
+        "radius": 360,
+        "height": 8.65
+      },
+      {
+        "id": "ridge_far_north",
+        "x": -340,
+        "z": 363.8,
+        "bx": 340,
+        "bz": 363.8,
+        "radius": 185,
+        "height": 3.61
+      },
+      {
+        "id": "ridge_crest_west",
+        "x": -260,
+        "z": 296,
+        "bx": -140,
+        "bz": 296,
+        "radius": 60,
+        "height": 2.2
+      },
+      {
+        "id": "ridge_crest_centre",
+        "x": -40,
+        "z": 298,
+        "bx": 80,
+        "bz": 298,
+        "radius": 60,
+        "height": 2.2
+      },
+      {
+        "id": "ridge_crest_east",
+        "x": 160,
+        "z": 294,
+        "bx": 280,
+        "bz": 294,
+        "radius": 60,
+        "height": 2
+      }
+    ],
+    "pads": [
+      {
+        "id": "lowland_port",
+        "minX": -300,
+        "maxX": 300,
+        "minZ": -300,
+        "maxZ": -60,
+        "y": 0
+      },
+      {
+        "id": "plate_front",
+        "minX": -50,
+        "maxX": 100,
+        "minZ": 122,
+        "maxZ": 152,
+        "y": 14.783
+      }
+    ]
+  },
+  "kind": "json2"
+}

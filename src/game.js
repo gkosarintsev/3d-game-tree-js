@@ -17,6 +17,7 @@ import { Enemies } from './enemies.js';
 import { Weapon } from './weapon.js';
 import { NightLights } from './night-lights.js';
 import { Tracers } from './effects.js';
+import { Cars } from './vehicle.js';
 import { winTune } from './audio.js';
 
 /** Реализации контракта карты по kind из определения главы (улица — по умолчанию). */
@@ -53,6 +54,9 @@ export class Game {
     this.weapon = null;
     this.nightLights = null;
     this.enemies = null;
+    this.cars = null;
+    // край нажатия `F`: удержание клавиши не должно сажать и высаживать каждый кадр
+    this._fHeld = false;
     this.levelIndex = 0;
     this.totalTime = 0;
 
@@ -160,6 +164,15 @@ export class Game {
       count: gp.enemies?.count,
       alienCount: gp.alienEnemies?.count,
     });
+    // Машины главы — данные `gameplay.cars`: без секции список пуст, и главы,
+    // где ездить не на чём, собираются ровно как раньше (см. AGENTS.md,
+    // «Уровни — это данные»).
+    this.cars = new Cars(this.scene, this.map, gp.cars);
+    this._fHeld = false;
+    this.hud.showCarHint(null);
+    // водителя в кузове прошлой главы быть не может: подсказки за рулём
+    // возвращаем пешечные, даже если глава закончилась прямо за рулём
+    this.hud.setDrivingHelp(false);
     if (this.role !== 'alien') {
       this.weapon = new Weapon(
         this.camera, this.map, this.player, this.enemies, this.tracers,
@@ -232,6 +245,11 @@ export class Game {
    * недостающее — из CONFIG (освещение по умолчанию).
    */
   _initScene(sky = {}) {
+    // Кузовы держат меши старой сцены и, пока в них кто-то сидит, ссылаются на
+    // персонажа прошлой главы: снимаем их до создания новой сцены — тот же
+    // уговор, что у пула огней ниже.
+    this.cars?.dispose();
+    this.cars = null;
     const cfg = {
       sky: sky.sky ?? CONFIG.sky,
       fog: { ...CONFIG.fog, ...sky.fog },
@@ -342,6 +360,7 @@ export class Game {
     const { dx, dz } = shift;
     this.player.shift(dx, dz);
     this.enemies.shiftWorld(dx, dz);
+    this.cars?.shiftWorld(dx, dz);
     this.exit?.shift(dx, dz);
     this.tracers?.shift(dx, dz);
     // опоры улицы и район в сцене — новые: пул огней ставится на опоры заново
@@ -350,6 +369,42 @@ export class Game {
     this.nightLights?.setAnchors(map.openPositions());
     this.renderer.shadowMap.needsUpdate = true;
     return true;
+  }
+
+  /**
+   * Посадка и высадка по краю нажатия `F`. Машина берёт ближайший свободный кузов
+   * в радиусе `CONFIG.car.enterRadius` от тела; своих машин у главы может и не
+   * быть — тогда клавиша молчит, а не ломает состояние.
+   *
+   * Считывается именно край: `keys` — множество удерживаемых кодов, и без него
+   * одно нажатие на границе радиуса переключало бы режим десятки раз за секунду.
+   */
+  _rideToggle() {
+    const player = this.player;
+    const held = !!player.keys?.has('KeyF');
+    const pressed = held && !this._fHeld;
+    this._fHeld = held;
+    if (!pressed || !this.cars || player.dead) return;
+    if (player.vehicle) {
+      this.cars.exit();
+    } else {
+      const near = this.cars.nearest(player.position);
+      if (near) this.cars.enter(near.car, player);
+    }
+    this.hud.setDrivingHelp(!!player.vehicle);
+  }
+
+  /**
+   * Подсказка `F`: свой текст под рулём, «сесть» — у свободного кузова, иначе
+   * ничего. Отдельный кадр HUD не нужен: подсказка живёт ровно столько, сколько
+   * тело стоит в радиусе посадки.
+   */
+  _carHint() {
+    if (!this.cars || !this.cars.count) return this.hud.showCarHint(null);
+    const player = this.player;
+    if (player.vehicle) return this.hud.showCarHint('exit');
+    const near = this.cars.nearest(player.position);
+    this.hud.showCarHint(near ? 'enter' : null);
   }
 
   _tick() {
@@ -361,9 +416,16 @@ export class Game {
       // этот кадр симуляцию не ведёт — сборка окна (~0,25 с) и так забрала кадр,
       // а считать по уже перенесённом мире нет смысла
       if (!this._streamWindow()) {
+        this._rideToggle();
         this.player.update(dt);
         if (this.weapon) this.weapon.update(dt);
         this.enemies.update(dt);
+        // кузова считаются после персонажа: тот в поездке только держит намерение
+        // клавиш, а тело переносит машина, и камера преследования обязана встать
+        // поверх позы, которую персонаж успел записать в камеру этим кадром
+        this.cars?.update(dt);
+        if (this.cars?.driven) this.cars.applyCamera(this.camera);
+        this._carHint();
 
         this.elapsed = (performance.now() - this.startTime) / 1000;
         this.hud.setTime(this.elapsed);
@@ -385,12 +447,17 @@ export class Game {
 
         if (this.player.dead) this._lose();
       }
+    } else {
+      // за пределами игры подсказки нет: на паузе и в интертитре кузов рядом
+      // с телом ничего не значит
+      this.hud.showCarHint(null);
     }
 
     // до начала главы сущностей нет — рендерим только обзор карты
     if (this.tracers) this.tracers.update(dt);
     if (this.player) {
-      this.hud.drawMinimap(this.map, this.coins, this.player.position, this.player.direction, this.enemies, this.exit);
+      this.hud.drawMinimap(this.map, this.coins, this.player.position,
+        this.player.direction, this.enemies, this.exit, this.cars);
     }
     // пул огней следит за камерой: так свет есть и за интертитром главы, где
     // игрока ещё нет, и на крыше, до которой уличный фонарь не дотягивается

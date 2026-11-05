@@ -1,0 +1,164 @@
+{
+  "metadata": {
+    "levelName": "cityGen",
+    "name": "Кварталы",
+    "hint": "—",
+    "units": "meters"
+  },
+  "ground": {
+    "y": 0,
+    "size": 320
+  },
+  "city": {
+    "seed": 70707,
+    "districts": [
+      {
+        "id": "a",
+        "block": {
+          "minX": -140,
+          "maxX": -20,
+          "minZ": -140,
+          "maxZ": -20
+        },
+        "style": "corporate",
+        "street": {
+          "pitch": 40,
+          "width": 12
+        },
+        "lot": {
+          "pitch": 10,
+          "inset": 1.5,
+          "merge": 0.4
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 8,
+          "floorHeight": 3.4
+        },
+        "enterableEvery": 5,
+        "yaw": 18,
+        "polygon": [
+          {
+            "x": -126,
+            "z": -78
+          },
+          {
+            "x": -82,
+            "z": -129
+          },
+          {
+            "x": -31,
+            "z": -123
+          },
+          {
+            "x": -37,
+            "z": -51
+          },
+          {
+            "x": -78,
+            "z": -34
+          }
+        ]
+      },
+      {
+        "id": "b",
+        "block": {
+          "minX": 20,
+          "maxX": 140,
+          "minZ": 20,
+          "maxZ": 140
+        },
+        "style": "kitsch",
+        "street": {
+          "pitch": 34,
+          "width": 12
+        },
+        "lot": {
+          "pitch": 9,
+          "inset": 1.5,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 6,
+          "floorHeight": 3.2
+        },
+        "enterableEvery": 6,
+        "roofs": {
+          "walkable": true,
+          "access": 0.5,
+          "parapet": 0.9
+        }
+      }
+    ]
+  },
+  "roads": [],
+  "buildings": [
+    {
+      "id": "plinth",
+      "isEnterable": false,
+      "floorsCount": 3,
+      "floorHeight": 3.4,
+      "baseY": -0.219,
+      "footprint": [
+        {
+          "x": 56,
+          "z": 54
+        },
+        {
+          "x": 68,
+          "z": 54
+        },
+        {
+          "x": 68,
+          "z": 66
+        },
+        {
+          "x": 56,
+          "z": 66
+        }
+      ],
+      "rooms": []
+    }
+  ],
+  "landscapeObjects": [],
+  "lights": [],
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -100,
+      "z": -100
+    },
+    "exit": {
+      "x": 100,
+      "z": 100
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 2
+    },
+    "alienEnemies": {
+      "count": 1
+    }
+  },
+  "kind": "json2",
+  "relief": {
+    "baseY": 0,
+    "hills": [
+      {
+        "id": "hrub",
+        "x": -80,
+        "z": -80,
+        "radius": 400,
+        "height": 3
+      },
+      {
+        "id": "lon",
+        "x": 90,
+        "z": 90,
+        "radius": 400,
+        "height": -2
+      }
+    ]
+  }
+}

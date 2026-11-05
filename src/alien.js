@@ -47,6 +47,11 @@ export class AlienBody {
     this.hurt = 0;
     this._lastDamage = -1e9;
 
+    // машина, которую ведёт это тело (`src/vehicle.js`); null — пока идёт пешком.
+    // У врага (`AlienEnemy`) поле не заполняется никогда, поэтому его `position` —
+    // по-прежнему собственный `pos`, который он сам пишет через этот геттер.
+    this.vehicle = null;
+
     // намерение текущего кадра — заполняется в _control подкласса
     this._wish = new THREE.Vector3();
     this._moving = false;
@@ -87,17 +92,35 @@ export class AlienBody {
     this._twHalf = false;
   }
 
-  get position() { return this.pos; }
-  get direction() { return this.fwd; }
-  get feetY() { return this.pos.y - this.cfg.radius; }
+  // Пока тело в машине, его точкой, направлением и «ногами» считают кузов: тот
+  // едет по своим пробам опоры, и пересчитывать их дважды — значит разъезжать
+  // с настилом, к которому прижат. `pos` при этом остаётся своим (ноги в кузове
+  // не нужны), поэтому выход из машины ставит тело на опору заново.
+  get position() { return this.vehicle ? this.vehicle.pos : this.pos; }
+  get direction() { return this.vehicle ? this.vehicle.direction : this.fwd; }
+  get feetY() { return this.vehicle ? this.vehicle.pos.y : this.pos.y - this.cfg.radius; }
   get dead() { return this.health <= 0; }
 
   /** Урон от врага: снимает здоровье и запускает вспышку/регенерацию. */
   takeDamage(amount) {
-    if (this.dead) return;
+    // в кузове Чужой неуязвим: машина не держит ни пуль, ни лап, но право
+    // ведения снимает урон с тела, а не с геометрии
+    if (this.dead || this.vehicle) return;
     this.health = Math.max(0, this.health - amount);
     this.hurt = 1;
     this._lastDamage = performance.now() / 1000;
+  }
+
+  /**
+   * Развернуть «вперёд» тела вдоль мировой оси `(dx, dz)`: так Чужой выходит из
+   * машины лицом вдоль её носа. Нормаль ставит вертикалью, наклон взгляда гасит,
+   * и `fwd` получает ту же плоскость, что и у опоры (`_replanar`).
+   */
+  face(dx, dz) {
+    this.up.set(0, 1, 0);
+    this.fwd.set(dx, 0, dz);
+    this._replanar();
+    this.pitch = 0;
   }
 
   /** Удерживает «вперёд» в плоскости опоры (перпендикулярно нормали). */
@@ -193,6 +216,15 @@ export class AlienBody {
    * (например, обновляет камеру игрока).
    */
   update(dt) {
+    // в машине физика тела спит: кузов ведёт свою поступь, лапы не работают,
+    // а здоровье продолжает залечиваться ровно как у идущего. `pos` при этом не
+    // переносим: выход из машины ставит тело на опору через `spawnAt`.
+    if (this.vehicle) {
+      this._postUpdate(dt);
+      this._regen(dt);
+      return;
+    }
+
     this._control(dt);
 
     if (this._tween) this._updateTransition(dt);
@@ -748,25 +780,21 @@ export class AlienBody {
     beep(160, 0.05, 'triangle');
   }
 
-  /** Не даёт выйти за пределы карты и уйти под землю. */
+  /** Не даёт выйти за пределы карты. `width` предполагает симметричные границы,
+   *  а contrato карты даёт `bounds` (minX/maxX/minZ/maxZ) — для несимметричных
+   *  окон (стрим главы 4, русский мост с 7 м за плиткой) `width/2` врёт. Y не
+   *  клампим: опору hält `_updateGrounded` через raySolid, а `y < radius` сажал
+   *  Чужого на виртуальный ноль над отрицательным дном (русло главы 13, пропасть
+   *  главы 1) и не давал ему сойти на дно.
+   */
   _clampWorld() {
     const cfg = this.cfg;
-    const half = this.map.width / 2;
-    const lim = half - cfg.radius;
-    if (this.pos.x > lim) this.pos.x = lim;
-    else if (this.pos.x < -lim) this.pos.x = -lim;
-    if (this.pos.z > lim) this.pos.z = lim;
-    else if (this.pos.z < -lim) this.pos.z = -lim;
-    if (this.pos.y < cfg.radius) {
-      this.pos.y = cfg.radius;
-      if (this.vel.y < 0) {
-        this.up.set(0, 1, 0);
-        this._replanar();
-        this.vel.set(0, 0, 0);
-        this.grounded = true;
-        this.leapTimer = 0;
-      }
-    }
+    const b = this.map.bounds;
+    const limX = b.maxX - cfg.radius, limZ = b.maxZ - cfg.radius;
+    if (this.pos.x > limX) this.pos.x = limX;
+    else if (this.pos.x < b.minX + cfg.radius) this.pos.x = b.minX + cfg.radius;
+    if (this.pos.z > limZ) this.pos.z = limZ;
+    else if (this.pos.z < b.minZ + cfg.radius) this.pos.z = b.minZ + cfg.radius;
   }
 
   /** Заживление после затишья и затухание вспышки урона. */
@@ -855,7 +883,9 @@ export class Alien extends AlienBody {
     this._bindInput();
   }
 
-  get position() { return this.camera.position; }
+  // Камера игрока — производная от тела, поэтому пока Чужой в кузове её место
+  // занимает преследующая камера машины, а точкой тела остаётся кузов.
+  get position() { return this.vehicle ? this.vehicle.pos : this.camera.position; }
   get isLocked() { return this.controls.isLocked; }
 
   lock() { this.controls.lock(); }
@@ -907,6 +937,16 @@ export class Alien extends AlienBody {
   }
 
   /**
+   * Разворот после высадки: базовый `face` ставит тело, а камера Чужого —
+   * производная от него, поэтому пересчитывается сразу. Иначе один кадр показал
+   * бы улицу с позиции преследующей камеры машины.
+   */
+  face(dx, dz) {
+    super.face(dx, dz);
+    this._updateCamera();
+  }
+
+  /**
    * Camera игрока — производная от тела, поэтому после переноса мира её
    * пересчитываем сразу: иначе кадр, отданный на экран до следующего `update`,
    * показал бы улицу старого окна.
@@ -943,6 +983,10 @@ export class Alien extends AlienBody {
 
   _postUpdate(dt) {
     if (this.strikeCd > 0) this.strikeCd = Math.max(0, this.strikeCd - dt);
+    // край нажатия Space синхронизируется и в поездке: `update` в ней не зовёт
+    // `_control`, и без этого удержанная в машине клавиша дала бы прыжок на первом
+    // шаге после высадки
+    this._spaceHeld = this.keys.has('Space');
     this._updateClaw(dt);
     this._updateCamera();
   }
@@ -954,7 +998,9 @@ export class Alien extends AlienBody {
    * @returns {boolean} был ли удар (false — ещё не истекла пауза)
    */
   _strike() {
-    if (this.strikeCd > 0) return false;
+    // за рулём удара нет: лапа не выходит за кузов, а камера смотрит на машину,
+    // поэтому луч вдоль взгляда бил бы по асфальту за кормой
+    if (this.vehicle || this.strikeCd > 0) return false;
     const s = this.cfg.strike;
     this.strikeCd = s.cooldown;
     this.strikeAnim = s.animTime;
@@ -1024,6 +1070,9 @@ export class Alien extends AlienBody {
 
   /** Собирает камеру: позиция — вдоль нормали от центра тела, взгляд — по fwd/pitch. */
   _updateCamera() {
+    // в поездке камерой ведает `Cars.applyCamera`: поза вдоль нормали тела
+    // дала бы вид из-под обшивки ровно поверх позы преследования
+    if (this.vehicle) return;
     const cfg = this.cfg;
     const cos = Math.cos(this.pitch), sin = Math.sin(this.pitch);
     this._look.copy(this.fwd).multiplyScalar(cos).addScaledVector(this.up, sin).normalize();

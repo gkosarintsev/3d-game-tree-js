@@ -121,6 +121,7 @@ export function normalizeLevel(raw) {
 
   const gp = raw.gameplay ?? {};
   checkPoints(gp, buildings, roads, channels, warnings, relief);
+  checkCars(gp, roads, channels, warnings);
 
   return {
     name: raw.metadata.name,
@@ -132,6 +133,9 @@ export function normalizeLevel(raw) {
       exitRadius: gp.exitRadius ?? CONFIG.terrain.exitRadius,
       enemies: gp.enemies ?? {},
       alienEnemies: gp.alienEnemies ?? {},
+      // секция живёт только у брифа с машинами: главы 9–12 обязаны остаться
+      // побайтово прежними
+      ...(gp.cars ? { cars: authoredCars(gp.cars, support) } : {}),
     },
     map: {
       kind: raw.kind ?? 'json',
@@ -2067,6 +2071,84 @@ function checkPoints(gp, buildings, roads, channels, warnings, relief) {
     // поэтому маяк на открытом склоне главы с рельефом стоит на земле, а не
     // висит над ней — «не над настилом» было бы ложным предупреждением
     warnings.push(`gameplay.exit ${gp.exit.x}, ${gp.exit.z}: не над зданием и не над настилом — маяк повиснет`);
+  }
+}
+
+/**
+ * Точки стоянок едут в модуль округлёнными и с явным нулевым углом.
+ *
+ * `y` — отметка опоры под точкой, посчитанная тем же `makeSupport`, что ставит
+ * на место предметы района: движок не ищет полотно под машиной, он берёт её
+ * отметку из данных. Искать ему нечем — `groundHeightAt` отвечает высшую опору
+ * **не выше** своей отметки, поэтому проба с 250 м посадила бы машину на кровлю
+ * башни, под которой проходит эстакада, а проба с нуля оставила бы её под
+ * настилом петли, на грунте.
+ */
+function authoredCars(cars, support) {
+  return {
+    count: cars.count,
+    spots: (cars.spots ?? []).map(s => ({
+      x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw ?? 0), y: support(s.x, s.z),
+    })),
+  };
+}
+
+/**
+ * Запас от точки до кромки полотна, поперёк настила: отрицательный — точка
+ * снаружи. У дуги поперёк — это радиус, у пластины — её собственная координата
+ * `v`: габарит дуги (`arcBounds`) для этого не годится, в его углу асфальта нет,
+ * и корпус, выставленный по габариту, висел бы над водой там, где схема видела бы
+ * «настил».
+ */
+function deckSideMargin(d, x, z) {
+  if (d.arc) return d.halfW - Math.abs(Math.hypot(x - d.cx, z - d.cz) - d.R);
+  const frame = deckFrame(d);
+  if (!frame) return d.width / 2 - Math.abs(z - (d.minZ + d.maxZ) / 2);
+  return d.width / 2 - Math.abs(unrotatePoint(frame, x, z).z - d.cz);
+}
+
+/**
+ * Проверка точек стоянок: корпус обязан целиком остаться на том настиле, что его
+ * держит, и не встать в русло. Идёт по нормализованным декам, а не по планам
+ * брифа, — именно здесь у дуги есть `R` с `halfW`, а у пластины её кадр.
+ *
+ * Почему именно поперёк: вдоль оси настил продолжается соседним элементом или
+ * уходит в стык, куда машина въедет сама, а вот за кромкой лежит или вода, или
+ * перила (на мосту они стоят в 0,12 м от асфальта), и корпус, легший через
+ * кромку, нельзя ни открыть с улицы, ни оставить внутри — игрок выходил бы из
+ * машины в ограждение.
+ *
+ * Точка на голом грунте не бракуется: плита мира держит её и без настила, и
+ * машина в траве — воля автора, а не обещанная опора, которой нет.
+ */
+function checkCars(gp, roads, channels, warnings) {
+  const spots = gp.cars?.spots ?? [];
+  if (!spots.length) return;
+  const halfL = CONFIG.car.length / 2, halfW = CONFIG.car.width / 2;
+  const inWater = (x, z) => channels.some(c => c.holes.some(h => inRect(x, z, h)));
+  for (const [n, p] of spots.entries()) {
+    const label = `gameplay.cars.spots[${n}] (${p.x}, ${p.z})`;
+    let deck = null, roadId = null;
+    for (const r of roads) {
+      const hit = r.decks.find(d => deckHolds(d, p.x, p.z));
+      if (hit) { deck = hit; roadId = r.id; break; }
+    }
+    if (!deck) {
+      if (inWater(p.x, p.z)) {
+        warnings.push(`${label}: в русле, вне настила — машина встанет в воду, и сесть в неё с улицы нельзя`);
+      }
+      continue;
+    }
+    const frame = frameAt(p.x, p.z, p.yaw ?? 0);
+    let worst = Infinity;
+    for (const [du, dv] of [[-halfL, -halfW], [halfL, -halfW], [-halfL, halfW], [halfL, halfW]]) {
+      const w = rotatePoint(frame, p.x + du, p.z + dv);
+      worst = Math.min(worst, deckSideMargin(deck, w.x, w.z));
+    }
+    if (worst < 0) {
+      warnings.push(`${label}: корпус на ${(-worst).toFixed(2)} м вышел за кромку настила ${roadId} `
+        + `(полоса ${deck.width} м) — борт машины там, где асфальта нет: за ним перила или вода`);
+    }
   }
 }
 

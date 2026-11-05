@@ -216,14 +216,14 @@ export class TownMap extends SolidField {
 
   /** Плоская земля и слитая геометрия всех домов. */
   build(scene) {
+    this.sceneObjects = [];
     const size = this.width;
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(size, size),
-      new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 })
-    );
+    const groundGeo = new THREE.PlaneGeometry(size, size);
+    const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }));
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
+    this.sceneObjects.push({ mesh: ground, geo: groundGeo, mat: ground.material });
 
     // геометрия всех домов сливается по материалам → постоянное число мешей.
     // Попутно собираем твёрдые объёмы (AABB) для 3D-физики Чужого.
@@ -241,15 +241,32 @@ export class TownMap extends SolidField {
       stairs: new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: .9, metalness: .05 }),
     };
 
-    for (const key of Object.keys(parts)) {
-      if (!parts[key].length) continue;
-      const mesh = new THREE.Mesh(mergeGeometries(parts[key], false), mats[key]);
+    const add = (geos, mat) => {
+      if (!geos.length) return;
+      const g = mergeGeometries(geos, false);
+      const mesh = new THREE.Mesh(g, mat);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
-    }
+      this.sceneObjects.push({ mesh, geo: g, mat });
+    };
+    for (const key of Object.keys(parts)) add(parts[key], mats[key]);
 
-    buildDecor(scene, this);
+    // декор района: свои меши и материалы — тоже за.dispose() на выгрузке главы
+    for (const o of buildDecor(scene, this)) this.sceneObjects.push(o);
+  }
+
+  /**
+   * Снимает со сцены меши города, их геометрии и свои материалы (включая декор):
+   * всё создано `build` для себя, общих материалов у города нет.
+   */
+  dispose() {
+    for (const o of this.sceneObjects ?? []) {
+      o.mesh.parent?.remove(o.mesh);
+      o.geo?.dispose?.();
+      o.mat?.dispose?.();
+    }
+    this.sceneObjects = [];
   }
 
   /** План текущего этажа всех домов. */

@@ -1,0 +1,10 @@
+{"lines":[
+ {"axis":"z","at":-192,"from":-185,"to":-60,"step":5},
+ {"axis":"z","at":170,"from":-185,"to":-60,"step":5},
+ {"axis":"x","at":-169,"from":-290,"to":290,"step":20},
+ {"axis":"x","at":-70,"from":-290,"to":290,"step":20},
+ {"axis":"x","at":-212,"from":-120,"to":80,"step":20},
+ {"axis":"z","at":-58,"from":-70,"to":130,"step":5},
+ {"axis":"x","at":118,"from":-70,"to":240,"step":10},
+ {"axis":"z","at":140,"from":-65,"to":115,"step":5}
+]}

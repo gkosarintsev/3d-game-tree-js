@@ -278,9 +278,7 @@ export function navBuildingFloors(nav, n, b) {
       for (let i = 0; i < cols; i++) {
         if (levels[k][j][i] !== FLOOR) continue;
         const id = nodeAt(k, i, j);
-        if (walk(k, i - 1, j)) nav.link(id, nodeAt(k, i - 1, j));
         if (walk(k, i + 1, j)) nav.link(id, nodeAt(k, i + 1, j));
-        if (walk(k, i, j - 1)) nav.link(id, nodeAt(k, i, j - 1));
         if (walk(k, i, j + 1)) nav.link(id, nodeAt(k, i, j + 1));
       }
     }

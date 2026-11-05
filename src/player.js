@@ -27,6 +27,12 @@ export class Player {
     this.hurt = 0;            // затухающая вспышка урона (0..1) для интерфейса
     this._lastDamage = -1e9;  // время последнего урона (для регенерации)
 
+    // машина, которую ведёт игрок (`src/vehicle.js`) — null, пока он пешком.
+    // Пока она есть, телом считают её точку: тело человека — сама камера, а
+    // камера в поездке смотрит на кузов сверху-сзади, поэтому `position`
+    // переопределён, а не оставлен на `camera.position`.
+    this.vehicle = null;
+
     this._forward = new THREE.Vector3(0, 0, -1);
     this._right = new THREE.Vector3();
     this._up = new THREE.Vector3(0, 1, 0);
@@ -35,8 +41,8 @@ export class Player {
     this._bindInput();
   }
 
-  get position() { return this.camera.position; }
-  get direction() { return this._forward; }
+  get position() { return this.vehicle ? this.vehicle.pos : this.camera.position; }
+  get direction() { return this.vehicle ? this.vehicle.direction : this._forward; }
   get isLocked() { return this.controls.isLocked; }
   get dead() { return this.health <= 0; }
 
@@ -45,7 +51,9 @@ export class Player {
 
   /** Урон от врага: снимает здоровье и запускает вспышку/регенерацию. */
   takeDamage(amount) {
-    if (this.dead) return;
+    // в кузове человек неуязвим: решётка машины не держит пули (по правилу о
+    // декоре), но и не получает урона — право ведёт двигатель, а не геометрия
+    if (this.dead || this.vehicle) return;
     this.health = Math.max(0, this.health - amount);
     this.hurt = 1;
     this._lastDamage = performance.now() / 1000;
@@ -91,8 +99,31 @@ export class Player {
     this.camera.position.z -= dz;
   }
 
+  /**
+   * Развернуть взгляд вдоль мировой оси `(dx, dz)` с нулевым наклоном: так Чужой
+   * и человек выходят из машины лицом вдоль её носа, а не туда, куда смотрели
+   * перед посадкой. `pitch` у человека живёт в евразе камеры (порядок `YXZ` у
+   * `PointerLockControls`), поэтому достаточно повернуть `rotation.y`: взгляд
+   * камеры смотрит вдоль `(-sin y, 0, -cos y)`.
+   */
+  face(dx, dz) {
+    this.camera.rotation.set(0, Math.atan2(-dx, -dz), 0);
+  }
+
   /** Обновление физики за кадр (вызывать только при активном управлении). */
   update(dt) {
+    // в машине ноги не работают: тело переносит кузов, а камеру — его
+    // преследование (`Cars.applyCamera`). Отметку ног держат по полу кузова,
+    // чтобы враг целился в то место, где тело действительно сидит, а не в точку
+    // последней посадки пешком.
+    if (this.vehicle) {
+      this.feetY = this.vehicle.pos.y;
+      this.velocity.set(0, 0, 0);
+      this.verticalVelocity = 0;
+      this._heal(dt);
+      return;
+    }
+
     const { camera, keys, map } = this;
     const cfg = CONFIG;
 
@@ -135,6 +166,16 @@ export class Player {
     camera.position.y = this.feetY + cfg.eyeHeight + Math.sin(this.bob * 2) * 0.035 * Math.min(sp / 4, 1);
 
     // заживление после затишья и затухание вспышки урона
+    this._heal(dt);
+  }
+
+  /**
+   * Регенерация после затишья и затухание вспышки урона — отдельный шаг, потому
+   * что в поездке физики ног нет, а здоровье продолжает жить: без машины игрок
+   * залечил бы рану, сидя за рулём ровно так же, как стоя.
+   */
+  _heal(dt) {
+    const cfg = CONFIG;
     const now = performance.now() / 1000;
     if (this.health > 0 && this.health < this.maxHealth &&
         now - this._lastDamage > cfg.health.regenDelay) {

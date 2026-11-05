@@ -1,0 +1,186 @@
+// ------------------------------------------------- рельеф главы (v2, этап 2)
+
+/**
+ * Компактный бриф с плавным рельефом: гряда-капсула держит верхний ярус
+ * (~9 м), левина в противоположном углу опускает землю (~ −5 м), между ними —
+ * авторская площадка террасы, косой корпус на склоне, корпус в низине и мост
+ * через склон.
+ *
+ * Радиусы выбраны по пределу `крутизна = 1,5 · height / radius` (замер —
+ * `tools/relief.test.mjs`): 10 м на 200 м — это 0,075 м/м, и даже вместе с
+ * противоположно наклонённой левиной поле держит `relief.maxSlope` 0,12.
+ */
+const RELIEF_RAW = {
+  kind: 'json2',
+  metadata: { levelName: 'reliefHouse', name: 'Ярусы', hint: '—', units: 'meters' },
+  ground: { y: 0, size: 300 },
+  relief: {
+    baseY: 0,
+    hills: [
+      { id: 'gryada', x: -30, z: 60, bx: 60, bz: 60, radius: 200, height: 10 },
+      { id: 'lovchina', x: -80, z: -70, radius: 240, height: -6 },
+    ],
+    pads: [{ id: 'terrace', minX: -20, maxX: 40, minZ: 40, maxZ: 70, y: 8.6 }],
+  },
+  roads: [
+    { id: 'st_high', type: 'ground', width: 8, withLamps: true,
+      points: [{ x: -40, y: 8.6, z: 60 }, { x: 100, y: 8.6, z: 60 }] },
+    { id: 'br_span', type: 'bridge', width: 8,
+      points: [{ x: -60, y: 4.2, z: -40 }, { x: 20, y: 6.6, z: -40 }] },
+  ],
+  buildings: [
+    { id: 'h_ridge', isEnterable: false, floorsCount: 2, floorHeight: 3.4, rotation: 30,
+      footprint: [{ x: -12, z: 97 }, { x: 12, z: 97 }, { x: 12, z: 103 }, { x: -12, z: 103 }],
+      rooms: [] },
+    { id: 'h_low', isEnterable: false, floorsCount: 2, floorHeight: 3.4,
+      footprint: [{ x: -92, z: -63 }, { x: -68, z: -63 }, { x: -68, z: -57 }, { x: -92, z: -57 }],
+      rooms: [] },
+  ],
+  gameplay: { goal: 'exit', spawn: { x: -120, z: -110 }, exit: { x: 100, z: 120 }, exitRadius: 4 },
+};
+
+/** Природа поля без площадок — точки брига выбраны вне её колец, там она и есть итог. */
+const NATURE = reliefOf({ baseY: 0, hills: structuredClone(RELIEF_RAW.relief.hills) });
+
+/** Сравнение округлённых отметок: parсер пишет `r3`, допуск — только на float-хвост. */
+function close(actual, expected, tol, message) {
+  if (!(Math.abs(actual - expected) <= tol)) {
+    throw new Error(`${message}: ожидалось ${expected} ± ${tol}, получено ${actual}`);
+  }
+}
+
+const reliefErrors = (mutate = () => {}) => {
+  const raw = structuredClone(RELIEF_RAW);
+  mutate(raw);
+  return validateLevel(raw, LEVEL_SPEC_V2).errors;
+};
+
+/** Максимальный уклон собранного поля по сетке внутри земли. */
+function maxFieldSlope(reliefPlain, step = 6) {
+  const f = reliefOf(structuredClone(reliefPlain));
+  let max = 0, at = null;
+  for (let x = -148; x <= 148; x += step) {
+    for (let z = -148; z <= 148; z += step) {
+      const mag = f.slopeAt(x, z).mag;
+      if (mag > max) { max = mag; at = [r3(x), r3(z)]; }
+    }
+  }
+  return { max, at };
+}
+
+t('рельеф v2: валидатор и нормализатор молчат, модуль несёт поле', () => {
+  const errors = reliefErrors();
+  eq(errors.length, 0, `ошибки: ${errors.join(' | ')}`);
+  const level = normalizeLevel(structuredClone(RELIEF_RAW));
+  eq(level.warnings.length, 0, `предупреждения: ${level.warnings.join(' | ')}`);
+  eq(level.map.relief.hills.length, 2, 'в данных карты не оказалось холмов');
+  eq(level.map.relief.baseY, 0, 'опорная отметка поля уехала');
+  // точка B (100, 120) стоит на открытом склоне: ни настила, ни здания под ней
+  // нет, и без поля это дало бы «маяк повиснет» — с полем то же предупреждение
+  // было бы ложным
+  const noRelief = structuredClone(RELIEF_RAW);
+  delete noRelief.relief;
+  const flat = normalizeLevel(noRelief);
+  assert(flat.warnings.some(w => w.includes('маяк повиснет')),
+    'без рельефа та же точка не пожаловалась — проверка склона ничего не доказывает');
+  const code = generateModule(structuredClone(RELIEF_RAW), 'src/levels/level-12.json').code;
+  assert(code.includes('"relief"'), 'модуль главы не донёс секцию рельефа');
+  assert(code.includes('"gryada"'), 'модуль главы не донёс холм');
+});
+
+t('дом без baseY встаёт на отметку поля в центре плана, и под ним — его площадка', () => {
+  const level = normalizeLevel(structuredClone(RELIEF_RAW));
+  const ridge = level.map.buildings.find(b => b.id === 'h_ridge');
+  const low = level.map.buildings.find(b => b.id === 'h_low');
+  // центр плана косого дома — неподвижная точка его поворота, поэтому природа
+  // мерится прямо по нему: (0, 100) и (−80, −60)
+  close(ridge.baseY, r3(NATURE.heightAt(0, 100)), 1e-9, 'косой корпус встал не на поле');
+  close(low.baseY, r3(NATURE.heightAt(-80, -60)), 1e-9, 'корпус в низине встал не на поле');
+  assert(ridge.baseY - low.baseY > 10, 'два яруса главы сошлись в одну отметку');
+  const pad = level.map.relief.pads.find(p => p.id === 'h_ridge:площадка');
+  assert(pad, 'под косым домом не появилось площадки');
+  eq(pad.y, ridge.baseY, 'отметка площадки разошлась с полом дома');
+  eq(pad.yaw, 30, 'площадка повёрнутого дома не наследует его угол');
+  // ядро площадки = габарит плана в его собственных осях: без поворота кольцо
+  // срезало бы угол корпуса, и склон торчал бы из-под пола
+  eq(pad.minX, -12, 'площадка не по локальному плану дома');
+  eq(pad.maxZ, 103, 'площадка не по локальному плану дома');
+});
+
+t('переход площадки держит предел уклона поля: кольцо раздувается, а не обрезается', () => {
+  const level = normalizeLevel(structuredClone(RELIEF_RAW));
+  const maxSlope = level.map.relief.maxSlope;
+  const fitted = maxFieldSlope(level.map.relief);
+  assert(fitted.max <= maxSlope * 1.05,
+    `поле после площадок даёт ${fitted.max.toFixed(3)} м/м в точке ${fitted.at} при пределе ${maxSlope}`);
+  // узкое кольцо парсер обязан раздуть: площадка в 4 м на фланге гряды, где
+  // природа ~6,5 м, за 2 м перехода дала бы склон круче предела
+  const tight = structuredClone(RELIEF_RAW);
+  tight.relief.pads.push({ id: 'уступ', minX: -10, maxX: 10, minZ: 10, maxZ: 30, y: 4, blend: 2 });
+  const widened = normalizeLevel(tight);
+  eq(widened.warnings.length, 0, `предупреждения при раздутом кольце: ${widened.warnings.join(' | ')}`);
+  const pad = widened.map.relief.pads.find(p => p.id === 'уступ');
+  assert(pad.blend > 2, `кольцо осталось ${pad.blend} м — подгонка не сработала`);
+  const after = maxFieldSlope(widened.map.relief);
+  assert(after.max <= maxSlope * 1.05,
+    `раздутое кольцо дало ${after.max.toFixed(3)} м/м в точке ${after.at}`);
+  // отметку, которую нечем свести в предел, парсер обязан назвать, а не
+  // нарисовать молча: 22 м над полем на радиусах этого брифа просят перехода
+  // больше `relief.maxBlend`
+  const steep = structuredClone(RELIEF_RAW);
+  steep.relief.pads[0].y = 22;
+  const warned = normalizeLevel(steep);
+  assert(warned.warnings.some(w => w.includes('не хватает переходной зоны')),
+    `площадка выше предела не названа: ${warned.warnings.join(' | ')}`);
+});
+
+t('крутизна: одиночный холм назван с требуемым радиусом, пара холмов — точкой поля', () => {
+  hasError(reliefErrors(r => { r.relief.hills[0] = { id: 'bugry', x: 0, z: 0, radius: 100, height: 10 }; }),
+    'relief.hills[0]', 'радиус обязан быть не меньше 125');
+  // каждый поштучно в своём пределе, вместе на общем фланге — 0,15: поштучная
+  // аналитика этого не видит, поэтому поле стоит пробывать сеткой
+  const stacked = reliefErrors(r => {
+    r.relief.hills = [
+      { id: 'gryada', x: -30, z: 60, bx: 60, bz: 60, radius: 180, height: 12 },
+      { id: 'lovchina', x: -80, z: -70, radius: 200, height: -8 },
+    ];
+  });
+  hasError(stacked, 'поле в точке', 'холмы складываются');
+  hasError(reliefErrors(r => { r.relief.pads[0].maxX = 140; }), 'выходит за землю');
+  hasError(reliefErrors(r => { r.relief.pads[0].minX = 40; r.relief.pads[0].maxX = 40; }),
+    'вырожденная площадка');
+});
+
+t('колонны моста растут от поля, а не от нулевой плоскости главы', () => {
+  const level = normalizeLevel(structuredClone(RELIEF_RAW));
+  const field = reliefOf(structuredClone(level.map.relief));
+  const pillars = level.map.props.filter(p => p.source === 'bridge_pillar' && p.id.includes('br_span'));
+  assert(pillars.length >= 2, `мост через склон дал ${pillars.length} колонн`);
+  for (const p of pillars) {
+    close(p.position.y, r3(field.heightAt(p.position.x, p.position.z)), 1e-9,
+      `опора ${p.id} встала не на поле`);
+  }
+  const feet = pillars.map(p => p.position.y);
+  assert(Math.min(...feet) < 0 && Math.max(...feet) > 0,
+    `пятки колонн не следуют склону: от ${Math.min(...feet)} до ${Math.max(...feet)}`);
+  const deck = level.map.roads.find(r => r.id === 'br_span').decks[0];
+  for (const p of pillars) {
+    assert(p.scale.y > 1, `колонна ${p.id} короче метра: ${p.scale.y}`);
+    assert(p.position.y + p.scale.y <= deck.topAtMax - J.deckThickness + 1e-6,
+      `колонна ${p.id} проткнула настил`);
+  }
+});
+
+t('глава с рельефом детерминирована: два прогона дают побайтово равный модуль', () => {
+  const a = generateModule(structuredClone(RELIEF_RAW), 'src/levels/level-12.json').code;
+  const b = generateModule(structuredClone(RELIEF_RAW), 'src/levels/level-12.json').code;
+  eq(a, b, 'парсер рельефа разбежался между прогонами');
+  assert(!a.includes('Предупреждения парсера'), 'в закоммиченный модуль попало предупреждение');
+  // порядок площадок значим: кольцо следующего подгоняется против поля с
+  // предыдущими, поэтому он детерминирован списком брифа, а не сортировкой
+  const swapped = structuredClone(RELIEF_RAW);
+  swapped.buildings = [swapped.buildings[1], swapped.buildings[0]];
+  const code = generateModule(swapped, 'src/levels/level-12.json').code;
+  assert(code.includes('h_ridge:площадка') && code.includes('h_low:площадка'),
+    'перестановка домов уронила чужую площадку');
+});

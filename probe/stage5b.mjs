@@ -1,0 +1,22 @@
+import { expandCity } from '../tools/city.js';
+import { normalizeLevel } from '../tools/normalize-level.mjs';
+import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
+import { reliefOf } from '../src/relief.js';
+import { frameAt, rotatePoint, unrotatePoint, pointInPoly, obbOf, obbHitsObb } from '../src/geo2d.js';
+import { CITY_RAW } from './city-fixture.mjs';
+
+const stats = {};
+const expanded = expandCity(structuredClone(CITY_RAW), stats);
+console.log('stats', JSON.stringify(stats));
+const v = validateLevel(expanded, LEVEL_SPEC_V2);
+console.log('v2 errors', v.errors.length, v.errors.slice(0, 5));
+console.log('v2 warnings', v.warnings.length, v.warnings.slice(0, 5));
+const level = normalizeLevel(expanded);
+console.log('norm warnings', level.warnings.length, level.warnings.slice(0, 5));
+const terraces = level.map.relief.pads.filter(p => p.id.endsWith(':терраса'));
+for (const p of terraces) console.log('terrace', JSON.stringify(p));
+const a = level.map.buildings.filter(b => b.id.startsWith('a_'));
+console.log('a count', a.length, 'rotations', [...new Set(a.map(b => b.rotation))].slice(0, 6));
+console.log('bounds of a', Math.min(...a.map(b=>b.bounds.minX)), Math.max(...a.map(b=>b.bounds.maxX)));
+const base = [...new Set(a.filter(b=>/^a_\d\d\d$/.test(b.id)).map(b => b.baseY))];
+console.log('a baseY set', base);

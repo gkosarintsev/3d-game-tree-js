@@ -2933,6 +2933,145 @@ t('глава с рельефом детерминирована: два про�
   assert(code.includes('h_ridge:площадка') && code.includes('h_low:площадка'),
     'перестановка домов уронила чужую площадку');
 });
+// ------------------------------------------------------ автомобили уровня (gameplay.cars)
+
+// Глава 13 несёт `gameplay.cars` — две точки стоянок на полотне петли. Проверки
+// держат то, чего движок увидеть не может: обещание данных. Число машин обязано
+// совпадать со списком точек, корпус — целиком лежать там, где его держит
+// опора, и ни одна точка не встаёт в план дома или за край плиты мира.
+// Предупреждения отделены от ошибок намеренно: стоянка на голом грунте или борт
+// у самой кромки — воля автора, а не обещанная опора, которой нет; необратимое
+// (машина внутри фасада, две машины на одном асфальте, пустота под колёсами) —
+// брак.
+const CARS_PATH = resolve(ROOT, 'src/levels/level-13.json');
+const carsRaw = () => JSON.parse(readFileSync(CARS_PATH, 'utf8'));
+
+/**
+ * Вердикт пайплайна для брифа главы 13 (с мутой или без): сначала ошибки схемы,
+ * и только если их нет — предупреждения нормализатора. Тот же порядок, что у
+ * `build-level.mjs`: геометрический брак не должен тонуть в шуме.
+ */
+function carsVerdict(mutate) {
+  const raw = carsRaw();
+  if (mutate) mutate(raw);
+  const expanded = expandCity(raw);
+  const { errors } = validateLevel(expanded, LEVEL_SPEC_V2);
+  if (errors.length) return { errors, warnings: [], built: null };
+  const built = normalizeLevel(expanded);
+  return { errors, warnings: built.warnings, built };
+}
+
+t('закоммиченный level-13.js совпадает с парсером и собран без предупреждений', () => {
+  const fresh = generateModule(carsRaw(), 'src/levels/level-13.json');
+  eq(fresh.warnings.length, 0, `парсер дал предупреждения: ${fresh.warnings.slice(0, 3).join(' | ')}`);
+  const committed = readFileSync(resolve(ROOT, 'src/levels/level-13.js'), 'utf8').replace(/\r\n/g, '\n');
+  assert(committed === fresh.code,
+    `level-13.js расходится с парсером на ${committed.length - fresh.code.length} символов — перезапустите node tools/build-level.mjs src/levels/level-13.json`);
+});
+
+t('gameplay.cars: чистый бриф проходит схему и нормализатор, точка получает отметку СВОЕЙ опоры', () => {
+  const { errors, warnings, built } = carsVerdict();
+  eq(errors.length, 0, `схема забраковала рабочую главу: ${errors.slice(0, 3).join(' | ')}`);
+  eq(warnings.length, 0, `нормализатор предупредил на рабочей главе: ${warnings.slice(0, 3).join(' | ')}`);
+  const cars = built.gameplay.cars;
+  eq(cars.count, cars.spots.length, 'число машин не совпало со списком точек');
+  const groundY = built.map.ground.y;
+  for (const s of cars.spots) {
+    assert(Number.isFinite(s.y), `точка (${s.x}, ${s.z}) осталась без отметки — движок не знает, где полотно`);
+    // точка стоит на петле: её опора обязана быть выше грунта, иначе парсер
+    // выдал бы уровень плиты вместо настила, и машина встала бы под трассой
+    assert(s.y > groundY, `точка (${s.x}, ${s.z}) дала опору ${s.y} при грунте ${groundY} — это не полотно`);
+  }
+  const again = normalizeLevel(expandCity(carsRaw())).gameplay.cars;
+  eq(JSON.stringify(again), JSON.stringify(cars), 'повторная нормализация точек разошлась — парсер не детерминирован');
+});
+
+t('gameplay.cars: count не совпал с числом точек — схема бракует', () => {
+  hasError(carsVerdict(j => { j.gameplay.cars.count = 3; }).errors,
+    'gameplay.cars', 'count 3');
+  hasError(carsVerdict(j => { j.gameplay.cars.spots.pop(); }).errors,
+    'gameplay.cars', 'не совпал');
+});
+
+t('gameplay.cars: точка вне плиты мира бракуется, на голом грунте нормализатор молчит', () => {
+  const half = 300; // ground.size 600
+  hasError(carsVerdict(j => { const s = j.gameplay.cars.spots[0]; s.x = half + 100; s.z = half + 100; }).errors,
+    'gameplay.cars.spots[0]', 'вне земли');
+  // спавн главы лежит на грунте: машина там законна, и предупреждения не будет
+  const spawn = carsVerdict().built.map.spawn;
+  const onGround = carsVerdict(j => {
+    const s = j.gameplay.cars.spots[0];
+    s.x = spawn.x; s.z = spawn.z; s.yaw = 0;
+  });
+  eq(onGround.errors.length, 0, `спавн-точка забракована: ${onGround.errors.join(' | ')}`);
+  eq(onGround.warnings.length, 0, `нормализатор предупредил о машине на грунте: ${onGround.warnings.join(' | ')}`);
+});
+
+t('gameplay.cars: корпус лег в план дома — бракуется, и мерится корпус, а не центр', () => {
+  const built = carsVerdict().built;
+  const house = built.map.buildings.filter(b => b.bounds)
+    .sort((a, b) => (b.bounds.maxX - b.bounds.minX) * (b.bounds.maxZ - b.bounds.minZ)
+      - (a.bounds.maxX - a.bounds.minX) * (a.bounds.maxZ - a.bounds.minZ))[0];
+  const c = { x: (house.bounds.minX + house.bounds.maxX) / 2, z: (house.bounds.minZ + house.bounds.maxZ) / 2 };
+  const inHouse = carsVerdict(j => {
+    const s = j.gameplay.cars.spots[0];
+    s.x = c.x; s.z = c.z; s.yaw = house.rotation ?? 0;
+  });
+  hasError(inHouse.errors, 'gameplay.cars.spots[0]', 'в план дома', house.id);
+
+  // центр — снаружи плана, но капот уже внутри: точка-центр такое бы не поймала,
+  // а игрок получил бы машину, стоящую полубампером в стене
+  const halfLen = (house.bounds.maxX - house.bounds.minX) / 2;
+  const nose = rotatePoint(frameAt(c.x, c.z, house.rotation ?? 0),
+    c.x + halfLen + CONFIG.car.length / 2 - 0.4, c.z);
+  const noseIn = carsVerdict(j => {
+    const s = j.gameplay.cars.spots[0];
+    s.x = r3(nose.x); s.z = r3(nose.z); s.yaw = house.rotation ?? 0;
+  });
+  hasError(noseIn.errors, 'gameplay.cars.spots[0]', 'в план дома', house.id);
+});
+
+t('gameplay.cars: два корпуса на одном асфальте — схема бракует пересечение планов', () => {
+  const first = carsVerdict().built.gameplay.cars.spots[0];
+  const v = carsVerdict(j => {
+    j.gameplay.cars.spots[1] = { x: first.x, z: first.z, yaw: first.yaw };
+  });
+  hasError(v.errors, 'пересеклись');
+});
+
+t('gameplay.cars: корпус за кромкой полотна — предупреждение нормализатора, не ошибка', () => {
+  const built = carsVerdict().built;
+  const s = built.gameplay.cars.spots[0];
+  // поперёк настила: локальная +Z корпуса в мире — (−sin yaw, cos yaw); 4,5 м —
+  // дальше борта (0,9 м), так что центр остаётся на асфальте, а борт уже нет
+  const a = (s.yaw ?? 0) * Math.PI / 180;
+  const off = carsVerdict(j => {
+    const p = j.gameplay.cars.spots[0];
+    p.x = r3(p.x - 4.5 * Math.sin(a));
+    p.z = r3(p.z + 4.5 * Math.cos(a));
+  });
+  eq(off.errors.length, 0, `сход с полотна забракован схемой: ${off.errors.join(' | ')}`);
+  const hit = off.warnings.find(w => w.includes('за кромку настила'));
+  assert(hit, `нормализатор смолчал о корпусе за кромкой. предупреждения: ${off.warnings.join(' | ') || '(нет)'}`);
+  assert(hit.includes('gameplay.cars.spots[0]'), `предупреждение без имени точки: ${hit}`);
+});
+
+t('gameplay.cars: стоянка в русле вне настила — предупреждение, и опора точки ниже грунта', () => {
+  const built = carsVerdict().built;
+  const hole = built.map.channels[0].holes[0];
+  const w = { x: (hole.minX + hole.maxX) / 2, z: (hole.minZ + hole.maxZ) / 2 };
+  const inWater = carsVerdict(j => {
+    const s = j.gameplay.cars.spots[0];
+    s.x = w.x; s.z = w.z; s.yaw = 0;
+  });
+  eq(inWater.errors.length, 0, `русле-точка забракована схемой: ${inWater.errors.join(' | ')}`);
+  const hit = inWater.warnings.find(x => x.includes('в русле'));
+  assert(hit, `нормализатор смолчал о машине в воде: ${inWater.warnings.join(' | ') || '(нет)'}`);
+  const y = inWater.built.gameplay.cars.spots[0].y;
+  assert(y < built.map.ground.y,
+    `точка дала опору ${y} при грунте ${built.map.ground.y} — над ней настил, и тест мерит не то русло`);
+});
+
 // ---------------------------------------------------------------- служебное
 
 function overlap(a, b) {

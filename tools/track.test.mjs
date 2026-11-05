@@ -16,8 +16,8 @@ import { reliefOf } from '../src/relief.js';
 import { validateLevel, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel } from './normalize-level.mjs';
 import {
-  TRACK_DEFAULTS, TRACK_ARC_MIN, TRACK_ARC_SLIVER, trackSpec, trackCenterline, trackAxisAt, expandCity,
-  trackProfile, trackToes, trackDeckAt, trackFittedAt,
+  TRACK_DEFAULTS, TRACK_ARC_MIN, TRACK_ARC_SLIVER, TRACK_PIECE_MIN, trackSpec, trackCenterline, trackAxisAt, expandCity,
+  trackProfile, trackToes, trackDeckAt, trackFittedAt, trackElements,
 } from './city.js';
 
 const JJ = CONFIG.jsonMap;
@@ -951,6 +951,48 @@ t('отметки кольца не зависят от районов, пока
   const other = buildDeck(FAR_BLOCK, { track: { entries: 0 } }, 42);
   assert(JSON.stringify(other.ring.elements) !== JSON.stringify(a.ring.elements),
     'сид не повлиял на полотно');
+});
+
+t('окно перил не рождает кусок тоньше пола схемы: огрызок сливается с окном', () => {
+  // граница окна стыка съезда может лечь ближе метра к торцу элемента полотна:
+  // эмиссия раньше отдавала кусок во всю щель (0,041 / 0,126 м в зонде — сиды
+  // 25 и 101), и кольцо браковалось схемой: `V2_PLATE.length` начинается с 1 м.
+  // Гейт — в генераторе, а не пост-фактум валидатором: кусок-огрызок вливается
+  // в окно, и открытый борт стыка только растёт. Стены через переход при
+  // этом быть не может ни в одном куске: ограждение решается перекрытием
+  // куска с окном, а не его серединой
+  const forced = (seed, endSliver) => {
+    const tr = ringP({ entries: 0 }, null, 0, seed);
+    const el = tr.elements[0];
+    const half = tr.spec.width / 2 + 0.5;              // половина окна: trackRailWindows
+    // окно так, чтобы одна его граница легла в 0,3 м от торца элемента
+    tr.entries = [{ s: endSliver ? el.s0 + el.len - half - 0.3 : el.s0 + half + 0.3 }];
+    return { tr, pieces: trackElements(tr) };
+  };
+  for (const seed of SEEDS) {
+    for (const endSliver of [false, true]) {
+      const { tr, pieces } = forced(seed, endSliver);
+      assert(pieces.length >= 2, `seed ${seed}: разреза нет вовсе (${pieces.length})`);
+      let openLen = 0;
+      for (const p of pieces) {
+        const arc = p.arc;
+        let len;
+        if (arc) {
+          let d = arc.to - arc.from;                    //degrees → развёртка
+          d = ((d % 360) + 540) % 360 - 180;
+          len = Math.abs(d) * Math.PI / 180 * arc.radius;
+        } else {
+          len = p.plate.length;
+          assert(len >= TRACK_PIECE_MIN - 1e-9,
+            `seed ${seed}: пластина ${len.toFixed(3)} м — тоньше пола схемы (${endSliver ? 'торец' : 'начало'})`);
+        }
+        if (!(arc ? arc.rails : p.plate.rails)) openLen += len;
+      }
+      // открытый борт стыка обязан держать окно целиком: 2·(width/2 + запас)
+      assert(openLen >= tr.spec.width + 1 - 1e-3,
+        `seed ${seed}/(${endSliver ? 'торец' : 'начало'}): открытых бортов ${openLen.toFixed(3)} м — окно ${(tr.spec.width + 1).toFixed(1)} м не накрыто`);
+    }
+  }
 });
 
 console.log(`\n${passed}/${passed + failures.length} проверок зелёные`);

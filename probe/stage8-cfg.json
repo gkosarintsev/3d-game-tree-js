@@ -1,0 +1,30 @@
+{
+  "maxSlope": 0.12,
+  "hills": [
+    { "id": "basin_lowland", "x": -340, "z": -135.5, "bx": 340, "bz": -135.5, "radius": 344, "height": -7.37 },
+    { "id": "trough_foot", "x": -340, "z": -30.6, "bx": 340, "bz": -30.6, "radius": 172, "height": -2.37 },
+    { "id": "scarp_south", "x": -340, "z": -36.2, "bx": 340, "bz": -36.2, "radius": 524, "height": 6.05 },
+    { "id": "plateau_bench", "x": -340, "z": 46.3, "bx": 340, "bz": 46.3, "radius": 514, "height": 3.66 },
+    { "id": "plateau_crest", "x": -340, "z": 244.6, "bx": 340, "bz": 244.6, "radius": 360, "height": 8.65 },
+    { "id": "ridge_far_north", "x": -340, "z": 363.8, "bx": 340, "bz": 363.8, "radius": 185, "height": 3.61 }
+  ],
+  "fixed": [
+    { "id": "lowland_port", "minX": -300, "maxX": 300, "minZ": -300, "maxZ": -60, "y": 0 }
+  ],
+  "rects": [
+    { "id": "sind", "minX": -290, "maxX": -100, "minZ": -296, "maxZ": -176 },
+    { "id": "skit", "minX": 60, "maxX": 290, "minZ": -273, "maxZ": -207 },
+    { "id": "nkab", "minX": -280, "maxX": -120, "minZ": 145, "maxZ": 265 },
+    { "id": "ncc", "minX": -30, "maxX": 230, "minZ": 150, "maxZ": 270 }
+  ],
+  "profile": [
+    { "id": "z @ x=0 собранное", "axis": "z", "at": 0, "from": -80, "to": 300, "step": 10 },
+    { "id": "z @ x=-70 собранное", "axis": "z", "at": -70, "from": -80, "to": 300, "step": 10 },
+    { "id": "z @ x=100 собранное", "axis": "z", "at": 100, "from": -80, "to": 300, "step": 10 }
+  ],
+  "lines": [
+    { "id": "x @ z=20", "axis": "x", "at": 20, "from": -300, "to": 300, "step": 40 },
+    { "id": "x @ z=60", "axis": "x", "at": 60, "from": -300, "to": 300, "step": 40 },
+    { "id": "x @ z=100", "axis": "x", "at": 100, "from": -300, "to": 300, "step": 40 }
+  ]
+}
