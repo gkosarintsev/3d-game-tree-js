@@ -93,11 +93,13 @@ function chapter() {
 
 /**
  * Плоская фикстура для физики: пол на `deckY`, ничего не заблокировано, за
- * `bounds` не выпустить. Держит ровно те члены контракта, о которых знает
- * `Car`, — лишнего машина спросить не может, и сюжет это сторожит.
+ * плиту (`width`/`depth`) не выпустить. Держит ровно те члены контракта, о
+ * которых знает `Car`, — лишнего машина спросить не может, и сюжет это сторожит.
  */
 function flatMap(half = 500, deckY = 0) {
   return {
+    width: half * 2,
+    depth: half * 2,
     bounds: { minX: -half, maxX: half, minZ: -half, maxZ: half },
     groundHeightAt: () => deckY,
     isBlocked: () => false,

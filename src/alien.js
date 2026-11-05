@@ -780,21 +780,35 @@ export class AlienBody {
     beep(160, 0.05, 'triangle');
   }
 
-  /** Не даёт выйти за пределы карты. `width` предполагает симметричные границы,
-   *  а contrato карты даёт `bounds` (minX/maxX/minZ/maxZ) — для несимметричных
-   *  окон (стрим главы 4, русский мост с 7 м за плиткой) `width/2` врёт. Y не
-   *  клампим: опору hält `_updateGrounded` через raySolid, а `y < radius` сажал
-   *  Чужого на виртуальный ноль над отрицательным дном (русло главы 13, пропасть
-   *  главы 1) и не давал ему сойти на дно.
+  /** Не даёт выйти за пределы карты. Горизонталь — плита, которую карта сама
+   *  считает законной (`width`/`depth`: за ней `isBlocked` истинен у всех типов),
+   *  а не `bounds`: у уличной карты `bounds` — габарит **домов**
+   *  (`TownMap._worldBounds`, src/map.js:97), и кламп по нему заталкивает тело
+   *  внутрь фасада, когда тот стоит на краю (замер фикстуры лазания: стена в
+   *  `z = 15`, `bounds.maxZ = 15` → цепляющееся за неё тело уезжало в 14,5).
+   *  Вертикаль — пол по **опоре самой карты**, а не виртуальный ноль: под руслом
+   *  главы 13 и в пропасти главы 1 опора отрицательная, и ноль не давал Чужому
+   *  сойти на дно; без этого пола тело, просочившееся сквозь шов, падает вечно
+   *  (замер: `y = −58,47` за 150 кадров сюжета «спускается со стены на землю»).
    */
   _clampWorld() {
     const cfg = this.cfg;
-    const b = this.map.bounds;
-    const limX = b.maxX - cfg.radius, limZ = b.maxZ - cfg.radius;
+    const limX = this.map.width / 2 - cfg.radius, limZ = this.map.depth / 2 - cfg.radius;
     if (this.pos.x > limX) this.pos.x = limX;
-    else if (this.pos.x < b.minX + cfg.radius) this.pos.x = b.minX + cfg.radius;
+    else if (this.pos.x < -limX) this.pos.x = -limX;
     if (this.pos.z > limZ) this.pos.z = limZ;
-    else if (this.pos.z < b.minZ + cfg.radius) this.pos.z = b.minZ + cfg.radius;
+    else if (this.pos.z < -limZ) this.pos.z = -limZ;
+    const floor = this.map.groundHeightAt(this.pos.x, this.pos.z, this.pos.y);
+    if (Number.isFinite(floor) && this.pos.y < floor + cfg.radius) {
+      this.pos.y = floor + cfg.radius;
+      if (this.vel.y < 0) {
+        this.up.set(0, 1, 0);
+        this._replanar();
+        this.vel.set(0, 0, 0);
+        this.grounded = true;
+        this.leapTimer = 0;
+      }
+    }
   }
 
   /** Заживление после затишья и затухание вспышки урона. */

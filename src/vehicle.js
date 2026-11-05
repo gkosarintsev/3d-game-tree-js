@@ -7,8 +7,10 @@ import { CONFIG } from './config.js';
  * карты и посадка/выход по клавише `F`.
  *
  * Движок знает о машине только то, что знает о любом теле: опору он спрашивает
- * у `map.groundHeightAt`, свободен ли путь — у `map.isBlocked`, пределами главы
- * служит `map.bounds`. Ни номера главы, ни секции `city`, ни полей схемы здесь
+ * у `map.groundHeightAt`, свободен ли путь — у `map.isBlocked`, а предел мира —
+ * его собственный и у карты, и у кузова: `width`/`depth` (плита, за ней `isBlocked`
+ * истинен), а не `bounds`, который каждый тип карты считает габаритом содержимого.
+ * Ни номера главы, ни секции `city`, ни полей схемы здесь
  * нет: число машин и точки стоянок приходят данными `gameplay.cars`, как монеты
  * приходят числом.
  *
@@ -311,12 +313,16 @@ export class Car {
     this._sync();
   }
 
-  /** Кузов не смеет уехать за край мира: за `bounds` опоры нет вовсе. */
+  /** Кузов не смеет уехать за край мира: за **плитой** опоры нет вовсе. Берётся
+   *  `width`/`depth`, а не `bounds`: `bounds` каждый тип карты считает своим
+   *  габаритом содержимого (у улицы — дома, у главы 11 он ещё и несимметричен),
+   *  и кламп по нему отгородил бы законную плиту. Тот же предел, что карта
+   *  отказывает в `isBlocked`. */
   _clamp() {
-    const b = this.map.bounds;
     const r = CONFIG.car.width / 2;
-    this.pos.x = Math.max(b.minX + r, Math.min(b.maxX - r, this.pos.x));
-    this.pos.z = Math.max(b.minZ + r, Math.min(b.maxZ - r, this.pos.z));
+    const limX = this.map.width / 2 - r, limZ = this.map.depth / 2 - r;
+    this.pos.x = Math.max(-limX, Math.min(limX, this.pos.x));
+    this.pos.z = Math.max(-limZ, Math.min(limZ, this.pos.z));
   }
 
   /** Перенос расчётной позы в меши. */
