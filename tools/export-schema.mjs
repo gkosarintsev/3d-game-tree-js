@@ -106,7 +106,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 /** Куда кладём вывод — рядом с брифами, чтобы `./level.schema.json` из брифа резолвился. */
 export const SCHEMA_FILES = [
   { spec: LEVEL_SPEC, title: 'Level brief v1 (kind: json)', out: resolve(ROOT, 'src/levels/level.schema.json') },
-  { spec: LEVEL_SPEC_V2, title: 'Level brief v2 (kind: json2)', out: resolve(ROOT, 'src/levels/level-v2.schema.json') },
+  { spec: LEVEL_SPEC_V2, title: 'Level brief v2 (kind: json2 | open)', out: resolve(ROOT, 'src/levels/level-v2.schema.json') },
 ];
 
 function main(argv) {

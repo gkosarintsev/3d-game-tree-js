@@ -16,7 +16,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { generateModule, ValidationError } from './build-level.mjs';
+import { generateOutput, ValidationError } from './build-level.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const README = readFileSync(resolve(ROOT, 'README.md'), 'utf8');
@@ -59,21 +59,34 @@ function discoverBriefs(argv) {
 }
 
 /**
- * Один прогон парсера на брифе: код модуля, предупреждения и повторный прогон
- * для сверки детерминизма. Ошибки валидатора — провал проверки, а не исключение
- * из сюиты: текст ошибки валидатора и есть полезный отчёт.
+ * Один прогон парсера на брифе: файлы вывода, предупреждения и повторный прогон
+ * для сверки детерминизма. Открытая глава (`kind: 'open'`) даёт не один модуль, а
+ * каталог, поэтому меряют все файлы: сравнивать только `index.js` значило бы
+ * допустить расхождение чанка с его списком клеток. Ошибки валидатора — провал
+ * проверки, а не исключение из сюиты: текст ошибки валидатора и есть полезный
+ * отчёт.
  */
 function parseBrief(file) {
   const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
   let first;
   try {
-    first = generateModule(structuredClone(raw), file);
+    first = generateOutput(structuredClone(raw), file);
   } catch (e) {
     if (!(e instanceof ValidationError)) throw e;
     throw new Error(`парсер отверг бриф: ${e.errors.slice(0, 2).join(' | ')}`);
   }
-  const again = generateModule(structuredClone(raw), file);
-  return { raw, code: first.code, warnings: first.warnings, again: again.code };
+  const again = generateOutput(structuredClone(raw), file);
+  // имя файла входит в сравнение: перестановка чанков местами не сойдёт за
+  // совпадение, а без неё два прогона различить нельзя
+  const joined = (files) => files.map(f => `${f.path}\n${f.code}`).join('');
+  return {
+    raw,
+    dir: first.dir,
+    files: first.files,
+    warnings: first.warnings,
+    code: joined(first.files),
+    again: joined(again.files),
+  };
 }
 
 /** Плита уровня из брифа: `ground.size` на стороны, центрированная в (0, 0). */
@@ -120,10 +133,9 @@ async function importLevelModule(js) {
 
 for (const file of briefs) {
   const stem = basename(file, '.json');
-  const js = file.replace(/\.json$/, '.js');
   t(`${stem}: два прогона парсера дают побайтово одинаковый модуль`, () => {
     const p = parseBrief(file);
-    assert(p.code === p.again, `${js}: повторный прогон отличается — в парсере появился источник случайности`);
+    assert(p.code === p.again, `${p.dir}: повторный прогон отличается — в парсере появился источник случайности`);
   });
 
   t(`${stem}: парсер молчит (предупреждений ноль)`, () => {
@@ -133,18 +145,26 @@ for (const file of briefs) {
       + ' — предупреждение в закоммиченной главе значит, что геометрию отдали обходному пути');
   });
 
-  t(`${stem}: закоммиченный модуль совпадает с парсером побайтово`, () => {
+  t(`${stem}: закоммиченный вывод совпадает с парсером побайтово`, () => {
     const p = parseBrief(file);
-    assert(existsSync(resolve(ROOT, js)), `${js}: модуля нет — запустите node tools/build-level.mjs ${file}`);
-    const committed = readFileSync(resolve(ROOT, js), 'utf8').replace(/\r\n/g, '\n');
-    assert(committed === p.code,
-      `${js} устарел на ${committed.length - p.code.length} символов — перезапустите node tools/build-level.mjs ${file}`);
+    const stale = [];
+    for (const f of p.files) {
+      const rel = `${p.dir}/${f.path}`;
+      if (!existsSync(resolve(ROOT, rel))) {
+        stale.push(`${rel}: файла нет — запустите node tools/build-level.mjs ${file}`);
+        continue;
+      }
+      const committed = readFileSync(resolve(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
+      if (committed !== f.code) stale.push(`${rel} устарел на ${committed.length - f.code.length} символов`);
+    }
+    assert(stale.length === 0, stale.join(' | '));
   });
 
   t(`${stem}: спавн и точка B лежат в плите и габарите, и не совпадают`, async () => {
     // модуль главы — обычный ES-экспорт чисел, Three.js ему не нужен, поэтому
     // импорт в Node законен и берёт ровно те же числа, что увидит движок
-    const level = await importLevelModule(js);
+    const p = parseBrief(file);
+    const level = await importLevelModule(`${p.dir}/${p.files[0].path}`);
     const map = level.map;
     const errors = [];
     const exit = level.gameplay?.exit;
@@ -224,22 +244,29 @@ function budgetRows() {
   for (let i = 0; i < registry.LEVELS.length; i++) {
     const level = registry.LEVELS[i];
     const map = level.map ?? {};
-    const file = `src/levels/level-${String(i + 1).padStart(2, '0')}.js`;
-    const bytes = existsSync(resolve(ROOT, file)) ? statSync(resolve(ROOT, file)).size : 0;
+    const stem = `src/levels/level-${String(i + 1).padStart(2, '0')}`;
+    // открытая глава не имеет одного «модуля»: её вывод — каталог, и для бюджета
+    // интересен наибольший чанк, потому что его и читает движок по ходу пути
+    const chunks = existsSync(resolve(ROOT, `${stem}.js`)) ? []
+      : (existsSync(resolve(ROOT, stem)) ? readdirSync(resolve(ROOT, stem)).filter(f => f.startsWith('chunk-')) : []);
+    const bytes = chunks.length
+      ? Math.max(...chunks.map(f => statSync(resolve(ROOT, stem, f)).size))
+      : (existsSync(resolve(ROOT, `${stem}.js`)) ? statSync(resolve(ROOT, `${stem}.js`)).size : 0);
     const decks = Array.isArray(map.roads) ? map.roads.reduce((s, r) => s + (r.decks?.length ?? 0), 0) : 0;
     const pillars = Array.isArray(map.roads) ? map.roads.reduce((s, r) => s + (r.pillars?.length ?? 0), 0) : 0;
     const lamps = Array.isArray(map.roads) ? map.roads.reduce((s, r) => s + (r.lamps?.length ?? 0), 0) : 0;
     rows.push({
       глава: i + 1,
       kind: map.kind ?? 'town',
-      'модуль, КБ': Math.round(bytes / 1024),
+      'модуль/чанк, КБ': Math.round(bytes / 1024),
+      чанков: chunks.length || '',
       домов: Array.isArray(map.buildings) ? map.buildings.length : '',
       дорог: Array.isArray(map.roads) ? map.roads.length : '',
       настилов: decks || '',
       опор: pillars || '',
       фонарей: lamps || '',
       props: Array.isArray(map.props) ? map.props.length : '',
-      плита: map.ground?.size ?? map.width ?? map.window?.size ?? '',
+      плита: map.ground?.size ?? map.world?.size ?? map.width ?? map.window?.size ?? '',
       врагов: (level.gameplay?.enemies?.count ?? 0) + (level.gameplay?.alienEnemies?.count ?? 0),
     });
   }

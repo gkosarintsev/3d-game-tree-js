@@ -10,22 +10,34 @@
  * (AGENTS.md), поэтому результат парсера — обычный файл-определение главы, как
  * у всех остальных.
  *
+ * `kind: 'open'` (этап 1 плана docs/open-world-plan.md) вместо модуля пишет
+ * **каталог** `src/levels/level-NN/`: `index.js` — определение главы со списком
+ * чанков, `chunk-<i>-<j>.json` — подрезанные данные карты. Модуль на 27 МБ
+ * (§ 2.6) браузер прочитал бы целиком, а `fetch` одного чанка — ровно то, ради
+ * чего мир режется.
+ *
  * `--check` ничего не пишет: сравнивает с существующим модулем и уходит с кодом 2
- * при расхождении — так детерминизм парсера проверяется в автотесте.
+ * при расхождении — так детерминизм парсера проверяется в автотесте. Для
+ * каталога проверяется каждый файл, иначе чанк разошёлся бы с `index.js` молча.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, extname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
-import { normalizeLevel } from './normalize-level.mjs';
+import { normalizeLevel, isV2Kind } from './normalize-level.mjs';
 import { expandCity } from './city.js';
+import { splitLevel, stringifyStable } from './chunk-level.mjs';
 
 /**
- * @param {object} raw сырой уровень (уже прочитанный JSON, может содержать `city`)
- * @param {string} sourceName имя исходника для шапки (src/levels/level-09.json)
- * @returns {{name:string, code:string, warnings:string[]}} текст модуля главы
+ * Путь брифа до чисел карты — один для модуля и для каталога: разворот города,
+ * схема по версии брифа, валидация, нормализация. Два таких пути разошлись бы
+ * при первой же правке, и каталог начал бы собираться не по тем правилам, что
+ * проверяет сюжетная валидация.
+ *
+ * @param {object} raw сырой уровень (может содержать `city`)
+ * @param {string} sourceName имя исходника для шапок
  */
-export function generateModule(raw, sourceName) {
+function prepare(raw, sourceName) {
   let expanded;
   try {
     // разворот ДО валидации: геометрический проход схемы тогда бесплатно
@@ -37,7 +49,7 @@ export function generateModule(raw, sourceName) {
   // переключатель версии — в самом брифе: v1 (`kind: 'json'` или без него) не
   // принимает ни `rotation`, ни дуги, поэтому схема обязана выбираться до
   // геометрического прохода, а не после
-  const spec = expanded.kind === 'json2' ? LEVEL_SPEC_V2 : LEVEL_SPEC;
+  const spec = isV2Kind(expanded.kind) ? LEVEL_SPEC_V2 : LEVEL_SPEC;
   const { errors, warnings: geoWarnings } = validateLevel(expanded, spec);
   if (errors.length) throw new ValidationError(errors, geoWarnings);
   let level;
@@ -48,8 +60,21 @@ export function generateModule(raw, sourceName) {
     // ValidationError, чтобы CLI печатал список, а не стек
     throw new ValidationError([String(e?.message ?? e)], geoWarnings);
   }
-  const warnings = [...geoWarnings, ...level.warnings];
-  const constName = exportName(sourceName);
+  return { expanded, level, warnings: [...geoWarnings, ...level.warnings], constName: exportName(sourceName) };
+}
+
+/**
+ * @param {object} raw сырой уровень (уже прочитанный JSON, может содержать `city`)
+ * @param {string} sourceName имя исходника для шапки (src/levels/level-09.json)
+ * @returns {{name:string, code:string, warnings:string[]}} текст модуля главы
+ */
+export function generateModule(raw, sourceName) {
+  const { expanded, level, warnings, constName } = prepare(raw, sourceName);
+  // открытая глава в модуль не пишется принципиально: браузер прочитал бы 27 МБ
+  // целиком, а весь смысл разрезки — в `fetch` одного чанка
+  if (expanded.kind === 'open') {
+    throw new ValidationError([`kind: 'open' пишется каталогом — вызовите generateCatalog (${sourceName})`], warnings);
+  }
   const body = JSON.stringify(
     { name: level.name, hint: level.hint, map: level.map, sky: level.sky, gameplay: level.gameplay },
     null, 2,
@@ -82,7 +107,98 @@ export function generateModule(raw, sourceName) {
  */
 export const ${constName} = ${body};
 `;
-  return { name: constName, code: code.replace(/\r\n/g, '\n'), warnings };
+  return {
+    name: constName,
+    code: code.replace(/\r\n/g, '\n'),
+    warnings,
+    kind: 'module',
+    dir: dirname(sourceName).replace(/\\/g, '/'),
+    files: [{ path: `${basename(sourceName, extname(sourceName))}.js`, code: code.replace(/\r\n/g, '\n') }],
+  };
+}
+
+/**
+ * Каталог открытой главы — этап 1 плана docs/open-world-plan.md.
+ *
+ * Файлов два рода. `index.js` — определение главы: кадр мира, список клеток с
+ * их местными началами, `stream` с выведенным маргином и скелет (этап 2); его
+ * браузер грузит как обычную главу, и он мал. `chunk-<i>-<j>.json` — данные
+ * карты одной клетки в её местных осях; их `fetch`ит `WorldMap` по мере пути
+ * игрока, и размер одного файла — ровно то, ради чего мир режется.
+ *
+ * Разрезка идёт по **нормализованной** карте (`tools/chunk-level.mjs`), поэтому
+ * отметки на швах считает тот же нормализатор, что и для модуля главы, а не
+ * вторая реализация геодезии.
+ *
+ * @param {object} raw сырой бриф с `kind: 'open'` и секцией `stream`
+ * @param {string} sourceName имя исходника (src/levels/level-14.json)
+ * @param {{reverse?:boolean}} opts обход клеток задом наперёд — knob сюиты
+ * @returns {{name:string, files:Array, warnings:string[], meta:object, chunks:Array}}
+ */
+export function generateCatalog(raw, sourceName, opts = {}) {
+  const { expanded, level, warnings, constName } = prepare(raw, sourceName);
+  let split;
+  try {
+    split = splitLevel(level.map, expanded.stream, opts);
+  } catch (e) {
+    // клетка, не делившая плиту, или объект без плана: оформляем тем же
+    // ValidationError, чтобы CLI печатал список, а не стек
+    throw new ValidationError([String(e?.message ?? e)], warnings);
+  }
+  const notice = warnings.length
+    ? `\n * Предупреждения парсера:\n${warnings.map(w => ` *   — ${w}`).join('\n')}\n *`
+    : '';
+  const stem = basename(sourceName, extname(sourceName));
+  const body = stringifyStable({
+    name: level.name, hint: level.hint, map: split.indexMap, sky: level.sky, gameplay: level.gameplay,
+  }).replace(/\n$/, '');
+  const indexCode = `/**
+ * СГЕНЕРИРОВАННО — руками не править.
+ *
+ * Источник правки: ${sourceName}. После его изменения запуск
+ * \`node tools/build-level.mjs ${sourceName}\` перезаписывает этот файл и все
+ * \`chunk-*.json\` каталога побайтово одинаково (ГПСЧ в разрезке нет, ключи и
+ * объекты отсортированы).
+ *
+ * Открытая глава (этап 1 плана docs/open-world-plan.md): геометрии здесь нет.
+ * Мир лежит по клеткам \`cells[]\` — у каждой своё начало (\`origin\` — центр
+ * клетки в мировых осях) и свой файл \`chunk-<i>-<j>.json\` с обычными данными
+ * \`JsonMap\` в этих местных осях: \`ground.size\` в них — сторона клетки, а не
+ * сторона мира. Местные оси нужны затем, что решётка навигации ставит узлы по
+ * площади плиты: на 27 МБ модуле и на мире в 2 км шаг загрузки считался бы по
+ * всему миру, а не по загружаемому куску. Мировой кадр держит этот файл, и
+ * координаты игрока не правятся никогда — в отличие от окна главы 4.
+ *
+ * Дом, вставший на шов, едет в каждый пересекающий чанк (маргин
+ * \`stream.overlap\` — его вывел парсер, движку считать его нечем), а картинку и
+ * свет даёт только владеющий: у его копии стоит флаг \`owner: true\`.
+ * \`skeleton\` — этап 2, до него пустой.${notice}
+ */
+export const ${constName} = ${body};
+`;
+  const files = [
+    { path: 'index.js', code: indexCode.replace(/\r\n/g, '\n') },
+    ...split.chunks.map(c => ({ path: c.file, code: stringifyStable(c.map) })),
+  ];
+  return {
+    name: constName,
+    kind: 'catalog',
+    dir: `${dirname(sourceName).replace(/\\/g, '/')}/${stem}`,
+    files,
+    warnings,
+    meta: split.meta,
+    indexMap: split.indexMap,
+    chunks: split.chunks,
+    // нормализованная карта мира: сюита § 7.1 сверяет с ней чанки (план, владение,
+    // вердикт у шва), и второй раз гонять нормализатор ради этого было бы вдвое
+    // дороже замера
+    worldMap: level.map,
+  };
+}
+
+/** Чем платить бриф: модулем — обычно, каталогом — открытая глава. */
+export function generateOutput(raw, sourceName, opts = {}) {
+  return raw?.kind === 'open' ? generateCatalog(raw, sourceName, opts) : generateModule(raw, sourceName);
 }
 
 /** Имя экспорта из имени файла: level-09.json → LEVEL_09, city-3 → CITY_3. */
@@ -106,11 +222,11 @@ const defaultOut = jsonPath => resolve(dirname(jsonPath), `${basename(jsonPath, 
 function main(argv) {
   const jsonArg = argv.find(a => !a.startsWith('--'));
   if (!jsonArg) {
-    console.error('использование: node tools/build-level.mjs <level.json> [--check] [--out <file.js>]');
+    console.error('использование: node tools/build-level.mjs <level.json> [--check] [--out <file.js>|<каталог>]');
     return 1;
   }
   const jsonPath = resolve(jsonArg);
-  const outPath = argv.includes('--out') ? resolve(argv[argv.indexOf('--out') + 1]) : defaultOut(jsonPath);
+  const outArg = argv.includes('--out') ? resolve(argv[argv.indexOf('--out') + 1]) : null;
   const check = argv.includes('--check');
 
   let raw;
@@ -123,7 +239,7 @@ function main(argv) {
 
   let generated;
   try {
-    generated = generateModule(raw, jsonArg);
+    generated = generateOutput(raw, jsonArg);
   } catch (e) {
     if (!(e instanceof ValidationError)) throw e;
     console.error(`${basename(jsonPath)}: ошибок — ${e.errors.length}`);
@@ -134,22 +250,50 @@ function main(argv) {
 
   for (const msg of generated.warnings) console.log(`  ⚠ ${msg}`);
 
-  const current = existsSync(outPath) ? readFileSync(outPath, 'utf8').replace(/\r\n/g, '\n') : null;
+  // Модуль — один файл рядом с JSON. Каталог — папка с тем же stem, и `--out`
+  // для неё означает каталог, а не файл: чанков много и имя каждого даёт разрезка.
+  const targets = generated.kind === 'catalog'
+    ? generated.files.map(f => ({
+      path: join(outArg ?? resolve(dirname(jsonPath), basename(jsonPath, extname(jsonPath))), f.path),
+      code: f.code,
+    }))
+    : [{ path: outArg ?? defaultOut(jsonPath), code: generated.code }];
+
   if (check) {
-    if (current === null) {
-      console.error(`${outPath}: модуль не сгенерирован — запустите без --check`);
+    const stale = [];
+    for (const t of targets) {
+      if (!existsSync(t.path)) {
+        console.error(`${t.path}: файла нет — запустите без --check`);
+        return 2;
+      }
+      if (readFileSync(t.path, 'utf8').replace(/\r\n/g, '\n') !== t.code) stale.push(basename(t.path));
+    }
+    if (stale.length) {
+      console.error(`${stale.join(', ')}: расходится с тем, что даёт парсер (${generated.warnings.length} предупреждений)`);
       return 2;
     }
-    if (current !== generated.code) {
-      console.error(`${basename(outPath)}: расходится с тем, что даёт парсер (${generated.warnings.length} предупреждений)`);
-      return 2;
-    }
-    console.log(`${basename(outPath)}: совпадает с парсером, ${generated.name}`);
+    console.log(generated.kind === 'catalog'
+      ? `каталог ${generated.name}: index.js и ${targets.length - 1} чанков совпадают с парсером`
+      : `${basename(targets[0].path)}: совпадает с парсером, ${generated.name}`);
     return 0;
   }
 
-  writeFileSync(outPath, generated.code, 'utf8');
-  console.log(`${basename(outPath)}: ${generated.name} записан (${generated.code.length} символов, предупреждений — ${generated.warnings.length})`);
+  for (const t of targets) {
+    mkdirSync(dirname(t.path), { recursive: true });
+    writeFileSync(t.path, t.code, 'utf8');
+  }
+  if (generated.kind === 'catalog') {
+    const m = generated.meta;
+    const sizes = generated.files.slice(1).map(f => f.code.length);
+    const total = sizes.reduce((s, v) => s + v, 0);
+    console.log(`${basename(jsonPath)}: каталог ${dirname(targets[0].path)} записан — ${sizes.length} чанков`
+      + ` (сетка ${m.grid}×${m.grid}, сторона клетки ${m.chunk} м, плита ${m.size} м),`
+      + ` участников ${m.participants}, владельцев ${m.owners}, маргин ${m.overlap} м`);
+    console.log(`  данные чанков — ${total} Б (средний ${Math.round(total / sizes.length)} Б, наибольший ${Math.max(...sizes)} Б),`
+      + ` индекс ${generated.files[0].code.length} Б, предупреждений — ${generated.warnings.length}`);
+    return 0;
+  }
+  console.log(`${basename(targets[0].path)}: ${generated.name} записан (${targets[0].code.length} символов, предупреждений — ${generated.warnings.length})`);
   return 0;
 }
 

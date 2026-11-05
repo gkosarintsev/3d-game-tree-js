@@ -25,6 +25,17 @@ const DEG = Math.PI / 180;
 const ROTATIONS = [0, 90, 180, 270];
 
 /**
+ * Данные v2: поворотные дома, пластины и дуги, рельеф, косые районы, `city.track`
+ * и разрезка. Открытый мир (`kind: 'open'`, этап 1 плана docs/open-world-plan.md)
+ * — те же данные плюс секция `stream`, а не новая геодезия: поэтому все ветки
+ * «v1 или v2» обязаны считать его v2, иначе косой мир собрался бы осевым
+ * прямоугольником ровно так же, как это бракует схема v1.
+ */
+export function isV2Kind(kind) {
+  return kind === 'json2' || kind === 'open';
+}
+
+/**
  * @param {object} raw уровень, прошедший validateLevel
  * @returns {{name:string, hint:string, sky:object, gameplay:object, map:object, warnings:string[]}}
  */
@@ -78,7 +89,7 @@ export function normalizeLevel(raw) {
   const water = waterwayFoot(channels);
   // голову фонаря на проезжую часть поворачивает только v2: у v1 (главы 9–10)
   // `rotationY` обязан остаться прежним, иначе их модули разойдутся с парсером
-  const lampsFaceRoad = (raw.kind ?? 'json') === 'json2';
+  const lampsFaceRoad = isV2Kind(raw.kind);
   for (const road of roads) {
     // перехода не держат колонны: их держат здания, а опора с земли до настила
     // на 27 м проткнула бы кровли и дворы, под которыми переход идёт

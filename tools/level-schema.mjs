@@ -4,7 +4,8 @@
  *
  * Ajv в проект не ставится (правило «новых npm-зависимостей» в AGENTS.md),
  * поэтому поля описаны декларативно и обходятся руками. Проверка делится на
- * два прохода: структура (типы, обязательность, enum, диапазоны) и геометрия
+ * два прохода: структура (типы, обязательность, enum, диапазоны, плюс правила
+ * `stream`, где вердикт зависит сразу от нескольких полей) и геометрия
  * (осевые рёбра, замкнутость, «комната внутри footprint», пересечения, уклоны
  * дорог, опоры в плане дороги, лимит настоящих источников света).
  */
@@ -14,8 +15,9 @@ import {
   polyBounds, polyEdges, polyRects, r3, rasterPoly, rasterRect, rectsIntersect, cellsIntersect,
   rotatedBounds,
 } from '../src/geo2d.js';
-import { bridgeNoses, normalizeBuilding, normalizeWaterway, resolveRoadElements, roadCapsOf, toWorld } from './normalize-level.mjs';
+import { bridgeNoses, normalizeBuilding, normalizeWaterway, resolveRoadElements, roadCapsOf, toWorld, isV2Kind } from './normalize-level.mjs';
 import { ARCHETYPE_NAMES, STYLE_NAMES, DISTRICT_DEFAULTS, TRACK_DEFAULTS, TRACK_MAX_JITTER } from './city.js';
+import { cellGrid } from './chunk-level.mjs';
 import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
@@ -166,7 +168,7 @@ export const LEVEL_SPEC = obj({
   // переключатель версии живёт в брифе, поэтому v1 обязан принимать и явную
   // подпись: `normalizeLevel` ставит `raw.kind ?? 'json'`, и автор, написавший
   // 'json' честно, получал бы «поле не описано в схеме» за то же самое значение
-  kind: str({ enum: ['json'], doc: 'версия брифа: v1 (оси мира); в v2 поле обязательное и принимает только `json2`' }),
+  kind: str({ enum: ['json'], doc: 'версия брифа: v1 (оси мира); в v2 поле обязательное и принимает `json2` и `open`' }),
   metadata: obj({
     levelName: str({ req: true, doc: 'имя главы для пайплайна (level-13) — по нему CLI выводит имя экспорта' }),
     name: str({ req: true, doc: 'заголовок главы в HUD' }),
@@ -440,10 +442,51 @@ const V2_RELIEF = obj({
 
 export const LEVEL_SPEC_V2 = {
   ...LEVEL_SPEC,
-  doc: 'бриф главы v2 (`kind: json2`): тот же формат плюс поворотные дома, пластины и дуги настилов, аналитический рельеф, косые районы и `city.track`',
+  doc: 'бриф главы v2 (`kind: json2`) и открытого мира (`kind: open`): тот же формат плюс поворотные дома, пластины и дуги настилов, аналитический рельеф, косые районы, `city.track` и секция `stream`',
   fields: {
     ...LEVEL_SPEC.fields,
-    kind: str({ enum: ['json2'], req: true, doc: 'версия брифа: json2 — поворотные дома, пластины и дуги настилов, рельеф, косые районы и city.track; v1 бракует эти поля явно, чтобы косой бриф не собрался молча прямоугольником' }),
+    kind: str({
+      enum: ['json2', 'open'],
+      req: true,
+      doc: 'версия брифа: json2 — поворотные дома, пластины и дуги настилов, рельеф, косые районы и city.track; open — те же данные v2, но разрезанные парсером на чанки (§ 4.1 плана docs/open-world-plan.md) и собираемые `WorldMap` по мере движения, поэтому `stream` при нём обязателен. v1 бракует эти поля явно, чтобы косой бриф не собрался молча прямоугольником',
+    }),
+    // `stream` — переключатель разрезки (§ 4.1): наличие секции есть воля автора
+    // (правило AGENTS), числа — только те, что двигают поведение движка. Маргин
+    // дублирования чанков (`chunkOverlap` в tools/chunk-level.mjs) из этих чисел
+    // НЕ выводится и в схему не попадает: он арифметика проходовости, а не воля
+    // автора, и вторая запись разошлась бы с `bodyClearLine` при первой же правке
+    stream: obj({
+      chunk: num({
+        min: 100,
+        max: 600,
+        req: true,
+        doc: 'м: сторона квадратной клетки разрезки; обязан делить `ground.size` нацело. 600 — плита существующих глав 12–13 (§ 2.1: решётка 3 303…5 581 мс), 100 — наименьшая клетка, измеренная § 2.7 (289 точек, 156 мс решётки в худшем контенте); больше 600 нет смысла, потому что цена клетки растёт с её площадью',
+      }),
+      keep: num({
+        min: 0,
+        max: 4,
+        req: true,
+        doc: 'клеток во все стороны от клетки игрока, которые держатся загруженными: окно (2·keep+1)². Предел — память и цена первого окна (§ 2.7: 3×3 клетки по 300 м = 22 801 точка и 12,3 с худшей сборки), 4 — 81 клетка, то есть 7,3 км² загруженного мира; при 0 мир за спиной игрока исчезает, и возврат к предыдущей клетке стоит новой сборки',
+      }),
+      aheadMin: num({
+        min: 0,
+        max: 1200,
+        req: true,
+        doc: 'м: радиус догрузки вперёд по скорости тела на ногах; `CONFIG.speed.run` 8,5 м/с, значит 40 м — ~4,7 с хода, а предел обязан назначить замер этапа 4 (§ 8), а не это поле',
+      }),
+      aheadMax: num({
+        min: 0,
+        max: 1200,
+        req: true,
+        doc: 'м: тот же радиус для машины (`CONFIG.car.maxSpeed` 16 м/с); обязан быть не меньше `aheadMin` — иначе машина главы 13 въезжает в непроходимый чанк раньше, чем он достроится (§ 4.4)',
+      }),
+      budgetMs: num({
+        min: 1,
+        max: 100,
+        req: true,
+        doc: 'мс: что `WorldMap.streamStep` вправе потратить за один кадр; кадр 60 Гц — 16,7 мс, а худший чанк (§ 2.7) стоит 1 401 мс, то есть достройка обязана растягиваться на кадры. Гейт назначается замером этапа 4 (§ 8)',
+      }),
+    }, { doc: 'разрезка и достройка открытого мира (`kind: open`): парсер режет мир на клетки `chunk`, движок держит окно `keep` и догружает вперёд на `aheadMin`/`aheadMax`, тратя на кадр не больше `budgetMs`. Числа — воля автора; маргин дублирования чанков выводится из проходовости (tools/chunk-level.mjs), а не отсюда' }),
     relief: V2_RELIEF,
     city: CITY_SPEC_V2,
     roads: {
@@ -568,6 +611,47 @@ export function validateSpec(raw, spec = LEVEL_SPEC) {
   return errors;
 }
 
+// ------------------------------------------------------------- разрезка (stream)
+
+/**
+ * Правила секции `stream` — то, что видно только по нескольким её полям сразу.
+ * Здесь уместна ошибка, а не предупреждение: `kind: 'open'` без `stream` парсер
+ * резал бы молча (клетки по умолчанию нет), а `chunk`, не делящий плиту, дал бы
+ * клетки разного размера — и `keep` означал бы разный запас времени достройки в
+ * разных концах мира.
+ */
+function streamErrors(raw, spec) {
+  const errors = [];
+  const stream = raw.stream;
+  // `stream` описан только в v2-спецификации: для v1 его присутствие — та же
+  // история, что `relief` и `yaw`, только с последствиями в двух модулях
+  const v2 = !!(spec && spec.fields && spec.fields.stream);
+  if (stream && !v2) {
+    errors.push('stream: поле v2 («kind: \'json2\'» или «\'open\'»), а глава «kind: \'' + (raw.kind ?? 'json') + '\'»: '
+      + 'схема v1 разрезку не принимает, потому что косой бриф собрался бы осевым прямоугольником');
+    return errors;
+  }
+  if (raw.kind === 'open' && !stream) {
+    errors.push("stream: `kind: 'open'` без секции — парсеру нечем резать мир; задайте `stream.chunk` и `stream.keep`");
+  }
+  if (raw.kind === 'json2' && stream) {
+    errors.push('stream: секция есть, а `kind: \'json2\'` — `JsonMap` собрал бы весь мир целиком и не посмотрел бы на чанки; для разрезки нужен `kind: \'open\'`');
+  }
+  if (!stream) return errors;
+  const size = raw.ground?.size ?? 176;
+  try {
+    // деление клетки проверяет тот же код, что её строит: подсказка с делителями
+    // и формулировка ошибки не разъедутся с разрезкой при первой правке
+    cellGrid(size, stream.chunk);
+  } catch (e) {
+    errors.push(String(e.message ?? e));
+  }
+  if (stream.aheadMax < stream.aheadMin) {
+    errors.push(`stream.aheadMax ${stream.aheadMax} меньше aheadMin ${stream.aheadMin}: упреждение на машине не обязано быть короче пешего, иначе машина въезжает в незастроенный чанк (§ 4.4)`);
+  }
+  return errors;
+}
+
 // ------------------------------------------------------------- проверка геометрии
 
 /**
@@ -583,6 +667,13 @@ export function validateSpec(raw, spec = LEVEL_SPEC) {
 export function validateLevel(raw, spec = LEVEL_SPEC) {
   const errors = validateSpec(raw, spec);
   const warnings = [];
+  if (errors.length) return { errors, warnings, geometryOnly: false };
+
+  // Разрезка — поле с последствиями в двух других модулях (парсер режет клетки,
+  // движок держит окно), поэтому проверяется отдельным проходом: структурный
+  // обход видит только типы и диапазоны, а «`chunk` делит плиту нацело» и
+  // «`aheadMax` не меньше `aheadMin`» — свойства сразу двух чисел.
+  errors.push(...streamErrors(raw, spec));
   if (errors.length) return { errors, warnings, geometryOnly: false };
 
   const size = raw.ground?.size ?? 176;
@@ -1023,7 +1114,8 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
   // от ближайшей улицы, один стоял над домом `ncc_012`, и маршрут выводил
   // человека в двор, где обрывается мост. Проверка только для v2: модули глав
   // 9–10 обязаны побайтово совпадать с парсером, а их носы сегодня именно таковы.
-  if (raw.kind === 'json2') {
+  // `open` — те же данные v2, поэтому и правило носов у него общее с `json2`.
+  if (isV2Kind(raw.kind)) {
     const streetPlans = [];
     for (const road of raw.roads ?? []) {
       if (road.type !== 'ground') continue;

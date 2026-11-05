@@ -40,6 +40,9 @@ jobs:
       - name: Сюита трассы-кольца
         run: node tools/track.test.mjs
 
+      - name: Сюита разрезки на чанки (этап 1 открытого мира)
+        run: node tools/chunk.test.mjs
+
   browser:
     runs-on: ubuntu-latest
     container:

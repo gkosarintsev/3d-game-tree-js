@@ -31,7 +31,7 @@ import {
   AXIS_EPS, pointInPoly, polyEdges, polyRects, r3, rectsIntersect,
   frameAt, rotatePoint, unrotatePoint, rotatedBounds, obbHitsRect, obbHitsObb, obbOf, signedArea,
 } from '../src/geo2d.js';
-import { normalizeBuilding, normalizeRoad, normalizeWaterway, bridgeNoses, districtTerraces } from './normalize-level.mjs';
+import { normalizeBuilding, normalizeRoad, normalizeWaterway, bridgeNoses, districtTerraces, isV2Kind } from './normalize-level.mjs';
 import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
@@ -1581,7 +1581,12 @@ export function expandCity(raw, stats) {
   if (!city) return raw;
   const ground = { y: r3(raw.ground?.y ?? 0), size: r3(raw.ground?.size ?? 176) };
   const districts = city.districts ?? [];
-  const errors = cityConfigErrors(city, ground, districts, raw.kind === 'json2');
+  // `open` — те же данные v2, только разрезанные (этап 1 плана открытого мира):
+  // генератор обязан разворачивать косые районы, рельеф и трассу ровно так же,
+  // иначе мир `kind: 'open'` собрался бы осевым — то, что схема v1 бракует по
+  // той же причине
+  const v2 = isV2Kind(raw.kind);
+  const errors = cityConfigErrors(city, ground, districts, v2);
   if (errors.length) throw new Error(errors.join('\n'));
   if (!districts.length) throw new Error('city.districts пуст: генератор не дал бы ни улицы, ни дома');
 
@@ -1602,14 +1607,14 @@ export function expandCity(raw, stats) {
     reliefSpec: raw.relief ? { ...raw.relief, baseY: raw.relief.baseY ?? ground.y } : null,
     // улицы v2 — пластины с перекрёстками и профилем по рельефу; v1 (глава 10)
     // остаётся полосой `points` на одной отметке, поэтому ей нужен явный флаг
-    v2: raw.kind === 'json2',
+    v2,
     rng: makeRng(city.seed ?? 0),
     obstacles: obstacleRects(raw, ground),
     // свободные носы авторских подъёмов: сетка улиц v2 обязана дать им асфальт
     // под срезом (правило валидатора «нос кончается на улице» мерит ровно этот
     // же список — `bridgeNoses`). Во v1 пуст: глава 10 со своими тремя
     // недотянутыми носами собирается побайтово
-    noses: raw.kind === 'json2' ? bridgeNoses(raw.roads ?? [], ground.y, reliefField) : [],
+    noses: v2 ? bridgeNoses(raw.roads ?? [], ground.y, reliefField) : [],
     state: { lots: 0 },
     bump: key => { if (stats) stats[key] = (stats[key] ?? 0) + 1; },
   };
