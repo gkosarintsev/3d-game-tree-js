@@ -17,7 +17,7 @@ import {
 } from '../src/geo2d.js';
 import { bridgeNoses, normalizeBuilding, normalizeWaterway, resolveRoadElements, roadCapsOf, toWorld, isV2Kind } from './normalize-level.mjs';
 import { ARCHETYPE_NAMES, STYLE_NAMES, DISTRICT_DEFAULTS, TRACK_DEFAULTS, TRACK_MAX_JITTER } from './city.js';
-import { cellGrid } from './chunk-level.mjs';
+import { cellGrid, CHUNK_MIN, CHUNK_MAX } from './chunk-level.mjs';
 import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
@@ -457,10 +457,10 @@ export const LEVEL_SPEC_V2 = {
     // автора, и вторая запись разошлась бы с `bodyClearLine` при первой же правке
     stream: obj({
       chunk: num({
-        min: 100,
-        max: 600,
+        min: CHUNK_MIN,
+        max: CHUNK_MAX,
         req: true,
-        doc: 'м: сторона квадратной клетки разрезки; обязан делить `ground.size` нацело. 600 — плита существующих глав 12–13 (§ 2.1: решётка 3 303…5 581 мс), 100 — наименьшая клетка, измеренная § 2.7 (289 точек, 156 мс решётки в худшем контенте); больше 600 нет смысла, потому что цена клетки растёт с её площадью',
+        doc: 'м: сторона квадратной клетки разрезки; обязана делить `ground.size` нацело и быть кратной `J.relief.meshCell` (8 м) — иначе сетки нарезки грунта соседних клеток не сходятся по вершинам и на шве лёг бы T-стык (гейт в `cellGrid`, `tools/chunk-level.mjs`). 600 — плита существующих глав 12–13 (§ 2.1: решётка 3 303…5 581 мс), 100 — наименьшая клетка, измеренная § 2.7 (289 точек, 156 мс решётки в худшем контенте); больше 600 нет смысла, потому что цена клетки растёт с её площадью',
       }),
       keep: num({
         min: 0,

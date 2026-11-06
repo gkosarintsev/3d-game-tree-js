@@ -1,6 +1,6 @@
 /**
- * Разрезка уровня на чанки — этап 1 плана открытого мира
- * (docs/open-world-plan.md, § 4.1).
+ * Разрезка уровня на чанки — этапы 1 и 3 плана открытого мира
+ * (docs/open-world-plan.md, § 4.1, § 5.8, § 6.3.1).
  *
  * Режет парсер, а не движок: детерминизм, побайтовость и «одна правда о числах»
  * уже обеспечены пайплайном JSON → Node → движок, а разрезка в браузере была бы
@@ -9,24 +9,38 @@
  * отметки поля по всему миру, поэтому резать бриф и нормализовать каждый чанк
  * отдельно значило бы получить на швах другие высоты.
  *
- * Каждый чанк — законные данные `JsonMap` в **своих местных осях**: центр клетки
- * становится (0, 0), `ground.size` — стороной клетки. Это не перенос мира, как у
- * главы 4 (`src/stream-map.js` держит центр окна и требует сдвига `-(dx, dz)` и
- * пропуска кадра): мировой кадр остаётся в `index.js` (`cells[].origin`), и
- * координаты игрока не правятся никогда. Местные оси нужны затем, что решётка
- * навигации ставит узлы **по площади плиты** (§ 2.2) — плита чанка обязана быть
- * маленькой, иначе стриминг не спасает от цены всего мира.
+ * Каждый чанк держит **мировые** оси: координаты копий равны координатам
+ * нормализованного мира слово в слово, а не смещены на центр клетки. Местные
+ * оси (форма этапа 1) стоили второго переводчика координат — движку, собирающему
+ * чанк, пришлось бы знать `origin` клетки в каждой из 12+ коллекций выводимой
+ * геометрии, где пропущенное сложение молчит, а не бросает, — и оказались
+ * дороже на байтах: вычитание центра печатается 17-значащим двойным (§ 5.8).
+ * Это не перенос мира, как у главы 4 (`src/stream-map.js` держит центр окна и
+ * требует сдвига `-(dx, dz)` и пропуска кадра): мировой кадр один и он в
+ * `index.js`, и координаты игрока не правятся никогда. Клеточная цена решётки
+ * навигации при этом не теряется: её держит обход прямоугольников загруженных
+ * клеток (`cells[].rect` в `src/world-map.js`), а не размер плиты чанка (§ 4.3).
+ *
+ * Мировое живёт в `index.js` один раз: плита (`ground`), габарит содержимого,
+ * спавн, `relief` и три секции выводимой картинки (`windows`, `clutter`,
+ * `signage`) — последние потому, что это настройки механизма, а не геометрия
+ * клетки, и в чанках их просто негде было держать (§ 6.3.1).
  *
  * Правило владельца/ссылки (§ 4.1): картинку и свет объекта строит владеющий
  * чанк — из тех его клеток, чей прямоугольник пересекает план объекта (без
  * маргина), ближайшая к центру его плана; твёрдость, опору и проходы объект
  * отдаёт **всем** чанкам, чей план он пересекает с маргином `chunkOverlap()`.
  * Без маргина проба на шве видела бы половину стены, а ребро через шов
- * браузовалось бы молча.
+ * браузовалось бы молча. Дубликаты участников по id НЕ вычитаются: выгрузка
+ * обязана оставаться монотонной (§ 4.1, цена ×1,065…1,091 записей).
  */
 import { CONFIG } from '../src/config.js';
 
 const J = CONFIG.jsonMap;
+
+/** м: пределы стороны клетки, которые принимает схема (`stream.chunk`). */
+export const CHUNK_MIN = 100;
+export const CHUNK_MAX = 600;
 
 /**
  * м: маргин, на который план объекта должен перерасти границу клетки, чтобы
@@ -46,7 +60,7 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 /** Прямоугольник плана целиком: все четыре стороны — числа. */
 const isRect = (r) => isNum(r.minX) && isNum(r.maxX) && isNum(r.minZ) && isNum(r.maxZ);
 
-/** Прямоугольник плана (мировые оси, локализатор его не трогает). */
+/** План прямоугольника в мировых осях — разрезка его не перекладывает. */
 const rectOf = (o) => (o ? { minX: o.minX, maxX: o.maxX, minZ: o.minZ, maxZ: o.maxZ } : {});
 
 /** План точечного объекта — вырожденный прямоугольник в его центре. */
@@ -65,7 +79,7 @@ function apronRect(a) {
 
 /**
  * Планы объекта по коллекции. Отсюда разрезка берёт и владение, и участие:
- * план и локализация — две разные функции, и пропущенное поле видно как
+ * план клетки и план объекта — две разные функции, и пропущенное поле видно как
  * расхождение меры (§ 7.1 п. 3), а не молчанием.
  */
 const PLANS = {
@@ -85,7 +99,7 @@ const PLANS = {
   lights: (l) => [pointRect(l.position)],
 };
 
-/** Коллекции, которые разрезка знает как размещать в мире, — он же список для сюиты. */
+/** Коллекции, которые разрезка умеет размещать по клеткам, — он же список для сюиты. */
 export const CHUNK_COLLECTIONS = Object.keys(PLANS);
 
 /** Союз прямоугольников — габарит плана объекта. */
@@ -135,13 +149,25 @@ const hits = (a, b) => a.minX <= b.maxX && b.minX <= a.maxX && a.minZ <= b.maxZ 
  * считаются в клетках, и клетка другого размера на краю означала бы, что у
  * одного и того же `keep` в разных местах мира разный запас времени достройки.
  * Делитель, который не делит, — ошибка брифа, а не остаток в последней клетке.
+ *
+ * Второй гейт — кратность `J.relief.meshCell`: грунт режется сеткой 8 м по
+ * плите (`_groundGeo` в `src/json-map.js`), и при клетке, не кратной этому
+ * шагу, вершины нарезки соседних клеток не сошлись бы — на каждом шве лёг бы
+ * T-стык, который на рельефе читается световой полосой.
  */
 export function cellGrid(size, chunk) {
+  const mesh = J.relief.meshCell;
   if (!Number.isInteger(chunk) || chunk <= 0) {
     throw new Error(`stream.chunk: ${chunk} — сторона клетки обязана быть целым числом метров`);
   }
+  if (chunk % mesh !== 0) {
+    throw new Error(`stream.chunk ${chunk} не кратно ${mesh} (\`J.relief.meshCell\`): `
+      + `нарезка грунта соседних клеток сошлась бы по вершинам только при клетке, кратной шагу сетки, `
+      + `а иначе на каждом шве остаётся T-стык; подходящие стороны клетки: ${cellChoices(size).join(', ')}`);
+  }
   if (size % chunk !== 0) {
-    throw new Error(`stream.chunk ${chunk} не делит плиту ${size} нацело; подходящие стороны клетки: ${cellDivisors(size).join(', ')}`);
+    throw new Error(`stream.chunk ${chunk} не делит плиту ${size} нацело; `
+      + `подходящие стороны клетки: ${cellChoices(size).join(', ')}`);
   }
   const n = size / chunk;
   const half = size / 2;
@@ -162,131 +188,35 @@ export function cellGrid(size, chunk) {
   return { n, cells };
 }
 
-/** Делители плиты в пределах schema-диапазона `chunk` — подсказка в тексте ошибки. */
-function cellDivisors(size) {
+/**
+ * Стороны клетки, которые принимает эта плита: делители в пределах схемы,
+ * кратные `J.relief.meshCell`. Подсказка в тексте ошибки, а не разрешение —
+ * пустой список означал бы, что плиту вообще нельзя разрезать законно.
+ */
+export function cellChoices(size) {
+  const mesh = J.relief.meshCell;
   const out = [];
-  for (let d = 100; d <= 600; d += 50) if (size % d === 0) out.push(d);
-  return out.length ? out : [size];
-}
-
-// ------------------------------------------------------------- локализация
-
-/**
- * Ключи, которые локализатор обязан сдвинуть. Координатный ключ вне правила —
- * бросок, а не тихий пропуск: несдвинутое поле дало бы чанк, у которого стена
- * стоит не там, где её рисует владеющий чанк, и в браузере это выглядело бы
- * дефектом геометрии, а не забытой строчкой в парсере.
- */
-const COORD_KEYS = ['x', 'z', 'minX', 'maxX', 'minZ', 'maxZ', 'cx', 'cz', 'bx', 'bz',
-  'lo', 'hi', 'cross', 'u0', 'u1', 'v0', 'v1'];
-
-/**
- * Числа, похожие на координату, но размер или угол: их сдвигать нельзя, и
- * локализатор обязан видеть их своими глазами (иначе `hx` из `obb` уехал бы
- * вместе с центром, и повёрнутая пластина потеряла бы половину ширины).
- */
-const SIZE_KEYS = ['hx', 'hz', 'radius', 'a0', 'a1', 'span', 'halfW'];
-
-/** Родительские ключи, чьи `x`/`z` — масштаб экземпляра, а не место в мире. */
-const SIZE_PARENTS = ['scale'];
-
-/**
- * Правила сдвига: каждое либо съедает свои ключи, либо возвращает `null`.
- * Один и тот же ключ не может быть съеден дважды — за этим следит `localize`.
- */
-const RULES = [
-  // плоский прямоугольник в мировых осях: плита пола, стена, проём, проступь,
-  // настил, площадка, дыра в грунте
-  (o, dx, dz) => {
-    if (!(isNum(o.minX) && isNum(o.maxX) && isNum(o.minZ) && isNum(o.maxZ))) return null;
-    o.minX -= dx; o.maxX -= dx; o.minZ -= dz; o.maxZ -= dz;
-    return ['minX', 'maxX', 'minZ', 'maxZ'];
-  },
-  // центр вращения и центр OBB: вместе с ним уезжает весь сектор дуги или вся
-  // повёрнутая коробка, а углы и полуоси остаются своими
-  (o, dx, dz) => {
-    if (!(isNum(o.cx) && isNum(o.cz))) return null;
-    o.cx -= dx; o.cz -= dz;
-    return ['cx', 'cz'];
-  },
-  // второй конец капсулы холма (первый — правилом точки)
-  (o, dx, dz) => {
-    if (!(isNum(o.bx) && isNum(o.bz))) return null;
-    o.bx -= dx; o.bz -= dz;
-    return ['bx', 'bz'];
-  },
-  // точка плана: полигон footprint, узел двери, опора света, предмет
-  (o, dx, dz) => {
-    if (!(isNum(o.x) && isNum(o.z))) return null;
-    o.x -= dx; o.z -= dz;
-    return ['x', 'z'];
-  },
-  // ось-зависимые поля: `axis` говорит, вдоль чего лежат `lo`/`hi` (у откоса —
-  // борт `minX`/`maxX`), а `cross` и `v` — поперёк; `u` у схода идёт по своей оси
-  (o, dx, dz) => {
-    if (o.axis !== 'x' && o.axis !== 'z') return null;
-    if (!(isNum(o.cross) || isNum(o.lo) || isNum(o.u0))) return null;
-    const along = o.axis === 'x' ? dx : dz;
-    const across = o.axis === 'x' ? dz : dx;
-    const eaten = [];
-    for (const k of o.axis === 'x' ? ['minX', 'maxX'] : ['minZ', 'maxZ']) {
-      if (isNum(o[k])) { o[k] -= along; eaten.push(k); }
-    }
-    for (const k of ['lo', 'hi']) if (isNum(o[k])) { o[k] -= along; eaten.push(k); }
-    for (const k of ['u0', 'u1']) if (isNum(o[k])) { o[k] -= along; eaten.push(k); }
-    for (const k of ['v0', 'v1']) if (isNum(o[k])) { o[k] -= across; eaten.push(k); }
-    if (isNum(o.cross)) { o.cross -= across; eaten.push('cross'); }
-    return eaten;
-  },
-];
-
-/**
- * Копирует узел данных в местные оси клетки.
- *
- * `claimed` — карта «путь в данных → почему сдвинут (или почему нет)»; её
- * сверяет с обходом всех координатных ключей сюита § 7.1 п. 3, поэтому список
- * правил не может разойтись с фактическим содержимым нормализатора.
- */
-export function localize(value, origin, claimed = new Map(), path = '') {
-  if (Array.isArray(value)) return value.map((v) => localize(v, origin, claimed, `${path}[]`));
-  if (!value || typeof value !== 'object') return value;
-
-  const keyName = path.slice(path.lastIndexOf('.') + 1);
-  if (SIZE_PARENTS.includes(keyName)) {
-    for (const k of Object.keys(value)) {
-      if (isNum(value[k]) && COORD_KEYS.includes(k)) claimed.set(`${path}.${k}`, 'size');
-    }
-    return { ...value };
+  for (let d = CHUNK_MIN; d <= CHUNK_MAX; d++) {
+    if (size % d === 0 && d % mesh === 0) out.push(d);
   }
-
-  const { x: dx, z: dz } = origin;
-  const out = { ...value };
-  const eaten = new Set();
-  for (const rule of RULES) {
-    for (const k of rule(out, dx, dz) ?? []) {
-      if (eaten.has(k)) throw new Error(`${path}.${k}: координата попала в два правила локализации — правила разошлись по форме объекта`);
-      eaten.add(k);
-      claimed.set(`${path}.${k}`, 'shift');
-    }
-  }
-  for (const k of Object.keys(out)) {
-    if (!isNum(out[k])) continue;
-    if (COORD_KEYS.includes(k) && !eaten.has(k)) {
-      throw new Error(`${path}.${k}: координата без правила локализации — чанк получил бы геометрию не там, где её рисует владелец`);
-    }
-    if (SIZE_KEYS.includes(k)) claimed.set(`${path}.${k}`, 'size');
-  }
-  // вложенные узлы идут тем же путём: план дома, настила и русла живёт вглубь
-  for (const [k, v] of Object.entries(out)) {
-    if (v && typeof v === 'object') out[k] = localize(v, origin, claimed, `${path}.${k}`);
-  }
-  return out;
+  if (out.length) return out;
+  const loose = [];
+  for (let d = CHUNK_MIN; d <= CHUNK_MAX; d++) if (size % d === 0) loose.push(d);
+  return loose.length ? loose : [size];
 }
 
 // ------------------------------------------------------------- разрезка
 
 /**
  * Режет нормализованную карту на чанки.
+ *
+ * Чанк держит **мировые** оси (§ 4.1, § 5.8 плана docs/open-world-plan.md):
+ * координаты копий равны координатам нормализованного мира слово в слово,
+ * потому что перевод в местные оси клетки стоил бы второго переводчика в
+ * движке (выводимая геометрия считается фазами из 12+ коллекций, и пропущенное
+ * сложение там молчит), а на байтах он же и дорожал: вычитание центра клетки
+ * печатается 17-значащим двойным. Мировые настройки карты — плита, `relief`,
+ * спавн, габарит и секции выводимой картинки — лежат один раз в `index.js`.
  *
  * @param {object} map нормализованная карта (`normalizeLevel(...).map`)
  * @param {object} stream секция `stream` брифа: `{chunk, keep, aheadMin, aheadMax, budgetMs}`
@@ -334,15 +264,25 @@ export function splitLevel(map, stream, opts = {}) {
     }
   }
 
-  const chunks = cells.map((cell) => buildChunk(map, cell, stream.chunk, members.get(cell.id)));
-  const worldCells = cells.length;
+  const chunks = cells.map((cell) => buildChunk(map, cell, members.get(cell.id)));
 
   return {
     indexMap: {
+      // Кадр мира — здесь один раз: чанк на мировых осях не несёт ни плиты, ни
+      // рельефа, ни спавна, и у движка нет второй копии этих чисел, которая
+      // могла бы разойтись с файлом клетки.
       kind: 'open',
       units: map.units ?? 'meters',
-      world: { size: map.ground.size, y: map.ground.y, color: map.ground.color, bounds: map.bounds },
+      ground: map.ground,
+      bounds: map.bounds,
       spawn: map.spawn,
+      ...(map.relief ? { relief: map.relief } : {}),
+      // Три секции выводимой картинки — настройки механизма, а не геометрия
+      // клетки: позиции рядов считает карта по своим стенам и кровлям, поэтому
+      // в чанке им негде было лежать и формат этапа 1 их терял (§ 6.3.1).
+      ...(map.windows ? { windows: map.windows } : {}),
+      ...(map.clutter ? { clutter: map.clutter } : {}),
+      ...(map.signage ? { signage: map.signage } : {}),
       // `overlap` — выведенное парсером число, и в `index.js` оно лежит ровно
       // по той же причине, по какой в модуле главы лежат выведенные отметки:
       // движок не должен второй раз считать арифметику маргина по CONFIG
@@ -354,14 +294,13 @@ export function splitLevel(map, stream, opts = {}) {
         id: c.id,
         file: c.file,
         rect: c.rect,
-        origin: c.origin,
         objects: chunks.find((k) => k.id === c.id).counts,
       })),
     },
     chunks,
     meta: {
       grid: n,
-      cells: worldCells,
+      cells: cells.length,
       chunk: stream.chunk,
       size: map.ground.size,
       overlap,
@@ -372,34 +311,27 @@ export function splitLevel(map, stream, opts = {}) {
   };
 }
 
-/** Один чанк: localized-копии участников в местных осях клетки. */
-function buildChunk(map, cell, chunk, bucket) {
-  const claimed = new Map();
+/**
+ * Один чанк: копии его участников в мировых осях.
+ *
+ * Копия обязана быть **своей** только верхним слоем: флаг `owner` отличает
+ * владеющую клетку от ссылающейся, и запись его в общий объект нормализованной
+ * карты сделала бы владельца повсюду. Вложенные планы при этом не дублируются —
+ * разрезка их не правит, а `stringifyStable` печатает сколько угодно раз.
+ */
+function buildChunk(map, cell, bucket) {
   const chunkMap = {
     kind: map.kind === 'open' ? 'json2' : (map.kind ?? 'json'),
     units: map.units ?? 'meters',
-    ground: { ...map.ground, size: chunk },
-    // рельеф — аналитическое поле, и каждый чанк обязан держать его ЦЕЛИКОМ
-    // (сдвинутым): на шве нога должна стоять на том же поле, что в середине
-    // клетки, а не на «другом холме» (AGENTS: одно поле кормит всех)
-    ...(map.relief ? { relief: localize(map.relief, cell.origin, claimed, '.relief') } : {}),
-    ...(map.spawn ? { spawn: { x: 0, z: 0 } } : {}),
   };
   const counts = {};
   for (const collection of Object.keys(PLANS)) {
     const items = (bucket.get(collection) ?? []).slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     if (!items.length) continue;
     counts[collection] = items.length;
-    chunkMap[collection] = items.map(({ obj, owner }) => {
-      const copy = localize(obj, cell.origin, claimed, `.${collection}[]`);
-      // флаг владения: картинку и свет рисует этот чанк, остальные дают только
-      // твёрдость и опору — иначе дом на шве нарисовался бы дважды
-      if (owner) copy.owner = true;
-      return copy;
-    });
+    chunkMap[collection] = items.map(({ obj, owner }) => (owner ? { ...obj, owner: true } : { ...obj }));
   }
-  chunkMap.bounds = boundsOf(chunkMap, cell, chunk);
-  return { id: cell.id, file: cell.file, cell, map: chunkMap, counts, claimed };
+  return { id: cell.id, file: cell.file, cell, map: chunkMap, counts };
 }
 
 /**
@@ -429,28 +361,6 @@ function pickOwner(plan, inside) {
     }
   }
   return best.cell;
-}
-
-/**
- * Габарит содержимого чанка, клампованный к его плите: движок держит по
- * `bounds` снятие врагов и кламп машины (§ 4.3), поэтому честный габарит —
- * содержимое, а не клетка целиком.
- */
-function boundsOf(chunkMap, cell, chunk) {
-  const rects = [];
-  for (const collection of Object.keys(PLANS)) {
-    for (const obj of chunkMap[collection] ?? []) rects.push(...planOf(collection, obj).rects);
-  }
-  const plate = { minX: -chunk / 2, maxX: chunk / 2, minZ: -chunk / 2, maxZ: chunk / 2 };
-  if (!rects.length) return plate;
-  const b = unionRect(rects);
-  const r6 = (v) => Math.round(v * 1e6) / 1e6;
-  return {
-    minX: Math.max(plate.minX, r6(b.minX)),
-    maxX: Math.min(plate.maxX, r6(b.maxX)),
-    minZ: Math.max(plate.minZ, r6(b.minZ)),
-    maxZ: Math.min(plate.maxZ, r6(b.maxZ)),
-  };
 }
 
 /**

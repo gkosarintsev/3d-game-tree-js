@@ -6,6 +6,7 @@ import { createCityMap } from './city-map.js';
 import { createModelMap } from './model-map.js';
 import { createStreamedMap } from './stream-map.js';
 import { createJsonMap } from './json-map.js';
+import { createWorldMap } from './world-map.js';
 import { preloadMapAsset } from './glb.js';
 import { ExitGoal } from './exit.js';
 import { LEVELS } from './levels/index.js';
@@ -29,6 +30,12 @@ const MAP_KINDS = {
   town: createTownMap,
   json: createJsonMap,
   json2: createJsonMap,
+  // открытый мир: та же арифметика `JsonMap`, но собранная по загруженным
+  // клеткам (`src/world-map.js`); файлов клеток движок не касается — их читает
+  // сама карта по `map.catalog`. Парсер ещё не печатает это поле в `index.js`,
+  // поэтому пока путь подставляет тот, кто собирает карту (сюита; печать поля —
+  // § 10.13 плана открытого мира)
+  open: createWorldMap,
 };
 
 /**

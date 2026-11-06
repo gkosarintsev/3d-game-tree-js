@@ -4,8 +4,9 @@
  *
  * Меряет на данных то, от чего зависит стриминг: побайтовость вывода парсера и
  * его независимость от порядка обхода, владение каждым объектом ровно одним
- * чанком и присутствие во всех чанках, чей план он пересекает, обратимость
- * локализации, достаточность маргина на шве и приёмку секции `stream` схемой.
+ * чанком и присутствие во всех чанках, чей план он пересекает, совпадение
+ * координат копии с мировыми (чанк этапа 3 не переводит оси), достаточность
+ * маргина на шве и приёмку секции `stream` схемой.
  *
  * Three.js здесь не нужен и не запускается: `src/json-map.js:1` импортирует
  * 'three', поэтому настоящий `bodyClearLine` по собранной карте — в браузерной
@@ -25,12 +26,16 @@ import { generateCatalog, generateModule } from './build-level.mjs';
 import { SKELETON_STEP, GROUND_FIT, axisLength, skeletonOf } from './skeleton.mjs';
 import { schemaText, SCHEMA_FILES } from './export-schema.mjs';
 import {
-  splitLevel, chunkOverlap, planOf, localize, CHUNK_COLLECTIONS, stringifyStable,
+  splitLevel, chunkOverlap, planOf, cellChoices, CHUNK_COLLECTIONS, stringifyStable,
 } from './chunk-level.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const FIXTURE = 'probe/open-2km.json';
-const CHUNK = 350;
+// Клетка 200 м вместо 350 м этапа 1: с этапа 3 сторона обязана быть кратной
+// `J.relief.meshCell` (8 м), иначе нарезка грунта соседних клеток не сходится
+// по вершинам на шве. Из делителей 1 400 м в пределах схемы этому кратны 200 и
+// 280 (§ 6.3.1 плана), берём меньшую — она держит худшую цену сборки окна.
+const CHUNK = 200;
 const R = CONFIG.radius;
 const OVERLAP = chunkOverlap();
 
@@ -104,7 +109,7 @@ const hits = (a, b) => a.minX <= b.maxX && b.minX <= a.maxX && a.minZ <= b.maxZ 
 
 // ------------------------------------------------------- планы, индекс, пробы
 
-/** Все планы частей карты в её собственных осях — мир или один чанк. */
+/** Все планы частей карты — и у мира, и у чанка они в мировых осях (§ 5.8). */
 function allRects(map) {
   const out = [];
   for (const coll of CHUNK_COLLECTIONS) {
@@ -147,12 +152,12 @@ function blocked(idx, x, z, radius) {
   return false;
 }
 
-/** План чанка в мировых осях: местные прямоугольники + начало клетки. */
+/**
+ * Планы чанка — уже мировые: с этапа 3 (§ 5.8) чанк не переводит оси, и второй
+ * переводчик координат в мере был бы второй правдой о кадре клетки.
+ */
 function chunkWorldRects(chunk) {
-  const { x: ox, z: oz } = chunk.cell.origin;
-  return allRects(chunk.map).map(r => ({
-    minX: r.minX + ox, maxX: r.maxX + ox, minZ: r.minZ + oz, maxZ: r.maxZ + oz,
-  }));
+  return allRects(chunk.map);
 }
 
 /** Внутренние границы клеток (каждая один раз): ось, координата, сосед справа. */
@@ -565,78 +570,58 @@ function syntheticMap() {
   };
 }
 
-// Локализация — вне списка § 7.1, но без неё п. 3 и п. 4 бессмысленны: чанк с
-// несдвинутой координатой проходит «покрытие» и краснеет швом в браузере.
-t('локализация обратима: копия чанка, возвращённая в мир, равна мировому объекту', () => {
-  let worst = 0;
+// § 7.1 п. 3 (мера, пришедшая на смену обратимости локализации: перевода
+// координат в формате этапа 3 больше нет). Копия обязана равняться мировому
+// объекту слово в слово — `deepDiff` с нулевым допуском ловит и забытое
+// смещение, и потерянное поле, и то, что разрезка начала править данные.
+t('чанк в мировых осях: копия равна мировому объекту без перевода координат', () => {
   const errors = [];
+  let copies = 0;
+  let owners = 0;
   for (const coll of CHUNK_COLLECTIONS) {
     const byId = new Map((worldMap[coll] ?? []).map(o => [o.id, o]));
     for (const c of full.chunks) {
       for (const copy of c.map[coll] ?? []) {
-        const { x: ox, z: oz } = c.cell.origin;
-        const clean = { ...copy };
-        delete clean.owner;
         const src = byId.get(copy.id);
         if (!src) { errors.push(`${coll}: '${copy.id}' в чанке ${c.id} нет в мире`); continue; }
-        const d = deepDiff(src, localize(clean, { x: -ox, z: -oz }), '', 1e-9);
-        if (d.message) { errors.push(`${coll}:${copy.id} — ${d.message}`); continue; }
-        if (d.worst > worst) worst = d.worst;
+        const clean = { ...copy };
+        if (clean.owner) { owners++; delete clean.owner; }
+        const d = deepDiff(src, clean, '', 0);
+        if (d.message) errors.push(`${coll}:${copy.id} в чанке ${c.id} — ${d.message}`);
+        copies++;
       }
     }
   }
-  const { x: ox, z: oz } = full.chunks[0].cell.origin;
-  const d = deepDiff(worldMap.relief, localize(full.chunks[0].map.relief, { x: -ox, z: -oz }), '.relief', 1e-9);
-  if (d.message) errors.push(`relief — ${d.message}`);
-  else if (d.worst > worst) worst = d.worst;
   assert(errors.length === 0, errors.slice(0, 3).join(' | '));
-  notes.push(`локализация: ${full.meta.participants} копий возвращаются в мир с худшим шумом ${worst.toExponential(2)} м`);
+  eq(copies, full.meta.participants, 'копий в чанках против участников разрезки');
+  notes.push(`оси: ${copies} копий лежат в мировом кадре без перевода (${owners} из них несут флаг owner);`
+    + ` смещение на центр клетки — то есть форму этапа 1 — эта мера ловит как расхождение чисел, а не молчанием`);
 });
 
-t('классификация координатных ключей: обход данных и claimed-карта разрезки равны', () => {
-  // оба списка держатся здесь отдельными от COORD_KEYS/SIZE_KEYS разрезки:
-  // выпадет ключ из производственного — обход найдёт его в данных и потребует
-  // объяснения, а сдвинутый размер станет расхождением множества вердиктов, а не
-  // молчанием
-  const COORD = ['x', 'z', 'minX', 'maxX', 'minZ', 'maxZ', 'cx', 'cz', 'bx', 'bz',
-    'lo', 'hi', 'cross', 'u0', 'u1', 'v0', 'v1'];
-  const SIZE = ['hx', 'hz', 'radius', 'a0', 'a1', 'span', 'halfW'];
-  // родитель, чьи `x`/`z` — масштаб экземпляра, а не место в мире
-  const SIZE_PARENTS = ['scale'];
-  const found = new Map();
-  const add = (map, key, verdict) => {
-    let s = map.get(key);
-    if (!s) map.set(key, s = new Set());
-    s.add(verdict);
-  };
-  const walk = (v, path, underSize) => {
-    if (Array.isArray(v)) { for (const item of v) walk(item, `${path}[]`, underSize); return; }
-    if (!v || typeof v !== 'object') return;
-    for (const [k, sub] of Object.entries(v)) {
-      const p = `${path}.${k}`;
-      if (typeof sub === 'number') {
-        if (SIZE.includes(k)) add(found, p, 'size');
-        else if (COORD.includes(k)) add(found, p, underSize ? 'size' : 'shift');
-      }
-      walk(sub, p, underSize || SIZE_PARENTS.includes(k));
-    }
-  };
-  for (const coll of CHUNK_COLLECTIONS) for (const o of worldMap[coll] ?? []) walk(o, `.${coll}[]`, false);
-  walk(worldMap.relief, '.relief', false);
-  const claimed = new Map();
-  for (const c of full.chunks) {
-    for (const [p, kind] of c.claimed) add(claimed, p, kind);
+// § 7.1 п. 7 (вместе с гейтом `cellGrid`): мировые настройки карты должны
+// доезжать до `index.js` — до правки § 6.3.1 формат терял `windows`, `clutter`
+// и `signage` вовсе, и открытая глава не выводила бы ни окон, ни мусора, ни неона.
+t('index.js держит мировые секции ровно один раз, чанк — ни одной', () => {
+  const IM = full.indexMap;
+  eq(IM.ground.size, worldMap.ground.size, 'плита в index.js — мировая, не клеточная');
+  eq(stringifyStable(IM.bounds), stringifyStable(worldMap.bounds), 'габарит содержимого мира');
+  eq(stringifyStable(IM.spawn), stringifyStable(worldMap.spawn), 'спавн мира');
+  for (const key of ['relief', 'windows', 'clutter', 'signage']) {
+    assert(worldMap[key], `${key}: в фикстуре секции нет — мера нечем проверяется`);
+    eq(stringifyStable(IM[key]), stringifyStable(worldMap[key]), `${key} в index.js`);
   }
-  const same = (a, b) => a.size === b.size && [...a].every((v) => b.has(v));
-  const unexplained = [...found].filter(([p, v]) => !claimed.has(p) || !same(v, claimed.get(p)))
-    .map(([p, v]) => `${p} (ожидалось ${[...v].join('/')})`).sort();
-  const invented = [...claimed.keys()].filter(p => !found.has(p)).sort();
-  assert(unexplained.length === 0,
-    `координатных ключей в данных без объяснения разрезки: ${unexplained.slice(0, 8).join(', ')}`);
-  assert(invented.length === 0,
-    `разрезка объясняет ключ, которого в данных нет: ${invented.slice(0, 8).join(', ')}`);
-  const shifted = [...found.values()].filter(s => s.has('shift')).length;
-  notes.push(`ключи: координатных путей в данных ${found.size}; разрезка сдвигает ${shifted}, размером признаёт ${found.size - shifted}`);
+  const leaked = [];
+  for (const c of full.chunks) {
+    for (const key of ['ground', 'relief', 'spawn', 'bounds', 'windows', 'clutter', 'signage', 'stream']) {
+      if (key in c.map) leaked.push(`${c.id}:${key}`);
+    }
+  }
+  eq(leaked.length, 0, `мировые секции в чанках (${leaked.slice(0, 6).join(', ')})`);
+  const reliefBytes = stringifyStable(worldMap.relief).length;
+  const outBytes = ['windows', 'clutter', 'signage'].reduce((s, k) => s + stringifyStable(worldMap[k]).length, 0);
+  notes.push(`мировое в index.js один раз: рельеф ${Math.round(reliefBytes / 1024)} КБ`
+    + ` (в местных осях он ехал в каждый из ${full.meta.cells} чанков),`
+    + ` секции вывода ${outBytes} Б (18 + 73 + 53 Б на фикстуре этапа 1 их теряла)`);
 });
 
 // § 7.1 п. 6.
@@ -673,9 +658,18 @@ t('схема: stream берёт только open; open без него и json
   hasError(validateLevel(openBrief(CHUNK, r => { r.stream.extra = 1; }), LEVEL_SPEC_V2).errors,
     'extra', 'неописанное поле stream принято');
 
-  const e = validateLevel(openBrief(300), LEVEL_SPEC_V2).errors.join(' | ');
-  assert(/не делит плиту/.test(e) && /350/.test(e),
-    `клетка 300 на плите 1400 не названа ошибкой со списком подходящих сторон: ${e.slice(0, 240)}`);
+  // Два гейта клетки мерятся раздельно: кратность шагу нарезки грунта (новый,
+  // § 6.3.1) и деление плиты нацело (был с этапа 1) — у 240 м первый пройден,
+  // у 350 м пройден второй, и ошибка обязана называть подходящие стороны
+  const e1 = validateLevel(openBrief(240), LEVEL_SPEC_V2).errors.join(' | ');
+  assert(/не делит плиту/.test(e1) && /200/.test(e1),
+    `клетка 240 на плите 1400 не названа ошибкой со списком подходящих сторон: ${e1.slice(0, 240)}`);
+  const mesh = CONFIG.jsonMap.relief.meshCell;
+  const e2 = validateLevel(openBrief(350), LEVEL_SPEC_V2).errors.join(' | ');
+  assert(/не кратно/.test(e2) && e2.includes(String(mesh)),
+    `клетка 350, кратная плите но не ${mesh} м, не названа ошибкой: ${e2.slice(0, 240)}`);
+  eq(cellChoices(worldMap.ground.size).join(', '), '200, 280',
+    'стороны клетки, которые принимает эта плита (деление и кратность `meshCell`)');
 });
 
 t('обе JSON Schema побайтово равны выводу DSL', () => {
@@ -713,58 +707,64 @@ t('разрезка отказывает там, где владение неч�
   assertThrows(() => patched({ roads: half }), 'без координат', 'дорога с половиной плана принята');
 });
 
-t('чанк — законные данные карты: местная плита, габарит внутри неё, id уникальны', () => {
-  const half = CHUNK / 2;
+t('чанк — законные данные карты: мировая плита в index.js, координаты без переноса', () => {
+  const worldHalf = worldMap.ground.size / 2;
   const errors = [];
   let empty = 0;
   // § 4.1 режет **список** объектов, а не их план: длинная дуга или русло,
   // пересёкшие четыре клетки, едут в каждую целиком. Поэтому мера не «план
-  // внутри плиты» (она краснела бы на законном кольце), а «у каждой копии есть
-  // часть, касающаяся клетки» + замер свеса за плиту
+  // внутри клетки» (она краснела бы на законном кольце), а «у каждой копии есть
+  // часть, касающаяся клетки» + замер свеса за клетку
   let overhangObjects = 0;
   let worstOverhang = 0;
   let worstOverhangAt = '';
+  // extreme за пределами планового свеса — тот же перевод координат, который
+  // этап 3 снял: у чанка он обязан равняться мировому
+  let worstChunkReach = 0;
   for (const c of full.chunks) {
     const m = c.map;
     if (m.kind !== 'json2') errors.push(`${c.id}: kind чанка ${m.kind}, а JsonMap принимает v2 под именем json2`);
-    if (m.ground.size !== CHUNK) errors.push(`${c.id}: плита ${m.ground.size}, а обязана быть сторона клетки`);
-    if (!m.spawn || m.spawn.x !== 0 || m.spawn.z !== 0) errors.push(`${c.id}: спавн чанка не в его центре`);
-    for (const key of ['city', 'stream', 'metadata']) if (key in m) errors.push(`${c.id}: служебная секция ${key} доехала в чанк`);
-    const b = m.bounds;
-    if (b.minX < -half - 1e-6 || b.maxX > half + 1e-6 || b.minZ < -half - 1e-6 || b.maxZ > half + 1e-6) {
-      errors.push(`${c.id}: габарит ${JSON.stringify(b)} вылез за плиту ±${half}`);
+    // мировое в чанк не едет: плита, рельеф, спавн и габарит лежат в index.js
+    // один раз (§ 4.1), иначе у движка стало бы две правды о кадре мира
+    for (const key of ['city', 'stream', 'metadata', 'ground', 'relief', 'spawn', 'bounds', 'windows', 'clutter', 'signage']) {
+      if (key in m) errors.push(`${c.id}: секция ${key} доехала в чанк`);
     }
     for (const coll of CHUNK_COLLECTIONS) {
       const ids = (m[coll] ?? []).map(o => o.id);
       if (new Set(ids).size !== ids.length) errors.push(`${c.id}: в ${coll} id повторяются`);
       for (const o of m[coll] ?? []) {
         const rects = planOf(coll, o).rects;
-        const cell = { minX: -half, maxX: half, minZ: -half, maxZ: half };
-        if (!rects.some(r => hits(grown(cell, OVERLAP), r))) {
+        if (!rects.some(r => hits(grown(c.cell.rect, OVERLAP), r))) {
           errors.push(`${c.id}: ${coll}:${o.id} попал в клетку, чей план не пересекает ни одну его часть`);
         }
         const over = Math.max(
-          -half - Math.min(...rects.map(r => r.minX)),
-          Math.max(...rects.map(r => r.maxX)) - half,
-          -half - Math.min(...rects.map(r => r.minZ)),
-          Math.max(...rects.map(r => r.maxZ)) - half,
+          c.cell.rect.minX - Math.min(...rects.map(r => r.minX)),
+          Math.max(...rects.map(r => r.maxX)) - c.cell.rect.maxX,
+          c.cell.rect.minZ - Math.min(...rects.map(r => r.minZ)),
+          Math.max(...rects.map(r => r.maxZ)) - c.cell.rect.maxZ,
         );
         if (over > OVERLAP) {
           overhangObjects++;
           if (over > worstOverhang) { worstOverhang = over; worstOverhangAt = `${c.id} ${coll}:${o.id}`; }
         }
+        worstChunkReach = Math.max(worstChunkReach, ...rects.map(r => Math.max(-r.minX, r.maxX, -r.minZ, r.maxZ)));
       }
     }
     if (!Object.keys(c.counts).length) empty++;
   }
+  // координаты чанка не выезжают дальше, чем план мира: перенос на центр клетки
+  // дал бы здесь перевес ровно на половину мира
+  assert(worstChunkReach <= worldHalf + 1e-6,
+    `планы чанков достают до ${worstChunkReach.toFixed(1)} м при плите ±${worldHalf} м — координаты переведены в местный кадр`);
   assert(errors.length === 0, errors.slice(0, 3).join(' | '));
   eq(full.indexMap.kind, 'open', 'kind индексного файла');
   eq(full.indexMap.cells.length, full.meta.cells, 'список клеток в index.js');
   eq(full.indexMap.stream.overlap, OVERLAP, 'маргин в index.js обязан быть выведен парсером');
   eq(full.indexMap.cells.reduce((s, c) => s + Object.values(c.objects).reduce((a, v) => a + v, 0), 0),
     full.meta.participants, 'счётчики клеток против участников разрезки');
-  notes.push(`чанки: сетка ${full.meta.grid}×${full.meta.grid}, пустых клеток ${empty} из ${full.meta.cells}`);
-  notes.push(`свес планов за плиту чанка: копий ${overhangObjects} из ${full.meta.participants},`
+  notes.push(`чанки: сетка ${full.meta.grid}×${full.meta.grid}, пустых клеток ${empty} из ${full.meta.cells},`
+    + ` худшее удаление плана чанка от (0, 0) — ${worstChunkReach.toFixed(0)} м при плите ±${worldHalf} м`);
+  notes.push(`свес планов за клетку: копий ${overhangObjects} из ${full.meta.participants},`
     + ` худший ${worstOverhang.toFixed(0)} м (${worstOverhangAt || '—'}) — длинные объекты едут целиком (§ 4.1)`);
 });
 
@@ -792,13 +792,12 @@ console.table([{
 }]);
 for (const n of notes) console.log(`  · ${n}`);
 {
-  // из дублирования надо вычесть то, что копируется намеренно: аналитическое
-  // поле рельефа едет в каждый чанк целиком (§ 4.1), а не по клеткам
-  const relief = full.chunks.filter(c => c.map.relief)
-    .map(c => stringifyStable(c.map.relief).length);
-  const reliefTotal = relief.reduce((s, v) => s + v, 0);
-  console.log(`  · рельеф копируется в каждый чанк целиком: ${relief.length} × ${Math.round(relief[0] / 1024)} КБ = ${Math.round(reliefTotal / 1024)} КБ`
-    + ` (без него дублирование ${((total - reliefTotal) / worldBytes).toFixed(2)} против ${(total / worldBytes).toFixed(2)})`);
+  // В местных осях аналитическое поле рельефа ехало в каждый чанк целиком (§ 4.1
+  // этапа 1) — с мировыми осями оно лежит один раз в индексном файле, и сравнение
+  // дублирования чанков обязано это показывать, а не прятать за отступами
+  const reliefBytes = stringifyStable(worldMap.relief).length;
+  console.log(`  · рельеф (${Math.round(reliefBytes)} Б) — один раз в index.js (гейт «мировые секции» выше);`
+    + ` в местных осях он удорожал бы каталог на ${Math.round(reliefBytes * full.meta.cells / 1024)} КБ`);
 }
 console.log(`\n${passed}/${passed + failures.length} проверок зелёные`);
 if (failures.length) {

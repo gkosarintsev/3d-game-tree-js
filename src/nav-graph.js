@@ -62,9 +62,18 @@ export class NavGraph {
     return idx;
   }
 
-  /** Двустороннее ребро; отсутствующий узел (undefined) и саморебро игнорируются. */
+  /**
+   * Двустороннее ребро; отсутствующий узел (undefined) и саморебро игнорируются.
+   *
+   * Дубликаты отсекаются, а не копятся: открытый мир строит граф клетки
+   * повторно при каждой достройке (граф дополняется, а не пересобирается), и
+   * второе ребро «узел → сосед» означало бы, что список смежности растёт с
+   * каждым кругом по миру. Для остальных карт проверка — пустая работа: `link`
+   * там зовётся один раз на пару.
+   */
   link(a, b) {
     if (a === undefined || b === undefined || a === b) return;
+    if (this.adj[a].includes(b)) return;
     this.adj[a].push(b);
     this.adj[b].push(a);
   }
@@ -99,8 +108,12 @@ export class NavGraph {
    * Ближайший узел к точке; вертикаль весит вдвое — этаж важнее смещения в плане.
    * Клетки перебираются кольцами от клетки точки, поэтому на городе в 10 тыс.
    * узлов поиск стоит десятки проверок, а не полный список.
+   *
+   * `fit` — необязательный предикат пригодности узла. Открытому миру им отвечает
+   * «узел стоит в загруженной клетке»: граф только дополняется (узлы выгруженной
+   * клетки остаются в списке), а маршруту и цели блуждания доступны не должны.
    */
-  nearestNode(x, y, z) {
+  nearestNode(x, y, z, fit = null) {
     const c = this.cell;
     const ci = Math.floor(x / c), ck = Math.floor(z / c);
     let best = -1, bestD = Infinity;
@@ -110,6 +123,7 @@ export class NavGraph {
         const list = this._cells.get(this._cellKey(i, k));
         if (!list) return;
         for (const idx of list) {
+          if (fit && !fit(idx)) continue;
           const p = this.pos[idx];
           const dy = (p.y - y) * 2;
           const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) + dy * dy;
@@ -137,10 +151,11 @@ export class NavGraph {
    * становится собственная позиция, маршрут выходит длиной в один узел — и
    * патруль стоит на месте.
    */
-  randomPoint(x, z, radius) {
+  randomPoint(x, z, radius, fit = null) {
     const r2 = radius * radius;
     let count = 0, pick = -1;
     for (const idx of this.nearby(x, z, radius)) {
+      if (fit && !fit(idx)) continue;
       const p = this.pos[idx];
       const dx = p.x - x, dz = p.z - z;
       if (dx * dx + dz * dz > r2) continue;
@@ -151,10 +166,16 @@ export class NavGraph {
     return pick < 0 ? null : this.pos[pick];
   }
 
-  /** Маршрут по узлам (поиск в ширину) от from до to; null — пути нет. */
-  findPath(from, to) {
-    const a = this.nearestNode(from.x, from.y, from.z);
-    const b = this.nearestNode(to.x, to.y, to.z);
+  /**
+   * Маршрут по узлам (поиск в ширину) от from до to; null — пути нет.
+   *
+   * `fit` снимает узлы выгруженных клеток не только из выбора концов, но и из
+   * обхода: без этого маршрут шёл бы «сквозь» незастроенную область и враг
+   * застрял бы в её первом узле, а с ним и вся погоня за ним.
+   */
+  findPath(from, to, fit = null) {
+    const a = this.nearestNode(from.x, from.y, from.z, fit);
+    const b = this.nearestNode(to.x, to.y, to.z, fit);
     if (a < 0 || b < 0) return null;
     if (a === b) return [this.pos[b]];
 
@@ -168,6 +189,7 @@ export class NavGraph {
       if (cur === b) break;
       for (const nb of this.adj[cur]) {
         if (seen[nb]) continue;
+        if (fit && !fit(nb)) continue;
         seen[nb] = 1;
         prev[nb] = cur;
         queue.push(nb);

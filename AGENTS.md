@@ -36,14 +36,20 @@
   Полный контракт стриминга (что движок обязан перенести на `-(dx, dz)` и когда
   пропускать кадр симуляции) — в [docs/architecture-map-contract.md](docs/architecture-map-contract.md).
 - Новый ТИП уровня — новый класс, реализующий контракт; `map.kind` из определения
-  главы выбирает его в `Game.createMap()`. Реализации шесть (`TownMap`,
-  `TerrainMap`, `CityMap`, `ModelMap`, `StreamedModelMap`, `JsonMap`), все они
+  главы выбирает его в `Game.createMap()`. Реализации семь (`TownMap`,
+  `TerrainMap`, `CityMap`, `ModelMap`, `StreamedModelMap`, `JsonMap`,
+  `WorldMap`), все они
   построены на общих механизмах — AABB-солиды/опоры/проба ребра (`SolidField`,
   src/solids.js), граф навигации (`NavGraph`, src/nav-graph.js), генератор дома
   (src/building.js); новый тип обязан строиться на них без копий (список
   реализаций — в [docs/architecture-map-contract.md](docs/architecture-map-contract.md)).
   `JsonMap` обслуживает оба вида брифа — `json` (v1, оси мира) и `json2`
-  (v2: поворотные дома и настилы, дуги).
+  (v2: поворотные дома и настилы, дуги). `WorldMap` — его подкласс для
+  `kind: 'open'`: он не заводит ни решётку, ни коллекции на весь мир, а
+  достраивает клетку **тем же** `collectPass`/`_buildPicture` на подрезанном
+  брифе (второй арифметики опоры в проекте нет именно поэтому), держит граф
+  append-only и бракует узел выгруженной клетки предикатом `navFit`, а не
+  удалением (план — [docs/open-world-plan.md](docs/open-world-plan.md) § 4.3).
 - Изменять сигнатуры методов контракта можно только вместе со всеми
   потребителями и автотестами.
 - Предел «не вылететь за карту» для движка — **плита** (`width`/`depth`: за ней

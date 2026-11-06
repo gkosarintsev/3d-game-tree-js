@@ -117,9 +117,16 @@ export class SolidField {
     return (i + 4096) * 8192 + (j + 4096);
   }
 
-  /** Раскладывает this.surfaces по ячейкам сетки this.bucket (поиск по точке). */
+  /**
+   * Раскладывает `this.surfaces` по ячейкам сетки `this.bucket` (поиск по
+   * точке). Индекс перетирается целиком, а не дополняется: открытый мир зовёт
+   * фазы на растущем наборе загруженных чанков, и второй вызов на том же
+   * списке положил бы каждую опору в каждую клетку дважды — вердикт опоры от
+   * этого не изменился бы, а перебор кандидатов дорожал бы с каждым чанком.
+   */
   _indexSurfaces() {
     const b = this.bucket;
+    this.index.clear();
     this.surfaces.forEach((s, idx) => {
       const i0 = Math.floor(s.minX / b), i1 = Math.floor(s.maxX / b);
       const j0 = Math.floor(s.minZ / b), j1 = Math.floor(s.maxZ / b);

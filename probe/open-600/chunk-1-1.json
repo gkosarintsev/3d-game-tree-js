@@ -1,0 +1,4040 @@
+{
+  "buildings": [
+    {
+      "baseY": 0,
+      "bounds": {
+        "maxX": -74,
+        "maxZ": 102.5,
+        "minX": -96.5,
+        "minZ": 91
+      },
+      "doors": [
+        {
+          "axis": "x",
+          "height": 2.1,
+          "id": "ncc_007_r0→ncc_s_h0_4",
+          "inside": {
+            "x": -85.25,
+            "z": 92.4
+          },
+          "linkType": "main_entrance",
+          "outside": {
+            "x": -85.25,
+            "z": 89.6
+          },
+          "rect": {
+            "maxX": -84.35,
+            "maxZ": 91.185,
+            "minX": -86.15,
+            "minZ": 90.815
+          },
+          "room": "ncc_007_r0",
+          "target": "ncc_s_h0_4",
+          "y": 0
+        }
+      ],
+      "facadeMaterial": "glass_and_concrete",
+      "floorHeight": 4,
+      "floorsCount": 4,
+      "footprint": [
+        {
+          "x": -96.5,
+          "z": 91
+        },
+        {
+          "x": -74,
+          "z": 91
+        },
+        {
+          "x": -74,
+          "z": 102.5
+        },
+        {
+          "x": -96.5,
+          "z": 102.5
+        }
+      ],
+      "id": "ncc_007",
+      "isEnterable": true,
+      "name": "ncc_007",
+      "owner": true,
+      "rects": [
+        {
+          "maxX": -74,
+          "maxZ": 102.5,
+          "minX": -96.5,
+          "minZ": 91
+        }
+      ],
+      "roofY": 16,
+      "rooms": [
+        {
+          "floor": 0,
+          "id": "ncc_007_r0",
+          "rect": {
+            "maxX": -74,
+            "maxZ": 102.5,
+            "minX": -96.5,
+            "minZ": 91
+          },
+          "type": "hall",
+          "y": 0
+        },
+        {
+          "floor": 1,
+          "id": "ncc_007_r1",
+          "rect": {
+            "maxX": -74,
+            "maxZ": 102.5,
+            "minX": -96.5,
+            "minZ": 91
+          },
+          "type": "corridor",
+          "y": 4
+        },
+        {
+          "floor": 2,
+          "id": "ncc_007_r2",
+          "rect": {
+            "maxX": -74,
+            "maxZ": 102.5,
+            "minX": -96.5,
+            "minZ": 91
+          },
+          "type": "office",
+          "y": 8
+        },
+        {
+          "floor": 3,
+          "id": "ncc_007_r3",
+          "rect": {
+            "maxX": -74,
+            "maxZ": 102.5,
+            "minX": -96.5,
+            "minZ": 91
+          },
+          "type": "corridor",
+          "y": 12
+        }
+      ],
+      "stairs": [
+        {
+          "bottom": {
+            "x": -81.187,
+            "y": 0.5,
+            "z": 99
+          },
+          "connectsFloors": [
+            0,
+            1
+          ],
+          "height": 4,
+          "id": "ncc_007_s0",
+          "rect": {
+            "maxX": -76.5,
+            "maxZ": 99.95,
+            "minX": -81.5,
+            "minZ": 98.05
+          },
+          "rotation": 0,
+          "steps": [
+            {
+              "maxX": -80.875,
+              "maxZ": 99.95,
+              "minX": -81.5,
+              "minZ": 98.05,
+              "top": 0.5
+            },
+            {
+              "maxX": -80.25,
+              "maxZ": 99.95,
+              "minX": -80.875,
+              "minZ": 98.05,
+              "top": 1
+            },
+            {
+              "maxX": -79.625,
+              "maxZ": 99.95,
+              "minX": -80.25,
+              "minZ": 98.05,
+              "top": 1.5
+            },
+            {
+              "maxX": -79,
+              "maxZ": 99.95,
+              "minX": -79.625,
+              "minZ": 98.05,
+              "top": 2
+            },
+            {
+              "maxX": -78.375,
+              "maxZ": 99.95,
+              "minX": -79,
+              "minZ": 98.05,
+              "top": 2.5
+            },
+            {
+              "maxX": -77.75,
+              "maxZ": 99.95,
+              "minX": -78.375,
+              "minZ": 98.05,
+              "top": 3
+            },
+            {
+              "maxX": -77.125,
+              "maxZ": 99.95,
+              "minX": -77.75,
+              "minZ": 98.05,
+              "top": 3.5
+            },
+            {
+              "maxX": -76.5,
+              "maxZ": 99.95,
+              "minX": -77.125,
+              "minZ": 98.05,
+              "top": 4
+            }
+          ],
+          "top": {
+            "x": -76.812,
+            "y": 4,
+            "z": 99
+          },
+          "type": "straight",
+          "y0": 0,
+          "y1": 4
+        },
+        {
+          "bottom": {
+            "x": -81.187,
+            "y": 4.5,
+            "z": 99
+          },
+          "connectsFloors": [
+            1,
+            2
+          ],
+          "height": 4,
+          "id": "ncc_007_s1",
+          "rect": {
+            "maxX": -76.5,
+            "maxZ": 99.95,
+            "minX": -81.5,
+            "minZ": 98.05
+          },
+          "rotation": 0,
+          "steps": [
+            {
+              "maxX": -80.875,
+              "maxZ": 99.95,
+              "minX": -81.5,
+              "minZ": 98.05,
+              "top": 4.5
+            },
+            {
+              "maxX": -80.25,
+              "maxZ": 99.95,
+              "minX": -80.875,
+              "minZ": 98.05,
+              "top": 5
+            },
+            {
+              "maxX": -79.625,
+              "maxZ": 99.95,
+              "minX": -80.25,
+              "minZ": 98.05,
+              "top": 5.5
+            },
+            {
+              "maxX": -79,
+              "maxZ": 99.95,
+              "minX": -79.625,
+              "minZ": 98.05,
+              "top": 6
+            },
+            {
+              "maxX": -78.375,
+              "maxZ": 99.95,
+              "minX": -79,
+              "minZ": 98.05,
+              "top": 6.5
+            },
+            {
+              "maxX": -77.75,
+              "maxZ": 99.95,
+              "minX": -78.375,
+              "minZ": 98.05,
+              "top": 7
+            },
+            {
+              "maxX": -77.125,
+              "maxZ": 99.95,
+              "minX": -77.75,
+              "minZ": 98.05,
+              "top": 7.5
+            },
+            {
+              "maxX": -76.5,
+              "maxZ": 99.95,
+              "minX": -77.125,
+              "minZ": 98.05,
+              "top": 8
+            }
+          ],
+          "top": {
+            "x": -76.812,
+            "y": 8,
+            "z": 99
+          },
+          "type": "straight",
+          "y0": 4,
+          "y1": 8
+        },
+        {
+          "bottom": {
+            "x": -81.187,
+            "y": 8.5,
+            "z": 99
+          },
+          "connectsFloors": [
+            2,
+            3
+          ],
+          "height": 4,
+          "id": "ncc_007_s2",
+          "rect": {
+            "maxX": -76.5,
+            "maxZ": 99.95,
+            "minX": -81.5,
+            "minZ": 98.05
+          },
+          "rotation": 0,
+          "steps": [
+            {
+              "maxX": -80.875,
+              "maxZ": 99.95,
+              "minX": -81.5,
+              "minZ": 98.05,
+              "top": 8.5
+            },
+            {
+              "maxX": -80.25,
+              "maxZ": 99.95,
+              "minX": -80.875,
+              "minZ": 98.05,
+              "top": 9
+            },
+            {
+              "maxX": -79.625,
+              "maxZ": 99.95,
+              "minX": -80.25,
+              "minZ": 98.05,
+              "top": 9.5
+            },
+            {
+              "maxX": -79,
+              "maxZ": 99.95,
+              "minX": -79.625,
+              "minZ": 98.05,
+              "top": 10
+            },
+            {
+              "maxX": -78.375,
+              "maxZ": 99.95,
+              "minX": -79,
+              "minZ": 98.05,
+              "top": 10.5
+            },
+            {
+              "maxX": -77.75,
+              "maxZ": 99.95,
+              "minX": -78.375,
+              "minZ": 98.05,
+              "top": 11
+            },
+            {
+              "maxX": -77.125,
+              "maxZ": 99.95,
+              "minX": -77.75,
+              "minZ": 98.05,
+              "top": 11.5
+            },
+            {
+              "maxX": -76.5,
+              "maxZ": 99.95,
+              "minX": -77.125,
+              "minZ": 98.05,
+              "top": 12
+            }
+          ],
+          "top": {
+            "x": -76.812,
+            "y": 12,
+            "z": 99
+          },
+          "type": "straight",
+          "y0": 8,
+          "y1": 12
+        }
+      ],
+      "walls": [
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -73.825,
+          "maxZ": 102.5,
+          "minX": -74.175,
+          "minZ": 91
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -74,
+          "maxZ": 102.675,
+          "minX": -96.5,
+          "minZ": 102.325
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -74,
+          "maxZ": 91.175,
+          "minX": -96.5,
+          "minZ": 90.825
+        },
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -96.325,
+          "maxZ": 102.5,
+          "minX": -96.675,
+          "minZ": 91
+        }
+      ]
+    },
+    {
+      "baseY": 0,
+      "bounds": {
+        "maxX": -42.5,
+        "maxZ": 102.5,
+        "minX": -52.5,
+        "minZ": 91
+      },
+      "doors": [],
+      "facadeMaterial": "glass_steel",
+      "floorHeight": 4.5,
+      "floorsCount": 34,
+      "footprint": [
+        {
+          "x": -52.5,
+          "z": 91
+        },
+        {
+          "x": -42.5,
+          "z": 91
+        },
+        {
+          "x": -42.5,
+          "z": 102.5
+        },
+        {
+          "x": -52.5,
+          "z": 102.5
+        }
+      ],
+      "id": "ncc_008",
+      "isEnterable": false,
+      "name": "ncc_008",
+      "owner": true,
+      "rects": [
+        {
+          "maxX": -42.5,
+          "maxZ": 102.5,
+          "minX": -52.5,
+          "minZ": 91
+        }
+      ],
+      "roofY": 153,
+      "rooms": [],
+      "stairs": [],
+      "walls": [
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -42.325,
+          "maxZ": 102.5,
+          "minX": -42.675,
+          "minZ": 91
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -42.5,
+          "maxZ": 102.675,
+          "minX": -52.5,
+          "minZ": 102.325
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -42.5,
+          "maxZ": 91.175,
+          "minX": -52.5,
+          "minZ": 90.825
+        },
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -52.325,
+          "maxZ": 102.5,
+          "minX": -52.675,
+          "minZ": 91
+        }
+      ]
+    },
+    {
+      "baseY": 0,
+      "bounds": {
+        "maxX": -30,
+        "maxZ": 102.5,
+        "minX": -39.5,
+        "minZ": 90.5
+      },
+      "doors": [],
+      "facadeMaterial": "glass_steel",
+      "floorHeight": 4,
+      "floorsCount": 9,
+      "footprint": [
+        {
+          "x": -30,
+          "z": 90.5
+        },
+        {
+          "x": -30,
+          "z": 102.5
+        },
+        {
+          "x": -39.5,
+          "z": 102.5
+        },
+        {
+          "x": -39.5,
+          "z": 98
+        },
+        {
+          "x": -33.5,
+          "z": 98
+        },
+        {
+          "x": -33.5,
+          "z": 94.5
+        },
+        {
+          "x": -39.5,
+          "z": 94.5
+        },
+        {
+          "x": -39.5,
+          "z": 90.5
+        }
+      ],
+      "id": "ncc_009",
+      "isEnterable": false,
+      "name": "ncc_009",
+      "owner": true,
+      "rects": [
+        {
+          "maxX": -30,
+          "maxZ": 98,
+          "minX": -33.5,
+          "minZ": 94.5
+        },
+        {
+          "maxX": -30,
+          "maxZ": 94.5,
+          "minX": -39.5,
+          "minZ": 90.5
+        },
+        {
+          "maxX": -30,
+          "maxZ": 102.5,
+          "minX": -39.5,
+          "minZ": 98
+        }
+      ],
+      "roofY": 36,
+      "rooms": [],
+      "stairs": [],
+      "walls": [
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -29.825,
+          "maxZ": 102.5,
+          "minX": -30.175,
+          "minZ": 90.5
+        },
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -33.325,
+          "maxZ": 98,
+          "minX": -33.675,
+          "minZ": 94.5
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -30,
+          "maxZ": 102.675,
+          "minX": -39.5,
+          "minZ": 102.325
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -30,
+          "maxZ": 90.675,
+          "minX": -39.5,
+          "minZ": 90.325
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -33.5,
+          "maxZ": 94.675,
+          "minX": -39.5,
+          "minZ": 94.325
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -33.5,
+          "maxZ": 98.175,
+          "minX": -39.5,
+          "minZ": 97.825
+        },
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -39.325,
+          "maxZ": 94.5,
+          "minX": -39.675,
+          "minZ": 90.5
+        },
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -39.325,
+          "maxZ": 102.5,
+          "minX": -39.675,
+          "minZ": 98
+        }
+      ]
+    },
+    {
+      "baseY": 0,
+      "bounds": {
+        "maxX": -94,
+        "maxZ": -94,
+        "minX": -120,
+        "minZ": -105
+      },
+      "doors": [],
+      "facadeMaterial": "concrete",
+      "floorHeight": 5,
+      "floorsCount": 2,
+      "footprint": [
+        {
+          "x": -120,
+          "z": -100.5
+        },
+        {
+          "x": -110,
+          "z": -100.5
+        },
+        {
+          "x": -110,
+          "z": -105
+        },
+        {
+          "x": -100,
+          "z": -105
+        },
+        {
+          "x": -100,
+          "z": -100.5
+        },
+        {
+          "x": -94,
+          "z": -100.5
+        },
+        {
+          "x": -94,
+          "z": -94
+        },
+        {
+          "x": -120,
+          "z": -94
+        }
+      ],
+      "id": "sind_214",
+      "isEnterable": false,
+      "name": "sind_214",
+      "rects": [
+        {
+          "maxX": -100,
+          "maxZ": -100.5,
+          "minX": -110,
+          "minZ": -105
+        },
+        {
+          "maxX": -94,
+          "maxZ": -94,
+          "minX": -120,
+          "minZ": -100.5
+        }
+      ],
+      "roofY": 10,
+      "rooms": [],
+      "stairs": [],
+      "walls": [
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -99.825,
+          "maxZ": -100.5,
+          "minX": -100.175,
+          "minZ": -105
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -94,
+          "maxZ": -100.325,
+          "minX": -100,
+          "minZ": -100.675
+        },
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -109.825,
+          "maxZ": -100.5,
+          "minX": -110.175,
+          "minZ": -105
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -100,
+          "maxZ": -104.825,
+          "minX": -110,
+          "minZ": -105.175
+        },
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -119.825,
+          "maxZ": -94,
+          "minX": -120.175,
+          "minZ": -100.5
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -110,
+          "maxZ": -100.325,
+          "minX": -120,
+          "minZ": -100.675
+        },
+        {
+          "axis": "x",
+          "facade": true,
+          "maxX": -94,
+          "maxZ": -93.825,
+          "minX": -120,
+          "minZ": -94.175
+        },
+        {
+          "axis": "z",
+          "facade": true,
+          "maxX": -93.825,
+          "maxZ": -94,
+          "minX": -94.175,
+          "minZ": -100.5
+        }
+      ]
+    }
+  ],
+  "channels": [
+    {
+      "bank": "quay",
+      "bedY": -4,
+      "descents": [
+        {
+          "axis": "z",
+          "id": "river:сход1",
+          "kind": "ramp",
+          "plan": {
+            "maxX": -217,
+            "maxZ": 47.733,
+            "minX": -223,
+            "minZ": 34.4
+          },
+          "seg": 0,
+          "u0": 34.4,
+          "u1": 47.733,
+          "v0": -223,
+          "v1": -217,
+          "y0": -4,
+          "y1": 0
+        },
+        {
+          "axis": "z",
+          "id": "river:сход2",
+          "kind": "ramp",
+          "plan": {
+            "maxX": 233,
+            "maxZ": 47.733,
+            "minX": 227,
+            "minZ": 34.4
+          },
+          "seg": 0,
+          "u0": 34.4,
+          "u1": 47.733,
+          "v0": 227,
+          "v1": 233,
+          "y0": -4,
+          "y1": 0
+        }
+      ],
+      "holes": [
+        {
+          "maxX": 335,
+          "maxZ": 35,
+          "minX": -335,
+          "minZ": -35
+        },
+        {
+          "maxX": -217,
+          "maxZ": 47.733,
+          "minX": -223,
+          "minZ": 34.4
+        },
+        {
+          "maxX": 233,
+          "maxZ": 47.733,
+          "minX": 227,
+          "minZ": 34.4
+        },
+        {
+          "maxX": 335.35,
+          "maxZ": -35,
+          "minX": -335.35,
+          "minZ": -35.35
+        },
+        {
+          "maxX": -223,
+          "maxZ": 35.35,
+          "minX": -335.35,
+          "minZ": 35
+        },
+        {
+          "maxX": 227,
+          "maxZ": 35.35,
+          "minX": -217,
+          "minZ": 35
+        },
+        {
+          "maxX": 335.35,
+          "maxZ": 35.35,
+          "minX": 233,
+          "minZ": 35
+        }
+      ],
+      "id": "river",
+      "owner": true,
+      "segments": [
+        {
+          "axis": "x",
+          "bed": {
+            "maxX": 335,
+            "maxZ": 35,
+            "minX": -335,
+            "minZ": -35
+          },
+          "cross": 0,
+          "depth": 0.35,
+          "halfW": 35,
+          "hi": 335,
+          "lo": -335,
+          "rampRun": 13.333,
+          "run": 0
+        }
+      ],
+      "surfaceY": -1.5,
+      "wade": true,
+      "walls": [
+        {
+          "rect": {
+            "maxX": 335.35,
+            "maxZ": -35,
+            "minX": -335.35,
+            "minZ": -35.35
+          }
+        },
+        {
+          "rect": {
+            "maxX": -223,
+            "maxZ": 35.35,
+            "minX": -335.35,
+            "minZ": 35
+          }
+        },
+        {
+          "rect": {
+            "maxX": 227,
+            "maxZ": 35.35,
+            "minX": -217,
+            "minZ": 35
+          }
+        },
+        {
+          "rect": {
+            "maxX": 335.35,
+            "maxZ": 35.35,
+            "minX": 233,
+            "minZ": 35
+          }
+        }
+      ],
+      "width": 70
+    }
+  ],
+  "kind": "json2",
+  "props": [
+    {
+      "id": "lamp_ncc_s_h0_4_-90_71.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -90,
+        "y": 0.12,
+        "z": 71.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_h0_4_-90_88.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -90,
+        "y": 0.12,
+        "z": 88.4
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_h0_5_-46_71.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -46,
+        "y": 0.12,
+        "z": 71.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_h0_5_-46_88.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -46,
+        "y": 0.12,
+        "z": 88.4
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_h0_6_-2_71.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -2,
+        "y": 0.12,
+        "z": 71.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_h0_6_-2_88.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -2,
+        "y": 0.12,
+        "z": 88.4
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_h0_6_18_71.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 18,
+        "y": 0.12,
+        "z": 71.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_h0_6_18_88.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 18,
+        "y": 0.12,
+        "z": 88.4
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v4_0_-98.6_70",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -98.6,
+        "y": 0.12,
+        "z": 70
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v4_1_-98.6_97",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -98.6,
+        "y": 0.12,
+        "z": 97
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v5_0_-54.6_70",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -54.6,
+        "y": 0.12,
+        "z": 70
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v5_0_-71.4_70",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -71.4,
+        "y": 0.12,
+        "z": 70
+      },
+      "rotationY": 90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v5_1_-54.6_97",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -54.6,
+        "y": 0.12,
+        "z": 97
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v5_1_-71.4_97",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -71.4,
+        "y": 0.12,
+        "z": 97
+      },
+      "rotationY": 90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v6_0_-10.6_70",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -10.6,
+        "y": 0.12,
+        "z": 70
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v6_0_-27.4_70",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -27.4,
+        "y": 0.12,
+        "z": 70
+      },
+      "rotationY": 90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v6_1_-10.6_97",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -10.6,
+        "y": 0.12,
+        "z": 97
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_ncc_s_v6_1_-27.4_97",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -27.4,
+        "y": 0.12,
+        "z": 97
+      },
+      "rotationY": 90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h0_0_66_60.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 66,
+        "y": 0.12,
+        "z": 60.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h0_0_66_73.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 66,
+        "y": 0.12,
+        "z": 73.4
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h0_1_98_60.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 98,
+        "y": 0.12,
+        "z": 60.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h0_1_98_73.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 98,
+        "y": 0.12,
+        "z": 73.4
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h1_0_66_73.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 66,
+        "y": 0.12,
+        "z": 73.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h1_0_66_86.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 66,
+        "y": 0.12,
+        "z": 86.4
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h1_1_98_73.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 98,
+        "y": 0.12,
+        "z": 73.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h1_1_98_86.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 98,
+        "y": 0.12,
+        "z": 86.4
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h2_0_66_92.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 66,
+        "y": 0.12,
+        "z": 92.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_nkab_s_h2_1_98_92.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 98,
+        "y": 0.12,
+        "z": 92.6
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_sind_s_h4_3_-94_-72.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -94,
+        "y": 0.12,
+        "z": -72.6
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_sind_s_h4_3_-94_-91.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -94,
+        "y": 0.12,
+        "z": -91.4
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_sind_s_h4_4_-64_-72.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -64,
+        "y": 0.12,
+        "z": -72.6
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_sind_s_h4_4_-64_-91.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -64,
+        "y": 0.12,
+        "z": -91.4
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_sind_s_v4_3_-72.6_-94",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -72.6,
+        "y": 0.12,
+        "z": -94
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_sind_s_v4_3_-91.4_-94",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -91.4,
+        "y": 0.12,
+        "z": -94
+      },
+      "rotationY": 90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_sind_s_v4_4_-72.6_-64",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -72.6,
+        "y": 0.12,
+        "z": -64
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_sind_s_v4_4_-91.4_-64",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": -91.4,
+        "y": 0.12,
+        "z": -64
+      },
+      "rotationY": 90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_h5_0_50_-86.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 50,
+        "y": 0.12,
+        "z": -86.6
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_h5_1_88_-86.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 88,
+        "y": 0.12,
+        "z": -86.6
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_h6_0_50_-72.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 50,
+        "y": 0.12,
+        "z": -72.6
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_h6_0_50_-87.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 50,
+        "y": 0.12,
+        "z": -87.4
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_h6_1_88_-72.6",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 88,
+        "y": 0.12,
+        "z": -72.6
+      },
+      "rotationY": 180,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_h6_1_88_-87.4",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 88,
+        "y": 0.12,
+        "z": -87.4
+      },
+      "rotationY": 0,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_v0_5_26.6_-64",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 26.6,
+        "y": 0.12,
+        "z": -64
+      },
+      "rotationY": 90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_v0_5_41.4_-64",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 41.4,
+        "y": 0.12,
+        "z": -64
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_v1_5_64.6_-64",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 64.6,
+        "y": 0.12,
+        "z": -64
+      },
+      "rotationY": 90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    },
+    {
+      "id": "lamp_skit_s_v1_5_79.4_-64",
+      "model": "lamp_post",
+      "owner": true,
+      "position": {
+        "x": 79.4,
+        "y": 0.12,
+        "z": -64
+      },
+      "rotationY": -90,
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "source": "road_lamp"
+    }
+  ],
+  "roads": [
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 30,
+          "maxX": -70,
+          "maxZ": 87,
+          "minX": -100,
+          "minZ": 73,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_h0_4",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_h0_4_-90_71.6",
+          "model": "lamp_post",
+          "position": {
+            "x": -90,
+            "y": 0.12,
+            "z": 71.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_h0_4_-90_88.4",
+          "model": "lamp_post",
+          "position": {
+            "x": -90,
+            "y": 0.12,
+            "z": 88.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 30,
+          "maxX": -26,
+          "maxZ": 87,
+          "minX": -56,
+          "minZ": 73,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_h0_5",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_h0_5_-46_71.6",
+          "model": "lamp_post",
+          "position": {
+            "x": -46,
+            "y": 0.12,
+            "z": 71.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_h0_5_-46_88.4",
+          "model": "lamp_post",
+          "position": {
+            "x": -46,
+            "y": 0.12,
+            "z": 88.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 38,
+          "maxX": 26,
+          "maxZ": 87,
+          "minX": -12,
+          "minZ": 73,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_h0_6",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_h0_6_-2_71.6",
+          "model": "lamp_post",
+          "position": {
+            "x": -2,
+            "y": 0.12,
+            "z": 71.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_h0_6_-2_88.4",
+          "model": "lamp_post",
+          "position": {
+            "x": -2,
+            "y": 0.12,
+            "z": 88.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_h0_6_18_71.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 18,
+            "y": 0.12,
+            "z": 71.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_h0_6_18_88.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 18,
+            "y": 0.12,
+            "z": 88.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": -107,
+          "cz": 66.5,
+          "length": 13,
+          "maxX": -100,
+          "maxZ": 73,
+          "minX": -114,
+          "minZ": 60,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": -107,
+            "cz": 66.5,
+            "hx": 6.5,
+            "hz": 7,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_v4_0",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_v4_0_-98.6_70",
+          "model": "lamp_post",
+          "position": {
+            "x": -98.6,
+            "y": 0.12,
+            "z": 70
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_v4_0_-115.4_70",
+          "model": "lamp_post",
+          "position": {
+            "x": -115.4,
+            "y": 0.12,
+            "z": 70
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": -107,
+          "cz": 96.5,
+          "length": 19,
+          "maxX": -100,
+          "maxZ": 106,
+          "minX": -114,
+          "minZ": 87,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": -107,
+            "cz": 96.5,
+            "hx": 9.5,
+            "hz": 7,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_v4_1",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_v4_1_-98.6_97",
+          "model": "lamp_post",
+          "position": {
+            "x": -98.6,
+            "y": 0.12,
+            "z": 97
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_v4_1_-115.4_97",
+          "model": "lamp_post",
+          "position": {
+            "x": -115.4,
+            "y": 0.12,
+            "z": 97
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": -63,
+          "cz": 66.5,
+          "length": 13,
+          "maxX": -56,
+          "maxZ": 73,
+          "minX": -70,
+          "minZ": 60,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": -63,
+            "cz": 66.5,
+            "hx": 6.5,
+            "hz": 7,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_v5_0",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_v5_0_-54.6_70",
+          "model": "lamp_post",
+          "position": {
+            "x": -54.6,
+            "y": 0.12,
+            "z": 70
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_v5_0_-71.4_70",
+          "model": "lamp_post",
+          "position": {
+            "x": -71.4,
+            "y": 0.12,
+            "z": 70
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": -63,
+          "cz": 96.5,
+          "length": 19,
+          "maxX": -56,
+          "maxZ": 106,
+          "minX": -70,
+          "minZ": 87,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": -63,
+            "cz": 96.5,
+            "hx": 9.5,
+            "hz": 7,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_v5_1",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_v5_1_-54.6_97",
+          "model": "lamp_post",
+          "position": {
+            "x": -54.6,
+            "y": 0.12,
+            "z": 97
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_v5_1_-71.4_97",
+          "model": "lamp_post",
+          "position": {
+            "x": -71.4,
+            "y": 0.12,
+            "z": 97
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": -19,
+          "cz": 66.5,
+          "length": 13,
+          "maxX": -12,
+          "maxZ": 73,
+          "minX": -26,
+          "minZ": 60,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": -19,
+            "cz": 66.5,
+            "hx": 6.5,
+            "hz": 7,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_v6_0",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_v6_0_-10.6_70",
+          "model": "lamp_post",
+          "position": {
+            "x": -10.6,
+            "y": 0.12,
+            "z": 70
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_v6_0_-27.4_70",
+          "model": "lamp_post",
+          "position": {
+            "x": -27.4,
+            "y": 0.12,
+            "z": 70
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": -19,
+          "cz": 96.5,
+          "length": 19,
+          "maxX": -12,
+          "maxZ": 106,
+          "minX": -26,
+          "minZ": 87,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": -19,
+            "cz": 96.5,
+            "hx": 9.5,
+            "hz": 7,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "ncc_s_v6_1",
+      "lamps": [
+        {
+          "id": "lamp_ncc_s_v6_1_-10.6_97",
+          "model": "lamp_post",
+          "position": {
+            "x": -10.6,
+            "y": 0.12,
+            "z": 97
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_ncc_s_v6_1_-27.4_97",
+          "model": "lamp_post",
+          "position": {
+            "x": -27.4,
+            "y": 0.12,
+            "z": 97
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 14,
+          "maxX": -100,
+          "maxZ": 87,
+          "minX": -114,
+          "minZ": 73,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14
+        }
+      ],
+      "fill": [],
+      "id": "ncc_x4_0",
+      "lamps": [],
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 14,
+          "maxX": -56,
+          "maxZ": 87,
+          "minX": -70,
+          "minZ": 73,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14
+        }
+      ],
+      "fill": [],
+      "id": "ncc_x5_0",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 14,
+          "maxX": -12,
+          "maxZ": 87,
+          "minX": -26,
+          "minZ": 73,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 14
+        }
+      ],
+      "fill": [],
+      "id": "ncc_x6_0",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 14,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 22,
+          "maxX": 78,
+          "maxZ": 72,
+          "minX": 56,
+          "minZ": 62,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_s_h0_0",
+      "lamps": [
+        {
+          "id": "lamp_nkab_s_h0_0_66_60.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 66,
+            "y": 0.12,
+            "z": 60.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_nkab_s_h0_0_66_73.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 66,
+            "y": 0.12,
+            "z": 73.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 22,
+          "maxX": 110,
+          "maxZ": 72,
+          "minX": 88,
+          "minZ": 62,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_s_h0_1",
+      "lamps": [
+        {
+          "id": "lamp_nkab_s_h0_1_98_60.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 98,
+            "y": 0.12,
+            "z": 60.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_nkab_s_h0_1_98_73.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 98,
+            "y": 0.12,
+            "z": 73.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 22,
+          "maxX": 78,
+          "maxZ": 85,
+          "minX": 56,
+          "minZ": 75,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_s_h1_0",
+      "lamps": [
+        {
+          "id": "lamp_nkab_s_h1_0_66_73.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 66,
+            "y": 0.12,
+            "z": 73.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_nkab_s_h1_0_66_86.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 66,
+            "y": 0.12,
+            "z": 86.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 22,
+          "maxX": 110,
+          "maxZ": 85,
+          "minX": 88,
+          "minZ": 75,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_s_h1_1",
+      "lamps": [
+        {
+          "id": "lamp_nkab_s_h1_1_98_73.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 98,
+            "y": 0.12,
+            "z": 73.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_nkab_s_h1_1_98_86.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 98,
+            "y": 0.12,
+            "z": 86.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 22,
+          "maxX": 78,
+          "maxZ": 104,
+          "minX": 56,
+          "minZ": 94,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_s_h2_0",
+      "lamps": [
+        {
+          "id": "lamp_nkab_s_h2_0_66_92.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 66,
+            "y": 0.12,
+            "z": 92.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_nkab_s_h2_0_66_105.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 66,
+            "y": 0.12,
+            "z": 105.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 22,
+          "maxX": 110,
+          "maxZ": 104,
+          "minX": 88,
+          "minZ": 94,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_s_h2_1",
+      "lamps": [
+        {
+          "id": "lamp_nkab_s_h2_1_98_92.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 98,
+            "y": 0.12,
+            "z": 92.6
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_nkab_s_h2_1_98_105.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 98,
+            "y": 0.12,
+            "z": 105.4
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": 51,
+          "cz": 89.5,
+          "length": 9,
+          "maxX": 56,
+          "maxZ": 94,
+          "minX": 46,
+          "minZ": 85,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": 51,
+            "cz": 89.5,
+            "hx": 4.5,
+            "hz": 5,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "nkab_s_v0_0",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": 83,
+          "cz": 89.5,
+          "length": 9,
+          "maxX": 88,
+          "maxZ": 94,
+          "minX": 78,
+          "minZ": 85,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": 83,
+            "cz": 89.5,
+            "hx": 4.5,
+            "hz": 5,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "nkab_s_v1_0",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 10,
+          "maxX": 56,
+          "maxZ": 72,
+          "minX": 46,
+          "minZ": 62,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_x0_0",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 10,
+          "maxX": 56,
+          "maxZ": 85,
+          "minX": 46,
+          "minZ": 75,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_x0_1",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 10,
+          "maxX": 56,
+          "maxZ": 104,
+          "minX": 46,
+          "minZ": 94,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_x0_2",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 10,
+          "maxX": 88,
+          "maxZ": 72,
+          "minX": 78,
+          "minZ": 62,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_x1_0",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 10,
+          "maxX": 88,
+          "maxZ": 85,
+          "minX": 78,
+          "minZ": 75,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_x1_1",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 10,
+          "maxX": 88,
+          "maxZ": 104,
+          "minX": 78,
+          "minZ": 94,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 10
+        }
+      ],
+      "fill": [],
+      "id": "nkab_x1_2",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 10,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 34,
+          "maxX": -90,
+          "maxZ": -74,
+          "minX": -124,
+          "minZ": -90,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 16
+        }
+      ],
+      "fill": [],
+      "id": "sind_s_h4_3",
+      "lamps": [
+        {
+          "id": "lamp_sind_s_h4_3_-114_-91.4",
+          "model": "lamp_post",
+          "position": {
+            "x": -114,
+            "y": 0.12,
+            "z": -91.4
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_sind_s_h4_3_-114_-72.6",
+          "model": "lamp_post",
+          "position": {
+            "x": -114,
+            "y": 0.12,
+            "z": -72.6
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_sind_s_h4_3_-94_-91.4",
+          "model": "lamp_post",
+          "position": {
+            "x": -94,
+            "y": 0.12,
+            "z": -91.4
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_sind_s_h4_3_-94_-72.6",
+          "model": "lamp_post",
+          "position": {
+            "x": -94,
+            "y": 0.12,
+            "z": -72.6
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "pillars": [],
+      "type": "ground",
+      "width": 16,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 30,
+          "maxX": -44,
+          "maxZ": -74,
+          "minX": -74,
+          "minZ": -90,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 16
+        }
+      ],
+      "fill": [],
+      "id": "sind_s_h4_4",
+      "lamps": [
+        {
+          "id": "lamp_sind_s_h4_4_-64_-91.4",
+          "model": "lamp_post",
+          "position": {
+            "x": -64,
+            "y": 0.12,
+            "z": -91.4
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_sind_s_h4_4_-64_-72.6",
+          "model": "lamp_post",
+          "position": {
+            "x": -64,
+            "y": 0.12,
+            "z": -72.6
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 16,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": -82,
+          "cz": -107,
+          "length": 34,
+          "maxX": -74,
+          "maxZ": -90,
+          "minX": -90,
+          "minZ": -124,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": -82,
+            "cz": -107,
+            "hx": 17,
+            "hz": 8,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 16,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "sind_s_v4_3",
+      "lamps": [
+        {
+          "id": "lamp_sind_s_v4_3_-72.6_-114",
+          "model": "lamp_post",
+          "position": {
+            "x": -72.6,
+            "y": 0.12,
+            "z": -114
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_sind_s_v4_3_-91.4_-114",
+          "model": "lamp_post",
+          "position": {
+            "x": -91.4,
+            "y": 0.12,
+            "z": -114
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_sind_s_v4_3_-72.6_-94",
+          "model": "lamp_post",
+          "position": {
+            "x": -72.6,
+            "y": 0.12,
+            "z": -94
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_sind_s_v4_3_-91.4_-94",
+          "model": "lamp_post",
+          "position": {
+            "x": -91.4,
+            "y": 0.12,
+            "z": -94
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "pillars": [],
+      "type": "ground",
+      "width": 16,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": -82,
+          "cz": -67,
+          "length": 14,
+          "maxX": -74,
+          "maxZ": -60,
+          "minX": -90,
+          "minZ": -74,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": -82,
+            "cz": -67,
+            "hx": 7,
+            "hz": 8,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 16,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "sind_s_v4_4",
+      "lamps": [
+        {
+          "id": "lamp_sind_s_v4_4_-72.6_-64",
+          "model": "lamp_post",
+          "position": {
+            "x": -72.6,
+            "y": 0.12,
+            "z": -64
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_sind_s_v4_4_-91.4_-64",
+          "model": "lamp_post",
+          "position": {
+            "x": -91.4,
+            "y": 0.12,
+            "z": -64
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 16,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 16,
+          "maxX": -74,
+          "maxZ": -74,
+          "minX": -90,
+          "minZ": -90,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 16
+        }
+      ],
+      "fill": [],
+      "id": "sind_x4_4",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 16,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 26,
+          "maxX": 66,
+          "maxZ": -88,
+          "minX": 40,
+          "minZ": -100,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12
+        }
+      ],
+      "fill": [],
+      "id": "skit_s_h5_0",
+      "lamps": [
+        {
+          "id": "lamp_skit_s_h5_0_50_-101.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 50,
+            "y": 0.12,
+            "z": -101.4
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_skit_s_h5_0_50_-86.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 50,
+            "y": 0.12,
+            "z": -86.6
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 26,
+          "maxX": 104,
+          "maxZ": -88,
+          "minX": 78,
+          "minZ": -100,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12
+        }
+      ],
+      "fill": [],
+      "id": "skit_s_h5_1",
+      "lamps": [
+        {
+          "id": "lamp_skit_s_h5_1_88_-101.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 88,
+            "y": 0.12,
+            "z": -101.4
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_skit_s_h5_1_88_-86.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 88,
+            "y": 0.12,
+            "z": -86.6
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 26,
+          "maxX": 66,
+          "maxZ": -74,
+          "minX": 40,
+          "minZ": -86,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12
+        }
+      ],
+      "fill": [],
+      "id": "skit_s_h6_0",
+      "lamps": [
+        {
+          "id": "lamp_skit_s_h6_0_50_-87.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 50,
+            "y": 0.12,
+            "z": -87.4
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_skit_s_h6_0_50_-72.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 50,
+            "y": 0.12,
+            "z": -72.6
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 26,
+          "maxX": 104,
+          "maxZ": -74,
+          "minX": 78,
+          "minZ": -86,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12
+        }
+      ],
+      "fill": [],
+      "id": "skit_s_h6_1",
+      "lamps": [
+        {
+          "id": "lamp_skit_s_h6_1_88_-87.4",
+          "model": "lamp_post",
+          "position": {
+            "x": 88,
+            "y": 0.12,
+            "z": -87.4
+          },
+          "rotationY": 0,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_skit_s_h6_1_88_-72.6",
+          "model": "lamp_post",
+          "position": {
+            "x": 88,
+            "y": 0.12,
+            "z": -72.6
+          },
+          "rotationY": 180,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": 34,
+          "cz": -113,
+          "length": 26,
+          "maxX": 40,
+          "maxZ": -100,
+          "minX": 28,
+          "minZ": -126,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": 34,
+            "cz": -113,
+            "hx": 13,
+            "hz": 6,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "skit_s_v0_4",
+      "lamps": [
+        {
+          "id": "lamp_skit_s_v0_4_41.4_-116",
+          "model": "lamp_post",
+          "position": {
+            "x": 41.4,
+            "y": 0.12,
+            "z": -116
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_skit_s_v0_4_26.6_-116",
+          "model": "lamp_post",
+          "position": {
+            "x": 26.6,
+            "y": 0.12,
+            "z": -116
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": 34,
+          "cz": -67,
+          "length": 14,
+          "maxX": 40,
+          "maxZ": -60,
+          "minX": 28,
+          "minZ": -74,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": 34,
+            "cz": -67,
+            "hx": 7,
+            "hz": 6,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "skit_s_v0_5",
+      "lamps": [
+        {
+          "id": "lamp_skit_s_v0_5_41.4_-64",
+          "model": "lamp_post",
+          "position": {
+            "x": 41.4,
+            "y": 0.12,
+            "z": -64
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_skit_s_v0_5_26.6_-64",
+          "model": "lamp_post",
+          "position": {
+            "x": 26.6,
+            "y": 0.12,
+            "z": -64
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": 72,
+          "cz": -113,
+          "length": 26,
+          "maxX": 78,
+          "maxZ": -100,
+          "minX": 66,
+          "minZ": -126,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": 72,
+            "cz": -113,
+            "hx": 13,
+            "hz": 6,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "skit_s_v1_4",
+      "lamps": [
+        {
+          "id": "lamp_skit_s_v1_4_79.4_-116",
+          "model": "lamp_post",
+          "position": {
+            "x": 79.4,
+            "y": 0.12,
+            "z": -116
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_skit_s_v1_4_64.6_-116",
+          "model": "lamp_post",
+          "position": {
+            "x": 64.6,
+            "y": 0.12,
+            "z": -116
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "cx": 72,
+          "cz": -67,
+          "length": 14,
+          "maxX": 78,
+          "maxZ": -60,
+          "minX": 66,
+          "minZ": -74,
+          "obb": {
+            "c": 6.123233995736766e-17,
+            "cx": 72,
+            "cz": -67,
+            "hx": 7,
+            "hz": 6,
+            "s": 1
+          },
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12,
+          "yaw": 90
+        }
+      ],
+      "fill": [],
+      "id": "skit_s_v1_5",
+      "lamps": [
+        {
+          "id": "lamp_skit_s_v1_5_79.4_-64",
+          "model": "lamp_post",
+          "position": {
+            "x": 79.4,
+            "y": 0.12,
+            "z": -64
+          },
+          "rotationY": -90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        },
+        {
+          "id": "lamp_skit_s_v1_5_64.6_-64",
+          "model": "lamp_post",
+          "position": {
+            "x": 64.6,
+            "y": 0.12,
+            "z": -64
+          },
+          "rotationY": 90,
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "source": "road_lamp"
+        }
+      ],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": true
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 12,
+          "maxX": 40,
+          "maxZ": -88,
+          "minX": 28,
+          "minZ": -100,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12
+        }
+      ],
+      "fill": [],
+      "id": "skit_x0_5",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 12,
+          "maxX": 40,
+          "maxZ": -74,
+          "minX": 28,
+          "minZ": -86,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12
+        }
+      ],
+      "fill": [],
+      "id": "skit_x0_6",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 12,
+          "maxX": 78,
+          "maxZ": -88,
+          "minX": 66,
+          "minZ": -100,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12
+        }
+      ],
+      "fill": [],
+      "id": "skit_x1_5",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": false
+    },
+    {
+      "aprons": [],
+      "decks": [
+        {
+          "axis": "x",
+          "bottomY": -0.48,
+          "length": 12,
+          "maxX": 78,
+          "maxZ": -74,
+          "minX": 66,
+          "minZ": -86,
+          "rails": false,
+          "ramp": false,
+          "topAtMax": 0.12,
+          "topAtMin": 0.12,
+          "topY": 0.12,
+          "width": 12
+        }
+      ],
+      "fill": [],
+      "id": "skit_x1_6",
+      "lamps": [],
+      "owner": true,
+      "pillars": [],
+      "type": "ground",
+      "width": 12,
+      "withLamps": false
+    }
+  ],
+  "units": "meters"
+}

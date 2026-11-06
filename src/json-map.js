@@ -98,13 +98,20 @@ export class JsonMap extends SurfaceField {
     // неон и билборды — третий выводимый ряд того же механизма (`_signageItems`)
     this.signCfg = spec.signage ? { ...J.signage, ...spec.signage } : null;
 
-    this.geo = { walls: [], slabs: [], stairs: [], decks: [], earth: [], rails: [] };
+    this.geo = this._geoGroups();
 
     this.collectData();
 
     const s = spec.spawn ?? { x: 0, z: 0 };
     this.spawn = { x: s.x, y: this.groundHeightAt(s.x, s.z, this.groundY), z: s.z };
     this.anchors = this._collectAnchors();
+    // Предикат пригодности узла для движка (`randomNavPoint` и `findPath`). У
+    // `JsonMap` он `null`: глава собирается целиком, а изолированные карманы уже
+    // отрезаны `_pruneToSpawn`, поэтому годен каждый узел графа. `WorldMap`
+    // ставит проверку «узел стоит в загруженной клетке»: его граф достраивается
+    // по чанкам и остаётся append-only, так что узел выгруженной клетки никуда
+    // не девается — маршрут через него повёл бы врага в несобранный район.
+    this.navFit = null;
     this.nav = this._buildNav();
   }
 
@@ -115,13 +122,31 @@ export class JsonMap extends SurfaceField {
   // группы в прежнем порядке.
 
   /**
+   * Пустые группы картинки — один список ключей на весь класс. Он нужен и
+   * открытому миру, который заводит группы клетки тем же вызовом: группа,
+   * пропущенная во втором перечислении, потеряла бы меш молча, а не бросила бы
+   * ошибку.
+   */
+  _geoGroups() {
+    return { walls: [], slabs: [], stairs: [], decks: [], earth: [], rails: [] };
+  }
+
+  /**
    * Картинка по заявке фазы данных: `group` — группа `this.geo`, `d` — созданная
    * запись (`{kind:'box'|'prism'|'arc', …}`).
+   *
+   * В проходе данных (`_muteGeo`, ставит `collectPass`) геометрия не нужна ни
+   * одному приёмнику, кроме дуги: её `_sweepMesh` пишет `s.tris` и `s.hitTris`,
+   * и по ним, а не по мешу, судит луч. Поэтому глушение — на выходе меша, а не
+   * на обходе: пропущенная дуга оставила бы полотно без твёрдости.
    */
   _addGeo(group, d) {
+    // дуга отрабатывает и в глушении: `_sweepMesh` пишет `s.tris` и `s.hitTris`,
+    // и это твёрдость полотна, а не картинка
+    if (d.kind === 'arc') { this._sweepMesh(d.s); return; }
+    if (this._muteGeo) return;
     if (d.kind === 'box') this.geo[group].push(this._boxGeo(d.plan, d.y0, d.g1, d.frame));
-    else if (d.kind === 'prism') this.geo[group].push(this._prismGeo(d.w));
-    else this._sweepMesh(d.s);   // дуга: лента сама кладёт себя в `decks` и зовёт перила
+    else this.geo[group].push(this._prismGeo(d.w));
   }
 
   /**
@@ -204,7 +229,7 @@ export class JsonMap extends SurfaceField {
     cap(rings[0], [-t0[0], 0, -t0[2]]);
     cap(rings[rings.length - 1], t1);
     s.tris = tris;
-    this.geo.decks.push(this._sweepGeo(tris));
+    if (!this._muteGeo) this.geo.decks.push(this._sweepGeo(tris));
     if (s.rails) this._sweepRails(s, fr);
   }
 
@@ -282,7 +307,7 @@ export class JsonMap extends SurfaceField {
       cap(rings[rings.length - 1], t1);
     }
     s.hitTris = s.tris.concat(tris);
-    this.geo.rails.push(this._sweepGeo(tris));
+    if (!this._muteGeo) this.geo.rails.push(this._sweepGeo(tris));
   }
 
   /**
@@ -498,10 +523,21 @@ export class JsonMap extends SurfaceField {
     return true;
   }
 
-  /** Свободные точки уровня: центры плит полов и кровель, пластин настилов и сетки земли. */
-  _collectAnchors() {
+  /**
+   * Свободные точки уровня: центры плит полов и кровель, пластин настилов и
+   * сетки земли.
+   *
+   * `rect` — область (для открытого мира точки собирает каждая загруженная
+   * клетка, и плита, чей центр лежит в соседней, обязана попасть в список
+   * соседа, а не в оба списка сразу: узлы решётки различаются ключом, а якорь —
+   * точка без ключа). Плита кровли на шве принадлежит одной клетке по центру,
+   * хотя сама пересекает границу, — это точка для пула огней и монет, а не
+   * объём.
+   */
+  _collectAnchors(rect = null) {
     const out = [];
-    const push = (x, y, z) => out.push({ x, y, z });
+    const inRect = (x, z) => !rect || (x >= rect.minX && x <= rect.maxX && z >= rect.minZ && z <= rect.maxZ);
+    const push = (x, y, z) => { if (inRect(x, z)) out.push({ x, y, z }); };
     for (const p of this.floorPlates) {
       push((p.minX + p.maxX) / 2, p.y, (p.minZ + p.maxZ) / 2);
     }
@@ -522,14 +558,24 @@ export class JsonMap extends SurfaceField {
       push((d.minX + d.maxX) / 2, d.topY, (d.minZ + d.maxZ) / 2);
     }
     const step = J.navStep * 2;
-    for (let z = -this.half + step / 2; z < this.half; z += step) {
-      for (let x = -this.half + step / 2; x < this.half; x += step) {
+    // фаза той же мировой решётки, что и у `_navLattice`: `k`-й узел сетки земли
+    // лежит на `-half + step/2 + k·step` и не зависит от того, какая клетка его
+    // берёт, иначе две соседние клетки поставили бы якоря в двух метрах друг
+    // от друга вместо шага
+    const k0 = rect ? Math.ceil((rect.minX + this.half - step / 2) / step) : 0;
+    const k1 = rect ? Math.floor((rect.maxX + this.half - step / 2) / step) : Math.ceil((this.width - step / 2) / step) - 1;
+    const m0 = rect ? Math.ceil((rect.minZ + this.half - step / 2) / step) : 0;
+    const m1 = rect ? Math.floor((rect.maxZ + this.half - step / 2) / step) : Math.ceil((this.width - step / 2) / step) - 1;
+    for (let m = m0; m <= m1; m++) {
+      const z = -this.half + step / 2 + m * step;
+      for (let k = k0; k <= k1; k++) {
+        const x = -this.half + step / 2 + k * step;
         // опорная точка над руслом не нужна ни пулу огней, ни монетам: фонарь
         // посреди воды освещал бы дно, а предмет там некуда поставить
         if (this._inBuilding(x, z) || this._inChannel(x, z)) continue;
         const y = this.groundHeightAt(x, z, this.groundY);
         if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) continue;
-        push(x, y, z);
+        out.push({ x, y, z });
       }
     }
     return out;
@@ -678,15 +724,38 @@ export class JsonMap extends SurfaceField {
     return this._pruneToSpawn(nav);
   }
 
-  /** Решётка улиц и дворов: шаг J.navStep, узел там, где есть опора и габарит свободен. */
-  _navLattice(nav) {
+  /**
+   * Решётка улиц и дворов: шаг `J.navStep`, узел там, где есть опора и габарит
+   * свободен.
+   *
+   * `rect` — область обхода (открытый мир строит решётку по загруженным
+   * клеткам, а не по плите: цена решётки ∝ площади плиты, и на 1,96 км² это
+   * 54 756 проб на каждый чанк). Ключи узлов — мировые (`w:i:j`, узел `i` лежит
+   * на `-half + i·step`), поэтому соседние клетки сходятся на шве одними и теми
+   * же узлами и `nav.add` склеивает их по ключу, а не ставит два в одной точке.
+   * Границы — `ceil` снизу и `floor` сверху: узел достаётся той клетке, внутри
+   * которой лежит его точка. Когда `chunk` не кратен шагу (клетка 200 м при
+   * шаге 6 м: узел 133 на x = 98 и 134 на x = 104, а шов — на x = 100), шов
+   * попадает МЕЖДУ узлами, и ребро через него не создала бы ни одна из двух
+   * клеток, линкуй каждая только своих. Поэтому обвязка идёт на один индекс за
+   * край: чужой узел берётся по ключу, а если его ещё нет (чанк не загружен или
+   * клетка отбракована пробой), ребро создаёт сосед со своей стороны — порядок
+   * загрузки не важен, а `nav.link` дедуплицирует ребро при втором заходе.
+   */
+  _navLattice(nav, rect = null) {
     const step = J.navStep;
     const n = Math.floor(this.width / step);
+    const box = rect ?? { minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half };
+    const i0 = Math.max(0, Math.ceil((box.minX + this.half) / step));
+    const i1 = Math.min(n, Math.floor((box.maxX + this.half) / step));
+    const j0 = Math.max(0, Math.ceil((box.minZ + this.half) / step));
+    const j1 = Math.min(n, Math.floor((box.maxZ + this.half) / step));
+    if (i1 < i0 || j1 < j0) return;
     const lat = [];
-    for (let j = 0; j <= n; j++) {
-      const row = new Array(n + 1);
+    for (let j = j0; j <= j1; j++) {
+      const row = new Array(i1 - i0 + 1);
       const z = -this.half + j * step;
-      for (let i = 0; i <= n; i++) {
+      for (let i = i0; i <= i1; i++) {
         const x = -this.half + i * step;
         if (this._inBuilding(x, z)) continue;
         // на склоне отсчёт опоры ведётся от местности, а не от `groundY`: плита
@@ -695,19 +764,51 @@ export class JsonMap extends SurfaceField {
         const fromY = this.relief ? this.relief.heightAt(x, z) : this.groundY;
         const y = this.groundHeightAt(x, z, fromY);
         if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) continue;
-        row[i] = nav.add(x, y, z, `w:${i}:${j}`);
+        row[i - i0] = nav.add(x, y, z, `w:${i}:${j}`);
       }
       lat.push(row);
     }
-    for (let j = 0; j <= n; j++) {
-      for (let i = 0; i <= n; i++) {
-        const id = lat[j][i];
+    for (let jj = 0; jj < lat.length; jj++) {
+      for (let ii = 0; ii < lat[jj].length; ii++) {
+        const id = lat[jj][ii];
         if (id === undefined) continue;
-        if (i > 0 && lat[j][i - 1] !== undefined) this._linkRise(nav, id, lat[j][i - 1], `x${i}:${j}`);
-        if (j > 0 && lat[j - 1][i] !== undefined) this._linkRise(nav, id, lat[j - 1][i], `z${i}:${j}`);
+        const i = i0 + ii, j = j0 + jj;
+        if (ii > 0 && lat[jj][ii - 1] !== undefined) this._linkRise(nav, id, lat[jj][ii - 1], `x${i}:${j}`);
+        if (jj > 0 && lat[jj - 1][ii] !== undefined) this._linkRise(nav, id, lat[jj - 1][ii], `z${i}:${j}`);
       }
     }
+    if (!rect) return;
+    // Шов: внутренняя обвязка берёт только пары, чей бо́льший конец лежит
+    // внутри клетки, поэтому у клетки в 200 м при шаге 6 м (шов на x = 100,
+    // узлы на x = 98 и на x = 104) ребро «133 → 134» не создала бы ни одна из
+    // двух сторон. Здесь тянутся четыре полосы — по одному индексу за каждый
+    // край, — а чужой узел берётся по мировому ключу: если соседа ещё нет,
+    // `nav.id` отдаёт `undefined`, и ребро создаст он сам со своей полосы, то
+    // есть порядок загрузки клеток не важен. Ребро названо бо́льшим из концов,
+    // как и внутри обвязки, поэтому обе стороны дают ОДИН ключ и ОДНО
+    // направление обхода: промежуточные узлы склонного ребра склеивает
+    // `nav.add`, а повторное ребро — `nav.link` (край, совпавший с узлом,
+    // попадает в диапазоны обеих клеток и его внутренняя пара создаётся
+    // дважды).
+    const at = (i, j) => (i < i0 || i > i1 || j < j0 || j > j1)
+      ? nav.id(`w:${i}:${j}`)
+      : lat[j - j0][i - i0];
+    for (let j = j0; j <= j1; j++) {
+      this._linkSeam(nav, at(i1 + 1, j), at(i1, j), `x${i1 + 1}:${j}`);
+      this._linkSeam(nav, at(i0, j), at(i0 - 1, j), `x${i0}:${j}`);
+    }
+    for (let i = i0; i <= i1; i++) {
+      this._linkSeam(nav, at(i, j1 + 1), at(i, j1), `z${i}:${j1 + 1}`);
+      this._linkSeam(nav, at(i, j0), at(i, j0 - 1), `z${i}:${j0}`);
+    }
   }
+
+  /** Ребро шва между двумя узлами — только если оба уже стоят в графе. */
+  _linkSeam(nav, a, b, tag) {
+    if (a === undefined || b === undefined) return;
+    this._linkRise(nav, a, b, tag);
+  }
+
 
   /**
    * Ребро решётки через склон: перепад соседних узлов обязан остаться в шаге
@@ -1237,12 +1338,12 @@ export class JsonMap extends SurfaceField {
 
   /** Случайная точка графа в радиусе от (x, z); если не нашлось — null. */
   randomNavPoint(x, z, radius) {
-    return this.nav.randomPoint(x, z, radius);
+    return this.nav.randomPoint(x, z, radius, this.navFit);
   }
 
   /** Маршрут по узлам графа (поиск в ширину). null — пути нет. */
   findPath(from, to) {
-    return this.nav.findPath(from, to);
+    return this.nav.findPath(from, to, this.navFit);
   }
 
   // ---------------------------------------------------------------- сборка сцены
@@ -1262,9 +1363,15 @@ export class JsonMap extends SurfaceField {
    * разных прямоугольников русла, общий нормальный вектор один и тот же, поэтому
    * на стыке не появляется световой шов, а картинка остаётся той же поверхностью,
    * по которой ходит нога и которую видит луч.
+   *
+   * `rect` — область плиты (открытый мир режет грунт по клеткам). Сетка
+   * нарезки обязана быть кратна шагу: при `stream.chunk`, кратном
+   * `J.relief.meshCell`, границы клеток попадают на те же вершины мировой
+   * нарезки, и на шве не остаётся T-стыка — иначе соседние клетки сошлись бы
+   * разными отсчётами поля и граница читалась световой полосой.
    */
-  _groundGeo() {
-    let rects = [{ minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
+  _groundGeo(rect = null) {
+    let rects = [rect ?? { minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
     for (const h of this.holes) rects = rects.flatMap(r => subtractRect(r, h));
     if (!this.relief) {
       return mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
@@ -1295,10 +1402,14 @@ export class JsonMap extends SurfaceField {
    * Вода: один меш полупрозрачных пластин на отметках `surfaceY`. Коллизий у него
    * нет ни для луча, ни для тела — решение о том, где русло проходимо вброд,
    * принимает геометрия дна и блокер, а не картинка.
+   *
+   * `rects` — зеркала одной области: у клетки их отдаёт проход картинки, потому
+   * что мировое поле содержит и чужие копии русел, а пластина воды на шве
+   * обязана быть одна.
    */
-  _buildWater(scene) {
-    if (!this.waterRects.length) return;
-    const geo = mergeGeometries(this.waterRects.map(r => new THREE.PlaneGeometry(
+  _buildWater(scene, rects, objs) {
+    if (!rects.length) return;
+    const geo = mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
       r.maxX - r.minX, r.maxZ - r.minZ,
     ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, r.y)), false);
     const water = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
@@ -1307,7 +1418,7 @@ export class JsonMap extends SurfaceField {
     }));
     water.rotation.x = -Math.PI / 2;
     scene.add(water);
-    this.sceneObjects.push(water);
+    objs.push(water);
   }
 
   /**
@@ -1334,6 +1445,7 @@ export class JsonMap extends SurfaceField {
       groups.get(color).push(it);
     };
     for (const b of this.buildings) {
+      if (!this._drawn(b)) continue;
       const style = W.byMaterial?.[b.facadeMaterial];
       const cfg = style ? { ...W, ...style } : W;
       if (!(cfg.spacing > 0) || !b.floorsCount) continue;
@@ -1402,6 +1514,7 @@ export class JsonMap extends SurfaceField {
       groups.get(color).push(it);
     };
     for (const b of this.buildings) {
+      if (!this._drawn(b)) continue;
       const style = S.byMaterial?.[b.facadeMaterial];
       const cfg = style ? { ...S, ...style } : S;
       if (!(cfg.keep > 0) || !b.floorsCount || b.floorsCount < cfg.minFloors) continue;
@@ -1618,6 +1731,7 @@ export class JsonMap extends SurfaceField {
     };
 
     for (const b of this.buildings) {
+      if (!this._drawn(b)) continue;
       if (!b.floorsCount) continue;
       const frame = this._frame(b);
       const models = b.roofY >= C.tall ? C.tallModels : C.roofModels;
@@ -1650,6 +1764,7 @@ export class JsonMap extends SurfaceField {
     }
 
     for (const road of this.roads) {
+      if (!this._drawn(road)) continue;
       // по настилам мостов и переходов мусора нет: там не тротуар, а единственный
       // проход — контейнер посреди пролёта выглядел бы стеной, которой нет
       if (road.type !== 'ground') continue;
@@ -1758,14 +1873,21 @@ export class JsonMap extends SurfaceField {
     return false;
   }
 
-  /** Светящиеся окна фасадов: вывод и меши — у `_windowItems` и `_buildQuads`. */
-  _buildWindows(scene) {
-    this.windowCount = this.winCfg ? this._buildQuads(scene, this._windowItems(), 'windows') : 0;
+  /**
+   * Светящиеся окна фасадов: вывод и меши — у `_windowItems` и `_buildQuads`.
+   *
+   * `objs` — список созданного: у клетки открытого мира он свой, и выгрузка
+   * обязана снять со сцены квады одной клетки, не трогая остальные.
+   *
+   * @returns {number} число экземпляров
+   */
+  _buildWindows(scene, objs) {
+    return this.winCfg ? this._buildQuads(scene, this._windowItems(), 'windows', objs) : 0;
   }
 
   /** Неон и билборды: те же квады, другая палитра и вынос за грань. */
-  _buildSignage(scene) {
-    this.signageCount = this.signCfg ? this._buildQuads(scene, this._signageItems(), 'signage') : 0;
+  _buildSignage(scene, objs) {
+    return this.signCfg ? this._buildQuads(scene, this._signageItems(), 'signage', objs) : 0;
   }
 
   /**
@@ -1783,7 +1905,7 @@ export class JsonMap extends SurfaceField {
    *   выводимый ряд от другого: материалы у них одинаковые по классу.
    * @returns {number} число экземпляров
    */
-  _buildQuads(scene, groups, kind) {
+  _buildQuads(scene, groups, kind, objs) {
     if (!groups.size) return 0;
     const geo = new THREE.PlaneGeometry(1, 1);
     let count = 0;
@@ -1803,24 +1925,53 @@ export class JsonMap extends SurfaceField {
       mesh.computeBoundingSphere();
       mesh.userData.quad = kind;
       scene.add(mesh);
-      this.sceneObjects.push(mesh);
+      objs.push(mesh);
       count += items.length;
     }
     return count;
   }
 
   build(scene) {
-    this.sceneObjects = [];
+    const pic = this._buildPicture(scene, this.geo, null, this.waterRects);
+    this.sceneObjects = pic.objs;
+    this.realLights = pic.lights;
+    this.windowCount = pic.windows;
+    this.signageCount = pic.signage;
+    this.clutterCount = pic.clutter;
+  }
+
+  /**
+   * Картинка одной области: грунт, вода, группы геометрии, пропы и три
+   * выводимых ряда. Хозяина у неё два — `build()` на весь мир и `WorldMap` на
+   * одну клетку, — поэтому всё созданное возвращается списком: выгрузка клетки
+   * обязана снять со сцены и отдать буферы только свои, а не весь уровень.
+   *
+   * `groups` — геометрия области (`this.geo` у главы, группы прохода картинки у
+   * клетки); `rect` — её плита грунта (`null` = вся плита мира); `water` —
+   * зеркала воды этой области.
+   *
+   * Выводимые ряды берутся с отбором владельца (`_drawn`), поэтому там, где мир
+   * собран из клеток, метод зовётся через `_drawOwnersOnly`: дом на шве лежит в
+   * данных обеих клеток, а нарисован обязан быть в одной. Сами ряды при этом
+   * пробуют твёрдость по **мировому** полю, поэтому их нельзя считать внутри
+   * `collectPass`, где входы подменены списком одной клетки.
+   *
+   * @returns {{objs: object[], lights: object[], windows: number, signage: number, clutter: number}}
+   */
+  _buildPicture(scene, groups, rect, water) {
+    const objs = [];
     const ground = new THREE.Mesh(
-      (this.holes.length || this.relief) ? this._groundGeo() : new THREE.PlaneGeometry(this.width, this.depth),
+      (rect || this.holes.length || this.relief)
+        ? this._groundGeo(rect)
+        : new THREE.PlaneGeometry(this.width, this.depth),
       new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = this.groundY;
     ground.receiveShadow = true;
     scene.add(ground);
-    this.sceneObjects.push(ground);
-    this._buildWater(scene);
+    objs.push(ground);
+    this._buildWater(scene, water, objs);
 
     const mats = {
       walls: new THREE.MeshStandardMaterial({ color: J.walls, roughness: 0.85, metalness: 0.05 }),
@@ -1830,37 +1981,38 @@ export class JsonMap extends SurfaceField {
       earth: new THREE.MeshStandardMaterial({ color: J.earth, roughness: 1, metalness: 0 }),
       rails: new THREE.MeshStandardMaterial({ color: J.railColor, roughness: 0.55, metalness: 0.5 }),
     };
-    for (const key of Object.keys(this.geo)) {
-      const geos = this.geo[key];
+    for (const key of Object.keys(groups)) {
+      const geos = groups[key];
       if (!geos.length) continue;
       const mesh = new THREE.Mesh(mergeGeometries(geos, false), mats[key]);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
-      this.sceneObjects.push(mesh);
+      objs.push(mesh);
     }
 
     const clutter = this._clutterItems();
-    this.clutterCount = clutter.length;
-    for (const mesh of buildProps(scene, this.props.concat(clutter))) {
+    for (const mesh of buildProps(scene, this._drawable(this.props).concat(clutter))) {
       // материалы пропов общие на модуль (src/props.js) и переживают загрузку
       // следующей главы — dispose() обязан снимать геометрию, но не их
       mesh.userData.sharedMaterial = true;
-      this.sceneObjects.push(mesh);
+      objs.push(mesh);
     }
-    this._buildWindows(scene);
-    this._buildSignage(scene);
-    this._buildLights(scene);
+    const windows = this._buildWindows(scene, objs);
+    const signage = this._buildSignage(scene, objs);
+    const lights = this._buildLights(scene, objs);
+    return { objs, lights, windows, signage, clutter: clutter.length };
   }
 
   /**
-   * Снимает со сцены всё, что поставил `build`: меши с их геометрия и материалами,
-   * настоящие источники и лампы-сферы. Сцена главы пересоздаётся на каждой загрузке
-   * (AGENTS.md о жизненном цикле), а на районе 600 м одна утечка — десятки мегабайт
-   * буферов, которые больше никто не держит.
+   * Снимает со сцены объекты одной области и отдаёт её буферы: меши с их
+   * геометрией и материалами, настоящие источники вместе с их `target`. Сцена
+   * главы пересоздаётся на каждой загрузке (AGENTS.md о жизненном цикле), а на
+   * районе 600 м одна утечка — десятки мегабайт буферов, которые больше никто
+   * не держит.
    */
-  dispose() {
-    for (const o of this.sceneObjects ?? []) {
+  _release(objs, lights) {
+    for (const o of objs ?? []) {
       o.parent?.remove(o);
       o.geometry?.dispose?.();
       // материалы пропов (src/props.js) модульные и переиспользуются следующей
@@ -1869,10 +2021,17 @@ export class JsonMap extends SurfaceField {
         (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose?.());
       }
     }
-    for (const l of this.realLights ?? []) {
+    for (const l of lights ?? []) {
       l.parent?.remove(l);
       l.target?.parent?.remove(l.target);
     }
+  }
+
+  /**
+   * Отдача всего, что поставил `build`.
+   */
+  dispose() {
+    this._release(this.sceneObjects, this.realLights);
     this.sceneObjects = [];
     this.realLights = [];
   }
@@ -1881,11 +2040,17 @@ export class JsonMap extends SurfaceField {
    * Настоящие источники из данных главы: point и spot (directional парсер
    * превращает в «луну» неба). Тени у них выключены — тень держит одна
    * направленная, как на всех ночных главах.
+   *
+   * Отбор владельца обязателен и здесь: фонарь на шве лежит в двух клетках, а
+   * `light` в сцене — не картинка, а лимит: удвоенный пул отнял бы половину
+   * числа источников у соседних улиц, ничего им не добавив.
+   *
+   * @returns {object[]} источники — их `dispose()` обязан снять и `target`
    */
-  _buildLights(scene) {
-    this.realLights = [];
+  _buildLights(scene, objs) {
+    const lights = [];
     const bulbs = [];
-    for (const l of this.lightSpecs) {
+    for (const l of this._drawable(this.lightSpecs)) {
       const color = new THREE.Color(l.color ?? 0xffcf9a);
       let light;
       if (l.type === 'spot') {
@@ -1899,7 +2064,7 @@ export class JsonMap extends SurfaceField {
       light.position.set(l.position.x, l.position.y, l.position.z);
       light.castShadow = false;
       scene.add(light);
-      this.realLights.push(light);
+      lights.push(light);
 
       const bulb = new THREE.SphereGeometry(0.35, 8, 6).translate(
         l.position.x, l.position.y, l.position.z);
@@ -1910,8 +2075,9 @@ export class JsonMap extends SurfaceField {
         color: 0xffe6c0,
       }));
       scene.add(mesh);
-      this.sceneObjects.push(mesh);
+      objs.push(mesh);
     }
+    return lights;
   }
 
   // ------------------------------------------------------------------ миникарта

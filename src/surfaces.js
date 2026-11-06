@@ -7,6 +7,22 @@ const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
 
 /**
+ * Поля-приёмники фазы данных: всё, куда пишут `_collect*`.
+ *
+ * Это не удобства ради, а контракт `collectChunk`: подменяются ровно эти поля,
+ * и позабытое в списке означало бы, что чанк дописался в мировое поле поверх
+ * собранного ранее. Такой дефект не краснеет на вердикте опоры (дубликат
+ * солида даёт тот же ответ), а стоит удвоением кандидатов на каждую пробу,
+ * поэтому список проверяет мера: после `collectChunk` мировые списки обязаны
+ * остаться ровно теми, что были (`tools/chunk.test.mjs`).
+ */
+export const DATA_SINKS = Object.freeze([
+  'solids', 'surfaces', 'blockers', 'stairCells', 'floorPlates', 'roofPlates',
+  'deckPlates', 'sweeps', 'prisms', 'railWedges', 'rails', 'holes', 'descents',
+  'waterRects',
+]);
+
+/**
  * Наклонные поверхности уровня и всё, что из них читается: опора ноги, луч,
  * сфера тела, проходимость габарита и **проба рёбер навигации**.
  *
@@ -54,18 +70,7 @@ export class SurfaceField extends SolidField {
     // для луча — поле, и `raySolid` марширует по нему сам
     this.groundPlane = this.relief ? null : { y: this.groundY, half: this.half };
 
-    this.buildings = spec.buildings ?? [];
-    // Кадр поворота каждого дома (`buildings[].rotation`, v2): null у дома без
-    // угла, поэтому весь код ниже для глав 9 и 10 идёт ровно прежней веткой.
-    // Считается один раз на дом — `cos`/`sin` нужны и картинке, и твёрдости, и
-    // навигации, и выводить их дважды значило бы держать два разных угла.
-    this._frames = new Map(this.buildings.map(b => [b, frameOf(b.bounds, b.rotation ?? 0)]));
-    // мировой план каждого дома: габарит повёрнутого корпуса плюс `obb`. По нему
-    // раскладываются клетки `_buildingCells` (индекс — broadphase, консервативно),
-    // а точку «внутри плана» решает `obbHitsRect` уже по своим осям
-    this._buildingBoxes = this.buildings.map(b => obbOf(b.bounds, this._frames.get(b)));
-    this.roads = spec.roads ?? [];
-    this.channels = spec.channels ?? [];
+    this._setInputs(spec);
 
     /** план марша с этажами, между которыми он стоит: клетки пола внутри него не ставятся */
     this.stairCells = [];
@@ -99,6 +104,34 @@ export class SurfaceField extends SolidField {
     this.waterRects = [];
     this._blockIndex = new Map();
     this._blockBucket = J.navStep;
+    /** рисовать только записи-владелеццев (`WorldMap` при картинке клетки) */
+    this._ownerOnly = false;
+    /** множество владельцев текущего прохода — второй слой того же отбора */
+    this._drawOwn = null;
+  }
+
+  /**
+   * Входы фазы данных: списки брифа плюс производные от них кадры поворотов и
+   * мировые планы домов.
+   *
+   * Отдельным методом, потому что планы домов обязаны соответствовать именно
+   * тому списку, по которому идёт обход: `_buildingBoxes` индексируется
+   * позицией в `buildings`, и подмена списка без подмены кеша заставила бы
+   * `_inBuilding` читать чужой корпус.
+   */
+  _setInputs(src) {
+    this.buildings = src.buildings ?? [];
+    // Кадр поворота каждого дома (`buildings[].rotation`, v2): null у дома без
+    // угла, поэтому весь код ниже для глав 9 и 10 идёт ровно прежней веткой.
+    // Считается один раз на дом — `cos`/`sin` нужны и картинке, и твёрдости, и
+    // навигации, и выводить их дважды значило бы держать два разных угла.
+    this._frames = new Map(this.buildings.map(b => [b, frameOf(b.bounds, b.rotation ?? 0)]));
+    // мировой план каждого дома: габарит повёрнутого корпуса плюс `obb`. По нему
+    // раскладываются клетки `_buildingCells` (индекс — broadphase, консервативно),
+    // а точку «внутри плана» решает `obbHitsRect` уже по своим осям
+    this._buildingBoxes = this.buildings.map(b => obbOf(b.bounds, this._frames.get(b)));
+    this.roads = src.roads ?? [];
+    this.channels = src.channels ?? [];
   }
 
   /**
@@ -124,6 +157,144 @@ export class SurfaceField extends SolidField {
     this.indexSolids();
     this._indexSurfaces();
     this._indexBlockers();
+  }
+
+  /**
+   * Даёт ли эта запись выход в текущем проходе.
+   *
+   * Флаг `owner: true` ставит разрезка парсера (`tools/chunk-level.mjs`):
+   * картинку и свет объекта рисует одна владеющая клетка, иначе дом на шве
+   * оказался бы в мешах дважды. Проверка короткая и для глав 9–13 не
+   * срабатывает вовсе — там `_ownerOnly` не ставится, а флага `owner` у
+   * записей нет.
+   *
+   * `_drawOwn` — второй слой того же правила, нужный `WorldMap`: выводимые ряды
+   * (окна, мусор, неон, пропы, фонари) считаются по **мировому** набору, потому
+   * что пробуют твёрдость и соседние планы именно в нём, а рисовать обязаны
+   * только объекты этой клетки. Множество владельцев даёт фильтр, не трогая
+   * набор: отбор по одному флагу `owner` на склеенном мире рисовал бы в каждой
+   * клетке весь загруженный мир.
+   */
+  _drawn(rec) {
+    if (!this._ownerOnly) return true;
+    return this._drawOwn ? this._drawOwn.has(rec) : rec.owner === true;
+  }
+
+  /**
+   * Записи списка, дошедшие до картинки этого прохода.
+   *
+   * Ветка без отбора не аллоцирует: у глав 9–13 `build()` рисует по мировым
+   * спискам целиком, и копия массива на каждый ряд была бы ценой за ничего.
+   */
+  _drawable(list) {
+    return this._ownerOnly ? list.filter((rec) => this._drawn(rec)) : list;
+  }
+
+  /**
+   * Картинка считается вне `collectPass`: выводимые ряды пробуют твёрдость и
+   * опору по **мировому** полю (бак посреди чужой кровли — тот же дефект, что
+   * окно внутри соседнего корпуса), поэтому флаг владельца им даёт этот
+   * обёртыватель и держит его ровно на время расчёта слотов.
+   *
+   * `own` — множество владельцев для открытого мира: там список мировой, и флаг
+   * `owner` на нём не различает клеток. Обычным главам он не передан, и они
+   * остаются на проборе флага.
+   */
+  _drawOwnersOnly(fn, own) {
+    const held = [this._ownerOnly, this._drawOwn];
+    this._ownerOnly = true;
+    this._drawOwn = own ?? null;
+    try {
+      return fn();
+    } finally {
+      [this._ownerOnly, this._drawOwn] = held;
+    }
+  }
+
+  /**
+   * Подмена входов — и, если они переданы в `src`, приёмников — на время `fn`.
+   * Индексы (твёрдость, опоры, планы, блоке́ры) при этом остаются **мировые**:
+   * именно это нужно открытому миру, где клетка строит своё содержимое (граф,
+   * якоря, картинку), пробуя опору и габарит по всему загруженному миру, а не
+   * по своему списку.
+   *
+   * Кеш кадров настила обнуляется на каждый вызов: он ключуется объектом записи,
+   * чанковые копии живут меньше мира, и оставленный кеш держал бы их после
+   * выгрузки (мера `renderer.info.memory` по кругу клеток отвалилась бы на нём).
+   *
+   * @param {object} src входы: `{buildings, roads, channels}` и, если нужно,
+   *   любые поля из `DATA_SINKS`
+   * @param {() => any} fn обход, идущий по этим входам
+   * @param {{geo?: object, muteGeo?: boolean, owners?: boolean, own?: Set}} opts
+   *   подмена картинки и отбора владельца
+   */
+  _withInputs(src, fn, opts = {}) {
+    const keys = [...DATA_SINKS, 'buildings', 'roads', 'channels', '_frames', '_buildingBoxes',
+      '_deckFrames', 'geo', '_muteGeo', '_ownerOnly', '_drawOwn'];
+    const held = keys.map((k) => [k, this[k]]);
+    this._setInputs(src);
+    for (const k of DATA_SINKS) if (src[k] !== undefined) this[k] = src[k];
+    this._deckFrames = new Map();
+    if (opts.geo) this.geo = opts.geo;
+    if (opts.muteGeo !== undefined) this._muteGeo = opts.muteGeo;
+    if (opts.owners !== undefined) this._ownerOnly = opts.owners;
+    if (opts.own !== undefined) this._drawOwn = opts.own;
+    try {
+      return fn();
+    } finally {
+      for (const [k, v] of held) this[k] = v;
+    }
+  }
+
+  /**
+   * Один обход сборщиков над **чужим** набором данных: те же `_collect*`, та же
+   * арифметика, но входы, приёмники и картинка подменены, а индексы не
+   * перестраиваются. Нужен открытому миру, которому одна клетка обязана дать
+   * две половины одного и того же механизма разными наборами:
+   *
+   * - **проход данных** (`sinks = DATA_SINKS`, `geo = null`) идёт по всем
+   *   участникам клетки — твёрдость, опора и проходы чужой стены на шве иначе
+   *   видны наполовину, — геометрии не даёт вовсе и возвращает списки, из
+   *   которых карта соберёт мировые поля;
+   * - **проход картинки** (`geo = группы клетки`, `owners = true`) берёт из
+   *   тех же данных только копии с `owner: true` (дом на шве иначе нарисуется
+   *   дважды), а твёрдость и опоры выбрасывает: они уже лежат в мировом поле.
+   *
+   * Оба прохода видят **один и тот же** список участников, и различаются только
+   * тем, кто из него даёт выход: сборщик кровли вычитает из неё соседние корпуса
+   * и примыкающие настилы (`this.buildings`/`this.roads` целиком), и второй
+   * проход, оставь он в входах одних владельцев, посчитал бы кровлю иначе, чем
+   * первый. Поэтому отбор владельца — это фильтр записи в цикле, а не урезанный
+   * вход.
+   *
+   * Подмена сделана полями, а не новыми сигнатурами сборщиков: главы 9–13 идут
+   * прямым `collectData` и обязаны собраться ровно как раньше. Два следствия
+   * кода, а не замысла:
+   *
+   * - индексы здесь не строятся вовсе: они принадлежат мировому полю, которое
+   *   карта пересобирает сама после склейки, — перестройка по списку одной
+   *   клетки обесценила бы пробу опоры в том же проходе;
+   * - дуга обязана остаться и в проходе данных: её `_sweepMesh` пишет `s.tris`
+   *   и `s.hitTris`, по которым луч и перила судят о полотне, — это не меш.
+   *
+   * @param {object} src входы прохода: `{buildings, roads, channels}`
+   * @param {{sinks?: string[], geo?: object|null, owners?: boolean}} opts
+   *   `sinks` — какие приёмники вернуть (обычно `DATA_SINKS`, для прохода
+   *   картинки — `[]` или нужные картинке), остальные пишутся в одноразовые
+   *   массивы; `geo` — группы картинки этой клетки, `null` — геометрия глушится;
+   *   `owners` — пропускать записи без флага `owner: true`
+   * @returns {object} выбранные приёмники: `имя → массив собранных записей`
+   */
+  collectPass(src, { sinks = DATA_SINKS, geo = null, owners = false } = {}) {
+    const out = {};
+    const fresh = {};
+    for (const k of DATA_SINKS) fresh[k] = sinks.includes(k) ? (out[k] = []) : [];
+    return this._withInputs({ ...src, ...fresh }, () => {
+      this._collectBuildings();
+      this._collectRoads();
+      this._collectWater();
+      return out;
+    }, { geo, muteGeo: !geo, owners: owners === true });
   }
 
   // -------------------------------------------------- твёрдость: плоские объёмы
@@ -196,6 +367,7 @@ export class SurfaceField extends SolidField {
 
   _collectRoads() {
     for (const road of this.roads) {
+      if (!this._drawn(road)) continue;
       for (const d of road.decks) {
         // дуга: ни коробки, ни призмы — её верх и коллизию держит sweep, а
         // габарит остаётся только фильтром индексов и миникарты
@@ -327,6 +499,7 @@ export class SurfaceField extends SolidField {
    */
   _collectWater() {
     for (const ch of this.channels) {
+      if (!this._drawn(ch)) continue;
       for (const s of ch.segments) {
         const axis = s.axis === 'x' ? 'z' : 'x';   // профиль отложен поперёк русла
         const bed = makePrism(axis, s.lo, s.hi, [
@@ -910,6 +1083,7 @@ export class SurfaceField extends SolidField {
 
   _collectBuildings() {
     for (const b of this.buildings) {
+      if (!this._drawn(b)) continue;
       const frame = this._frame(b);
       for (const w of b.walls) this._wall(w, b, frame);
       for (const r of b.rooms) this._floorPlate(b, r, frame);
