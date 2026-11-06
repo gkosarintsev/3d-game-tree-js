@@ -12057,9 +12057,9 @@ export const OPEN_600 = {
       "z": 96
     },
     "stream": {
-      "aheadMax": 300,
+      "aheadMax": 120,
       "aheadMin": 40,
-      "budgetMs": 8,
+      "budgetMs": 40,
       "chunk": 200,
       "keep": 0,
       "overlap": 1.175

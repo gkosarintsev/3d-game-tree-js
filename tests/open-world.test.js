@@ -215,7 +215,12 @@ async function timedLoad(world, id) {
   };
   wrap('_rebuildWorld', 'merge');
   wrap('_navLattice', 'lattice');
-  wrap('_navPasses', 'nav');
+  // фазы связывания с этапа 4 — отдельные срезы, общего вызова `_navPasses`
+  // больше нет; `nav.seal()` (0,03…0,14 мс по той же мере) здесь не учтён,
+  // потому что живёт на `NavGraph`, а не на карте
+  for (const phase of ['_navRooms', '_navRoofs', '_navStairs', '_navDecks', '_navWater', '_navDoors']) {
+    wrap(phase, 'nav');
+  }
   wrap('_buildPicture', 'picture');
   try {
     const t = performance.now();
@@ -549,6 +554,238 @@ async function testNavRestricted() {
   };
 }
 
+/**
+ * Прогон помпы по маршруту туда-обратно. `streamStep` зовётся ровно так, как
+ * его зовёт `Game._tick` — до физики, аргументами `budgetMs, x, z, speed`, — а
+ * кадром служит настоящая макрозадача: между кадрами разрешается `fetch` файла
+ * клетки, и без этого помпа не сдвинулась бы с места (первая мера этапа 4
+ * дала ровно нули на 4 000 кадров).
+ *
+ * Собственный rAF-цикл страницы на время прогона глушится: кадр главы на стенде
+ * стоит **95…108 мс** ожидания макрозадачи (замер `.tmp/pump-run.mjs`, где та же
+ * ставка глушила рендер явно), и 2 400 кадров пешего маршрута вылезли бы за
+ * таймаут сюиты (420 с на прогон — первая попытка безглушения именно туда и
+ * упёрлась). Мере это не мешает: меряется **синхронная работа** `streamStep` за
+ * кадр, а не частота кадров, и глушение делает прогон даже строже по сети —
+ * медианный шаг кадра стенда 4,6…15,6 мс (`gapMedianMs` в отчёте) всегда короче
+ * настоящих 16,7 мс, так что у `fetch` клетки остаётся меньше wall-clock времени
+ * на разбор, и `blockedLate === 0` на таком кадре сильнее, чем было бы в игре.
+ *
+ * Возвращает разложение худшего кадра на **атом** (один самый дорогой срез) и
+ * **накопление** (всё остальное). Именно эта пара и есть вердикт § 7.2 п. 3:
+ * накопление ограничено бюджетом, а атом (`commit` или `picture`) — нет, и
+ * «влезает ли достройка в кадр» без разделения означало бы «платим чем: меньшей
+ * клеткой или растяжкой».
+ */
+async function pumpRoute(map, opts) {
+  const budget = opts.budget ?? CONFIG.jsonMap.pump.frameBudgetMs;
+  const held = map._runSlice;
+  // рендер главы — единственная тяжёлая работа, которая мешает кадрам прогона;
+  // window.game здесь только потому, что сюита живёт на странице игры
+  const game = typeof window !== 'undefined' ? window.game : null;
+  const heldTick = game ? game._tick : null;
+  if (game) game._tick = () => {};
+  let inFrame = [];
+  // цена каждого **среза** по всему прогону: из неё и назначается потолок атома,
+  // а не из одного худшего кадра (хвост без распределения — это догадка)
+  const sliceMs = new Map();
+  map._runSlice = function (slice) {
+    const t = performance.now();
+    held.call(this, slice);
+    const ms = performance.now() - t;
+    const a = sliceMs.get(slice.label) ?? [];
+    a.push(ms);
+    sliceMs.set(slice.label, a);
+    inFrame.push({ label: slice.label, ms });
+  };
+  const out = {
+    steps: 0, worstFrameMs: 0, worstAtomMs: 0, worstAtomLabel: null, worstAccumMs: 0,
+    overBudget: 0, workFrames: 0, idleMedianMs: null, medianWorkFrameMs: null,
+    gapMedianMs: 0, gapWorstMs: 0, sliceWorst: null,
+    blockedLate: 0, playableAtStep: null, unbuiltFrames: 0, maxLoaded: 0, maxRequests: 0,
+    radius: 0, returned: true, built: 0, unloaded: 0, errors: 0,
+    firstChunkMs: null, worstChunkMs: 0, fetchWorstMs: 0,
+  };
+  // снимок счётчиков **значениями**: `map.pump.stats` — тот же объект, что и
+  // `st` ниже, и «дельта» по ссылке дала бы ноль на всех трёх полях
+  const st0 = { built: map.pump.stats.built, unloaded: map.pump.stats.unloaded, errors: map.pump.stats.errors };
+  try {
+    const dt = 1 / 60;
+    const leg = opts.distance / 2;
+    const steps = opts.steps ?? Math.ceil(opts.distance / (opts.speed * dt));
+    const frameMs = [];
+    const workMs = [];
+    const gapMs = [];
+    let prevAt = performance.now();
+    for (let k = 0; k < steps; k++) {
+      await new Promise((r) => setTimeout(r, 0));
+      const nowAt = performance.now();
+      gapMs.push(nowAt - prevAt);
+      prevAt = nowAt;
+      inFrame = [];
+      const raw = Math.min(opts.distance, k * opts.speed * dt);
+      const back = raw % (2 * leg);
+      const d = opts.ping ? (back <= leg ? back : 2 * leg - back) : raw;
+      const x = map.spawn.x + d;
+      const z = map.spawn.z;
+      const t = performance.now();
+      const ret = map.streamStep(budget, x, z, opts.speed);
+      const ms = performance.now() - t;
+      if (ret !== undefined) out.returned = false;
+      frameMs.push(ms);
+      let atom = 0;
+      let atomLabel = null;
+      for (const s of inFrame) {
+        if (s.ms > atom) { atom = s.ms; atomLabel = s.label; }
+      }
+      if (inFrame.length) {
+        out.workFrames += 1;
+        workMs.push(ms);
+      }
+      out.steps += 1;
+      out.worstFrameMs = Math.max(out.worstFrameMs, ms);
+      out.worstAccumMs = Math.max(out.worstAccumMs, ms - atom);
+      if (atom > out.worstAtomMs) { out.worstAtomMs = atom; out.worstAtomLabel = atomLabel; }
+      if (ms > budget) out.overBudget += 1;
+      out.maxLoaded = Math.max(out.maxLoaded, map.loaded.size);
+      out.maxRequests = Math.max(out.maxRequests, map.pump.requests.size);
+      out.radius = map.pump.radius;
+      const own = map.cellAt(x, z);
+      const entry = own ? map.loaded.get(own.id) : null;
+      if (entry && entry.pic && out.playableAtStep === null) out.playableAtStep = k;
+      // кадр, в котором клетка под ногами закоммичена, но ещё не нарисована, —
+      // поп-ин, которым платят за растяжку; он не блокирует путь, поэтому и не
+      // предел, а число в отчёте
+      if (entry && !entry.pic) out.unbuiltFrames += 1;
+      if (out.playableAtStep !== null && !entry) out.blockedLate += 1;
+    }
+    const med = (a) => {
+      if (!a.length) return 0;
+      const s = [...a].sort((x2, y2) => x2 - y2);
+      return s[Math.floor(s.length / 2)];
+    };
+    out.idleMedianMs = med(frameMs.slice(-60));
+    out.medianWorkFrameMs = med(workMs);
+    // что стоил один «кадр» стенда на самом деле: при заглушённом рендере это
+    // кламп `setTimeout(0)`, а не 16,7 мс, и мера обязана это показывать
+    out.gapMedianMs = med(gapMs);
+    out.gapWorstMs = gapMs.length ? Math.max(...gapMs) : 0;
+    // распределение по меткам срезов: `med` — половина прогонов дешевле неё,
+    // `p90` — 90 %; хвост (`worst`) без них выглядит случайностью
+    const q = (a, p) => {
+      if (!a.length) return 0;
+      const s = [...a].sort((x2, y2) => x2 - y2);
+      return s[Math.min(s.length - 1, Math.floor(p * (s.length - 1)))];
+    };
+    out.sliceWorst = {};
+    for (const [label, a] of sliceMs) {
+      out.sliceWorst[label] = { n: a.length, med: q(a, 0.5), p90: q(a, 0.9), worst: Math.max(...a) };
+    }
+  } finally {
+    delete map._runSlice;
+    if (game) game._tick = heldTick;
+  }
+  const st = map.pump.stats;
+  out.built = st.built - st0.built;
+  out.unloaded = st.unloaded - st0.unloaded;
+  out.errors = st.errors - st0.errors;
+  // wall-clock клетки и цена `fetch` — максимумы, а не счётчики: разность двух
+  // максимумов («дельта за прогон») не имела бы смысла
+  out.worstChunkMs = st.worstChunkMs;
+  out.fetchWorstMs = st.fetchWorstMs;
+  if (out.firstChunkMs === null && st.firstChunkMs !== null) out.firstChunkMs = st.firstChunkMs;
+  return out;
+}
+
+/**
+ * Гейт этапа 4 (§ 7.2 п. 3): достройка окна влезает в кадр **растяжкой на
+ * кадры**, а не меньшей клеткой, и за это не платит ни пропуском кадра
+ * симуляции, ни сдвигом мира.
+ *
+ * Два предела, и оба — данные, а не надежда: `budget = stream.budgetMs` главы
+ * обязывает **кадр целиком** (к нему относятся и `worstFrameMs`, и `worstAtomMs`:
+ * атом обязан влезть в кадр один), а `CONFIG.jsonMap.pump.frameBudgetMs` —
+ * предложение движка, которым он клампит **разделимую** работу между атомами.
+ * Числа замера (§ 6.4, шесть прогонов этого захода на клетке 200 м): атомы
+ * `commit` 13,7…39,0 мс и `picture` 5,1…25,0 мс не режутся, накопление при
+ * клампе 12 мс — ≤ 11,8 мс, wall-clock худшей клетки — 92…231 мс. Отсюда и
+ * третий предел — `chunkCap`: он в 1,3 раза выше худшего замера и в 4,7 раза
+ * ниже цены худшего чанка 300 м из § 2.7 (1 401 мс), то есть меряет не железо,
+ * а то, что растяжка осталась растяжкой, а не одним кадром по полсекунды.
+ */
+async function testPumpFrameBudget() {
+  const engineAsk = CONFIG.jsonMap.pump.frameBudgetMs;
+  const chunkCap = 300;
+  const world = await makeWorld();
+  const map = world.map;
+  const frameCap = map.stream.budgetMs;
+  const chunk = map.stream.chunk;
+  // клетка обязана остаться в тех же осях, что и до помпы: сдвиг мира — это
+  // глава 4 со `updateStreaming`, а помпа открытого мира права на него не имеет
+  const spawn0 = { ...map.spawn };
+  const width0 = map.width;
+  const half0 = map.half;
+  const walk = await pumpRoute(map, { speed: CONFIG.speed.run, distance: 340, ping: true });
+  const car = await pumpRoute(map, { speed: CONFIG.car.maxSpeed, distance: 300, ping: true });
+  const shifted = map.spawn.x !== spawn0.x || map.spawn.z !== spawn0.z
+    || map.width !== width0 || map.half !== half0;
+  const idle = await pumpRoute(map, { speed: 0, distance: 0, steps: 120 });
+  // предельное число клеток окна: диск радиуса `radius` на решётке `chunk`
+  // пересекает не больше (⌈2·radius/chunk⌉ + 1)² клеток
+  const bound = (radius) => Math.pow(Math.ceil((2 * radius) / chunk) + 1, 2);
+  const spawnCell = map.spawnCell().id;
+  // срезы от самых дорогих: потолок атома назначается по этому списку, и он
+  // обязан быть виден в отчёте, а не только в заметке захода
+  const dist = (() => {
+    const rows = [];
+    for (const [label, s] of Object.entries(walk.sliceWorst)) {
+      const carS = car.sliceWorst[label];
+      rows.push({ label, n: s.n + (carS?.n ?? 0), med: Math.max(s.med, carS?.med ?? 0), worst: Math.max(s.worst, carS?.worst ?? 0) });
+    }
+    rows.sort((a, b) => b.worst - a.worst);
+    return rows.slice(0, 3).map((r) => `${r.label} ${r.med.toFixed(1)}…${r.worst.toFixed(1)} мс (${r.n})`).join(', ');
+  })();
+  const ok = walk.errors === 0 && car.errors === 0 && walk.returned && car.returned && !shifted
+    && walk.blockedLate === 0 && car.blockedLate === 0
+    && walk.playableAtStep !== null && car.playableAtStep !== null
+    && walk.worstAccumMs <= engineAsk && car.worstAccumMs <= engineAsk
+    && walk.worstAtomMs <= frameCap && car.worstAtomMs <= frameCap
+    && walk.worstFrameMs <= frameCap && car.worstFrameMs <= frameCap
+    && walk.worstChunkMs <= chunkCap && car.worstChunkMs <= chunkCap
+    && walk.unloaded >= 1 && walk.built >= 5
+    && walk.maxLoaded <= bound(walk.radius) && car.maxLoaded <= bound(car.radius)
+    && walk.maxRequests <= CONFIG.jsonMap.pump.fetchMax + 2
+    && idle.idleMedianMs < 1 && map.loaded.get(spawnCell)?.pic
+    && typeof map.streamStep === 'function' && typeof map.updateStreaming !== 'function';
+  map.dispose();
+  return {
+    name: 'помпа укладывает достройку в кадр растяжкой, не сдвигая мир',
+    passed: ok,
+    info: `потолок кадра ${frameCap} мс (данные главы), кламп разделимой работы ${engineAsk} мс (просьба`
+      + ` движка); срезы пешком+машина (медиана…худший, число прогонов): ${dist};`
+      + ` шаг кадров стенда ${walk.gapMedianMs.toFixed(1)} мс (медиана, худший ${walk.gapWorstMs.toFixed(0)}),`
+      + ` потому что rAF-рендер страницы на время прогона заглушён; пешком 340 м туда-обратно`
+      + ` (${walk.steps} кадров): худший кадр ${walk.worstFrameMs.toFixed(1)} мс, в нём`
+      + ` самый дорогой срез ${walk.worstAtomMs.toFixed(1)} («${walk.worstAtomLabel}»), отдельно`
+      + ` накопление без атома ≤ ${walk.worstAccumMs.toFixed(1)} (это разные кадры — максимумы по`
+      + ` каждому показателю), кадров сверх просьбы ${walk.overBudget} из`
+      + ` ${walk.workFrames} рабочих, playable на кадре ${walk.playableAtStep}, поп-ин`
+      + ` ${walk.unbuiltFrames} кадров, достроек ${walk.built}, выгрузок ${walk.unloaded}, wall-clock`
+      + ` худшей клетки ${walk.worstChunkMs.toFixed(0)} мс (предел ${chunkCap}), до играбельного окна`
+      + ` ${walk.firstChunkMs === null ? 'нет' : walk.firstChunkMs.toFixed(0) + ' мс'}, клеток в окне ≤ ${walk.maxLoaded}`
+      + ` (предел ${bound(walk.radius)} при радиусе ${walk.radius.toFixed(0)} м), запросов ≤ ${walk.maxRequests};`
+      + ` машина 300 м (${car.steps} кадров): кадр ${car.worstFrameMs.toFixed(1)} (атом`
+      + ` ${car.worstAtomMs.toFixed(1)} + ${car.worstAccumMs.toFixed(1)} накопления), playable на ${car.playableAtStep},`
+      + ` накопленный максимум клетки ${car.worstChunkMs.toFixed(0)} мс (тот же предел ${chunkCap}),`
+      + ` клеток в окне ≤ ${car.maxLoaded} (предел ${bound(car.radius)} при радиусе`
+      + ` ${car.radius.toFixed(0)} м), запросов ≤ ${car.maxRequests},`
+      + ` блокирующих клеток под ногами после старта ${car.blockedLate}; стоя (${idle.steps} кадров) медиана`
+      + ` ${idle.idleMedianMs.toFixed(2)} мс; spawn/плита не сдвинулись — ${!shifted};`
+      + ` errors ${walk.errors + car.errors}, ` +
+      (typeof map.updateStreaming === 'function' ? 'у карты есть updateStreaming (пропуск кадров!)' : 'пропуска кадров нет'),
+  };
+}
+
 export async function runOpenWorldTests() {
   const tests = [
     testCatalogShape,
@@ -560,6 +797,7 @@ export async function runOpenWorldTests() {
     testMemoryCircle,
     testTwoOrders,
     testNavRestricted,
+    testPumpFrameBudget,
   ];
   const results = [];
   for (const fn of tests) {

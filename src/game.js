@@ -420,6 +420,33 @@ export class Game {
     this.hud.showCarHint(near ? 'enter' : null);
   }
 
+  /**
+   * Третий опциональный член контракта карты — `streamStep(budgetMs, x, z, speed)`
+   * (открытый мир, src/world-map.js): карта сама решает, что достроить и что
+   * выгрузить, и тратит на это не больше бюджета.
+   *
+   * Вызывается **до физики**: клетка, в которую тело влетает на машине, обязана
+   * достраиваться раньше, чем нога её попросит, — ради этого упреждению и
+   * передаётся скорость тела. В отличие от `_streamWindow` здесь нет ни сдвига
+   * мира, ни пропуска кадра: координаты открытого мира мировые, а достройка
+   * растянута на кадры, поэтому физика считает в том же кадре по уже
+   * дополненному миру (мера — план § 7.2 п. 3 и 4).
+   */
+  _worldPump() {
+    const map = this.map;
+    if (!map.streamStep) return;
+    const p = this.player.position;
+    map.streamStep(CONFIG.jsonMap.pump.frameBudgetMs, p.x, p.z, this._bodySpeed());
+  }
+
+  /** Горизонтальная скорость того, кем управляют: в поездке — кузов, пешком —
+   *  персонаж. Карта по ней выбирает между `stream.aheadMin` и `aheadMax`. */
+  _bodySpeed() {
+    if (this.player.vehicle && this.cars?.driven) return Math.abs(this.cars.driven.speed);
+    const v = this.player.velocity;
+    return Math.hypot(v.x, v.z);
+  }
+
   _tick() {
     requestAnimationFrame(this._tick);
     const dt = Math.min(this.clock.getDelta(), 0.05);
@@ -429,6 +456,9 @@ export class Game {
       // этот кадр симуляцию не ведёт — сборка окна (~0,25 с) и так забрала кадр,
       // а считать по уже перенесённом мире нет смысла
       if (!this._streamWindow()) {
+        // открытый мир: кооперативная достройка окна до физики, без сдвига мира
+        // и без пропуска кадра (см. `_worldPump`)
+        this._worldPump();
         this._rideToggle();
         this.player.update(dt);
         if (this.weapon) this.weapon.update(dt);
