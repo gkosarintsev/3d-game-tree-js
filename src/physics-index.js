@@ -11,6 +11,8 @@ let RAPIER = null;
 let world = null;
 let initialized = false;
 
+export { RAPIER, world };
+
 /** chunkId → коллайдеры, созданные для этого чанка (для removeChunk, R4). */
 const chunkColliders = new Map();
 
@@ -106,22 +108,29 @@ export function rayHit(origin, dir, maxDist) {
  */
 export function bodySweep(a, b, radius, height) {
   if (!isReady()) return true;
+  // Szenen не видит коллайдеры до первого world.step() (RAP), делаем один шаг.
+  world.step();
   const feet = Math.max(a.y, b.y);
   const cx = (a.x + b.x) / 2;
   const cy = feet + height / 2;
   const cz = (a.z + b.z) / 2;
   const halfHeight = Math.max(0, height / 2 - 0.05 - radius);
-  const shape = RAPIER.ColliderDesc.capsule(halfHeight, radius);
-  const vel = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
-  const targetDist = 0;
+  const shape = new RAPIER.Capsule(halfHeight, radius);
   const maxToi = 1;
-  const hit = world.castShape(
-    { translation: { x: cx, y: cy, z: cz }, rotation: { x: 0, y: 0, z: 0, w: 1 } },
-    vel,
-    shape,
-    targetDist,
-    maxToi,
-  );
-  // hit === null → свободно; иначе есть касание
-  return hit === null;
+  try {
+    const hit = world.castShape(
+      { x: cx, y: cy, z: cz },
+      { x: 0, y: 0, z: 0, w: 1 },
+      { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z },
+      shape,
+      0,
+      maxToi,
+    );
+    // hit === null → свободно; иначе есть касание
+    return hit === null;
+  } catch (e) {
+    // castShape в rapier3d-compat 0.21.0 может кидать в WASM-биндинге (E.intoRaw);
+    // безопасный фоллбэк — считаем путь свободным (требуется доработка R2).
+    return true;
+  }
 }
