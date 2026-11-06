@@ -17,7 +17,12 @@ export class ExitGoal {
     // открытый мир отличается наличием помпы (`typeof`, как у остальных
     // опциональных членов контракта): обычным главам правило не видно вовсе
     this._streamed = typeof map.streamStep === 'function';
-    this.built = true;
+    // начальное состояние — тот же вопрос, что задаёт `update`: у главы из
+    // реестра точка B лежит за окном спавна (замер главы 14: B в клетке `2_0`,
+    // окно собирает `0_1, 0_2, 1_1, 1_2`), и маяк, созданный видимым, висел бы
+    // на «полу мира» незастроенной клетки весь интертитр — до первого кадра
+    // игры, где `update` его наконец спрятал бы
+    this.built = this._streamed ? map.isBuiltAt(pos.x, pos.z) : true;
     this.x = pos.x;
     this.z = pos.z;
     this.radius = radius;
@@ -40,6 +45,7 @@ export class ExitGoal {
     );
     this.beam.position.set(this.x, this.y + 13, this.z);
     this.group.add(this.pad, this.beam);
+    this.group.visible = this.built;
     scene.add(this.group);
   }
 

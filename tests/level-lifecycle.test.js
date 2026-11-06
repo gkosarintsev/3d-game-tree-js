@@ -101,16 +101,28 @@ async function runPass() {
  * Мерки опоры по графу главы: худшее отклонение узла от своей опоры и сколько
  * узлов свободно телом человека. Обе нужны сюжетке как **собственный предел
  * карты**, а не как выдуманный порог, — см. комментарий у `SUPPORT_TOL`.
+ *
+ * У открытого мира считаются только **годные** узлы (`navFit`): граф append-only,
+ * и в списке остаётся свес решётки за край загруженной клетки (замер главы 14
+ * сразу после `_loadLevel` — 10 узлов из 1 118). Их опора — «пол мира» под
+ * незастроенной клеткой, и отклонение в 4 м раздуло бы предел главы настолько,
+ * что проверка «враг не глубже любого узла карты» перестала бы ловить хоть
+ * что-нибудь.
  */
 function nodeSupportStats(map) {
+  const fit = typeof map.navFit === 'function' ? map.navFit : null;
   let worstOff = 0;
   let blockedNodes = 0;
-  for (const n of map.nav.pos) {
+  let nodes = 0;
+  for (let k = 0; k < map.nav.pos.length; k++) {
+    if (fit && !fit(k)) continue;
+    const n = map.nav.pos[k];
+    nodes++;
     const off = Math.abs(map.groundHeightAt(n.x, n.z, n.y + SUPPORT_TOL) - n.y);
     if (off > worstOff) worstOff = off;
     if (map.isBlocked(n.x, n.z, CONFIG.radius, n.y + 0.02, BODY_H)) blockedNodes++;
   }
-  return { nodes: map.nav.pos.length, worstOff, blockedNodes };
+  return { nodes, worstOff, blockedNodes };
 }
 
 /** Что сюжетка наблюдает в главе сразу после `_loadLevel`. */
@@ -119,11 +131,16 @@ function observe(index, game, ms) {
   const gp = level.gameplay ?? {};
   const map = game.map;
   const nodeStats = map ? nodeSupportStats(map) : null;
+  // узел ищется тем же предикатом, каким его ищет движок (`randomNavPoint` и
+  // `respawn` зовут `nearestNode` с `navFit`): без него ближайшим к телу мог бы
+  // оказаться свес решётки за край загруженной клетки, и зазор «враг на узле»
+  // мерился бы до узла, которым карта не разрешает пользоваться
+  const fit = map && typeof map.navFit === 'function' ? map.navFit : null;
   const enemies = (map ? game.enemies?.items ?? [] : []).map(e => {
     const alien = e instanceof AlienEnemy;
     const feet = alien ? e.position.y - CONFIG.alien.radius : e.feetY;
     const radius = e.cfg?.radius ?? CONFIG.radius;
-    const node = map.nav.nearestNode(e.position.x, feet, e.position.z);
+    const node = map.nav.nearestNode(e.position.x, feet, e.position.z, fit);
     const np = map.nav.pos[node];
     return {
       alien,
@@ -141,7 +158,7 @@ function observe(index, game, ms) {
     levelIndex: game.levelIndex,
     mapHere: !!map && game.level === level,
     missing: map ? [...METHODS, ...DATA].filter(k => map[k] === undefined) : ['нет this.map'],
-    optional: map ? Object.fromEntries(['updateStreaming', 'debugIds']
+    optional: map ? Object.fromEntries(['updateStreaming', 'debugIds', 'streamStep', 'isBuiltAt']
       .map(k => [k, typeof map[k] === 'function'])) : {},
     exit: { want: gp.goal === 'exit', has: !!game.exit },
     coins: { want: gp.goal === 'exit' ? 0 : (gp.totalCoins ?? CONFIG.totalCoins), has: game.coins?.total ?? -1 },

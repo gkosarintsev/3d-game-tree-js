@@ -10,6 +10,55 @@ const J = CONFIG.jsonMap;
 const DRAWN_INPUTS = Object.freeze(['buildings', 'roads', 'channels', 'props', 'lights']);
 
 /**
+ * Данные стартовых клеток открытых глав, прочитанные до `createMap` (ключ — URL
+ * файла). Кеш без вытеснения и на одну клетку главу: `build` обязан собрать тот
+ * же мир при повторном заходе (сюита `level-contract` меряет число детей сцены
+ * на двух сборках подряд), а второе чтение того же файла платило бы сетью за
+ * каждый заход в главу. Цена памяти — один чанк на открытую главу реестра
+ * (на клетке 200 м это 199 КБ в среднем, 350 КБ в худшем).
+ *
+ * @type {Map<string, object>}
+ */
+const startCells = new Map();
+
+/**
+ * Клетка, в которой стоит спавн (или первая из списка): одна арифметика на
+ * предзагрузку и на карту — иначе движок читал бы файл одной клетки, а `build`
+ * ставил другую.
+ */
+function startCellOf(cells, spawn) {
+  for (const cell of cells) {
+    const r = cell.rect;
+    if (spawn && spawn.x >= r.minX && spawn.x <= r.maxX && spawn.z >= r.minZ && spawn.z <= r.maxZ) {
+      return cell;
+    }
+  }
+  return cells[0] ?? null;
+}
+
+/**
+ * Читает файл стартовой клетки открытой главы — единственное чтение её данных
+ * до синхронной сборки. Зовётся из `_loadLevel` рядом с `preloadMapAsset`:
+ * контракт карты синхронный, поэтому `await` живёт в загрузке главы, а `build`
+ * собирает клетку из уже прочитанного (`WorldMap.build`).
+ *
+ * Триггер — **данные** (`cells` и `catalog`), а не `kind`: глава без них не
+ * платит ничего, и движок не знает номеров глав. Ошибка чтения летит наверх, в
+ * `showLoadError` с повтором, — молча оставить мир пустым значило бы показать
+ * игроку плиту без улицы и без объяснения.
+ */
+export async function preloadWorldCells(spec) {
+  if (!spec?.catalog || !spec.cells?.length) return;
+  const cell = startCellOf(spec.cells, spec.spawn);
+  if (!cell) return;
+  const url = `${spec.catalog}/${cell.file}`;
+  if (startCells.has(url)) return;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  startCells.set(url, await res.json());
+}
+
+/**
  * Карта открытого мира: тот же `JsonMap`, но собранный не по плите, а по
  * загруженным клеткам.
  *
@@ -85,9 +134,18 @@ export class WorldMap extends JsonMap {
     this.signageCount = 0;
     this.clutterCount = 0;
     // Граф пуст до первой клетки, поэтому предикат годности ставится один раз
-    // здесь и отвечает «узел стоит в загруженной клетке» — маршрут через узел
-    // выгруженной повёл бы врага туда, где `isBlocked` истинен.
-    this.navFit = (idx) => this.isBuiltAt(this.nav.pos[idx].x, this.nav.pos[idx].z);
+    // здесь. Вопросов у него два, и оба обязательны: «клетка загружена» снимает
+    // узел выгруженной клетки сразу (граф только дополняется, узел остаётся в
+    // списке), а достижимость от спавна — изолированный карман, который AGENTS
+    // запрещает держать в сети. На фикстуре 600 м это 3 узла из 10 113 без
+    // единого ребра: по одной загруженности `navFit` считал их годными, и враг,
+    // севший туда, стоял на месте (§ 10.12 плана, вариант (а)). Пересчёт —
+    // отдельный срез (`reach`), а не работа внутри `commit`: всё, что помпа
+    // делает вне среза, не попадает ни в её меру, ни в бюджет кадра.
+    /** @type {Uint8Array} узел достижим от спавна по загруженному графу */
+    this.reach = new Uint8Array(0);
+    this.navFit = (idx) => this.reach[idx] === 1
+      && this.isBuiltAt(this.nav.pos[idx].x, this.nav.pos[idx].z);
     // Состояние помпы (§ 4.4 плана). `task` — одна клетка в работе: достройка
     // идёт по одной, потому что `commit` (набор + индексы) платит полную цену
     // окна за раз, и две «половинки» в одном кадра стоили бы двух перестроек.
@@ -112,7 +170,9 @@ export class WorldMap extends JsonMap {
         worstSliceMs: 0, worstSlice: null,
         worstChunkMs: 0, worstChunk: null,
         startedAt: null, firstChunkMs: null,
-        /** @type {Array<object>} последние 64 завершённых достроек/выгрузок */
+        /** @type {Array<object>} последние 64 завершённых достроек/выгрузок;
+         *  `kind: 'start'` — стартовая клетка, собранная синхронно в `build`
+         *  тем же конвейером срезов, поэтому мера у неё полная */
         chunks: [],
       },
     };
@@ -177,9 +237,36 @@ export class WorldMap extends JsonMap {
 
   // ------------------------------------------------------------- жизненный цикл
 
-  /** Сцена, в которую клетки ставят свои меши. */
+  /**
+   * Сцена, в которую клетки ставят свои меши, и **стартовая клетка** в ней.
+   *
+   * Клетка спавна обязана быть построена здесь, а не первым кадром помпы:
+   * `_buildLevel` ставит тела сразу после `build` — `Enemies` берёт узлы от
+   * `map.spawn`, `ExitGoal` опору точки B, `Player` — пол под ногами. На пустом
+   * мире все трое остались бы без опоры (замер этапа 6: узлов 0,
+   * `isBlocked(spawn)` истинен, `isBuiltAt(spawn)` ложен), а первый кадр помпы
+   * случается только после захвата курсора, то есть за интертитром.
+   *
+   * Данные читает `preloadWorldCells` до `createMap` — контракт карты синхронный
+   * (правило «внешние ассеты» AGENTS.md). Без предзагрузки мир начинает пустым:
+   * так меряет сюита открытого мира, которая строит клетки сама и в своём
+   * порядке.
+   *
+   * Срезы клетки идут **тем же** конвейером с мерой, что и у помпы
+   * (`_runSlice`), а не голым `slice.run()`: иначе первый кадр помпы начинался
+   * бы с пустой `costWorst`, и все немеряные метки прошли бы в один кадр —
+   * замер этапа 6 на главе 14: кадр 50,6 мс при просьбе движка 12 и потолке
+   * главы 40 (`data` + `commit` 21,1 + первая полоса решётки). Здесь же клетка
+   * попадает в `stats` (`kind: 'start'`), поэтому «время до играбельного окна»
+   * и накопленная цена достройки считаются одним кодом для обоих путей.
+   */
   build(scene) {
     this.scene = scene;
+    const cell = this.spawnCell();
+    const data = cell && this.catalog ? startCells.get(`${this.catalog}/${cell.file}`) : null;
+    if (!data) return;
+    const { slices } = this._buildSlices(cell.id, data);
+    this._runTask(cell.id, 'start', slices);
   }
 
   /** Снимает всё, что поставили клетки; сцена главы при этом пересоздаётся. */
@@ -302,7 +389,7 @@ export class WorldMap extends JsonMap {
     if (this.loaded.has(id)) return this.loaded.get(id);
     this.pump.requests.delete(id);
     const { entry, slices } = this._buildSlices(id, data);
-    for (const slice of slices) slice.run();
+    this._runTask(id, 'build', slices);
     return entry;
   }
 
@@ -311,9 +398,23 @@ export class WorldMap extends JsonMap {
     const had = this.loaded.has(id);
     this._syncTask(id);
     if (!this.loaded.has(id)) return had;
-    const slices = this._unloadSlices(id);
-    for (const slice of slices) slice.run();
+    this._runTask(id, 'unload', this._unloadSlices(id));
     return true;
+  }
+
+  /**
+   * Задача целиком в этом же вызове — синхронная точка входа (`build`,
+   * `applyChunk`, `unloadChunk`) идёт **тем же** конвейером с мерой, что и
+   * помпа. Иначе `costWorst` и `stats` зависели бы от того, кто строил клетку:
+   * голый `slice.run()` не оставляет ни цены метки (первый кадр помпы тогда
+   * слепой, замер этапа 6 — 50,6 мс при просьбе 12), ни записи в `chunks`.
+   */
+  _runTask(id, kind, slices, readAt = undefined) {
+    this.pump.task = {
+      id, kind, slices, sliceTotal: slices.length, sliceDone: 0,
+      startedAt: performance.now(), readAt,
+    };
+    this._syncTask(id);
   }
 
   /**
@@ -423,6 +524,11 @@ export class WorldMap extends JsonMap {
       this._sumCounters();
     } });
 
+    // 7. достижимость от спавна — последним, потому что обход обязан видеть все
+    //    узлы и рёбра клетки: раньше `counters` их больше не появится, а раньше
+    //    фаз графа клетка ещё не связана с соседями и обход пришлось бы повторить
+    slices.push({ label: 'reach', run: () => this._markReachable() });
+
     return { entry, slices };
   }
 
@@ -485,7 +591,55 @@ export class WorldMap extends JsonMap {
       this._rebuildWorld();
       this._sumCounters();
     } });
+    // выгрузка тоже рвёт связность: узел, потерявший единственного соседа,
+    // становится одиноким, и обход обязан это увидеть (вариант (б) § 10.12 —
+    // браковка по нулевой степени — такого случая не отличает вовсе)
+    out.push({ label: 'reach', run: () => this._markReachable() });
     return out;
+  }
+
+  /**
+   * Один BFS достижимости от спавна по загруженному графу — вариант (а) § 10.12.
+   *
+   * Зачем он нужен: `_pruneToSpawn`, которым `JsonMap` отсекает изолированные
+   * карманы при сборке целого мира, открытому миру недоступен — граф append-only,
+   * и карман появляется не только при достройке (решёточный узел, которому
+   * `_navLattice` не создал рёбер), но и при выгрузке соседа, когда связный узел
+   * остаётся один. Браковка по нулевой степени (вариант (б)) дешевле и на
+   * фикстуре даёт те же три узла, но молчит на кармане из двух и более.
+   *
+   * Цена измерена (`.tmp/orphan-bfs.mjs`, окно 3×3): 0,25…0,91 мс, медиана
+   * 0,39 мс при 10 113 узлах и 18 407 рёбрах — 3,5 мс на круг из девяти достроек
+   * против 709 мс их синхронной работы (0,5 %). Поэтому обход идёт одним срезом:
+   * резать его на полосы значило бы держать состояние «обход не закончен»,
+   * которого ни один член контракта не объясняет.
+   *
+   * Старт ищется **без** `navFit`: этот предикат и есть массив `reach`, поэтому
+   * до первого обхода годных узлов нет вовсе, и поиск с ним не нашёл бы ничего.
+   */
+  _markReachable() {
+    const nav = this.nav;
+    const n = nav.pos.length;
+    if (this.reach.length < n) {
+      const grown = new Uint8Array(n);
+      grown.set(this.reach);
+      this.reach = grown;
+    }
+    this.reach.fill(0);
+    const inCell = (idx) => this.isBuiltAt(nav.pos[idx].x, nav.pos[idx].z);
+    const start = nav.nearestNode(this.spawn.x, this.spawn.y ?? 0, this.spawn.z, inCell);
+    if (start < 0) return;
+    const queue = [start];
+    this.reach[start] = 1;
+    for (let head = 0; head < queue.length; head++) {
+      for (const nb of nav.adj[queue[head]]) {
+        // через узел выгруженной клетки путь не идёт: он остался в списке, но
+        // опираться на него нельзя — `isBlocked` там истинен
+        if (this.reach[nb] === 1 || !inCell(nb)) continue;
+        this.reach[nb] = 1;
+        queue.push(nb);
+      }
+    }
   }
 
   /**
@@ -520,7 +674,7 @@ export class WorldMap extends JsonMap {
 
   /** Клетка, в которой стоит точка спавна, — первая, которую обязан построить движок. */
   spawnCell() {
-    return this.cellAt(this.spawn.x, this.spawn.z) ?? this.cells[0] ?? null;
+    return startCellOf(this.cells, this.spawn);
   }
 
   // ------------------------------------------------------------------- помпа
@@ -553,10 +707,13 @@ export class WorldMap extends JsonMap {
    *   перестройки набора в кадре, а набор — самый дорогой атом.
    *
    * Что помпа **не** обещает: что за кадр влезет целая клетка. На клетке 200 м
-   * их 21 (1 + commit + 9 полос решётки + 7 фаз графа + geometry + picture +
-   * counters), поэтому клетка достраивается несколько кадров — по замеру гейта
-   * § 7.2 п. 3 wall-clock худшей клетки 92…231 мс, и всё это время она
+   * их 22 (1 + commit + 9 полос решётки + 7 фаз графа + geometry + picture +
+   * counters + reach), поэтому клетка достраивается несколько кадров — по замеру
+   * гейта § 7.2 п. 3 wall-clock худшей клетки 92…231 мс, и всё это время она
    * проходима, но ещё не нарисована (поп-ин 3…6 кадров, см. `_buildSlices`).
+   * Последние кадры достройки клетка ещё и не годна для графа: `reach` считает
+   * достижимость от спавна последним срезом, и до него её новые узлы `navFit`
+   * бракует — враг не сядет в клетку, чья связность ещё не проверена.
    *
    * Что она обещает вместо этого: кадр либо укладывается в просьбу движка, либо
    * состоит из **одного** неразделимого среза, начавшего его (`commit`
@@ -564,7 +721,11 @@ export class WorldMap extends JsonMap {
    * `stream.budgetMs` главы: после первого среза кадра следующий начинается,
    * только если его худшая из измеренных цена влезает в остаток, поэтому
    * накопление ≤ просьбы (замер — ≤ 11,8 мс при 12) и хвост кадра — это всегда
-   * ровно один атом.
+   * ровно один атом. Метка, которой ещё не мерили, считается не влезшей: на
+   * холодном мире цен нет вовсе, и «не спрошено» читалось бы как «бесплатно»
+   * (замер этапа 6 — кадр 50,6 мс при просьбе 12). Стартовую клетку поэтому
+   * строит `build` тем же конвейером с мерой: первый кадр помпы движка знает
+   * цену каждой метки, а не начинает окно вслепую.
    *
    * @param {number} budgetMs мс, которые движок готов отдать на этом кадре
    * @param {number} x мировая координата тела
@@ -584,7 +745,12 @@ export class WorldMap extends JsonMap {
       const slice = this._nextSlice(x, z, radius, want);
       if (!slice) break;
       const est = this.pump.costWorst.get(slice.label);
-      if (run > 0 && est !== undefined && performance.now() - started + est > budget) break;
+      // немеряная метка — тоже «не влезет»: обещание кадра («либо в просьбу,
+      // либо один атом») иначе ложно на холодном мире, где цен ещё нет вовсе.
+      // Замер этапа 6: первый кадр помпы после `build` без меры стоил 50,6 мс
+      // при просьбе 12 — `data`, `commit` 21,1 и полоса решётки прошли подряд,
+      // потому что условие `est !== undefined` их не спрашивало
+      if (run > 0 && (est === undefined || performance.now() - started + est > budget)) break;
       this._runSlice(slice);
       run += 1;
     }
@@ -650,6 +816,12 @@ export class WorldMap extends JsonMap {
     for (const req of pump.requests.values()) if (req.data === null) reading += 1;
     for (const { cell } of want) {
       if (reading >= J.pump.fetchMax) break;
+      // клетка в работе уже прочитана: запрос снят при создании задачи
+      // (`_nextSlice`), а `loaded` появится только срезом `commit`, поэтому без
+      // этой проверки окно между ними звало бы второй `fetch` той же клетки —
+      // замер этапа 6: 7 чтений на 4 построенные клетки, и три «готовых» запроса
+      // висели в очереди после того, как помпа успокоилась
+      if (pump.task?.id === cell.id) continue;
       if (this.loaded.has(cell.id) || pump.requests.has(cell.id)) continue;
       this._fetchCell(cell.id);
       reading += 1;
@@ -780,7 +952,10 @@ export class WorldMap extends JsonMap {
     if (st.startedAt === null) st.startedAt = task.startedAt;
     const now = performance.now();
     const ms = now - task.startedAt;
-    if (task.kind === 'build') {
+    // 'start' — та же достройка, только синхронная в `build`: счётчик и
+    // `firstChunkMs` обязаны видеть обе, иначе «время до играбельного окна»
+    // начиналось бы с первой клетки помпы, а не со стартовой
+    if (task.kind !== 'unload') {
       st.built += 1;
       if (st.firstChunkMs === null) st.firstChunkMs = now - st.startedAt;
     } else {

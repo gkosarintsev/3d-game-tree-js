@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import * as PhysicsIndex from './physics-index.js';
 
 /**
  * Пересекаются ли круг (x, z, radius) и прямоугольник в плане. Общая проверка
@@ -187,6 +188,9 @@ export class SolidField {
    * а человек с радиусом в него не входит — и маршрут упирается в стену.
    */
   bodyClearLine(a, b, radius = CONFIG.radius, height = CONFIG.eyeHeight) {
+    if (CONFIG.physics?.mode === 'rapier' && PhysicsIndex.isReady()) {
+      return PhysicsIndex.bodySweep(a, b, radius, height);
+    }
     const dx = b.x - a.x, dz = b.z - a.z;
     const feet = Math.max(a.y, b.y);
     const probe = CONFIG.nav.bodyProbe;
@@ -291,6 +295,17 @@ export class SolidField {
    * @returns {{x,y,z,nx,ny,nz,dist:number}|null} точка удара и нормаль поверхности
    */
   raySolid(ox, oy, oz, dx, dy, dz, maxDist) {
+    if (CONFIG.physics?.mode === 'rapier' && PhysicsIndex.isReady()) {
+      const len = Math.hypot(dx, dy, dz);
+      if (len < 1e-9) return null;
+      const hit = PhysicsIndex.rayHit(
+        { x: ox, y: oy, z: oz },
+        { x: dx / len, y: dy / len, z: dz / len },
+        maxDist,
+      );
+      // TODO R3: слияние с аналитикой поля/призм/sweeps/holes
+      return hit;
+    }
     const len = Math.hypot(dx, dy, dz);
     if (len < 1e-9) return null;
     dx /= len; dy /= len; dz /= len;

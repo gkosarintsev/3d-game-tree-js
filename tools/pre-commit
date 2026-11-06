@@ -16,6 +16,7 @@ briefs=''
 parser=0
 relief=0
 track=0
+chunks=0
 
 for f in $(git diff --cached --name-only --diff-filter=ACMR); do
   case $f in
@@ -29,6 +30,7 @@ for f in $(git diff --cached --name-only --diff-filter=ACMR); do
   # трассу-кольцо разворачивает генератор города, рельеф читает он же
   case $f in
     tools/city.js | tools/relief.test.mjs | tools/track.test.mjs) track=1; relief=1; parser=1 ;;
+    tools/chunk-level.mjs | tools/build-level.mjs | tools/chunk.test.mjs) chunks=1; parser=1 ;;
   esac
 done
 
@@ -49,6 +51,10 @@ fi
 if [ $track = 1 ]; then
   echo 'pre-commit: трасса-кольцо в генераторе города'
   node tools/track.test.mjs || exit 1
+fi
+if [ $chunks = 1 ]; then
+  echo 'pre-commit: разрезка на чанки (17 проверок)'
+  node tools/chunk.test.mjs || exit 1
 fi
 
 exit 0

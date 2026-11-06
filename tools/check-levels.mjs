@@ -5,7 +5,7 @@
  * в него сама: список брифов берётся из `src/levels/level-*.json`, а не из
  * перечня в коде. Сюита `tools/level-parser.test.mjs` проверяет арифметику
  * парсера на фикстурах, здесь же проверяются именно закоммиченные главы — то,
- * что уOwner уже живёт в репозитории и увидит браузер.
+ * что у владельца уже живёт в репозитории и увидит браузер.
  *
  * Проверяется только то, что доказывается из данных без Three.js. Контракт
  * карты, опоры под узлами, связность графа и утечки мешей живут в браузерной
@@ -175,6 +175,39 @@ for (const file of briefs) {
         && Math.hypot(exit.x - map.spawn.x, exit.z - map.spawn.z) < 1) {
         errors.push('точка B совпала со спавном — глава проходится одним шагом');
       }
+    }
+    assert(errors.length === 0, errors.join(' | '));
+  });
+}
+
+// ---------------------------------------------------------------- открытая глава
+
+/**
+ * Каталог открытой главы (`kind: 'open'`): путь к файлам клеток движок берёт из
+ * данных (`map.catalog`, § 10.13 плана docs/open-world-plan.md), а не выводит из
+ * URL модуля главы — определение обычный объект, `import.meta` у него нет.
+ * Поэтому сверяются два факта, которые побайтовость не ловит: `catalog` ведёт
+ * именно в каталог вывода (иначе скопированная глава звала бы файлы по прежнему
+ * пути), и каждая клетка зовёт файл, который парсер действительно печатает.
+ */
+for (const file of briefs) {
+  if (JSON.parse(readFileSync(resolve(ROOT, file), 'utf8')).kind !== 'open') continue;
+  const stem = basename(file, '.json');
+  t(`${stem}: catalog ведёт в каталог вывода, и клетки зовут напечатанные файлы`, async () => {
+    const p = parseBrief(file);
+    const level = await importLevelModule(`${p.dir}/${p.files[0].path}`);
+    const map = level.map;
+    const errors = [];
+    if (map.catalog !== `/${p.dir}`) {
+      errors.push(`catalog «${map.catalog}» не равен каталогу вывода «/${p.dir}»`);
+    }
+    const emitted = new Set(p.files.map(f => f.path));
+    for (const c of map.cells ?? []) {
+      if (!emitted.has(c.file)) errors.push(`клетка ${c.id}: файла ${c.file} в выводе парсера нет`);
+    }
+    const chunks = p.files.filter(f => f.path.startsWith('chunk-')).length;
+    if (chunks !== (map.cells ?? []).length) {
+      errors.push(`чанков напечатано ${chunks}, а клеток в списке ${(map.cells ?? []).length}`);
     }
     assert(errors.length === 0, errors.join(' | '));
   });

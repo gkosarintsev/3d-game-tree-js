@@ -954,8 +954,8 @@ function testFrozenChapters() {
     const rails = spec.roads.flatMap((r) => r.decks).filter((d) => d.rails);
     info.push(`${name}: настилов ${spec.roads.reduce((a, r) => a + r.decks.length, 0)}, дуг ${arcs.length}, с перилами ${rails.length}`);
   }
-  if (LEVELS.length !== 13) bad.push(`в реестре ${LEVELS.length} глав — глава 13 не зарегистрирована`);
-  if (LEVELS[LEVELS.length - 1] !== LEVEL_13) bad.push('глава 13 не последняя в порядке прохождения');
+  if (LEVELS.length < 13) bad.push(`в реестре ${LEVELS.length} глав — глава 13 не зарегистрирована`);
+  if (!LEVELS.includes(LEVEL_13)) bad.push('глава 13 отсутствует в порядке прохождения');
   // схема v1 обязана браковать секцию `track`: иначе косой бриф собрался бы молча
   const withTrack = {
     kind: 'json',

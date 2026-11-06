@@ -6,8 +6,9 @@ import { createCityMap } from './city-map.js';
 import { createModelMap } from './model-map.js';
 import { createStreamedMap } from './stream-map.js';
 import { createJsonMap } from './json-map.js';
-import { createWorldMap } from './world-map.js';
+import { createWorldMap, preloadWorldCells } from './world-map.js';
 import { preloadMapAsset } from './glb.js';
+import * as PhysicsIndex from './physics-index.js';
 import { ExitGoal } from './exit.js';
 import { LEVELS } from './levels/index.js';
 import { Coins } from './coins.js';
@@ -31,10 +32,9 @@ const MAP_KINDS = {
   json: createJsonMap,
   json2: createJsonMap,
   // открытый мир: та же арифметика `JsonMap`, но собранная по загруженным
-  // клеткам (`src/world-map.js`); файлов клеток движок не касается — их читает
-  // сама карта по `map.catalog`. Парсер ещё не печатает это поле в `index.js`,
-  // поэтому пока путь подставляет тот, кто собирает карту (сюита; печать поля —
-  // § 10.13 плана открытого мира)
+  // клеткам (`src/world-map.js`); файлы клеток читает сама карта по `catalog`
+  // из данных главы — его печатает парсер вместе с `cells[].file`, движок путь
+  // не выводит и не угадывает (§ 10.13 плана открытого мира)
   open: createWorldMap,
 };
 
@@ -102,10 +102,11 @@ export class Game {
   }
 
   /**
-   * Загружает главу: сначала внешний ассет (если он у главы есть), затем
-   * синхронная сборка уровня. Единственное await в жизненном цикле — правило
-   * «Внешние ассеты уровня» в AGENTS.md: контракт карты синхронный, поэтому
-   * GLTFLoader отрабатывает до createMap, а не внутри него.
+   * Загружает главу: сначала то, что читается с сети (внешний ассет и стартовая
+   * клетка открытого мира), затем синхронная сборка уровня. Единственное await
+   * в жизненном цикле — правило «Внешние ассеты уровня» в AGENTS.md: контракт
+   * карты синхронный, поэтому и GLTFLoader, и `fetch` клетки отрабатывают до
+   * `createMap`, а не внутри него.
    */
   async _loadLevel(index) {
     const level = LEVELS[index];
@@ -122,8 +123,12 @@ export class Game {
 
     this.state = 'loading';
     try {
-      if (level.map?.asset) this.hud.showLoading(level.name);
-      await preloadMapAsset(level.map);
+      if (level.map?.asset || level.map?.cells?.length) this.hud.showLoading(level.name);
+      // оба чтения — одна точка ожидания: клетки открытого мира нужны `build`
+      // до постановки тел, а второй `await` после сборки дал бы главе кадр с
+      // пустой плитой (замер этапа 6: узлов 0, `isBlocked(spawn)` истинен)
+      if (CONFIG.physics?.mode === 'rapier') await PhysicsIndex.init();
+      await Promise.all([preloadMapAsset(level.map), preloadWorldCells(level.map)]);
       // после await собираем именно эту главу, а не «ту, что сейчас в this.level»:
       // вызовы _loadLevel могли наложиться (меню ?debug=1 зовёт его по клику, а две
       // главы на GLB стоят подряд) — иначе отложенный preload одной главы строит
@@ -144,9 +149,11 @@ export class Game {
     // прошлая карта обязана освободить свои меши и свет: сцена пересоздаётся, а
     // буферы района 600 м без dispose повисли бы в GPU памяти на каждую перезагрузку
     this.map?.dispose?.();
+    if (CONFIG.physics?.mode === 'rapier') PhysicsIndex.dispose();
     this.map = this.createMap(level.map);
     this._initScene(level.sky);
     this.map.build(this.scene);
+    if (CONFIG.physics?.mode === 'rapier') PhysicsIndex.buildFrom(this.map);
     // карта теней заморожена — пересчитать под новую сцену
     this.renderer.shadowMap.needsUpdate = true;
 
@@ -431,12 +438,28 @@ export class Game {
    * мира, ни пропуска кадра: координаты открытого мира мировые, а достройка
    * растянута на кадры, поэтому физика считает в том же кадре по уже
    * дополненному миру (мера — план § 7.2 п. 3 и 4).
+   *
+   * За интертитром и на паузе помпа тоже идёт (второй вызов в `_tick`): стартовая
+   * клетка собрана в `build`, но окно спавна шире её — на фикстуре 600 м это
+   * четыре клетки, и без достройки за интертитром игрок увидел бы улицу,
+   * обрывающуюся в пустоту через 20 м от себя. Физики в этих состояниях нет,
+   * поэтому порядок «до физики» там ничего не нарушает.
+   *
+   * Центр окна за интертитром — `map.spawn`, а не тело: до захвата курсора
+   * `position` персонажа это обзорная камера (`_setOverviewCamera`), потому что
+   * `spawnAt` зовётся только в `_onLock`. Замер главы 14: камера стоит в
+   * (−120, 7, −106), спавн в (−120, 96), и окно по камере собрало `0_0`/`1_0` —
+   * два района **за рекой**, тогда как игрок появится на северном берегу. Тот же
+   * уговор, что у первой посадки врагов (AGENTS.md, «Сущности и жизненный цикл»).
+   * На паузе курсор отпущен, но камера осталась на месте тела, поэтому там центр
+   * по-прежнему берётся от персонажа.
    */
   _worldPump() {
     const map = this.map;
-    if (!map.streamStep) return;
-    const p = this.player.position;
-    map.streamStep(CONFIG.jsonMap.pump.frameBudgetMs, p.x, p.z, this._bodySpeed());
+    if (!map?.streamStep || !this.player) return;
+    const waiting = this.state === 'chapter';
+    const p = waiting ? map.spawn : this.player.position;
+    map.streamStep(CONFIG.jsonMap.pump.frameBudgetMs, p.x, p.z, waiting ? 0 : this._bodySpeed());
   }
 
   /** Горизонтальная скорость того, кем управляют: в поездке — кузов, пешком —
@@ -494,6 +517,11 @@ export class Game {
       // за пределами игры подсказки нет: на паузе и в интертитре кузов рядом
       // с телом ничего не значит
       this.hud.showCarHint(null);
+      // окно открытого мира достраивается и за интертитром: физики здесь нет, а
+      // клетка спавна уже собрана в `build`, поэтому помпа продолжает окно, а не
+      // начинает мир с нуля. В 'loading' и 'menu' не зовём: там карта и тело
+      // ещё прошлой главы, и помпа читала бы клетки, которые сейчас выбросят
+      if (this.state === 'chapter' || this.state === 'paused') this._worldPump();
     }
 
     // до начала главы сущностей нет — рендерим только обзор карты

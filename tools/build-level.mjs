@@ -21,13 +21,16 @@
  * каталога проверяется каждый файл, иначе чанк разошёлся бы с `index.js` молча.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel, isV2Kind } from './normalize-level.mjs';
 import { expandCity } from './city.js';
 import { splitLevel, stringifyStable } from './chunk-level.mjs';
 import { skeletonOf } from './skeleton.mjs';
+
+/** Корень репозитория: от него печатается браузерный путь каталога (`catalog`). */
+const ROOT = resolve(import.meta.dirname, '..');
 
 /**
  * Путь брифа до чисел карты — один для модуля и для каталога: разворот города,
@@ -139,7 +142,9 @@ export const ${constName} = ${body};
  *
  * @param {object} raw сырой бриф с `kind: 'open'` и секцией `stream`
  * @param {string} sourceName имя исходника (src/levels/level-14.json)
- * @param {{reverse?:boolean}} opts обход клеток задом наперёд — knob сюиты
+ * @param {{reverse?:boolean, outDir?:string}} opts обход клеток задом наперёд —
+ *   knob сюиты; `outDir` — каталог вывода CLI (`--out`), из него же печатается
+ *   `catalog`, иначе скопированный каталог звал бы файлы по прежнему пути
  * @returns {{name:string, files:Array, warnings:string[], meta:object, chunks:Array}}
  */
 export function generateCatalog(raw, sourceName, opts = {}) {
@@ -159,15 +164,22 @@ export function generateCatalog(raw, sourceName, opts = {}) {
   // карты без нормализованных зданий и наклонных настилов — на ручной геометрии
   // мерят шов (п. 4), а скелет ест полные данные нормализатора.
   const sk = skeletonOf(level.map);
+  const stem = basename(sourceName, extname(sourceName));
+  // Каталог вывода относительно корня репозитория: сайт отдаётся от него
+  // (`python -m http.server` в корне, `file://` не поддерживается), поэтому
+  // браузерный путь к файлам клеток — это он же с ведущим слэшем.
+  const dir = relative(ROOT, resolve(opts.outDir ?? resolve(dirname(sourceName), stem))).replace(/\\/g, '/');
   // В файл едут только числа, которые читает движок: `sk.meta` (компоненты,
   // отказы, цена фаз) остаётся у парсера и сюиты, потому что обход от них не
   // зависит, а побайтовость `index.js` — зависит.
-  const indexMap = { ...split.indexMap, skeleton: { nodes: sk.nodes, edges: sk.edges } };
+  // `catalog` — путь, по которому `WorldMap.chunkUrl` берёт файлы клеток:
+  // вывести его из URL модуля главы движку нечем (данные — обычный объект, а
+  // не `import.meta`), а догадываться он не должен (§ 10.13 плана).
+  const indexMap = { ...split.indexMap, catalog: `/${dir}`, skeleton: { nodes: sk.nodes, edges: sk.edges } };
   const meta = { ...split.meta, skeleton: sk.meta };
   const notice = warnings.length
     ? `\n * Предупреждения парсера:\n${warnings.map(w => ` *   — ${w}`).join('\n')}\n *`
     : '';
-  const stem = basename(sourceName, extname(sourceName));
   const body = stringifyStable({
     name: level.name, hint: level.hint, map: indexMap, sky: level.sky, gameplay: level.gameplay,
   }).replace(/\n$/, '');
@@ -190,6 +202,11 @@ export function generateCatalog(raw, sourceName, opts = {}) {
  * решётки навигации держит обход прямоугольников загруженных клеток, а не
  * размер плиты чанка. Мировой кадр один, и координаты игрока не правятся
  * никогда — в отличие от окна главы 4.
+ *
+ * Файлы клеток берёт \`WorldMap.chunkUrl\` из \`catalog\` — браузерного пути
+ * каталога от корня сайта. Он лежит в данных, потому что определение главы —
+ * обычный объект: вывести путь из URL этого модуля движку нечем, а угадывать
+ * его по номеру главы нельзя (§ 10.13 плана).
  *
  * Дом, вставший на шов, едет в каждый пересекающий чанк (маргин
  * \`stream.overlap\` — его вывел парсер, движку считать его нечем), а картинку и
@@ -214,7 +231,7 @@ export const ${constName} = ${body};
   return {
     name: constName,
     kind: 'catalog',
-    dir: `${dirname(sourceName).replace(/\\/g, '/')}/${stem}`,
+    dir,
     files,
     warnings,
     meta,
@@ -270,7 +287,7 @@ function main(argv) {
 
   let generated;
   try {
-    generated = generateOutput(raw, jsonArg);
+    generated = generateOutput(raw, jsonArg, outArg && raw?.kind === 'open' ? { outDir: outArg } : {});
   } catch (e) {
     if (!(e instanceof ValidationError)) throw e;
     console.error(`${basename(jsonPath)}: ошибок — ${e.errors.length}`);

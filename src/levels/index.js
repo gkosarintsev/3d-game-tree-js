@@ -23,6 +23,13 @@
  * опорах, подъём и спуск — два съезда-пластины, чьи носы поставлены на полотно
  * наземной улицы. Между кварталами больше нет наземной связки: чтобы пройти главу,
  * нужно взойти на трассу. Точка B — на ходовой кровле дома у носа спускового съезда.
+ * Глава 14 — первый **открытый мир** (`kind: 'open'`): тот же город 600 м, что
+ * фикстура открытого мира, но определение главы — не модуль с геометрией, а
+ * каталог `level-14/`: `index.js` держит мировую плиту, скелет улиц и список
+ * клеток, а каждую клетку 200 м движок читает и достраивает по ходу пути
+ * (`WorldMap`, план docs/open-world-plan.md). Поэтому глава — единственный
+ * импорт из подкаталога, и правят её так же через парсер:
+ * `node tools/build-level.mjs src/levels/level-14.json`.
  */
 import { LEVEL_01 } from './level-01.js';
 import { LEVEL_02 } from './level-02.js';
@@ -37,9 +44,10 @@ import { LEVEL_10 } from './level-10.js';
 import { LEVEL_11 } from './level-11.js';
 import { LEVEL_12 } from './level-12.js';
 import { LEVEL_13 } from './level-13.js';
+import { LEVEL_14 } from './level-14/index.js';
 
 export const LEVELS = [
   LEVEL_01, LEVEL_02, LEVEL_03, LEVEL_04,
   LEVEL_05, LEVEL_06, LEVEL_07, LEVEL_08,
-  LEVEL_09, LEVEL_10, LEVEL_11, LEVEL_12, LEVEL_13,
+  LEVEL_09, LEVEL_10, LEVEL_11, LEVEL_12, LEVEL_13, LEVEL_14,
 ];

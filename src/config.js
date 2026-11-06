@@ -484,4 +484,10 @@ export const CONFIG = {
     height: 0.3,    // высота пробы в isBlocked
     eps: 0.02,      // порог groundHeightAt для остановки луча
   },
+
+  // --- индекс твёрдости статики (Часть II плана открытого мира): 'own' — наша
+  // аналитика (по умолчанию и эталон), 'rapier' — @dimforge/rapier3d-compat ---
+  physics: {
+    mode: 'own',   // 'own' | 'rapier'
+  },
 };

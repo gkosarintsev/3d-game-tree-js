@@ -1,5 +1,5 @@
 /**
- * Браузерный прогон автотестов для CI: `node tools/ci-browser.mjs [--port 8124] [--suites a,b] [--flake файл::проверка]`.
+ * Браузерный прогон автотестов для CI: `node tools/ci-browser.mjs [--port 8124] [--suites a,b] [--flake файл::проверка] [--fast]`.
  *
  * Делает ровно то, что оператор делает руками: поднимает статический сервер над
  * репозиторием, открывает `3d-game.html`, импортирует каждую сюиту `tests/*.test.js`
@@ -47,6 +47,9 @@ const MIME = {
 
 /** Таймаут сюиты: самая дорогая (глава 10–13 на 600 м) собирается десятки секунд. */
 const SUITE_TIMEOUT_MS = 420_000;
+
+/** Имя проверки считается perf-гейтом, если содержит эти подстроки. */
+const PERF_NAME_RE = /бюджет|мкс|budget/i;
 
 /**
  * Разрешение playwright: `NODE_PATH` (им так задаётся путь в джобе `browser`),
@@ -99,8 +102,9 @@ function serve() {
   return new Promise(done => server.listen(0, '127.0.0.1', () => done({ server, port: server.address().port })));
 }
 
-async function runSuite(browser, baseUrl, file) {
-  const page = await browser.newPage();
+async function runSuite(context, baseUrl, file, fast = false) {
+  const started = Date.now();
+  const page = await context.newPage();
   const consoleErrors = [];
   page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('pageerror', e => consoleErrors.push(String(e)));
@@ -118,8 +122,14 @@ async function runSuite(browser, baseUrl, file) {
     }, `/tests/${file}`),
     new Promise((_, rej) => setTimeout(() => rej(new Error(`таймаут сюиты ${SUITE_TIMEOUT_MS / 1000} с`)), SUITE_TIMEOUT_MS)),
   ]).catch(e => ({ error: String(e?.message ?? e) }));
+  if (fast && !outcome.error && Array.isArray(outcome.results)) {
+    const kept = outcome.results.filter(([, name]) => !PERF_NAME_RE.test(String(name)));
+    outcome.passed = kept.filter(([p]) => p).length;
+    outcome.total = kept.length;
+    outcome.results = kept;
+  }
   await page.close();
-  return { file, ...outcome, consoleErrors };
+  return { file, ...outcome, consoleErrors, durationMs: Date.now() - started };
 }
 
 function arg(name, fallback) {
@@ -138,6 +148,7 @@ function argAll(name) {
 }
 
 const only = (arg('suites', '') || '').split(',').filter(Boolean);
+const fast = process.argv.includes('--fast');
 const flakes = argAll('flake').map(spec => {
   const at = spec.indexOf('::');
   return { file: at < 0 ? spec : spec.slice(0, at), name: at < 0 ? '' : spec.slice(at + 2) };
@@ -150,14 +161,18 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const files = only.length ? only.map(f => f.endsWith('.test.js') ? f : `${f}.test.js`)
   : (await readdir(resolve(ROOT, 'tests'))).filter(f => f.endsWith('.test.js')).sort();
 
-console.log(`прогон ${files.length} браузерных сюит на ${baseUrl}${flakes.length ? `, стохастических проверок — ${flakes.length}` : ''}`);
+console.log(`прогон ${files.length} браузерных сюит на ${baseUrl}${flakes.length ? `, стохастических проверок — ${flakes.length}` : ''}${fast ? ' (fast: perf-проверки пропущены)' : ''}`);
 const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+// Один контекст на весь прогон (R0): браузеры и HTTP-кэш общие, а страницы
+// свежие — свежесть JS-мира и рендерера сохраняется, потому что каждая сюита
+// идёт в своей странице из этого контекста.
+const context = await browser.newContext();
 let failedSuites = 0;
 let checks = 0;
 let checksPassed = 0;
 let flakesRed = 0;
 for (const file of files) {
-  const r = await runSuite(browser, baseUrl, file);
+  const r = await runSuite(context, baseUrl, file, fast);
   if (r.error) {
     failedSuites++;
     console.log(`FAIL ${file}: ${r.error}`);
@@ -171,7 +186,7 @@ for (const file of files) {
   const ok = blocking.length === 0 && (r.total ?? 0) > 0;
   if (!ok) failedSuites++;
   const flakeNote = red.length - blocking.length ? ` (флейк ${red.length - blocking.length})` : '';
-  console.log(`${ok ? 'PASS' : 'FAIL'} ${file}: ${r.passed}/${r.total}${flakeNote}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'} ${file}: ${r.passed}/${r.total}${flakeNote} (${((r.durationMs ?? 0) / 1000).toFixed(1)}s)`);
   for (const [, name, info] of red) {
     console.log(`       ${isFlaky(file, name) ? 'FLAKE (не блокирует)' : '✖'} ${name}: ${String(info).slice(0, 300)}`);
   }
@@ -179,6 +194,7 @@ for (const file of files) {
     console.log(`       errors: ${r.consoleErrors.slice(0, 3).join(' | ').slice(0, 300)}`);
   }
 }
+await context.close();
 await browser.close();
 server.close();
 

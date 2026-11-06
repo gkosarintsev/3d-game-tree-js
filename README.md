@@ -255,7 +255,7 @@ await tr.runTrackCityTests();
 | `node tools/level-parser.test.mjs` | арифметику парсера на фикстурах (134 проверки) |
 | `node tools/relief.test.mjs` · `node tools/track.test.mjs` | поле рельефа (11) · трассу-кольцо (30) |
 | `node tools/export-schema.mjs --check` | обе JSON Schema — побайтово равны DSL |
-| `node tools/ci-browser.mjs` | все браузерные сюиты в chromium; `--suites level-contract` — одну, `--flake файл::проверка` — вынести проверку из вердикта |
+| `node tools/ci-browser.mjs` | все браузерные сюиты в chromium; `--suites level-contract` — одну, `--flake файл::проверка` — вынести проверку из вердикта, `--fast` — пропустить тяжёлые и perf-проверки (для разработки) |
 
 Новая глава не требует нового тестового файла: её бриф находится по имени
 `src/levels/level-14.json`, а её собранная карта входит в `level-contract.test.js`

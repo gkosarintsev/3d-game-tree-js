@@ -1,5 +1,5 @@
 /**
- * Автотест открытого мира — `WorldMap` (этапы 3–5 плана docs/open-world-plan.md).
+ * Автотест открытого мира — `WorldMap` (этапы 3–6 плана docs/open-world-plan.md).
  *
  * Меряет критерий этапа дословно: «один чанк собирается в мире из `index.js` и
  * одного файла, незастроенная область `isBlocked` истинен по всей плите, а
@@ -16,11 +16,16 @@
  * ровно тот случай, ради которого введён `isBuiltAt` (мера гнутого окна, § 6
  * этапа 5: 3 732 дыр из 15 688 остались бы внутри габарита).
  *
- * Движок здесь не задействован: глава `kind: 'open'` в реестр ещё не добавлена
- * (это этап 6), поэтому проверка идёт напрямую картой и её сценой. Кадр берётся
- * у `window.game.renderer` — `renderer.info.memory` считает буферы только того,
+ * Первые тринадцать проверок идут картой и её сценой: фикстура `probe/open-600`
+ * строится в своём порядке, а не тем, каким её строит глава. Кадр берётся у
+ * `window.game.renderer` — `renderer.info.memory` считает буферы только того,
  * что реально уехало в WebGL, а без отрисовки наши меши так и остались бы
  * необъявленными, и гейт «память вернулась» был бы пустой проверкой.
+ *
+ * Последняя проверка — этап 6 (§ 7.2 п. 2): та же плита, но главой **из реестра**
+ * и глазами движка (`_loadLevel` до интертитра, затем `_worldPump` за ним).
+ * Она обязана идти последней: заглушка `_tick` не переназначает
+ * `requestAnimationFrame`, поэтому кадр страницы после неё не наступает.
  *
  * Запуск в браузере (через консоль страницы игры, где есть importmap):
  *   const t = await import('/tests/open-world.test.js');
@@ -30,12 +35,14 @@ import * as THREE from 'three';
 import { CONFIG } from '../src/config.js';
 import { JsonMap } from '../src/json-map.js';
 import { WorldMap } from '../src/world-map.js';
-import { Enemies } from '../src/enemies.js';
+import { Enemies, AlienEnemy } from '../src/enemies.js';
 import { Cars } from '../src/vehicle.js';
 import { ExitGoal } from '../src/exit.js';
+import { LEVELS } from '../src/levels/index.js';
 import { OPEN_600 } from '../probe/open-600/index.js';
 
-const CATALOG = '/probe/open-600';
+/** Путь к файлам клеток берётся из данных главы (`catalog`, § 10.13 плана). */
+const CATALOG = OPEN_600.map.catalog;
 const J = CONFIG.jsonMap;
 /** Шаг опроса проходимости по плите: 60 × 60 точек на 600 м. */
 const PLATE_STEP = 10;
@@ -58,7 +65,7 @@ async function chunkData(file) {
 async function makeWorld(order = null) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-  const map = new WorldMap({ ...OPEN_600.map, catalog: CATALOG });
+  const map = new WorldMap(OPEN_600.map);
   map.build(scene);
   const cells = order ? order.map((k) => OPEN_600.map.cells[k]) : OPEN_600.map.cells;
   return { map, scene, camera, cells };
@@ -318,7 +325,7 @@ async function timedLoad(world, id) {
 // ------------------------------------------------------------------ проверки
 
 async function testCatalogShape() {
-  const map = new WorldMap({ ...OPEN_600.map, catalog: CATALOG });
+  const map = new WorldMap(OPEN_600.map);
   const cells = map.cells;
   const plate = OPEN_600.map.ground.size;
   const infoWorld = COLLECTIONS.filter((k) => (OPEN_600.map[k] ?? []).length > 0);
@@ -373,25 +380,41 @@ async function testUnloadedIsBlocked() {
   const anchors = world.map.openPositions();
   const badAnchor = anchors.filter((a) => !inLoaded(world.map, a.x, a.z)).length;
   const navNodes = world.map.nav.pos.length;
-  // узел обязан быть годным, если лежит внутри загруженной клетки, и быть
-  // отвергнутым, если нет; «свес» за край — законные длинные объекты (настил и
-  // сход русла едут в каталог целиком, § 4.1 плана), они непроходимы, пока их
-  // клетка не построена
-  let unfitInside = 0, fitOutside = 0;
-  world.map.nav.pos.forEach((p, i) => {
+  // Годность узла — это **два** условия, и гейт сверяет их оба, а не одно:
+  // «внутри загруженной клетки» и «достижим от спавна» (§ 10.12(а) плана).
+  // Свес за край — законные длинные объекты (настил и сход русла едут в каталог
+  // целиком, § 4.1 плана): они непроходимы, пока их клетка не построена.
+  // Достижимость считается здесь своим обходом **без** navFit — иначе гейт
+  // проверял бы предикат им же самим. Замер стартовой клетки 0_1: 10 узлов
+  // свеса (все вне клетки) и один внутри — (−222, −1,72, 42), deg 0: решётка
+  // поставила узел на дно русла, а `wade: false` забраковал все его рёбра.
+  const nav = world.map.nav;
+  const start = nav.nearestNode(world.map.spawn.x, world.map.spawn.y ?? 0, world.map.spawn.z);
+  const reached = new Uint8Array(navNodes);
+  if (start >= 0) {
+    const q = [start];
+    reached[start] = 1;
+    for (let h = 0; h < q.length; h++) {
+      for (const nb of nav.adj[q[h]]) if (!reached[nb]) { reached[nb] = 1; q.push(nb); }
+    }
+  }
+  let mismatch = 0, unfitInside = 0, fitOutside = 0, stray = 0, isolated = 0;
+  nav.pos.forEach((p, i) => {
     const inside = inLoaded(world.map, p.x, p.z);
-    if (inside && !world.map.navFit(i)) unfitInside++;
-    if (!inside && world.map.navFit(i)) fitOutside++;
+    const fit = world.map.navFit(i);
+    if (fit !== (inside && reached[i] === 1)) mismatch++;
+    if (!inside) { stray++; if (fit) fitOutside++; } else if (!fit) { unfitInside++; if (!nav.adj[i].length) isolated++; }
   });
-  const stray = world.map.nav.pos.filter((p) => !inLoaded(world.map, p.x, p.z)).length;
   world.map.dispose();
   return {
     name: 'незастроенная клетка непроходима по всей плите, якорей и узлов чужих нет',
-    passed: openOut === 0 && badAnchor === 0 && anchors.length > 0 && openIn > 0 && unfitInside === 0 && fitOutside === 0,
+    passed: openOut === 0 && badAnchor === 0 && anchors.length > 0 && openIn > 0
+      && mismatch === 0 && fitOutside === 0,
     info: `${pts.length} точек плиты: вне загруженной клетки ${blockedOut} заблокировано / ${openOut} открыто,`
       + ` внутри — ${openIn} открыто / ${blockedIn} заблокировано; якорей ${anchors.length} (чужих ${badAnchor}),`
-      + ` узлов графа ${navNodes}, из них вне загруженной клетки ${stray} (все отвергнуты navFit),`
-      + ` годных внутри ${navNodes - stray}`,
+      + ` узлов графа ${navNodes}, из них вне загруженной клетки ${stray} (годных среди них ${fitOutside}),`
+      + ` внутри недостижимых от спавна ${unfitInside} (без рёбер вовсе ${isolated}),`
+      + ` годных ${navNodes - stray - unfitInside}, расхождений navFit с «в клетке и достижим» ${mismatch}`,
   };
 }
 
@@ -1207,6 +1230,237 @@ async function testPumpFrameBudget() {
       + ` ${idle.idleMedianMs.toFixed(2)} мс; spawn/плита не сдвинулись — ${!shifted};`
       + ` errors ${walk.errors + car.errors}, ` +
       (typeof map.updateStreaming === 'function' ? 'у карты есть updateStreaming (пропуск кадров!)' : 'пропуска кадров нет'),
+  };
+}
+
+/**
+ * Гейт этапа 6 (§ 7.2 п. 2 и критерий «глава грузится движком до интертитра»):
+ * та же плита, но главой **из реестра** и глазами движка.
+ *
+ * Что может показать только `_loadLevel`: спавн, цель, число врагов и кузовов
+ * равны данным `index.js`, тела стоят на узлах застроенной клетки, а счётчики
+ * выводимых рядов — сумма по загруженным клеткам (до правки § 6.3.1 формат
+ * каталога терял секции `windows`/`clutter`/`signage`, и открытая глава не
+ * выводила бы ни одного ряда — п. 2 § 7.2 плана называл это незакрытым).
+ *
+ * Окно за интертитром меряется тем же `_worldPump`, которым его зовёт `_tick`:
+ * центр — `map.spawn`, а не обзорная камера (замер этапа 6: камера стоит в
+ * (−120, 7, −106), спавн в (−120, 96), и окно по камере собрало `0_0`/`1_0` —
+ * два района **за рекой**, куда игрок ещё не пошёл). Пределы кадра те же, что у
+ * гейта этапа 4: неразделимый атом ≤ `stream.budgetMs` главы, накопление ≤
+ * просьбы движка. Маршрут до точки B здесь **частичный** — её клетка за окном
+ * спавна, поэтому мера «путь не идёт дырой» берётся по каждому узлу пути, а
+ * критерий «≥ 3 чанка» мерит `level-contract` на мире целиком.
+ *
+ * Проверка идёт последней в сюите: заглушка `_tick` не переназначает
+ * `requestAnimationFrame`, поэтому кадр страницы после неё не наступает (тот же
+ * приём, что у `pumpRoute`).
+ */
+async function testEngineChapter() {
+  const game = window.game;
+  if (!game) throw new Error('сюита гоняет главу движком: откройте 3d-game.html, где main.js создал window.game');
+  // глава ищется по форме данных, а не по номеру: номер 14 — не свойство
+  // открытого мира, и следующая такая глава должна попадать в гейт сама
+  const index = LEVELS.findIndex((l) => l.map?.cells?.length && l.map?.catalog);
+  if (index < 0) throw new Error("в реестре нет главы с каталогом клеток (kind: 'open')");
+  const level = LEVELS[index];
+  const gp = level.gameplay ?? {};
+  const engineAsk = CONFIG.jsonMap.pump.frameBudgetMs;
+  const wantEnemies = (gp.enemies?.count ?? CONFIG.enemies.count)
+    + (gp.alienEnemies?.count ?? CONFIG.alienEnemies.count);
+  const wantCars = gp.cars?.count ?? 0;
+  const wantExit = gp.goal === 'exit';
+  // допуск тот же, что у `level-lifecycle` (NODE_GAP): `respawn` берёт узел без
+  // округления, поэтому зазор меряется до узла, а не до клетки решётки
+  const nodeGap = 0.02;
+  const rows = [['windows', 'windowCount'], ['clutter', 'clutterCount'], ['signage', 'signageCount']];
+  const heldTick = game._tick;
+  game._tick = () => {};
+  const t0 = performance.now();
+  let loadMs = 0;
+  let map = null;
+  let at = null;
+  let rest = null;
+  try {
+    await game._loadLevel(index);
+    loadMs = performance.now() - t0;
+    map = game.map;
+    const startId = map.spawnCell()?.id ?? null;
+    // тела — той же формулой, что и `level-lifecycle`: у Чужого `position` есть
+    // радиус корпуса, у человека нога лежит в `feetY`
+    const bodies = () => game.enemies.items.map((e) => {
+      const alien = e instanceof AlienEnemy;
+      const feet = alien ? e.position.y - CONFIG.alien.radius : e.feetY;
+      const node = map.nav.nearestNode(e.position.x, feet, e.position.z, map.navFit);
+      const np = map.nav.pos[node];
+      return {
+        built: map.isBuiltAt(e.position.x, e.position.z),
+        gap: np ? Math.hypot(np.x - e.position.x, np.y - feet, np.z - e.position.z) : Infinity,
+        offstage: !!e.offstage,
+      };
+    });
+    const sums = () => {
+      const out = { windows: 0, clutter: 0, signage: 0 };
+      for (const entry of map.loaded.values()) {
+        out.windows += entry.counts.windows ?? 0;
+        out.clutter += entry.counts.clutter ?? 0;
+        out.signage += entry.counts.signage ?? 0;
+      }
+      return out;
+    };
+    const counters = () => ({ windows: map.windowCount, clutter: map.clutterCount, signage: map.signageCount });
+    const beacon = () => (game.exit ? {
+      built: game.exit.built,
+      visible: game.exit.group.visible,
+      here: map.isBuiltAt(game.exit.x, game.exit.z),
+      ok: game.exit.x === gp.exit.x && game.exit.z === gp.exit.z
+        && game.exit.radius === (gp.exitRadius ?? CONFIG.terrain.exitRadius),
+    } : null);
+    const fitCount = () => map.nav.pos.reduce((n, _, i) => n + (map.navFit(i) ? 1 : 0), 0);
+    at = {
+      state: game.state,
+      chapter: game.levelIndex === index && game.level === level,
+      cells: [...map.loaded.keys()],
+      startId,
+      startPic: !!map.loaded.get(startId)?.pic,
+      spawnOk: map.spawn.x === level.map.spawn.x && map.spawn.z === level.map.spawn.z,
+      builtAtSpawn: map.isBuiltAt(map.spawn.x, map.spawn.z),
+      blockedAtSpawn: map.isBlocked(map.spawn.x, map.spawn.z, CONFIG.radius, map.spawn.y ?? 0, CONFIG.eyeHeight),
+      nodes: map.nav.pos.length,
+      fit: fitCount(),
+      enemies: bodies(),
+      cars: game.cars?.count ?? 0,
+      beacon: beacon(),
+      counters: counters(),
+      sums: sums(),
+      warm: map.pump.costWorst.size,
+      firstChunkMs: map.pump.stats.firstChunkMs,
+      sceneChildren: game.scene.children.length,
+    };
+    let frames = 0;
+    let idleAt = null;
+    let worstFrameMs = 0;
+    let worstAtomMs = 0;
+    let atomLabel = null;
+    let worstAccumMs = 0;
+    let inFrame = [];
+    const heldSlice = map._runSlice;
+    map._runSlice = function (slice) {
+      const t = performance.now();
+      heldSlice.call(this, slice);
+      inFrame.push({ label: slice.label, ms: performance.now() - t });
+    };
+    try {
+      for (;;) {
+        const before = map.pump.stats.slices;
+        inFrame = [];
+        const f0 = performance.now();
+        game._worldPump();
+        const ms = performance.now() - f0;
+        frames += 1;
+        let atom = 0;
+        let label = null;
+        for (const s of inFrame) if (s.ms > atom) { atom = s.ms; label = s.label; }
+        worstFrameMs = Math.max(worstFrameMs, ms);
+        worstAccumMs = Math.max(worstAccumMs, ms - atom);
+        if (atom > worstAtomMs) { worstAtomMs = atom; atomLabel = label; }
+        const idle = map.pump.stats.slices === before && !map.pump.task && map.pump.requests.size === 0;
+        if (idle && idleAt === null) idleAt = frames;
+        if (idle || frames >= 400) break;
+        // макрозадача между кадрами: без неё `fetch` клетки не успевает вернуться
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    } finally {
+      delete map._runSlice;
+    }
+    const want = map._windowCells(map.spawn.x, map.spawn.z, map.pump.radius).map((w) => w.cell.id).sort();
+    const to = { x: gp.exit.x, y: map.groundHeightAt(gp.exit.x, gp.exit.z, 500), z: gp.exit.z };
+    const path = map.findPath(map.spawn, to) ?? [];
+    const cells = [];
+    let len = 0;
+    let unbuilt = 0;
+    let offSupport = 0;
+    path.forEach((p, k) => {
+      const id = map.cellAt(p.x, p.z)?.id ?? 'вне';
+      if (!cells.includes(id)) cells.push(id);
+      if (k) len += Math.hypot(p.x - path[k - 1].x, p.z - path[k - 1].z);
+      if (!map.isBuiltAt(p.x, p.z)) unbuilt += 1;
+      if (Math.abs(map.groundHeightAt(p.x, p.z, p.y + J.floorRise) - p.y) > CONFIG.building.stepUp) offSupport += 1;
+    });
+    const last = path[path.length - 1];
+    rest = {
+      frames, idleAt, worstFrameMs, worstAtomMs, atomLabel, worstAccumMs,
+      cells: [...map.loaded.keys()].sort(),
+      want,
+      drawn: [...map.loaded.values()].every((e) => e.pic),
+      nodes: map.nav.pos.length,
+      fit: fitCount(),
+      enemies: bodies(),
+      beacon: beacon(),
+      counters: counters(),
+      sums: sums(),
+      route: {
+        nodes: path.length, cells, m: len, unbuilt, offSupport,
+        toExit: last ? Math.hypot(last.x - to.x, last.z - to.z) : null,
+      },
+      errors: map.pump.stats.errors,
+      built: map.pump.stats.built,
+      slices: map.pump.stats.slices,
+      fetches: map.pump.stats.fetches,
+      worstChunkMs: map.pump.stats.worstChunkMs,
+    };
+  } finally {
+    game._tick = heldTick;
+  }
+  const frameCap = map.stream.budgetMs;
+  // ряд обязан выводиться, если его секция есть в данных главы: ноль при секции
+  // — это потерянный формат каталога, а не воля автора
+  const rowsOk = (snap) => rows.every(([key, field]) => snap.counters[key] === snap.sums[key]
+    && (!level.map[key] || snap.counters[key] > 0))
+    && Object.values(snap.counters).every((n) => n === snap.sums[{ windows: 'windows', clutter: 'clutter', signage: 'signage' }[Object.keys(snap.counters).find((k) => snap.counters[k] === n)]]);
+  const bodiesOk = (list) => list.length === wantEnemies
+    && list.every((e) => e.built && !e.offstage && e.gap <= nodeGap);
+  const beaconOk = (b) => (wantExit
+    ? !!b && b.ok && b.built === b.here && b.visible === b.built
+    : b === null);
+  const ok = at.state === 'chapter' && at.chapter && at.spawnOk
+    && at.builtAtSpawn && !at.blockedAtSpawn
+    && at.startId !== null && at.startPic && at.cells.length === 1 && at.cells[0] === at.startId
+    && at.nodes > 0 && at.fit > 0 && at.firstChunkMs !== null && at.warm > 0
+    && bodiesOk(at.enemies) && at.cars === wantCars && beaconOk(at.beacon) && rowsOk(at)
+    && rest.idleAt !== null && rest.drawn && rest.want.length > 1
+    && rest.cells.join(',') === rest.want.join(',')
+    && rest.worstFrameMs <= frameCap && rest.worstAtomMs <= frameCap && rest.worstAccumMs <= engineAsk
+    && bodiesOk(rest.enemies) && beaconOk(rest.beacon) && rowsOk(rest)
+    && rest.route.nodes >= 2 && rest.route.cells.length >= 2
+    && rest.route.unbuilt === 0 && rest.route.offSupport === 0 && rest.errors === 0;
+  const worstGap = (list) => list.reduce((m, e) => Math.max(m, e.gap), 0);
+  const rowText = (snap) => rows.map(([key]) => `${key} ${snap.counters[key]}`).join('/');
+  return {
+    name: 'глава из реестра грузится движком: спавн, цель, тела и ряды по данным, окно за интертитром в бюджете',
+    passed: ok,
+    info: `глава ${index + 1} («${level.name}»), загрузка до '${at.state}' ${loadMs.toFixed(0)} мс;`
+      + ` спавн (${map.spawn.x}, ${map.spawn.z}) равен данным — ${at.spawnOk}, застроен ${at.builtAtSpawn},`
+      + ` проходим ${!at.blockedAtSpawn}; стартовая клетка ${at.startId} нарисована ${at.startPic},`
+      + ` до играбельного окна ${at.firstChunkMs === null ? 'нет' : at.firstChunkMs.toFixed(0) + ' мс'},`
+      + ` мереных меток после build ${at.warm}; узлов ${at.nodes} (годных ${at.fit}), объектов сцены`
+      + ` ${at.sceneChildren}; врагов ${at.enemies.length} при данных ${wantEnemies} (вне застроенных`
+      + ` ${at.enemies.filter((e) => !e.built).length}, снятых ${at.enemies.filter((e) => e.offstage).length},`
+      + ` худший зазор до узла ${worstGap(at.enemies).toFixed(3)} м при допуске ${nodeGap}), кузовов`
+      + ` ${at.cars} при данных ${wantCars}; маяк ${at.beacon === null ? 'не нужен' : `в (${level.gameplay?.exit?.x ?? 0}, ${level.gameplay?.exit?.z ?? 0})`}`
+      + `; ряды на старте ${rowText(at)} (сумма по клеткам ${rowText({ counters: at.sums })});`
+      + ` за интертитром ${rest.frames} кадров, покой на ${rest.idleAt ?? 'не reached'}, срезов ${rest.slices},`
+      + ` достроек ${rest.built}, чтений ${rest.fetches}, ошибок ${rest.errors}; окно ${rest.cells.join(',')}`
+      + ` против расчётного ${rest.want.join(',')} (радиус ${map.pump.radius.toFixed(0)} м), все нарисованы`
+      + ` ${rest.drawn}; худший кадр ${rest.worstFrameMs.toFixed(1)} мс при потолке главы ${frameCap}`
+      + ` (атом ${rest.worstAtomMs.toFixed(1)} «${rest.atomLabel}», накопление ≤ ${rest.worstAccumMs.toFixed(1)}`
+      + ` при просьбе движка ${engineAsk}), wall-clock худшей клетки ${rest.worstChunkMs.toFixed(0)} мс;`
+      + ` узлов ${rest.nodes} (годных ${rest.fit}), ряды ${rowText(rest)}, врагов вне застроенных`
+      + ` ${rest.enemies.filter((e) => !e.built).length}, маяк застроен ${rest.beacon?.built ?? '—'} и видим`
+      + ` ${rest.beacon?.visible ?? '—'}; маршрут к B частичный: ${rest.route.nodes} узлов /`
+      + ` ${rest.route.m.toFixed(1)} м через ${rest.route.cells.join('→')}, до маяка`
+      + ` ${rest.route.toExit === null ? '—' : rest.route.toExit.toFixed(1) + ' м'}, узлов вне застроенных`
+      + ` ${rest.route.unbuilt}, без своей опоры ${rest.route.offSupport}`,
   };
 }
 

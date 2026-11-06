@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { LEVELS } from '../src/levels/index.js';
 import { CONFIG } from '../src/config.js';
 import { preloadMapAsset } from '../src/glb.js';
+import { preloadWorldCells } from '../src/world-map.js';
 
 /** Обязательные методы контракта (AGENTS.md, «Контракт карты»). */
 const METHODS = ['groundHeightAt', 'isBlocked', 'openPositions', 'worldToNormalized',
@@ -27,7 +28,7 @@ const METHODS = ['groundHeightAt', 'isBlocked', 'openPositions', 'worldToNormali
 const DATA = ['width', 'depth', 'spawn', 'bounds', 'solids'];
 
 /** Опциональные члены — движок отличает их по наличию, а не по `map.kind`. */
-const OPTIONAL = ['updateStreaming', 'debugIds'];
+const OPTIONAL = ['updateStreaming', 'debugIds', 'streamStep', 'isBuiltAt'];
 
 /**
  * Дальность выбора точки респавна — ровно то число, с которым работает движок:
@@ -58,6 +59,34 @@ const errors = [];
 const cache = new Map();
 
 /**
+ * Карта главы в свежей сцене, собранная **фабрикой движка** (тот же выбор
+ * `kind`, что в `Game.createMap`).
+ *
+ * Открытая глава (`streamStep`) достраивается здесь целиком, клетка за клеткой
+ * из `cells[]` определения: её маршрут A→B идёт через три клетки (замер главы
+ * 14 — `0_1 → 1_1 → 2_1`, 93 узла / 455 м), а окно спавна держит четыре других
+ * (`0_1, 0_2, 1_1, 1_2`), и конца маршрута в нём нет вовсе. Мерить контракт
+ * маршрута на окне значило бы проверять не главу, а её первый кадр. Оконное
+ * поведение — растяжка достройки, выгрузка, поп-ин, снятие сущностей — живёт в
+ * `tests/open-world.test.js`, где мир собирается в своём порядке и ходит
+ * маршрутом туда-обратно.
+ */
+async function assemble(level) {
+  const factory = window.game?.createMap?.bind(window.game);
+  if (!factory) throw new Error('сюита собирает главы фабрикой движка; откройте 3d-game.html, где main.js создал window.game');
+  // единственная точка await — правило «загрузка ассета» в AGENTS.md; движок
+  // ждёт здесь же и стартовую клетку открытого мира (`_loadLevel`)
+  await Promise.all([preloadMapAsset(level.map), preloadWorldCells(level.map)]);
+  const map = factory(level.map);
+  const scene = new THREE.Scene();
+  map.build(scene);
+  if (typeof map.streamStep === 'function') {
+    for (const cell of level.map.cells ?? []) await map.loadChunk(cell.id);
+  }
+  return { map, scene };
+}
+
+/**
  * Карта и сцена главы, собранные один раз на сюиту. Строится напрямую через
  * фабрику движка, без `Game`: здесь не нужны ни HUD, ни персонаж, ни pointer
  * lock, а `console.error` по ходу сборки собирается в общий список (его проверяет
@@ -66,15 +95,10 @@ const cache = new Map();
 async function chapter(index) {
   if (cache.has(index)) return cache.get(index);
   const level = LEVELS[index];
-  const factory = window.game?.createMap?.bind(window.game);
-  if (!factory) throw new Error('сюита собирает главы фабрикой движка; откройте 3d-game.html, где main.js создал window.game');
   const realError = console.error;
   console.error = (...a) => { errors.push(`глава ${index + 1}: ${a.map(String).join(' ')}`); realError(...a); };
   try {
-    await preloadMapAsset(level.map); // единственный await — правило «загрузка ассета» в AGENTS.md
-    const map = factory(level.map);
-    const scene = new THREE.Scene();
-    map.build(scene);
+    const { map, scene } = await assemble(level);
     const ctx = { level, map, scene };
     cache.set(index, ctx);
     return ctx;
@@ -83,8 +107,16 @@ async function chapter(index) {
   }
 }
 
+/**
+ * Принадлежность узла графу карты: у открытого мира граф append-only, и узел
+ * выгруженной клетки остаётся в списке, но маршруту и респавну не годен
+ * (`navFit`, § 10.12 плана). Остальные карты предиката не держат — у них граф
+ * пересобирается целиком, и годны все узлы.
+ */
+const fitOf = map => (typeof map.navFit === 'function' ? map.navFit : null);
+
 /** Индекс узла под точкой (тот же `nearestNode`, что использует движок). */
-const nodeAt = (map, x, y, z) => map.nav.nearestNode(x, y, z);
+const nodeAt = (map, x, y, z, fit = null) => map.nav.nearestNode(x, y, z, fit);
 
 /** Опора под узлом: проба с самой отметки узла с запасом на шов картинки. */
 function supportUnder(map, x, y, z) {
@@ -104,14 +136,19 @@ function nodeIndexByRef(map) {
   return byRef;
 }
 
-/** Узлы графа, достижимые от точки появления, — как их оставил `_pruneToSpawn`. */
-function reachableFrom(map, start) {
+/** Узлы графа, достижимые от точки появления, — как их оставил `_pruneToSpawn`.
+ *  `fit` отсекает узлы, которыми карта не разрешает пользоваться (открытый мир):
+ *  через выгруженную клетку путь не идёт, даже если ребро в списке осталось. */
+function reachableFrom(map, start, fit = null) {
   const seen = new Uint8Array(map.nav.pos.length);
   if (start < 0) return seen;
   const queue = [start];
   seen[start] = 1;
   for (let h = 0; h < queue.length; h++) {
-    for (const nb of map.nav.adj[queue[h]]) if (!seen[nb]) { seen[nb] = 1; queue.push(nb); }
+    for (const nb of map.nav.adj[queue[h]]) {
+      if (seen[nb] || (fit && !fit(nb))) continue;
+      seen[nb] = 1; queue.push(nb);
+    }
   }
   return seen;
 }
@@ -167,6 +204,18 @@ async function testKindSelectsImplementation() {
       const present = typeof map[m] === 'function';
       if (kind === 'stream' && m === 'updateStreaming' && !present) bad.push(`${i + 1}: стримящая карта без updateStreaming`);
       if (['json', 'json2'].includes(kind) && m === 'debugIds' && !present) bad.push(`${i + 1}: карта из брифа без debugIds`);
+      if (kind === 'open' && ['streamStep', 'isBuiltAt', 'debugIds'].includes(m) && !present) {
+        bad.push(`${i + 1}: открытый мир без ${m}`);
+      }
+      // член открытого мира у остальных карт — тоже ошибка: движок различает
+      // помпу по наличию метода, и `streamStep` у главы без клеток звал бы её
+      // на карте, которая окно не держит
+      if (kind !== 'open' && ['streamStep', 'isBuiltAt'].includes(m) && present) {
+        bad.push(`${i + 1}: ${m} у карты kind '${kind ?? 'town'}' — движок принял бы её за открытый мир`);
+      }
+      if (kind === 'open' && m === 'updateStreaming' && present) {
+        bad.push(`${i + 1}: открытый мир с updateStreaming — помпа не сдвигает мир и не пропускает кадр`);
+      }
     }
   }
   return { name: 'kind-and-optional-members', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || 'фабрика выбирает реализацию по kind, опциональные члены различаются по typeof' };
@@ -269,19 +318,38 @@ async function testRouteAtoB() {
   return { name: 'route-ato-b', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || `маршруты${note}: ${stats.join('; ')}` };
 }
 
-/** Одна связная сеть: узел, до которого человек не дойдёт, врагу не нужен. */
+/**
+ * Одна связная сеть: узел, до которого человек не дойдёт, врагу не нужен.
+ *
+ * У открытого мира меряются **годные** узлы (`navFit`): граф append-only, и в
+ * списке остаются узлы выгруженных клеток и свес решётки за край загруженной
+ * (замер главы 14 на всех девяти клетках — 3 таких узла из 10 113, на окне
+ * спавна — 12 из 4 247). Требовать связности от них значило бы проверять
+ * список, а не сеть: `navFit` бракует их и по достижимости от спавна (§ 10.12(а)
+ * плана), поэтому маршрут и респавн их не видят. Главы без предиката меряются
+ * целиком, как раньше.
+ */
 async function testSingleConnectedNetwork() {
   const bad = [];
+  const notes = [];
   for (let i = 0; i < LEVELS.length; i++) {
     const { map } = await chapter(i);
-    const total = map.nav.pos.length;
-    if (!total) { bad.push(`${i + 1}: графа навигации нет`); continue; }
-    const seen = reachableFrom(map, nodeAt(map, map.spawn.x, map.spawn.y, map.spawn.z));
+    const fit = fitOf(map);
+    if (!map.nav.pos.length) { bad.push(`${i + 1}: графа навигации нет`); continue; }
+    const seen = reachableFrom(map, nodeAt(map, map.spawn.x, map.spawn.y, map.spawn.z, fit), fit);
+    let total = 0;
     let orphan = 0;
-    for (let k = 0; k < total; k++) if (!seen[k]) orphan++;
+    for (let k = 0; k < map.nav.pos.length; k++) {
+      if (fit && !fit(k)) continue;
+      total++;
+      if (!seen[k]) orphan++;
+    }
+    if (!total) { bad.push(`${i + 1}: годных узлов графа нет`); continue; }
     if (orphan) bad.push(`${i + 1}: изолированных узлов ${orphan} из ${total}`);
+    if (fit) notes.push(`${i + 1}: годных ${total} из ${map.nav.pos.length}`);
   }
-  return { name: 'one-connected-network', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || 'каждая глава держит одну связную сеть от спавна' };
+  const note = notes.length ? ` (${notes.join(', ')})` : '';
+  return { name: 'one-connected-network', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || `каждая глава держит одну связную сеть от спавна${note}` };
 }
 
 /** Врагам хватает узлов для возрождения (число врагов — данные главы). */
@@ -290,12 +358,17 @@ async function testRespawnRoom() {
   for (let i = 0; i < LEVELS.length; i++) {
     const { map, level } = await chapter(i);
     const gp = level.gameplay ?? {};
+    const fit = fitOf(map);
     const humans = gp.enemies?.count ?? CONFIG.enemies.count;
     const aliens = gp.alienEnemies?.count ?? CONFIG.alienEnemies.count;
     let room = 0;
     let roomHuman = 0;
     let roomAlien = 0;
-    for (const p of map.nav.pos) {
+    for (let k = 0; k < map.nav.pos.length; k++) {
+      // узел, которым карта не разрешает пользоваться (открытый мир), респавну
+      // не годен: `randomNavPoint` движка зовётся с тем же предикатом
+      if (fit && !fit(k)) continue;
+      const p = map.nav.pos[k];
       const d = Math.hypot(p.x - map.spawn.x, p.z - map.spawn.z);
       if (d < RESPAWN_MIN || d >= RESPAWN_MAX) continue;
       room++;
@@ -332,19 +405,16 @@ async function testRespawnRoom() {
  * Утечки: карта, построенная в свежую сцену, обязана оставить её пустой после
  * `dispose()`, иначе перезагрузка главы накапливает меши предыдущей. Проверяется
  * и то, что повторная сборка даёт столько же объектов, сколько первая, — рост
- * числа мешей от прогона к прогону и есть течь.
+ * числа мешей от прогона к прогону и есть течь. Сборка идёт тем же `assemble`,
+ * что и остальные сюжетки, поэтому у открытого мира меряются все клетки, а не
+ * одна стартовая: течь в мешах достроенной клетки иначе не видна.
  */
 async function testNoLeaks() {
   const bad = [];
   for (let i = 0; i < LEVELS.length; i++) {
-    const level = LEVELS[i];
-    const factory = window.game.createMap.bind(window.game);
-    await preloadMapAsset(level.map);
     const counts = [];
     for (let round = 0; round < 2; round++) {
-      const scene = new THREE.Scene();
-      const map = factory(level.map);
-      map.build(scene);
+      const { map, scene } = await assemble(LEVELS[i]);
       counts.push(scene.children.length);
       if (typeof map.dispose !== 'function') { bad.push(`${i + 1}: у карты нет dispose()`); break; }
       map.dispose();
