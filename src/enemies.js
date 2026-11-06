@@ -739,6 +739,10 @@ export class Enemies {
     this.tracers = tracers;
     this.kills = 0;
     this.items = [];
+    // Отличие открытого мира от обычной главы — не `map.kind`, а наличие
+    // помпы (`typeof`, как для остальных опциональных членов контракта): главы
+    // 9–13 обязаны платить за правило снятия ровно ноль вызовов.
+    this._streamed = typeof map.streamStep === 'function';
 
     const count = opts.count ?? CONFIG.enemies.count;
     const alienCount = opts.alienCount ?? CONFIG.alienEnemies.count;
@@ -807,6 +811,22 @@ export class Enemies {
   update(dt) {
     for (const enemy of this.items) {
       enemy.update(dt, this.player, this.camera, this.tracers);
+      // Открытый мир: клетка под телом могла быть выгружена, пока враг в ней
+      // стоял. Снятие — то же молчаливое, что у `shiftWorld` главы 4, но по
+      // застроенности своей клетки, а не по `bounds` и не по `isBlocked`:
+      // габарит загруженных клеток — AABB дискового окна и на гнутом маршруте
+      // оставляет внутри себя незастроенные углы (3 732 дыр из 15 688, 23,8 %),
+      // а `isBlocked(своей позиции)` истинен и там, где Чужой легально висит на
+      // фасаде (на главе 12 без стриминга — 2 054 и 643 «стеновых» проба из
+      // 18 000 в двух прогонах, подряд до 1 776 и 479 кадров; на фикстуре
+      // внутри застроенных — 3 934 из 15 812): правило по нему стирало бы
+      // легальных врагов. `respawn` берёт узел с `navFit`, то есть только
+      // застроенный, — обратно в дыру тот же враг не вернётся и мигания не
+      // будет.
+      if (this._streamed && !enemy.offstage && !enemy.dead
+          && !this.map.isBuiltAt(enemy.position.x, enemy.position.z)) {
+        enemy.despawn();
+      }
     }
   }
 

@@ -326,8 +326,14 @@ export class Hud {
     // показывается всегда (setExitDistance), поэтому подсказка направления не
     // теряется. Для обычных глав exit всегда внутри bounds — условие не меняет
     // ничего.
+    //
+    // `exit.built` — то же правило для открытого мира, но точнее: `bounds` там
+    // равен AABB дискового окна и его угловые клетки бывают не застроены, а
+    // маяк в не застроенной клетке скрыт (`ExitGoal.update`) — метка не должна
+    // обещать цель, которой в мире ещё нет.
     const bb = map.bounds;
-    if (exit && exit.x >= bb.minX && exit.x <= bb.maxX &&
+    if (exit && exit.built !== false &&
+        exit.x >= bb.minX && exit.x <= bb.maxX &&
         exit.z >= bb.minZ && exit.z <= bb.maxZ) {
       const [eu, ev] = map.worldToNormalized(exit.x, exit.z);
       ctx.strokeStyle = 'rgba(111,232,221,.95)';

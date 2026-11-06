@@ -1,5 +1,5 @@
 /**
- * Автотест открытого мира — `WorldMap` (этап 3 плана docs/open-world-plan.md).
+ * Автотест открытого мира — `WorldMap` (этапы 3–5 плана docs/open-world-plan.md).
  *
  * Меряет критерий этапа дословно: «один чанк собирается в мире из `index.js` и
  * одного файла, незастроенная область `isBlocked` истинен по всей плите, а
@@ -8,6 +8,13 @@
  * (тот же город, что `probe/city-600.json`, но разрезанный парсером на 3×3
  * клетки по 200 м): полный каталог 1,96 км² весит 6,4 МБ и в браузерной сюите
  * не нужен (§ 10.11 плана решён в пользу уменьшенной фикстуры).
+ *
+ * Этап 5 добавляет сюда сущности и HUD: враг, кузов и маяк точки B обязаны
+ * исчезать там, где клетка выгружена, и не исчезать там, где тело стоит
+ * легально. Дыра моделируется **выгрузкой средней клетки при восьми загруженных
+ * соседях**: `bounds` при этом остаётся габаритом всей плиты и дыру не видит —
+ * ровно тот случай, ради которого введён `isBuiltAt` (мера гнутого окна, § 6
+ * этапа 5: 3 732 дыр из 15 688 остались бы внутри габарита).
  *
  * Движок здесь не задействован: глава `kind: 'open'` в реестр ещё не добавлена
  * (это этап 6), поэтому проверка идёт напрямую картой и её сценой. Кадр берётся
@@ -23,6 +30,9 @@ import * as THREE from 'three';
 import { CONFIG } from '../src/config.js';
 import { JsonMap } from '../src/json-map.js';
 import { WorldMap } from '../src/world-map.js';
+import { Enemies } from '../src/enemies.js';
+import { Cars } from '../src/vehicle.js';
+import { ExitGoal } from '../src/exit.js';
 import { OPEN_600 } from '../probe/open-600/index.js';
 
 const CATALOG = '/probe/open-600';
@@ -72,8 +82,81 @@ function cellOf(map, x, z) {
   return c ? c.id : null;
 }
 
-/** Есть ли точка в прямоугольнике загруженной клетки. */
-const inLoaded = (map, x, z) => map._loadedAt(x, z);
+/**
+ * Есть ли точка в прямоугольнике загруженной клетки. Это **четвёртый** член
+ * контракта (`isBuiltAt`), а не габарит и не проходимость: см. документацию
+ * метода в src/world-map.js и меру § 6 этапа 5.
+ */
+const inLoaded = (map, x, z) => map.isBuiltAt(x, z);
+
+/** Точка внутри габарита загруженного содержимого (`bounds`) — предикат главы 4. */
+const inBounds = (b, x, z) => x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
+
+/**
+ * Игрок-заглушка: `Enemies.update` крутит ИИ, а `Enemy._shoot` ранит цель и
+ * зовёт `findPath` по `player.feetY` — без этих полей сюжет падал на середине
+ * первого же кадра.
+ */
+function fakePlayer(map) {
+  const y = map.spawn.y ?? 0;
+  return {
+    position: new THREE.Vector3(map.spawn.x, y, map.spawn.z),
+    feetY: y, velocity: new THREE.Vector3(), dead: false, vehicle: null,
+    keys: new Set(),
+    takeDamage() { return 0; },
+  };
+}
+
+/**
+ * Ставит тело на узел графа руками: `respawn` выбирает узел сам и не слушается.
+ *
+ * Ветки разные, и это не аккуратность: у Чужого `position`, `feetY` и `dead` —
+ * **геттеры** (src/alien.js:99–102), поэтому запись `feetY = …` или `dead = false`
+ * бросила бы TypeError в строгом модуле, а тело осталось бы на прежнем месте.
+ * Чужой ставится через `pos` и `health` ровно тем же приёмом, что его собственный
+ * `respawn`.
+ */
+function placeOn(body, p) {
+  if (body.pos) {
+    body.pos.set(p.x, p.y + body.cfg.radius, p.z);
+    body.up.set(0, 1, 0);
+    body.fwd.set(0, 0, 1);
+    body.pitch = 0;
+    body.vel.set(0, 0, 0);
+    body.grounded = true;
+    body.health = body.maxHealth;
+    body.offstage = false;
+    body.respawnTimer = 0;
+    body.group.visible = true;
+    body._syncMesh();
+    return;
+  }
+  body.group.position.set(p.x, p.y, p.z);
+  body.feetY = p.y;
+  body.path = null;
+  body.pathIndex = 0;
+  body.wander = null;
+  body.repathTimer = 0;
+  body.offstage = false;
+  body.dead = false;
+  body.respawnTimer = 0;
+  body.group.visible = true;
+}
+
+/**
+ * Карта **обычной** главы — контроль, что правку открытого мира эти главы не
+ * платят: ни `streamStep`, ни `isBuiltAt` у них нет, и гейт по `typeof` обязан
+ * обойти правило стороной. Плита 40 м: граф строится за кадр, а меряется ровно
+ * наличие члена. `bounds` обязана быть — по ней клампится кузов.
+ */
+function plainSpec() {
+  return {
+    kind: 'json2', units: 'meters',
+    ground: { size: 40, y: 0 },
+    bounds: { minX: -20, maxX: 20, minZ: -20, maxZ: 20 },
+    spawn: { x: 0, z: 0 }, buildings: [], roads: [], channels: [],
+  };
+}
 
 /** Буферы WebGL, досчитанные после кадра нашей сцены. */
 function sceneBudget(world) {
@@ -555,6 +638,347 @@ async function testNavRestricted() {
 }
 
 /**
+ * Гейт этапа 5, часть 1 — сам член контракта и дыра, ради которой он введён.
+ *
+ * Дыра строится **выгрузкой средней клетки при восьми загруженных соседях**:
+ * `bounds` (габарит загруженного содержимого) при этом остаётся примерно всей
+ * плитой, а застроенности в центре нет — ровно тот класс случаев, который
+ * гнутое окно выдаёт как 3 732 дыр из 15 688 (23,8 %, § 6 этапа 5). Второй
+ * предел — вердикт `isBuiltAt` обязан совпадать с независимым перебором
+ * прямоугольников загруженных клеток: иначе член контракта стал бы второй
+ * правдой о застроенности, а не её вопросом.
+ */
+async function testBuiltMemberAndBoundsHole() {
+  const world = await makeWorld();
+  const map = world.map;
+  await loadCells(world, map.cells.map((c) => c.id));
+  const centre = '1_1';
+  map.unloadChunk(centre);
+  const loadedCount = map.loaded.size;
+  const b = map.bounds;
+  let holes = 0, insideBounds = 0, outsideBounds = 0, fitInHole = 0;
+  map.nav.pos.forEach((p, i) => {
+    if (inLoaded(map, p.x, p.z)) return;
+    holes++;
+    if (inBounds(b, p.x, p.z)) insideBounds++; else outsideBounds++;
+    if (map.navFit(i)) fitInHole++;
+  });
+  const rects = [...map.loaded.values()].map((e) => e.cell.rect);
+  let verdictDiff = 0, probes = 0;
+  for (let x = -295; x <= 295; x += 25) {
+    for (let z = -295; z <= 295; z += 25) {
+      probes++;
+      const want = rects.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
+      if (want !== map.isBuiltAt(x, z)) verdictDiff++;
+    }
+  }
+  const cRect = map.cellById.get(centre).rect;
+  const holeInsideBounds = inBounds(b, (cRect.minX + cRect.maxX) / 2, (cRect.minZ + cRect.maxZ) / 2);
+  // обычный тип карты члена не имеет, и правило снятия обязано gated-иться
+  // наличием `streamStep`, а не этим методом: иначе глава 9 упала бы на
+  // первом же кадре с «isBuiltAt is not a function»
+  const memberHere = typeof map.isBuiltAt;
+  const jsonHasIt = typeof JsonMap.prototype.isBuiltAt;
+  const jsonStreamless = typeof new JsonMap(plainSpec()).streamStep;
+  map.dispose();
+  return {
+    name: 'isBuiltAt — член контракта открытого мира, и он точнее габарита',
+    passed: memberHere === 'function' && jsonHasIt === 'undefined' && jsonStreamless === 'undefined'
+      && holes > 0 && insideBounds > 0 && fitInHole === 0 && verdictDiff === 0 && holeInsideBounds,
+    info: `клетка '${centre}' выгружена при ${loadedCount} загруженных: узлов графа в дыре ${holes}, из`
+      + ` них внутри bounds ${insideBounds} (габарит их не видит, и дыра лежит в его середине —`
+      + ` ${holeInsideBounds ? 'да' : 'нет'}), снаружи ${outsideBounds}; годных по navFit из дыры`
+      + ` ${fitInHole} (обязано быть ноль, иначе маршрут ведёт в несобранный район); вердикт isBuiltAt`
+      + ` совпал с независимым перебором ${rects.length} прямоугольников на ${probes} точках (расхождений`
+      + ` ${verdictDiff}); у JsonMap ни isBuiltAt (${jsonHasIt}), ни streamStep (${jsonStreamless}) нет.`,
+  };
+}
+
+/**
+ * Гейт этапа 5, часть 2 — «враги вне окна сняты молча и не в raycast/миникарте».
+ *
+ * Тела ставятся **на узлы выгруженной клетки руками**: правило обязано сработать
+ * по одному кадру, а не «когда-нибудь, когда ИИ выведет их за окно». Молчаливость
+ * меряется тремя числами: `kills` не изменился (убийство не засчитано), ни у
+ * кого не выставлен флаг `dead` (не запущена анимация падения), и `group.visible`
+ * снят. Второй предел — обратный: кто стоит на застроенной клетке, тот снят не
+ * был, иначе правило оказалось бы стиралкой легальных врагов (замер `isBlocked`
+ * как кандидата: на главе 12 без стриминга — 2 054 и 643 «стеновых» проба из
+ * 18 000 в двух прогонах, подряд до 1 776 и 479 кадров; разброс даёт
+ * стохастический маршрут врагов). Третий — `respawn` обязан вернуть тело в
+ * застроенную клетку, иначе снятие превратилось бы в мигание на границе окна.
+ *
+ * И четвёртый, для обычных глав: `Enemies` поверх `JsonMap` за правило платит
+ * **ноль вызовов** — гейт по `typeof map.streamStep`, а не по `map.kind`.
+ */
+async function testEnemiesOffstageInUnbuiltCell() {
+  const world = await makeWorld();
+  const map = world.map;
+  await loadCells(world, map.cells.map((c) => c.id));
+  map.unloadChunk('1_1');
+  const holeNodes = [];
+  const builtNodes = [];
+  map.nav.pos.forEach((p) => {
+    if (inLoaded(map, p.x, p.z)) {
+      // «контроль» берётся только из узлов **вдалеке** от дыры (центр клетки
+      // 1_1 — это (0,0), шаг 160 м): за один кадр ИИ не успевает сойти в дыру,
+      // и «не снят» означает ровно «правило не тронуло законное тело»
+      if (Math.hypot(p.x, p.z) > 160) builtNodes.push(p);
+    } else holeNodes.push(p);
+  });
+  const player = fakePlayer(map);
+  const tracers = { spawn() {} };
+  const enemies = new Enemies(world.scene, map, player, world.camera, tracers, {
+    count: OPEN_600.gameplay.enemies.count,
+    alienCount: OPEN_600.gameplay.alienEnemies.count,
+  });
+  const items = enemies.items;
+  const half = Math.ceil(items.length / 2);
+  const pick = (list, n) => {
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(list[Math.floor(i * list.length / n)]);
+    return out;
+  };
+  const inHole = items.slice(0, half);
+  const onBuilt = items.slice(half);
+  inHole.forEach((e, i) => placeOn(e, pick(holeNodes, half)[i]));
+  onBuilt.forEach((e, i) => placeOn(e, pick(builtNodes, onBuilt.length)[i]));
+  const killsBefore = enemies.kills;
+  enemies.update(1 / 60);
+  const removed = inHole.filter((e) => e.offstage);
+  const deathsStarted = items.filter((e) => e.dead).length;
+  const hidden = removed.every((e) => e.group.visible === false);
+  const survivorsKept = onBuilt.every((e) => !e.offstage);
+  // инвариант правила: видимого тела в незастроенной клетке не остаётся
+  const leftInHole = items.filter((e) => !e.offstage && !e.dead
+    && !inLoaded(map, e.position.x, e.position.z)).length;
+  let shown = 0, shownUnbuilt = 0;
+  enemies.forEachVisible((p) => { shown++; if (!inLoaded(map, p.x, p.z)) shownUnbuilt++; });
+  // raycast: вертикальный луч сквозь грудь снятого тела обязан промахнуться,
+  // сквозь стоящее — попасть (иначе «промах» ничего не доказывает)
+  const down = new THREE.Vector3(0, -1, 0);
+  const rayAt = (e) => {
+    const cy = e.hitOffsetY !== undefined ? e.hitOffsetY : 1.0;
+    const o = new THREE.Vector3(e.position.x, e.position.y + cy + 8, e.position.z);
+    return enemies.raycast(o, down, 12);
+  };
+  const human = (list) => list.filter((e) => e.hitOffsetY === undefined && !e.dead);
+  const holeHit = human(inHole).map(rayAt).filter(Boolean).length;
+  const builtHit = human(onBuilt).map(rayAt).filter(Boolean).length;
+  // возрождение: таймер обнулён, следующий кадр должен поставить тело на узел
+  // **застроенной** клетки (navFit) — проверка «нет мигания»
+  for (const e of removed) e.respawnTimer = 0;
+  enemies.update(1 / 60);
+  const back = removed.filter((e) => !e.offstage);
+  const backUnbuilt = back.filter((e) => !inLoaded(map, e.position.x, e.position.z)).length;
+  // обычные главы: того же кода на JsonMap обязан проходить без единого вызова
+  const plainMap = new JsonMap(plainSpec());
+  const plainScene = new THREE.Scene();
+  plainMap.build(plainScene);
+  const plainPlayer = fakePlayer(plainMap);
+  const plain = new Enemies(plainScene, plainMap, plainPlayer, world.camera, tracers,
+    { count: 2, alienCount: 1 });
+  let plainErr = null;
+  try {
+    plain.items.forEach((e, i) => placeOn(e, { x: i * 2, y: 0, z: 0 }));
+    plain.update(1 / 60);
+  } catch (err) {
+    plainErr = err.message;
+  }
+  const plainSwept = plain.items.filter((e) => e.offstage).length;
+  map.dispose();
+  return {
+    name: 'враг в выгруженной клетке снят молча, вне луча и миникарты, и возвращается застроенным',
+    passed: plainErr === null && plain._streamed === false && plainSwept === 0
+      && removed.length === half && survivorsKept && hidden && deathsStarted === 0
+      && enemies.kills === killsBefore && leftInHole === 0 && shownUnbuilt === 0
+      && shown === items.length - removed.length && holeHit === 0 && builtHit > 0
+      && back.length > 0 && backUnbuilt === 0,
+    info: `тел всего ${items.length} (дыра + застроенное окно пополам): из дыры снято ${removed.length}`
+      + ` из ${half}, молча (смертей ${deathsStarted}, засчитанных убийств ${enemies.kills - killsBefore},`
+      + ` скрытых групп ${hidden ? 'все' : 'не все'}); на застроенных клетках снято ${half - removed.length}`
+      + ` (кандидат по bounds стёр бы их: узлы дыры лежат внутри габарита), видимых в дыре`
+      + ` после кадра ${leftInHole}; forEachVisible отдал ${shown} позиций, незастроенных среди них`
+      + ` ${shownUnbuilt}; лучей сквозь снятых ${holeHit} попаданий, сквозь стоящих ${builtHit} из`
+      + ` ${human(onBuilt).length}; возрождений из снятых ${back.length}, вне застроенных ${backUnbuilt};`
+      + ` на JsonMap: _streamed ${plain._streamed}, вызовов правила ${plainSwept === 0 ? 'ноль' : plainSwept},`
+      + ` ошибка ${plainErr === null ? 'нет' : plainErr}`,
+  };
+}
+
+/**
+ * Гейт этапа 5, часть 3 — «точка B и маяк появляются только в загруженном
+ * чанке» плюс то же правило для кузовов.
+ *
+ * Без него незастроенная клетка отвечает опорой «пол мира» — на фикстуре 0
+ * против 0,12 м у построенной, а по всей плите расхождение доходит до 10,54 м
+ * и в 1,3 % точек больше допуска `reached` по высоте (§ 6 этапа 5). Отсюда два
+ * предела: не застроено — не видно и не достигается, а на достройке отметка
+ * обязана пересечься со своей опорой (пересадка, а не прежний ноль). Для
+ * кузовов тот же предел в двух дополнительных местах: `nearest` не смеет
+ * предлагать посадку в невидимый корпус (мера: 868 кадров кузова из 2 400,
+ * 36 %), а `forEachVisible` не смеет давать метку туда, куда человек не дойдёт.
+ */
+async function testExitAndCarsOnlyInBuiltCells() {
+  const world = await makeWorld();
+  const map = world.map;
+  const spawnCell = map.spawnCell().id;
+  await map.loadChunk(spawnCell);
+  const ex = OPEN_600.gameplay.exit;
+  const exitCell = map.cellAt(ex.x, ex.z).id;
+  const goal = new ExitGoal(world.scene, map, ex, OPEN_600.gameplay.exitRadius);
+  goal.update(0);
+  const yBefore = goal.y;
+  const hiddenBefore = goal.group.visible === false && goal.built === false;
+  const reachedUnbuilt = goal.reached({ x: ex.x, z: ex.z, y: goal.y });
+  const spots = [
+    { x: map.spawn.x + 6, z: map.spawn.z + 6, yaw: 0.2 },
+    { x: ex.x - 3, z: ex.z + 4, yaw: -0.4 },
+  ];
+  for (const s of spots) s.y = map.groundHeightAt(s.x, s.z, 500);
+  const cars = new Cars(world.scene, map, { count: spots.length, spots });
+  cars.update(1 / 60);
+  const far = cars.items[1];
+  const carHidden = far.built === false && far.group.visible === false;
+  const yUnbuilt = far.pos.y;
+  const boardable = cars.nearest(far.pos);
+  let shownCars = 0, shownUnbuilt = 0;
+  cars.forEachVisible((p) => {
+    shownCars++;
+    if (!inLoaded(map, p.x, p.z)) shownUnbuilt++;
+  });
+  await map.loadChunk(exitCell);
+  goal.update(0.05);
+  cars.update(1 / 60);
+  const yBuilt = map.groundHeightAt(ex.x, ex.z, 500);
+  // пересадка: отметка маяка обязана равняться опоре, которую карта отдаёт
+  // **теперь** (тот же проба-сверху, что в конструкторе), а кузов — стоять на
+  // своей опоре неподвижно (повторный проба с его отметки даёт то же число),
+  // а не на «полу мира», который был у выгруженной клетки
+  const reseedY = Math.abs(goal.y - yBuilt) < 1e-9
+    && Math.abs(far.pos.y - far._support(0, 0, far.pos.y + CONFIG.building.stepUp)) < 1e-9;
+  const reachedBuilt = goal.reached({ x: ex.x, z: ex.z, y: goal.y });
+  const boardableAfter = cars.nearest(far.pos);
+  const litAfterLoad = goal.built && goal.group.visible === true && far.built && far.group.visible === true;
+  // на back-edge (снова выгрузить клетку) маяк обязан погаснуть, а не остаться
+  // видимым с уехавшей опорой
+  map.unloadChunk(exitCell);
+  goal.update(0.1);
+  cars.update(1 / 60);
+  const hiddenAgain = goal.built === false && goal.group.visible === false && far.built === false;
+  // обычные главы (9–13): правило отсекается отсутствием помпы, кузов обязан
+  // остаться видимым и предлагаемым, а `isBuiltAt` у их карты не существует
+  const plainScene = new THREE.Scene();
+  const plainMap = new JsonMap(plainSpec());
+  plainMap.build(plainScene);
+  const plainCars = new Cars(plainScene, plainMap,
+    { count: 1, spots: [{ x: 1, z: 1, yaw: 0, y: plainMap.groundHeightAt(1, 1, 500) }] });
+  plainCars.update(1 / 60);
+  const plainHidden = plainCars.items.filter((c) => !c.built).length;
+  const plainBoardable = plainCars.nearest(plainCars.items[0].pos) !== null;
+  goal.dispose(world.scene);
+  cars.dispose();
+  map.dispose();
+  return {
+    name: 'маяк точки B и кузов существуют только в застроенной клетке',
+    passed: hiddenBefore && !reachedUnbuilt && carHidden && boardable === null
+      && shownUnbuilt === 0 && litAfterLoad && reachedBuilt && boardableAfter && reseedY
+      && hiddenAgain && plainCars._streamed === false && plainHidden === 0
+      && plainBoardable && yBefore !== yBuilt,
+    info: `точка B в клетке '${exitCell}' при загруженной '${spawnCell}': опора незастроенной клетки`
+      + ` отвечает ${yBefore}, построенной — ${yBuilt} (разница ${(yBuilt - yBefore).toFixed(2)} м при`
+      + ` допуске reached 3 м); до достройки: видимости нет (${hiddenBefore}), reached=${reachedUnbuilt};`
+      + ` кузов в той же клетке: скрыт ${carHidden}, nearest отдал ${boardable === null ? 'null' : 'машину'},`
+      + ` pos.y ${yUnbuilt}; меток миникарты ${shownCars}, из них незастроенных ${shownUnbuilt}; после`
+      + ` достройки: маяк и кузов видны, reached=${reachedBuilt}, посадка ${boardableAfter ? 'доступна' : 'нет'},`
+      + ` отметки пересажены на свою опору (${reseedY}); после повторной выгрузки снова скрыты`
+      + ` (${hiddenAgain}); на JsonMap (главы 9–13): _streamed ${plainCars._streamed}, скрытых кузовов`
+      + ` ${plainHidden}, посадка доступна — ${plainBoardable}.`,
+  };
+}
+
+/**
+ * Гейт этапа 5, часть 4 — «план миникараты не прыгает при перемещении окна».
+ *
+ * Прыгало две вещи. Масштаб: план `JsonMap` рисуется в локальном окне
+ * `J.minimapRange` (130 м), а метки HUD идут через `worldToNormalized` по плите
+ * (`viewHalf` = 324 м) — расхождение **2,492 раза**, свой игрок попадал на
+ * 168 px планом против 173…178 px меткой. И «этаж»: выбор плиты по ближайшей
+ * застроенной опорной поверхности менялся **2 раза за пеший маршрут** (0 плит →
+ * 13 → 26). Открытый мир обязан держать одну систему координат — всю плиту, тот
+ * же охват, что у нормировки, — поэтому мера здесь побайтовая: план при двух
+ * разных `playerPos` в одном состоянии окна обязан сойтись байт в байт, а
+ * пиксель мировой точки обязан не измениться после реального сдвига окна
+ * помпой и сойтись с меткой (`worstPx` 0). Обычные главы правку не платят: у
+ * них хук обязан остаться локальным окном вокруг игрока.
+ */
+async function testMinimapPlanFrame() {
+  const world = await makeWorld();
+  const map = world.map;
+  await map.loadChunk(map.spawnCell().id);
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const draw = (px) => {
+    const ctx = canvas.getContext('2d');
+    map.drawMinimap(ctx, size, px);
+    return ctx.getImageData(0, 0, size, size).data;
+  };
+  const a = draw({ x: map.spawn.x, y: 0, z: map.spawn.z });
+  const b = draw({ x: 260, y: 0, z: -240 });
+  const c = draw({ x: -280, y: 0, z: 280 });
+  let differingBytes = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i] || a[i] !== c[i]) differingBytes++;
+  const viewOf = () => map._minimapView({ x: 0, z: 0 });
+  const pxOf = (v, x) => (x - v.cx + v.range) * size / (2 * v.range);
+  const probe = 137.5;
+  const v0 = viewOf();
+  // реальный сдвиг окна помпой (машина, 120 м): застроенный набор меняется,
+  // система координат плана — нет
+  const walk = await pumpRoute(map, { speed: CONFIG.car.maxSpeed, distance: 120, ping: false });
+  const v1 = viewOf();
+  const frameMovedPx = Math.abs(pxOf(v1, probe) - pxOf(v0, probe));
+  const ex = OPEN_600.gameplay.exit;
+  const pts = [[map.spawn.x, map.spawn.z], [ex.x, ex.z], [probe, -probe], [-299, 299]];
+  for (let i = 0; i < map.nav.pos.length; i += Math.max(1, Math.floor(map.nav.pos.length / 12))) {
+    const p = map.nav.pos[i];
+    pts.push([p.x, p.z]);
+  }
+  let worstPx = 0;
+  for (const [x, z] of pts) {
+    const [u, w] = map.worldToNormalized(x, z);
+    worstPx = Math.max(worstPx, Math.abs(pxOf(v1, x) - u * size), Math.abs(pxOf(v1, z) - w * size));
+  }
+  const costs = [];
+  for (let k = 0; k < 12; k++) {
+    const t = performance.now();
+    draw({ x: (k % 3) * 120 - 240, y: 0, z: (k % 2) * 200 - 100 });
+    costs.push(performance.now() - t);
+  }
+  costs.sort((x, y) => x - y);
+  const medCost = costs[costs.length >> 1];
+  // дефолтная ветка хука — ею пользуются главы 9–13, не переопределявшие его:
+  // обязана остаться **локальным** окном вокруг игрока (130 м при плите 600 —
+  // то самое расхождение 2,49 с метками, которое открытому миру не годится)
+  const pv = JsonMap.prototype._minimapView.call(map, { x: 10, z: -20 });
+  const plainLocal = pv.cx === 10 && pv.cz === -20
+    && pv.range === Math.min(J.minimapRange, Math.max(map.width, map.depth) / 2);
+  map.dispose();
+  return {
+    name: 'план миникараты держится одной системы координат и не прыгает',
+    passed: differingBytes === 0 && frameMovedPx === 0 && worstPx < 0.5
+      && v1.cx === 0 && v1.cz === 0 && v1.range === map.viewHalf && plainLocal && walk.steps > 0,
+    info: `${pts.length} мировых точек: план и метка worldToNormalized разошлись худшим на ${worstPx.toFixed(3)} px`
+      + ` (предел 0,5); план при трёх разных playerPos в одном окне совпал побайтно (расходящихся байтов из`
+      + ` ${a.length} — ${differingBytes}); после сдвига окна помпой (${walk.steps} кадров, клеток в окне`
+      + ` ${walk.maxLoaded}) центр и масштаб плана те же (cx ${v1.cx}, cz ${v1.cz}, range ${v1.range} против`
+      + ` viewHalf ${map.viewHalf}), пиксель probe-точки сдвинулся на ${frameMovedPx} px; отрисовка плана`
+      + ` ${medCost.toFixed(2)} мс (медиана 12); у не переопределяющей главы хук остался локальным:`
+      + ` ${JSON.stringify(pv)} при плите ${map.width} м.`,
+  };
+}
+
+/**
  * Прогон помпы по маршруту туда-обратно. `streamStep` зовётся ровно так, как
  * его зовёт `Game._tick` — до физики, аргументами `budgetMs, x, z, speed`, — а
  * кадром служит настоящая макрозадача: между кадрами разрешается `fetch` файла
@@ -797,6 +1221,10 @@ export async function runOpenWorldTests() {
     testMemoryCircle,
     testTwoOrders,
     testNavRestricted,
+    testBuiltMemberAndBoundsHole,
+    testEnemiesOffstageInUnbuiltCell,
+    testExitAndCarsOnlyInBuiltCells,
+    testMinimapPlanFrame,
     testPumpFrameBudget,
   ];
   const results = [];

@@ -13,6 +13,11 @@ export class ExitGoal {
    * @param {number} radius радиус достижения
    */
   constructor(scene, map, pos, radius) {
+    this.map = map;
+    // открытый мир отличается наличием помпы (`typeof`, как у остальных
+    // опциональных членов контракта): обычным главам правило не видно вовсе
+    this._streamed = typeof map.streamStep === 'function';
+    this.built = true;
     this.x = pos.x;
     this.z = pos.z;
     this.radius = radius;
@@ -38,15 +43,45 @@ export class ExitGoal {
     scene.add(this.group);
   }
 
-  /** Пульсация маяка — чтобы цель была заметна издалека. */
+  /**
+   * Пульсация маяка — чтобы цель была заметна издалека — и в открытом мире
+   * отвечает тот же вопрос, что и `Cars.update`: стоит ли ещё точка B на
+   * застроенной клетке.
+   *
+   * До её достройки у площадки нет опоры: `groundHeightAt` незастроенной клетки
+   * отвечает «пол мира» (замер: 0 против 0,12 м у построенной, а по плите
+   * худшее расхождение 10,54 м и 1,3 % точек выше допуска `reached` в 3 м), то
+   * есть маяк висел бы под настилом, а цель засчитывалась по отметке, которой
+   * в мире ещё нет. Поэтому не застроено — не видно и не достигается.
+   */
   update(time) {
+    if (this._streamed) {
+      const built = this.map.isBuiltAt(this.x, this.z);
+      if (built !== this.built) {
+        this.built = built;
+        this.group.visible = built;
+        // отметка берётся заново у своей опоры — прежняя взята с «пола мира»
+        if (built) this.reseat();
+      }
+    }
     const p = 1 + Math.sin(time * 2.4) * 0.12;
     this.pad.scale.set(p, 1, p);
     this.beam.material.opacity = 0.1 + Math.max(0, Math.sin(time * 2.4)) * 0.09;
   }
 
+  /**
+   * Пересадка площадки на фактическую опору точки B (тот же проба-сверху, что и
+   * в конструкторе) — вызывается на rising edge застроенности.
+   */
+  reseat() {
+    this.y = this.map.groundHeightAt(this.x, this.z, 500);
+    this.pad.position.y = this.y + 0.1;
+    this.beam.position.y = this.y + 13;
+  }
+
   /** Игрок внутри радиуса и на высоте площадки — глава пройдена. */
   reached(p) {
+    if (!this.built) return false;
     return Math.hypot(p.x - this.x, p.z - this.z) < this.radius &&
       Math.abs(p.y - this.y) < 3;
   }

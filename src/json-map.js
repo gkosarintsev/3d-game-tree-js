@@ -2083,6 +2083,27 @@ export class JsonMap extends SurfaceField {
   // ------------------------------------------------------------------ миникарта
 
   /**
+   * Окно, которым карта рисует план миникарты: `{cx, cz, range}` — центр и
+   * полуразмер в метрах.
+   *
+   * Дефолт — **локальное** окно `J.minimapRange` вокруг игрока: при стороне 600 м
+   * весь план в 336 px даёт 0,52…1,79 м/пиксель, и стена 0,35 м исчезает меньше
+   * пикселя. Из-за этого план и метки HUD живут в разных системах: метки идут
+   * через `worldToNormalized` (нормировка по плите, `viewHalf`), а план — по
+   * окну, и при `viewHalf / range = 324 / 130` расходятся в 2,49 раза (замер
+   * главы 12: свой же игрок — 168 px планом против 173…178 px меткой).
+   * Стримящая карта это переопределяет (§ 4.4 плана открытого мира), обычные
+   * главы правку не платят.
+   */
+  _minimapView(playerPos) {
+    return {
+      cx: playerPos ? playerPos.x : this.spawn.x,
+      cz: playerPos ? playerPos.z : this.spawn.z,
+      range: Math.min(J.minimapRange, Math.max(this.width, this.depth) / 2),
+    };
+  }
+
+  /**
    * План уровня на отметке игрока: плиты полов этого этажа, стены, которые его
    * задевают, проёмы маршей и настилы дорог.
    *
@@ -2095,9 +2116,7 @@ export class JsonMap extends SurfaceField {
     ctx.fillStyle = '#1b2128';
     ctx.fillRect(0, 0, size, size);
 
-    const cx = playerPos ? playerPos.x : this.spawn.x;
-    const cz = playerPos ? playerPos.z : this.spawn.z;
-    const range = Math.min(J.minimapRange, Math.max(this.width, this.depth) / 2);
+    const { cx, cz, range } = this._minimapView(playerPos);
     const k = size / (2 * range);
     const toPx = (wx, wz) => [(wx - cx + range) * k, (wz - cz + range) * k];
     const rectPx = r => {

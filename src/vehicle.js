@@ -155,6 +155,8 @@ export class Car {
     this.spin = 0;
     this.rider = null;
     this.grounded = true;
+    // открытого мира: кузов стоит в застроенной клетке (см. `Cars.update`)
+    this.built = true;
 
     this._dir = new THREE.Vector3();
 
@@ -225,6 +227,19 @@ export class Car {
       this.vertical = 0;
       this.grounded = true;
     }
+  }
+
+  /**
+   * Возврат на **свою** опору после достройки клетки, из которой кузов выгружали
+   * (см. `Cars.update`): проба сверху вниз от прежней отметки, а не `groundY`
+   * «пола мира». Без неё кузов, простоявший выгрузку на нуле, встал бы под
+   * настил: расхождение опоры незастроенной клетки с построенной на фикстуре
+   * даёт до **10,54 м** и 1,3 % точек выше допуска маяка в 3 м (§ 6, этап 5).
+   */
+  reseat() {
+    this.pos.y = this._support(0, 0, this.pos.y + CONFIG.building.stepUp);
+    this.vertical = 0;
+    this.grounded = true;
   }
 
   /**
@@ -416,6 +431,9 @@ export class Cars {
     this.map = map;
     this.items = [];
     this.driven = null;
+    // отличие открытого мира — наличие помпы (`typeof`, как у остальных
+    // опциональных членов контракта): главы 9–13 за правило не платят
+    this._streamed = typeof map.streamStep === 'function';
     const spots = data.spots ?? [];
     const count = Math.min(data.count ?? CONFIG.car.count, spots.length);
     for (let i = 0; i < count; i++) {
@@ -430,11 +448,15 @@ export class Cars {
   /**
    * Ближайшая свободная машина в радиусе `CONFIG.car.enterRadius` от точки
    * кузова — с расстоянием, по которому HUD решает, показывать ли подсказку.
+   *
+   * Кузов в незастроенной клетке не предлагается: посадка перенесла бы тело в
+   * область, где нет ни опоры настилов, ни графа, а невидимую машину ещё и
+   * нельзя из себя «выгрузить» — водитель остался бы в снятом кузове.
    */
   nearest(pos) {
     let best = null, bestDist = Infinity;
     for (const car of this.items) {
-      if (car.rider) continue;
+      if (car.rider || !car.built) continue;
       const d = Math.hypot(car.pos.x - pos.x, car.pos.z - pos.z);
       if (d < bestDist) { best = car; bestDist = d; }
     }
@@ -455,8 +477,24 @@ export class Cars {
     return true;
   }
 
+  /**
+   * Кадр кузовов. В открытом мире тот, чья клетка выгружена, **снимается со
+   * сцены и не считается**: опора незастроенной клетки — «пол мира» (на
+   * фикстуре 0 против 0,12 м у построенной, по всей плите — до 10,54 м), и без
+   * этого кузов падал бы сквозь землю, а на миникарте оставалась метка там,
+   * куда человек не дойдёт (мера: 867 кадров кузова из 2 400, 36,1 %). Ведомый
+   * кузов в дыре оказаться не может: окно центрировано на теле, а тело в
+   * поездке — сам кузов.
+   */
   update(dt) {
     for (const car of this.items) {
+      const built = !this._streamed || this.map.isBuiltAt(car.pos.x, car.pos.z);
+      if (built !== car.built) {
+        car.built = built;
+        car.group.visible = built;
+        if (built) car.reseat();
+      }
+      if (!built) continue;
       if (car === this.driven && car.rider) car.drive(dt, car.rider.keys);
       else car.idle(dt);
     }
@@ -492,9 +530,9 @@ export class Cars {
     for (const car of this.items) car.shift(dx, dz);
   }
 
-  /** Машины уровня — для миникарты. */
+  /** Машины застроенных клеток — для миникарты. */
   forEachVisible(fn) {
-    for (const car of this.items) fn(car.pos, car.yaw);
+    for (const car of this.items) if (car.built) fn(car.pos, car.yaw);
   }
 
   dispose() {
