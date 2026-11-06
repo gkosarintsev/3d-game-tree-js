@@ -11,6 +11,9 @@ let RAPIER = null;
 let world = null;
 let initialized = false;
 
+/** chunkId → коллайдеры, созданные для этого чанка (для removeChunk, R4). */
+const chunkColliders = new Map();
+
 export async function init() {
   if (initialized) return;
   RAPIER = await import('@dimforge/rapier3d-compat');
@@ -23,8 +26,10 @@ export function isReady() {
   return initialized && world !== null && RAPIER !== null;
 }
 
-export function buildFrom(map) {
+/** Построить индекс из карты (solids → луч, blockers/rails → тело). chunkId — для R4. */
+export function buildFrom(map, chunkId) {
   if (!isReady() || !map) return;
+  const colliders = chunkId ? [] : null;
   for (const s of (map.solids ?? [])) {
     const hx = (s.maxX - s.minX) / 2;
     const hy = (s.maxY - s.minY) / 2;
@@ -33,7 +38,8 @@ export function buildFrom(map) {
     const cy = (s.minY + s.maxY) / 2;
     const cz = (s.minZ + s.maxZ) / 2;
     const desc = RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy, cz);
-    world.createCollider(desc);
+    const c = world.createCollider(desc);
+    if (colliders) colliders.push(c);
   }
   for (const b of (map.blockers ?? [])) {
     const hx = (b.maxX - b.minX) / 2;
@@ -43,8 +49,10 @@ export function buildFrom(map) {
     const cy = (b.y0 + b.y1) / 2;
     const cz = (b.minZ + b.maxZ) / 2;
     const desc = RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(cx, cy, cz);
-    world.createCollider(desc);
+    const c = world.createCollider(desc);
+    if (colliders) colliders.push(c);
   }
+  if (chunkId && colliders) chunkColliders.set(chunkId, colliders);
   // TODO R1: rails (arc/wedge) → convexHull; prisms → convexHull; sweeps → trimesh
 }
 
@@ -55,16 +63,21 @@ export function dispose() {
   }
   initialized = false;
   RAPIER = null;
+  chunkColliders.clear();
 }
 
-/** Добавить чанк в индекс (R4). Пока — полная перестройка. */
+/** Добавить чанк в индекс (R4). */
 export function addChunk(id, map) {
-  buildFrom(map);
+  buildFrom(map, id);
 }
 
-/** Снять чанк из индекса (R4). */
+/** Снять чанк из индекса (R4). Удаляет коллайдеры, созданные для этого чанка. */
 export function removeChunk(id) {
-  // TODO R4: снять коллайдеры чанка (сейчас мир общий, снимается целиком)
+  const colliders = chunkColliders.get(id);
+  if (colliders) {
+    for (const c of colliders) world.removeCollider(c);
+    chunkColliders.delete(id);
+  }
 }
 
 export function rayHit(origin, dir, maxDist) {
