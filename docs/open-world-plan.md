@@ -2345,6 +2345,10 @@ Chromium встроенного браузера, `python -m http.server 8152`, 
      `ColliderDesc.setTranslation(x, y, z)`;
   5. `convexHull` ест плоский `Float32Array`, и `w.colliders.len()` после
      `w.free()` читать нельзя.
+  6. `castShape` в `@dimforge/rapier3d-compat@0.21.0` бросает `E.intoRaw is not
+     is not a function` в WASM-биндинге (см. `src/physics-index.js` `bodySweep` с
+     graceful fallback; мера R2 — замер на seuraющем заходе, когда ошибка будет
+     исправлена или найден обходной путь).
 - **Выгрузка чанка = снятие тела**: одно фиксированное тело на чанк, все его
   коллайдеры на нём, `removeRigidBody` — 1 мс. Снятие только коллайдеров
   оставляет тела-сироты (разряженный мир шагается за 249 мкс). Память меряется
