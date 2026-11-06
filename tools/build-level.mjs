@@ -27,6 +27,7 @@ import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel, isV2Kind } from './normalize-level.mjs';
 import { expandCity } from './city.js';
 import { splitLevel, stringifyStable } from './chunk-level.mjs';
+import { skeletonOf } from './skeleton.mjs';
 
 /**
  * Путь брифа до чисел карты — один для модуля и для каталога: разворот города,
@@ -145,12 +146,24 @@ export function generateCatalog(raw, sourceName, opts = {}) {
     // ValidationError, чтобы CLI печатал список, а не стек
     throw new ValidationError([String(e?.message ?? e)], warnings);
   }
+  // Скелет (§ 4.2) считается по ВСЕМУ миру, а не по чанкам: его смысл —
+  // связность за пределами загруженного окна, и из местных копий клеток её не
+  // собрать (шов дал бы две несвязанные ветви вместо одного ребра). Здесь, а не
+  // внутри разрезки, он нужен затем, чтобы `splitLevel` оставалась пригодной для
+  // карты без нормализованных зданий и наклонных настилов — на ручной геометрии
+  // мерят шов (п. 4), а скелет ест полные данные нормализатора.
+  const sk = skeletonOf(level.map);
+  // В файл едут только числа, которые читает движок: `sk.meta` (компоненты,
+  // отказы, цена фаз) остаётся у парсера и сюиты, потому что обход от них не
+  // зависит, а побайтовость `index.js` — зависит.
+  const indexMap = { ...split.indexMap, skeleton: { nodes: sk.nodes, edges: sk.edges } };
+  const meta = { ...split.meta, skeleton: sk.meta };
   const notice = warnings.length
     ? `\n * Предупреждения парсера:\n${warnings.map(w => ` *   — ${w}`).join('\n')}\n *`
     : '';
   const stem = basename(sourceName, extname(sourceName));
   const body = stringifyStable({
-    name: level.name, hint: level.hint, map: split.indexMap, sky: level.sky, gameplay: level.gameplay,
+    name: level.name, hint: level.hint, map: indexMap, sky: level.sky, gameplay: level.gameplay,
   }).replace(/\n$/, '');
   const indexCode = `/**
  * СГЕНЕРИРОВАННО — руками не править.
@@ -172,7 +185,16 @@ export function generateCatalog(raw, sourceName, opts = {}) {
  * Дом, вставший на шов, едет в каждый пересекающий чанк (маргин
  * \`stream.overlap\` — его вывел парсер, движку считать его нечем), а картинку и
  * свет даёт только владеющий: у его копии стоит флаг \`owner: true\`.
- * \`skeleton\` — этап 2, до него пустой.${notice}
+ *
+ * Скелет (\`skeleton.nodes\`/\`skeleton.edges\`) — глобальная сеть улиц, русел и
+ * наружных дверей в **мировых** осях: узлы идут шагом 24 м вдоль осевых
+ * полилиний, а не по решётке плиты, поэтому их число растёт с километражом
+ * содержимого, а не с площадью — на фикстуре 1,96 км² это 3 864 узла против
+ * 54 756 клеток (234²), которые решётка навигации поставила бы по всей плите
+ * шагом 6 м. Рёбра уже проверены пробами карты (\`edgeOk\` — тот же габарит и
+ * та же опора, что у графа главы) на парсере, и связность мира проверяется здесь
+ * же, до движка: WorldMap только цепляет решётки загруженных чанков на этот
+ * каркас.${notice}
  */
 export const ${constName} = ${body};
 `;
@@ -186,8 +208,8 @@ export const ${constName} = ${body};
     dir: `${dirname(sourceName).replace(/\\/g, '/')}/${stem}`,
     files,
     warnings,
-    meta: split.meta,
-    indexMap: split.indexMap,
+    meta,
+    indexMap,
     chunks: split.chunks,
     // нормализованная карта мира: сюита § 7.1 сверяет с ней чанки (план, владение,
     // вердикт у шва), и второй раз гонять нормализатор ради этого было бы вдвое
@@ -291,6 +313,11 @@ function main(argv) {
       + ` участников ${m.participants}, владельцев ${m.owners}, маргин ${m.overlap} м`);
     console.log(`  данные чанков — ${total} Б (средний ${Math.round(total / sizes.length)} Б, наибольший ${Math.max(...sizes)} Б),`
       + ` индекс ${generated.files[0].code.length} Б, предупреждений — ${generated.warnings.length}`);
+    const sk = m.skeleton;
+    console.log(`  скелет — ${sk.nodes} узлов / ${sk.edges} рёбер, компонент ${sk.components.before} → `
+      + `${sk.components.after}, длинных рёбер принято ${sk.joined} (худшее ${sk.longestJoin} м), `
+      + `элементов вне большой сети ${sk.covered.missingCount}; построение ${sk.ms.field}+${sk.ms.chains}`
+      + `+${sk.ms.cands}+${sk.ms.join}+${sk.ms.report} мс`);
     return 0;
   }
   console.log(`${basename(targets[0].path)}: ${generated.name} записан (${targets[0].code.length} символов, предупреждений — ${generated.warnings.length})`);

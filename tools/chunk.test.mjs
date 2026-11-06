@@ -19,8 +19,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CONFIG } from '../src/config.js';
 import { circleHitsRect } from '../src/solids.js';
+import { SurfaceField } from '../src/surfaces.js';
 import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { generateCatalog, generateModule } from './build-level.mjs';
+import { SKELETON_STEP, GROUND_FIT, axisLength, skeletonOf } from './skeleton.mjs';
 import { schemaText, SCHEMA_FILES } from './export-schema.mjs';
 import {
   splitLevel, chunkOverlap, planOf, localize, CHUNK_COLLECTIONS, stringifyStable,
@@ -86,12 +88,15 @@ function openBrief(chunk = CHUNK, mutate = null) {
 }
 
 const brief = openBrief();
-// два тяжёлых прогона нужны проверке детерминизма; остальные меры берут
-// нормализованную карту и разрезку из неё, не плодя нормализатор
+// `full` и `again` — два одинаковых тяжёлых прогона ради детерминизма, а
+// `backwards` — третий: с этапа 2 в `index.js` лежит скелет, которого у голой
+// разрезки нет, поэтому «порядок обхода не влияет на вывод» мерится файлами
+// эмиссии, а не только чанками. Остальные меры берут нормализованную карту и
+// разрезку из неё, не плодя нормализатор
 const full = generateCatalog(structuredClone(brief), FIXTURE);
 const again = generateCatalog(structuredClone(brief), FIXTURE);
 const worldMap = full.worldMap;
-const backwards = splitLevel(worldMap, brief.stream, { reverse: true });
+const backwards = generateCatalog(structuredClone(brief), FIXTURE, { reverse: true });
 const noMargin = splitLevel(worldMap, brief.stream, { overlap: 0 });
 
 const grown = (r, m) => ({ minX: r.minX - m, maxX: r.maxX + m, minZ: r.minZ - m, maxZ: r.maxZ + m });
@@ -236,6 +241,11 @@ t('идемпотность к порядку: обход клеток и объ
   }
   assert(diff.length === 0, diff.slice(0, 3).join(' | '));
   eq(stringifyStable(backwards.indexMap), stringifyStable(full.indexMap), 'index.js зависит от порядка обхода');
+  // байты файла, а не только его данные: эмиссия правит шапку и порядок ключей,
+  // и скелет в `index.js` обязан пережить обратный обход без расхождения
+  eq(backwards.files.length, full.files.length, 'файлов каталога при обратном обходе');
+  const drifted = full.files.filter((f, i) => backwards.files[i].code !== f.code).map(f => f.path);
+  eq(drifted.length, 0, 'файлов, чьи байты зависят от порядка обхода');
 });
 
 // § 7.1 п. 3.
@@ -316,6 +326,221 @@ t('шов: без маргина та же мера краснеет — overlap
 });
 
 /**
+ * § 7.1 п. 5 — скелет.
+ *
+ * Меряется по **выведенным в `index.js` числам** (`indexMap.skeleton`), а не по
+ * `meta` парсера: движок читает файлы, и расхождение между тем, что скелет
+ * посчитал, и тем, что эмиссия положила в каталог, — дефект файла, который иначе
+ * уехал бы в браузер. Наборы настилов, берегов и дверей берёт тот же
+ * `SurfaceField` и тот же `GROUND_FIT`, что и фазы скелета: «дверь наружная
+ * наземная» без общего числа означала бы два разных списка, и красная сюита
+ * показала бы меру вместо дыры.
+ */
+const SK = full.indexMap.skeleton;
+const skField = new SurfaceField(worldMap);
+skField.collectData();
+// Двойные числа в файл идут без квантования (§ 4.2, цена `r3` на шве кольца),
+// поэтому узел цепочки и узел эмиссии сравниваются точно, а не «ближайший».
+const skIndex = new Map(SK.nodes.map((n, i) => [`${n[0]}|${n[1]}|${n[2]}`, i]));
+
+/** Компоненты по рёбрам из файла: обход не знает ни `adj` скелета, ни `meta`. */
+function emittedComponents() {
+  const adj = SK.nodes.map(() => []);
+  for (const [a, b] of SK.edges) {
+    adj[a].push(b);
+    adj[b].push(a);
+  }
+  const of = new Int32Array(SK.nodes.length).fill(-1);
+  const sizes = [];
+  for (let s = 0; s < SK.nodes.length; s++) {
+    if (of[s] >= 0) continue;
+    const c = sizes.length;
+    const q = [s];
+    of[s] = c;
+    for (let h = 0; h < q.length; h++) {
+      for (const nb of adj[q[h]]) if (of[nb] < 0) { of[nb] = c; q.push(nb); }
+    }
+    sizes.push(q.length);
+  }
+  return { count: sizes.length, of, main: sizes.indexOf(Math.max(...sizes)), sizes };
+}
+const skNet = emittedComponents();
+
+/** Точки цепочки элемента: все ли они легли в файл и в большую сеть. */
+function chainInFile(pts, label, errors) {
+  let missing = 0, offNet = 0;
+  for (const p of pts) {
+    const i = skIndex.get(`${p.x}|${p.y}|${p.z}`);
+    if (i === undefined) { missing++; continue; }
+    if (skNet.of[i] !== skNet.main) offNet++;
+  }
+  if (missing) errors.push(`${label}: узлов цепочки нет в index.js — ${missing} из ${pts.length}`);
+  else if (offNet) errors.push(`${label}: узлов цепочки вне большой сети — ${offNet} из ${pts.length}`);
+  return !missing && !offNet;
+}
+
+t('скелет: одна связная сеть на рёбрах, лежащих в index.js', () => {
+  eq(full.meta.skeleton.step, SKELETON_STEP, 'шаг скелета, выведенный парсером');
+  eq(skNet.count, 1, `компонент скелета (узлов ${SK.nodes.length}, рёбер ${SK.edges.length})`);
+  assert(skNet.of.every(c => c === skNet.main), 'есть узел, до которого рёбра из файла не доходят');
+  notes.push(`скелет: ${SK.nodes.length} узлов / ${SK.edges.length} рёбер в index.js, компонент ${skNet.count},`
+    + ` размерен на парсере ${full.meta.skeleton.components.before} → 1 (длинных рёбер принято `
+    + `${full.meta.skeleton.joined}, худшее ${full.meta.skeleton.longestJoin} м, отказов ${JSON.stringify(full.meta.skeleton.rejected)})`);
+});
+
+t('скелет проходит каждый настил дороги и каждый берег русла', () => {
+  const errors = [];
+  let decks = 0, decksOk = 0, banks = 0, banksOk = 0, pts = 0;
+  const sky = skField.roads.filter(r => r.type === 'skybridge');
+  for (const road of skField.roads) {
+    // переход вне скелета — решение владельца («только магистрали»): его торцы
+    // стыкуются с полом комнаты или ходовой кровлей, наружу такой настил не
+    // соединён ни с чем и дал бы отдельную компоненту
+    if (road.type === 'skybridge') continue;
+    for (const [di, d] of (road.decks ?? []).entries()) {
+      decks++;
+      const chain = skField.deckChain(d, SKELETON_STEP) ?? [];
+      pts += chain.length;
+      if (!chain.length) { errors.push(`${road.id}:${di} — цепочка пуста, настил в скелете не представлен`); continue; }
+      if (chainInFile(chain, `настил ${road.id}:${di}`, errors)) decksOk++;
+    }
+  }
+  for (const d of skField.descents) {
+    banks++;
+    const chain = skField.descentChain(d, SKELETON_STEP);
+    if (!chain) { errors.push(`сход ${d.id} — цепочки нет (уклон круче предела или план пуст)`); continue; }
+    pts += chain.length;
+    if (chainInFile(chain, `сход ${d.id}`, errors)) banksOk++;
+  }
+  // цена исключения — список, а не молчание: сколько настилов переходов скелет
+  // сознательно не ведёт, и ни одного из них в сети быть не должно
+  const skyDecks = sky.flatMap(r => (r.decks ?? []).map((d, di) => `${r.id}:${di}`));
+  const leaked = sky.flatMap(r => (r.decks ?? []).flatMap((d, di) =>
+    (skField.deckChain(d, SKELETON_STEP) ?? []).filter(p => skIndex.has(`${p.x}|${p.y}|${p.z}`)).map(() => `${r.id}:${di}`)));
+  eq(new Set(leaked).size, 0, `настилов перехода, чьи точки всё же легли в сеть (${skyDecks.length} настилов исключены)`);
+  eq(errors.length, 0, errors.slice(0, 3).join(' | ') || 'настилы и берега в скелете');
+  eq(decksOk, decks, 'настилов, чья цепочка целиком легла в index.js и в большую сеть');
+  eq(banksOk, banks, 'сходов русла, представленных в скелете');
+  notes.push(`скелет по содержимому: настилов ${decks} (цепочек целых ${decksOk}), сходов ${banks} (${banksOk}),`
+    + ` точек цепочек ${pts}; вне сети по решению — ${sky.length} перехода / ${skyDecks.length} настила`);
+});
+
+t('скелет проходит каждую наружную дверь наземного уровня', () => {
+  const errors = [];
+  let total = 0, upFloors = 0, inner = 0;
+  for (const b of skField.buildings) {
+    for (const d of b.doors ?? []) {
+      // отбор — ровно фаза 3 скелета: `_inPlan` (наружная) и `GROUND_FIT` по
+      // отметке пола (наземная). Остальные два счётчика называют, сколько дверей
+      // правило не зовёт и почему
+      if (skField._inPlan(b, d.outside)) { inner++; continue; }
+      if (Math.abs(d.y - b.baseY) > GROUND_FIT) { upFloors++; continue; }
+      total++;
+      const y = skField.groundHeightAt(d.outside.x, d.outside.z, d.y);
+      const i = skIndex.get(`${d.outside.x}|${y}|${d.outside.z}`);
+      if (i === undefined) { errors.push(`дверь ${d.id}: узла (${d.outside.x}, ${y}, ${d.outside.z}) нет в index.js`); continue; }
+      if (skNet.of[i] !== skNet.main) errors.push(`дверь ${d.id}: узел в компоненте ${skNet.of[i]}, а не в большой сети`);
+    }
+  }
+  eq(errors.length, 0, errors.slice(0, 3).join(' | ') || 'двери наземного уровня в скелете');
+  assert(total > 0, 'ни одной наружной наземной двери — мера нечего проверяет');
+  notes.push(`скелет по дверям: наземных ${total} (все в сети), выше земли ${upFloors}, внутри плана ${inner}`);
+});
+
+t('скелет проходит каждый чанк с уличным содержимым', () => {
+  // «уличное содержимое» клетки — её прямоугольник пересекает план настила
+  // (не перехода), план схода или точка наружной наземной двери. Клетка без
+  // содержимого узла не требует: там скелету неоткуда взяться, и требовать его
+  // значило бы заставлять скелет покрывать незастроенную плиту
+  const rects = [];
+  for (const road of skField.roads) {
+    if (road.type === 'skybridge') continue;
+    for (const d of road.decks ?? []) rects.push({ id: `настил ${road.id}`, r: d });
+  }
+  for (const d of skField.descents) rects.push({ id: `сход ${d.id}`, r: d.plan });
+  const groundDoors = [];
+  for (const b of skField.buildings) {
+    for (const d of b.doors ?? []) {
+      if (skField._inPlan(b, d.outside) || Math.abs(d.y - b.baseY) > GROUND_FIT) continue;
+      groundDoors.push({ id: `дверь ${d.id}`, x: d.outside.x, z: d.outside.z });
+    }
+  }
+  const hitsRect = (c, r) => c.minX <= r.maxX && r.minX <= c.maxX && c.minZ <= r.maxZ && r.minZ <= c.maxZ;
+  const empty = [];
+  let withContent = 0, leastNodes = Infinity;
+  for (const cell of full.chunks) {
+    const c = cell.cell.rect;
+    const content = rects.some(o => hitsRect(c, o.r))
+      || groundDoors.some(d => d.x >= c.minX && d.x <= c.maxX && d.z >= c.minZ && d.z <= c.maxZ);
+    if (!content) continue;
+    withContent++;
+    let n = 0;
+    for (const p of SK.nodes) if (p[0] >= c.minX && p[0] <= c.maxX && p[2] >= c.minZ && p[2] <= c.maxZ) n++;
+    if (!n) empty.push(`${cell.cell.id} (${content})`);
+    leastNodes = Math.min(leastNodes, n);
+  }
+  eq(empty.length, 0, `чанков с уличным содержимым без единого узла скелета: ${empty.slice(0, 4).join(', ')}`);
+  notes.push(`скелет по чанкам: клеток с содержимым ${withContent} из ${full.chunks.length},`
+    + ` наименьшее число узлов в клетке ${leastNodes}`);
+});
+
+/**
+ * § 7.1 п. 5, вторая половина критерия этапа 2 — «цена построения не растёт с
+ * площадью плиты». Меряется отношением чисел, а не миллисекундами: время на
+ * этой машине плавает в полтора раза между прогонами (замер 1 004…1 202 мс на
+ * фикстуре), а узловое содержание — от прогона к прогону одно и то же, и
+ * именно оно определяет цену в браузере (движок обходит массивы из `index.js`,
+ * ничего нового не считая).
+ *
+ * Две пары сравнений, без которых «3 864 узла» — просто число:
+ *  (а) тот же контент на плите вдвое больше площади. Решётка навигации
+ *      платила бы за это ×2,04 (54 756 → 111 556 клеток шагом 6 м), скелет
+ *      обязан дать РОВНО те же узлы и рёбра: он ставится вдоль осей.
+ *  (б) тот же контент вдвое короче при прежней плите — площадь не менялась
+ *      вовсе. Узлов обязано упасть во столько же раз, во сколько осей, иначе
+ *      «∝ длина дорог» было бы наблюдением, а не свойством.
+ *
+ * Срез делается по мировым осям (`minX < 0`) и трогает и настилы, и дома:
+ * иначе вместе с дорогами осталось бы полное число дверей, и отношение узлов
+ * к осям уехало бы вверх без всякой связи с ценой.
+ */
+t('скелет: цена ∝ протяжённость осей, а не площадь плиты', () => {
+  const mile = axisLength(skField);
+  const wide = skeletonOf({ ...worldMap, ground: { ...worldMap.ground, size: 2000 } });
+  eq(wide.meta.nodes, SK.nodes.length, 'узлов при площади ×2,04 (плита 2000 м)');
+  eq(wide.meta.edges, SK.edges.length, 'рёбер при площади ×2,04 (плита 2000 м)');
+  eq(wide.meta.components.after, 1, 'компонент при площади ×2,04 (плита 2000 м)');
+
+  const westMap = {
+    ...worldMap,
+    roads: worldMap.roads
+      .map(r => ({ ...r, decks: (r.decks ?? []).filter(d => d.minX < 0) }))
+      .filter(r => (r.decks ?? []).length > 0),
+    buildings: worldMap.buildings.filter(b => (b.bounds?.minX ?? 0) < 0),
+  };
+  const westField = new SurfaceField(westMap);
+  westField.collectData();
+  const westMile = axisLength(westField);
+  const skw = skeletonOf(westMap);
+  const axisRatio = westMile.km / mile.km;
+  const nodeRatio = skw.meta.nodes / SK.nodes.length;
+  // Допуск 0,05: отношение не обязано быть точным — `deckChain` мельчит шаг
+  // там, где перепад соседних узлов выше `stepUp`, и этот дополнительный шаг
+  // не пропорционален длине оси. Замер — 0,002 (0,602 против 0,605), то есть
+  // допуск в 25 раз хуже факта и всё ещё не даёт пройти площади: при цене по
+  // площади отношение было бы 1,00 против 0,602.
+  assert(Math.abs(nodeRatio - axisRatio) <= 0.05,
+    `отношение узлов ${nodeRatio.toFixed(3)} разошлось с отношением осей ${axisRatio.toFixed(3)} `
+    + `на ${(nodeRatio - axisRatio).toFixed(3)} > 0,05`);
+  notes.push(`цена скелета: осей ${mile.km.toFixed(2)} км → узлов ${SK.nodes.length} `
+    + `(${Math.round(SK.nodes.length / mile.km)} узлов/км, ${Math.round(SK.nodes.length / (worldMap.ground.size ** 2 / 1e6))} узлов/км²); `
+    + `плита ×2,04 площади — узлов ${wide.meta.nodes}, рёбер ${wide.meta.edges}, компонент ${wide.meta.components.after} (цена не тронулась); `
+    + `оси ×${axisRatio.toFixed(3)} при прежней плите — узлов ×${nodeRatio.toFixed(3)} `
+    + `(настилов ${mile.decks} → ${westMile.decks}, компонент ${skw.meta.components.after}: срез рвёт кольцо, `
+    + `для меры цены это допустимо — гейт связности мерит полный мир)`);
+});
+
+/**
  * Крошечная карта для меры шва: плита 400 × 400, клетки по 200 м, у границы
  * x = 0 стоит стена, целиком лежащая в правой клетке и не пересекающая её. На
  * большой фикстуре такое редкость (кварталы генератора не выровнены по
@@ -342,7 +567,6 @@ function syntheticMap() {
 
 // Локализация — вне списка § 7.1, но без неё п. 3 и п. 4 бессмысленны: чанк с
 // несдвинутой координатой проходит «покрытие» и краснеет швом в браузере.
-// (П. 5 списка — скелет — приходит этапом 2, здесь его нечем мерить.)
 t('локализация обратима: копия чанка, возвращённая в мир, равна мировому объекту', () => {
   let worst = 0;
   const errors = [];
