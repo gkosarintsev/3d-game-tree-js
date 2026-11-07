@@ -3,21 +3,21 @@
   "kind": "open",
   "metadata": {
     "levelName": "level-14",
-    "name": "Глава 14. Ночь на четыре района",
-    "hint": "От северного устоя западного моста — через реку, потом вдоль южного берега мимо складов и ярмарочных кварталов к маяку у южного устоя восточного. Среднего моста нет, переходов между башнями тоже: город достраивается по клеткам впереди и гаснет за спиной.",
+    "name": "Глава 14. Ночь на десять километров",
+    "hint": "От района NCC в северо-западном углу плиты — через пустошь к району SKIT в юго-восточном углу. Город достраивается по чанкам 500 м впереди игрока и гаснет за спиной. Авто припарковано у точки появления.",
     "engine": "AI-First Three.js Pipeline",
     "units": "meters",
-    "notes": "Первая открытая глава реестра (`kind: 'open'`, этап 6 плана docs/open-world-plan.md). Город — тот же, что у фикстуры probe/open-600.json: плита 600 м, четыре района генератора (сид 20261103), река с двумя мостами и бродами. Числа города и выводимых рядов скопированы с фикстуры дословно, а десять значений, равных default схемы, убраны по правилу AGENTS, поэтому чанки главы побайтово равны чанкам фикстуры и все замеры этапов 3–5 относятся к этой главе без пересчёта: 10 113 узлов / 18 407 рёбер на девяти клетках, ряды 30 623 окна / 264 вывески / 714 предметов мусора, маршрут A→B 93 узла / 455,3 м через три клетки (0_1 → 1_1 → 2_1). Спавн и точка B те же, что у главы 10, но среднего моста и переходов между башнями здесь нет: путь обязан идти через западный мост и вдоль южного берега, то есть пересечь три клетки, а не одну. stream.chunk 200 — клетка, на которой измерены все пределы этапа 4 (синхронная сборка одной клетки 111,2 мс, файл 55 209 Б). keep 0 — окно из одной клетки плюс упреждение: при keep 1 на этой плите окно равно всему миру, и выгрузка не измерялась бы вовсе; замер окна на спавне — 4 клетки и 4 247 узлов. aheadMin 40 м — 4,7 с пешего хода (CONFIG.speed.run 8,5 м/с) против 0,231 с худшей достройки клетки (замер этапа 4); aheadMax 120 держит тот же запас для машины (машин в главе нет — секция gameplay.cars отсутствует). budgetMs 40 — потолок кадра под один неразделимый атом: `commit` замерен 13,7…39,0 мс (цена ∝ площади загруженного окна, открытое решение § 10.14), `picture` 5,1…25,0 мс, а разделимая работа клампится просьбой движка (CONFIG.jsonMap.pump.frameBudgetMs 12) и по той же мерке не бывает больше 11,8 мс. Спавн перенесён из (-120, 96) в (-300, 80) — в пустошь между рекой и районом NCC, чтобы не спавнить внутри здания."
+    "notes": "Открытая глава (`kind: 'open'`) на плите 10000 × 10000 м (10 км²), 625 чанков по 400 м (сетка 25×25). Четыре района генератора в углах плиты (NCC, NKAB, SIND, SKIT), каждый в своих чанках. stream.chunk 400 м — окно из одной клетки плюс упреждение; при keep 1 окно 3×3 чанка (1200 м). Авто припарковано в 10 м от спавна (gameplay.cars). Плита 10 км² требует чанков для стриминга (развилка 5 плана). Спавн в районе NCC, точка B — в районе SKIT, между ними почти вся плита."
   },
   "ground": {
-    "size": 600,
+    "size": 10000,
     "color": "#1a1d22"
   },
   "stream": {
-    "chunk": 200,
-    "keep": 0,
-    "aheadMin": 40,
-    "aheadMax": 120,
+    "chunk": 400,
+    "keep": 1,
+    "aheadMin": 100,
+    "aheadMax": 400,
     "budgetMs": 40
   },
   "windows": {
@@ -38,97 +38,8 @@
       6.5
     ]
   },
-  "waterways": [
-    {
-      "id": "river",
-      "width": 70,
-      "bedY": -4,
-      "surfaceY": -1.5,
-      "bank": "quay",
-      "ramps": [
-        {
-          "at": {
-            "x": -220,
-            "z": 0
-          },
-          "width": 6
-        },
-        {
-          "at": {
-            "x": 230,
-            "z": 0
-          },
-          "width": 6
-        }
-      ],
-      "points": [
-        {
-          "x": -300,
-          "z": 0
-        },
-        {
-          "x": 300,
-          "z": 0
-        }
-      ]
-    }
-  ],
-  "roads": [
-    {
-      "id": "bridge_west",
-      "type": "bridge",
-      "width": 8,
-      "points": [
-        {
-          "x": -120,
-          "y": 0.12,
-          "z": -80
-        },
-        {
-          "x": -120,
-          "y": 6,
-          "z": -46
-        },
-        {
-          "x": -120,
-          "y": 6,
-          "z": 46
-        },
-        {
-          "x": -120,
-          "y": 0.12,
-          "z": 80
-        }
-      ]
-    },
-    {
-      "id": "bridge_east",
-      "type": "bridge",
-      "width": 8,
-      "points": [
-        {
-          "x": 150,
-          "y": 0.12,
-          "z": -80
-        },
-        {
-          "x": 150,
-          "y": 6,
-          "z": -46
-        },
-        {
-          "x": 150,
-          "y": 6,
-          "z": 46
-        },
-        {
-          "x": 150,
-          "y": 0.12,
-          "z": 80
-        }
-      ]
-    }
-  ],
+  "waterways": [],
+  "roads": [],
   "buildings": [],
   "city": {
     "seed": 20261103,
@@ -136,44 +47,17 @@
       {
         "id": "ncc",
         "block": {
-          "minX": -292,
-          "maxX": 26,
-          "minZ": 60,
-          "maxZ": 292
+          "minX": -4900,
+          "maxX": -4400,
+          "minZ": 4400,
+          "maxZ": 4900
         },
         "style": "corporate",
-        "street": {
-          "pitch": 44
-        },
-        "lot": {
-          "pitch": 10,
-          "inset": 1.5,
-          "merge": 0.5
-        },
-        "height": {
-          "minFloors": 4,
-          "maxFloors": 16,
-          "floorHeight": 3.8
-        },
-        "tower": {
-          "chance": 0.14,
-          "floors": [
-            24,
-            52
-          ],
-          "floorHeight": 4.4
-        },
-        "archetypes": [
-          "box",
-          "slab",
-          "l",
-          "u",
-          "t",
-          "cross",
-          "stepped2",
-          "stepped3",
-          "podium_tower"
-        ],
+        "street": { "pitch": 44 },
+        "lot": { "pitch": 10, "inset": 1.5, "merge": 0.5 },
+        "height": { "minFloors": 4, "maxFloors": 16, "floorHeight": 3.8 },
+        "tower": { "chance": 0.14, "floors": [24, 52], "floorHeight": 4.4 },
+        "archetypes": ["box", "slab", "l", "u", "t", "cross", "stepped2", "stepped3", "podium_tower"],
         "enterableEvery": 7,
         "skip": 0.02,
         "courtyard": 0.16
@@ -181,41 +65,17 @@
       {
         "id": "nkab",
         "block": {
-          "minX": 44,
-          "maxX": 292,
-          "minZ": 60,
-          "maxZ": 292
+          "minX": 4400,
+          "maxX": 4900,
+          "minZ": 4400,
+          "maxZ": 4900
         },
         "style": "slum",
-        "street": {
-          "pitch": 32,
-          "width": 10
-        },
-        "lot": {
-          "pitch": 9,
-          "inset": 1.5,
-          "merge": 0.5
-        },
-        "height": {
-          "maxFloors": 7,
-          "floorHeight": 3.1
-        },
-        "tower": {
-          "chance": 0.03,
-          "floors": [
-            10,
-            18
-          ],
-          "floorHeight": 3.4
-        },
-        "archetypes": [
-          "box",
-          "l",
-          "u",
-          "bar_pair",
-          "stepped2",
-          "podium_tower"
-        ],
+        "street": { "pitch": 32, "width": 10 },
+        "lot": { "pitch": 9, "inset": 1.5, "merge": 0.5 },
+        "height": { "maxFloors": 7, "floorHeight": 3.1 },
+        "tower": { "chance": 0.03, "floors": [10, 18], "floorHeight": 3.4 },
+        "archetypes": ["box", "l", "u", "bar_pair", "stepped2", "podium_tower"],
         "enterableEvery": 6,
         "skip": 0.03,
         "courtyard": 0.2
@@ -223,77 +83,35 @@
       {
         "id": "sind",
         "block": {
-          "minX": -292,
-          "maxX": -44,
-          "minZ": -292,
-          "maxZ": -60
+          "minX": -4900,
+          "maxX": -4400,
+          "minZ": -4900,
+          "maxZ": -4400
         },
         "style": "industrial",
-        "street": {
-          "pitch": 50,
-          "width": 16
-        },
-        "lot": {
-          "pitch": 13,
-          "inset": 2,
-          "merge": 0.45
-        },
-        "height": {
-          "minFloors": 1,
-          "maxFloors": 5,
-          "floorHeight": 4.6
-        },
-        "tower": {
-          "floors": [
-            12,
-            20
-          ],
-          "floorHeight": 5
-        },
-        "archetypes": [
-          "box",
-          "slab",
-          "bar_pair",
-          "cross",
-          "stepped2"
-        ],
+        "street": { "pitch": 50, "width": 16 },
+        "lot": { "pitch": 13, "inset": 2, "merge": 0.45 },
+        "height": { "minFloors": 1, "maxFloors": 5, "floorHeight": 4.6 },
+        "tower": { "floors": [12, 20], "floorHeight": 5 },
+        "archetypes": ["box", "slab", "bar_pair", "cross", "stepped2"],
         "enterableEvery": 7,
         "skip": 0.05,
         "courtyard": 0.1,
-        "roofs": {
-          "access": 0.3
-        }
+        "roofs": { "access": 0.3 }
       },
       {
         "id": "skit",
         "block": {
-          "minX": 26,
-          "maxX": 292,
-          "minZ": -292,
-          "maxZ": -60
+          "minX": 4400,
+          "maxX": 4900,
+          "minZ": -4900,
+          "maxZ": -4400
         },
         "style": "kitsch",
-        "street": {
-          "pitch": 38,
-          "width": 12
-        },
-        "lot": {
-          "pitch": 10,
-          "inset": 1.5,
-          "merge": 0.5
-        },
-        "height": {
-          "minFloors": 3,
-          "maxFloors": 12
-        },
-        "tower": {
-          "chance": 0.08,
-          "floors": [
-            16,
-            34
-          ],
-          "floorHeight": 3.9
-        },
+        "street": { "pitch": 38, "width": 12 },
+        "lot": { "pitch": 10, "inset": 1.5, "merge": 0.5 },
+        "height": { "minFloors": 3, "maxFloors": 12 },
+        "tower": { "chance": 0.08, "floors": [16, 34], "floorHeight": 3.9 },
         "enterableEvery": 5,
         "skip": 0.02,
         "courtyard": 0.14
@@ -305,50 +123,29 @@
     {
       "id": "moon",
       "type": "directional",
-      "position": {
-        "x": 120,
-        "y": 220,
-        "z": 80
-      },
+      "position": { "x": 120, "y": 220, "z": 80 },
       "color": "#bcd0ff",
       "intensity": 0.55
     }
   ],
   "sky": {
     "sky": "#0b1020",
-    "fog": {
-      "color": "#0e1424",
-      "near": 40,
-      "far": 320
-    },
-    "hemi": {
-      "sky": "#1b2a44",
-      "ground": "#0a0d12",
-      "intensity": 0.4
-    },
-    "lights": {
-      "count": 8,
-      "height": 5.4,
-      "spacing": 20,
-      "intensity": 70
-    }
+    "fog": { "color": "#0e1424", "near": 40, "far": 500 },
+    "hemi": { "sky": "#1b2a44", "ground": "#0a0d12", "intensity": 0.4 },
+    "lights": { "count": 8, "height": 5.4, "spacing": 20, "intensity": 70 }
   },
   "gameplay": {
     "goal": "exit",
-    "spawn": {
-      "x": -300,
-      "z": 80
-    },
-    "exit": {
-      "x": 150,
-      "z": -96
-    },
+    "spawn": { "x": -4600, "z": 4600 },
+    "exit": { "x": 4600, "z": -4600 },
     "exitRadius": 4,
-    "enemies": {
-      "count": 6
-    },
-    "alienEnemies": {
-      "count": 2
+    "enemies": { "count": 6 },
+    "alienEnemies": { "count": 2 },
+    "cars": {
+      "count": 1,
+      "spots": [
+        { "x": -4650, "z": 4650, "yaw": 0 }
+      ]
     }
   }
 }
