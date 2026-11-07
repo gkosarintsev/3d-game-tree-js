@@ -1282,8 +1282,12 @@ async function testEngineChapter() {
   let at = null;
   let rest = null;
   try {
+    console.error('[OW-DEBUG] testEngineChapter: start _loadLevel for level', index, level.name);
+    const tLoad0 = performance.now();
     await game._loadLevel(index);
-    loadMs = performance.now() - t0;
+    const tLoad1 = performance.now();
+    loadMs = tLoad1 - tLoad0;
+    console.error('[OW-DEBUG] testEngineChapter: _loadLevel finished in', loadMs.toFixed(0), 'ms, state=', game.state);
     map = game.map;
     const startId = map.spawnCell()?.id ?? null;
     // тела — той же формулой, что и `level-lifecycle`: у Чужого `position` есть
@@ -1351,12 +1355,17 @@ async function testEngineChapter() {
       inFrame.push({ label: slice.label, ms: performance.now() - t });
     };
     try {
-      for (;;) {
+      console.error('[OW-DEBUG] testEngineChapter: start pump loop');
+      for (let frameIdx = 0; ; frameIdx++) {
         const before = map.pump.stats.slices;
         inFrame = [];
         const f0 = performance.now();
         game._worldPump();
         const ms = performance.now() - f0;
+        if (frameIdx % 10 === 0 || ms > 10) {
+          console.error('[OW-DEBUG] testEngineChapter: frame', frameIdx, 'ms=', ms.toFixed(1), 'loaded=', map.loaded.size, 'task=', map.pump.task?.id);
+        }
+        frames += 1;
         frames += 1;
         let atom = 0;
         let label = null;

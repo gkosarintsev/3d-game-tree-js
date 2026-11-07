@@ -110,6 +110,7 @@ export class Game {
    */
   async _loadLevel(index) {
     const level = LEVELS[index];
+    console.error('[GW-DEBUG] _loadLevel start, index=', index, 'name=', level.name, 'cells=', level.map?.cells?.length);
 
     // выгрузка сущностей предыдущей главы: снятие слушателей (см. AGENTS.md)
     if (this.player) {
@@ -128,12 +129,18 @@ export class Game {
       // до постановки тел, а второй `await` после сборки дал бы главе кадр с
       // пустой плитой (замер этапа 6: узлов 0, `isBlocked(spawn)` истинен)
       if (CONFIG.physics?.mode === 'rapier') await PhysicsIndex.init();
+      const tPre0 = performance.now();
       await Promise.all([preloadMapAsset(level.map), preloadWorldCells(level.map)]);
+      const tPre1 = performance.now();
+      console.error('[GW-DEBUG] _loadLevel: preload done in', (tPre1 - tPre0).toFixed(0), 'ms');
       // после await собираем именно эту главу, а не «ту, что сейчас в this.level»:
       // вызовы _loadLevel могли наложиться (меню ?debug=1 зовёт его по клику, а две
       // главы на GLB стоят подряд) — иначе отложенный preload одной главы строит
       // карту другой, ассет которой ещё не прочитан
+      const tBuild0 = performance.now();
       this._buildLevel(index, level); // интертитр главы снимает отложенный показ загрузки
+      const tBuild1 = performance.now();
+      console.error('[GW-DEBUG] _loadLevel: _buildLevel done in', (tBuild1 - tBuild0).toFixed(0), 'ms, total=', (tBuild1 - tPre0).toFixed(0), 'ms');
     } catch (e) {
       // непрогруженный ассет или непроходимая точка спавна: главе нечего показывать
       console.error(e);
@@ -146,13 +153,23 @@ export class Game {
     this.levelIndex = index;
     this.level = level;
     const gp = level.gameplay ?? {};
+    console.error('[GW-DEBUG] _buildLevel start, level=', level.name);
+    const tDispose0 = performance.now();
     // прошлая карта обязана освободить свои меши и свет: сцена пересоздаётся, а
     // буферы района 600 м без dispose повисли бы в GPU памяти на каждую перезагрузку
     this.map?.dispose?.();
     if (CONFIG.physics?.mode === 'rapier') PhysicsIndex.dispose();
+    const tDispose1 = performance.now();
+    console.error('[GW-DEBUG] _buildLevel: dispose done in', (tDispose1 - tDispose0).toFixed(0), 'ms');
+    const tMap0 = performance.now();
     this.map = this.createMap(level.map);
+    const tMap1 = performance.now();
+    console.error('[GW-DEBUG] _buildLevel: createMap done in', (tMap1 - tMap0).toFixed(0), 'ms, kind=', this.map.kind);
     this._initScene(level.sky);
+    const tBuild0 = performance.now();
     this.map.build(this.scene);
+    const tBuild1 = performance.now();
+    console.error('[GW-DEBUG] _buildLevel: map.build done in', (tBuild1 - tBuild0).toFixed(0), 'ms, loaded=', this.map.loaded?.size);
     if (CONFIG.physics?.mode === 'rapier') PhysicsIndex.buildFrom(this.map);
     // карта теней заморожена — пересчитать под новую сцену
     this.renderer.shadowMap.needsUpdate = true;
