@@ -61,7 +61,7 @@ export class ExitGoal {
    * в мире ещё нет. Поэтому не застроено — не видно и не достигается.
    */
   update(time) {
-    if (this._streamed) {
+    if (this._streamed && typeof this.map.isBuiltAt === 'function') {
       const built = this.map.isBuiltAt(this.x, this.z);
       if (built !== this.built) {
         this.built = built;

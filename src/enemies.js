@@ -823,7 +823,8 @@ export class Enemies {
       // легальных врагов. `respawn` берёт узел с `navFit`, то есть только
       // застроенный, — обратно в дыру тот же враг не вернётся и мигания не
       // будет.
-      if (this._streamed && !enemy.offstage && !enemy.dead
+      if (this._streamed && typeof this.map.isBuiltAt === 'function'
+          && !enemy.offstage && !enemy.dead
           && !this.map.isBuiltAt(enemy.position.x, enemy.position.z)) {
         enemy.despawn();
       }

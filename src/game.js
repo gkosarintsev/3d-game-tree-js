@@ -188,7 +188,7 @@ export class Game {
     const spawn = level.map.spawn;
     const blocked = this.map.isBlocked(spawn.x, spawn.z, CONFIG.radius, spawn.y ?? 0, CONFIG.eyeHeight);
     const groundY = this.map.groundHeightAt(spawn.x, spawn.z, spawn.y ?? 0);
-    const built = this.map.isBuiltAt(spawn.x, spawn.z);
+    const built = typeof this.map.isBuiltAt === 'function' ? this.map.isBuiltAt(spawn.x, spawn.z) : true;
     console.error(`[SPAWN-DEBUG] level=${level.name} spawn=(${spawn.x},${spawn.z}) built=${built} blocked=${blocked} groundY=${groundY?.toFixed(2)} radius=${CONFIG.radius}`);
     this.enemies = new Enemies(this.scene, this.map, this.player, this.camera, this.tracers, {
       count: gp.enemies?.count,
