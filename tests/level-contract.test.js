@@ -15,7 +15,9 @@
  * собралась бы улицей без геометрии — молча.
  */
 import * as THREE from 'three';
+console.error('[TEST-DEBUG] importing tests/level-contract.test.js');
 import { LEVELS } from '../src/levels/index.js';
+console.error('[TEST-DEBUG] LEVELS imported');
 import { CONFIG } from '../src/config.js';
 import { preloadMapAsset } from '../src/glb.js';
 import { preloadWorldCells } from '../src/world-map.js';
@@ -74,14 +76,54 @@ const cache = new Map();
 async function assemble(level) {
   const factory = window.game?.createMap?.bind(window.game);
   if (!factory) throw new Error('сюита собирает главы фабрикой движка; откройте 3d-game.html, где main.js создал window.game');
+  const tPreload0 = performance.now();
+  console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): preloadMapAsset + preloadWorldCells start`);
   // единственная точка await — правило «загрузка ассета» в AGENTS.md; движок
   // ждёт здесь же и стартовую клетку открытого мира (`_loadLevel`)
   await Promise.all([preloadMapAsset(level.map), preloadWorldCells(level.map)]);
+  const tPreload1 = performance.now();
+  console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): preload done in ${(tPreload1 - tPreload0).toFixed(0)} мс`);
+  const tFactory0 = performance.now();
   const map = factory(level.map);
+  const tFactory1 = performance.now();
+  console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): factory + constructor in ${(tFactory1 - tFactory0).toFixed(0)} мс, kind=${map.kind}, cells=${map.cells?.length}`);
+  const tBuild0 = performance.now();
   const scene = new THREE.Scene();
   map.build(scene);
+  const tBuild1 = performance.now();
+  console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): map.build in ${(tBuild1 - tBuild0).toFixed(0)} мс`);
   if (typeof map.streamStep === 'function') {
-    for (const cell of level.map.cells ?? []) await map.loadChunk(cell.id);
+    const tLoad0 = performance.now();
+    // Открытый мир: грузим клетки окна спавна и на маршруте A→B, а если клеток
+    // мало (≤ 100) — все, чтобы findPath в storyline-сюжетке нашёл маршрут.
+    const allCells = level.map.cells ?? [];
+    const windowCells = new Set();
+    const wantAll = allCells.length <= 100;
+    if (wantAll) {
+      for (const c of allCells) windowCells.add(c.id);
+    } else {
+      const spawnCell = map.spawnCell();
+      if (spawnCell) windowCells.add(spawnCell.id);
+      if (level.gameplay?.goal === 'exit' && level.gameplay.exit) {
+        const from = map.spawn;
+        const to = level.gameplay.exit;
+        const r = map.stream.chunk;
+        const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / r));
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const x = from.x + (to.x - from.x) * t;
+          const z = from.z + (to.z - from.z) * t;
+          const c = map.cellAt(x, z);
+          if (c) windowCells.add(c.id);
+        }
+      }
+    }
+    console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): loadChunk (${windowCells.size} из ${map.cells?.length}) start`);
+    for (const id of windowCells) {
+      await map.loadChunk(id);
+    }
+    const tLoad1 = performance.now();
+    console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): loadChunk done in ${(tLoad1 - tLoad0).toFixed(0)} мс`);
   }
   return { map, scene };
 }
@@ -95,10 +137,18 @@ async function assemble(level) {
 async function chapter(index) {
   if (cache.has(index)) return cache.get(index);
   const level = LEVELS[index];
+  const t0 = performance.now();
+  console.error(`[TEST-DEBUG] chapter(${index + 1}) '${level.name}' start`);
   const realError = console.error;
-  console.error = (...a) => { errors.push(`глава ${index + 1}: ${a.map(String).join(' ')}`); realError(...a); };
+  console.error = (...a) => {
+    const msg = a.map(String).join(' ');
+    if (!msg.startsWith('[TEST-DEBUG]')) errors.push(`глава ${index + 1}: ${msg}`);
+    realError(...a);
+  };
   try {
     const { map, scene } = await assemble(level);
+    const t1 = performance.now();
+    console.error(`[TEST-DEBUG] chapter(${index + 1}) '${level.name}' assembled in ${(t1 - t0).toFixed(0)} мс`);
     const ctx = { level, map, scene };
     cache.set(index, ctx);
     return ctx;
@@ -456,16 +506,25 @@ const tests = [
  */
 export async function runLevelContractTests() {
   const results = [];
+  const t0 = performance.now();
+  console.error('[TEST-DEBUG] runLevelContractTests start');
   for (const fn of tests) {
+    const tFn0 = performance.now();
     try {
       results.push(await fn());
+      const tFn1 = performance.now();
+      console.error(`[TEST-DEBUG] ${fn.name}: ${(tFn1 - tFn0).toFixed(0)} мс`);
     } catch (e) {
+      const tFn1 = performance.now();
+      console.error(`[TEST-DEBUG] ${fn.name}: ОШИБКА после ${(tFn1 - tFn0).toFixed(0)} мс: ${e.message}`);
       results.push({ name: fn.name, passed: false, info: `ошибка: ${e.message}` });
     }
   }
   results.push(testNoConsoleErrors());
 
   const passed = results.filter(r => r.passed).length;
+  const t1 = performance.now();
+  console.error(`[TEST-DEBUG] runLevelContractTests done: ${(t1 - t0).toFixed(0)} мс, ${passed}/${results.length}`);
   console.group('Контракт карты по всем главам');
   for (const r of results) console.log(`${r.passed ? 'PASS' : 'FAIL'} — ${r.name}: ${r.info}`);
   console.log(`Итого: ${passed}/${results.length}`);
