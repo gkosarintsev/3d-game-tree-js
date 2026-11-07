@@ -1,0 +1,1623 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Level brief v1 (kind: json)",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "путь к JSON Schema этого брифа; v1 — ./level.schema.json, v2 — ./level-v2.schema.json"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "json"
+      ],
+      "description": "версия брифа: v1 (оси мира); в v2 поле обязательное и принимает `json2` и `open`"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "levelName": {
+          "type": "string",
+          "description": "имя главы для пайплайна (level-13) — по нему CLI выводит имя экспорта"
+        },
+        "name": {
+          "type": "string",
+          "description": "заголовок главы в HUD"
+        },
+        "hint": {
+          "type": "string",
+          "description": "подсказка игроку о пути A→B"
+        },
+        "engine": {
+          "type": "string",
+          "description": "служебная подпись исходника, движок не читает"
+        },
+        "units": {
+          "type": "string",
+          "enum": [
+            "meters"
+          ],
+          "description": "единицы брифа: все длины и высоты — метры, углы — градусы"
+        },
+        "notes": {
+          "type": "string",
+          "description": "зачем в главе такие числа и куда сядет игрок (например, «spawn — на стыке двух настилов подъёма»); движок не читает, это rationale для правящего главу"
+        }
+      },
+      "required": [
+        "levelName",
+        "name",
+        "hint",
+        "units"
+      ],
+      "additionalProperties": false,
+      "description": "шапка брифа: имя для пайплайна, заголовок и подсказка для игрока; в модуль доезжают name и hint"
+    },
+    "ground": {
+      "type": "object",
+      "properties": {
+        "y": {
+          "type": "number",
+          "description": "отметка «пола мира»; с `relief` гасится (см. src/relief.js)",
+          "default": 0
+        },
+        "size": {
+          "type": "number",
+          "minimum": 20,
+          "description": "сторона квадратной плиты грунта в метрах; за её краем isBlocked истинна"
+        },
+        "color": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
+          ],
+          "description": "цвет грунта",
+          "default": 2764083
+        }
+      },
+      "required": [
+        "size"
+      ],
+      "additionalProperties": false,
+      "description": "плита мира"
+    },
+    "roads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "уникальный id улицы; узлы графа и метки debugIds привязаны к нему"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "ground",
+              "bridge",
+              "embankment",
+              "skybridge"
+            ],
+            "description": "ground — по грунту, bridge — настил над водой/улицей, embankment — полотно на откосе, skybridge — настил без опор с земли, торцы в дверь или кровлю"
+          },
+          "width": {
+            "type": "number",
+            "minimum": 2,
+            "maximum": 30,
+            "description": "м: ширина полотна; в v2 при `elements` ширина живёт в каждом элементе (здесь можно не указывать)"
+          },
+          "lamps": {
+            "type": "boolean",
+            "description": "ставить ли автогенерированные фонари вдоль улицы (шаг J.lampSpacing)",
+            "default": false
+          },
+          "points": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "description": "м: мировая координата X"
+                },
+                "y": {
+                  "type": "number",
+                  "description": "м: мировая отметка"
+                },
+                "z": {
+                  "type": "number",
+                  "description": "м: мировая координата Z"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
+              ],
+              "additionalProperties": false,
+              "description": "точка в мире (метры)"
+            },
+            "description": "осевая polyline в метрах; в v2 альтернатива `elements`"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "width",
+          "points"
+        ],
+        "additionalProperties": false,
+        "description": "одна улица: id, тип, ширина и ось — либо (v1) polyline, либо (v2) цепочка `elements`"
+      },
+      "description": "авторские улицы; генератор добавляет свои кварталы поверх"
+    },
+    "waterways": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "уникальный id русла"
+          },
+          "width": {
+            "type": "number",
+            "minimum": 2,
+            "maximum": 120,
+            "description": "м: ширина между береговыми рёбрами"
+          },
+          "bedY": {
+            "type": "number",
+            "description": "м: отметка дна; ниже `ground.y`, иначе русло не прорежет плиту"
+          },
+          "surfaceY": {
+            "type": "number",
+            "description": "м: отметка зеркала воды (картинка, не опора)"
+          },
+          "bank": {
+            "type": "string",
+            "enum": [
+              "quay",
+              "slope"
+            ],
+            "description": "quay — отвесная набережная, slope — откос с заложением из J.maxSlope"
+          },
+          "bankRun": {
+            "type": "number",
+            "minimum": 1,
+            "description": "м: заложение откоса; по умолчанию (ground.y − bedY) / J.maxSlope для slope, 0 для quay"
+          },
+          "wade": {
+            "type": "boolean",
+            "description": "true — дно свободно (нужно ≥ 2 схода), false — поперёк дна блокер, и граф обрывается у уреза",
+            "default": true
+          },
+          "ramps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "description": "м: мировая X центра схода"
+                    },
+                    "z": {
+                      "type": "number",
+                      "description": "м: мировая Z центра схода"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "z"
+                  ],
+                  "additionalProperties": false,
+                  "description": "м: центр схода на береговом рёбре"
+                },
+                "width": {
+                  "type": "number",
+                  "minimum": 2,
+                  "maximum": 12,
+                  "description": "м: ширина пандуса схода",
+                  "default": 4
+                }
+              },
+              "required": [
+                "at"
+              ],
+              "additionalProperties": false,
+              "description": "один сход: центр на берегу и ширина пандуса"
+            },
+            "description": "сходы в русло; без них карниз береговой стенки не отпускает обратно"
+          },
+          "points": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "description": "м: мировая координата X"
+                },
+                "z": {
+                  "type": "number",
+                  "description": "м: мировая координата Z"
+                }
+              },
+              "required": [
+                "x",
+                "z"
+              ],
+              "additionalProperties": false,
+              "description": "точка в плане (метры)"
+            },
+            "description": "м: осевая polyline русла в плане"
+          }
+        },
+        "required": [
+          "id",
+          "width",
+          "bedY",
+          "surfaceY",
+          "bank",
+          "points"
+        ],
+        "additionalProperties": false,
+        "description": "одно русло: ширина, отметки дна и воды, берег и сходы"
+      },
+      "description": "русла: прорезают плиту грунта планами дна и держат твёрдость призмами"
+    },
+    "buildings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "уникальный id дома; лоты генератора имеют форму `<id района>_<номер>`"
+          },
+          "name": {
+            "type": "string",
+            "description": "название для метки debugIds; по умолчанию — id"
+          },
+          "archetype": {
+            "type": "string",
+            "enum": [
+              "box",
+              "slab",
+              "l",
+              "u",
+              "t",
+              "cross",
+              "bar_pair",
+              "stepped2",
+              "stepped3",
+              "podium_tower"
+            ],
+            "description": "форма корпуса у генератора; в брифе — только подпись происхождения, в модуль не доезжает"
+          },
+          "district": {
+            "type": "string",
+            "description": "id района, чью террасу и кадр получает лот; в модуль не доезжает"
+          },
+          "isEnterable": {
+            "type": "boolean",
+            "description": "false — корпус только декор фасада: этажи считаются ритмом, плит и маршей нет (потолок этажей тогда J.shellFloorsMax)",
+            "default": true
+          },
+          "floorsCount": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 60,
+            "description": "эт: число этажей; вводимый дом ограничен J.enterableFloors (проверяется геометрией, а не этим максимумом)"
+          },
+          "floorHeight": {
+            "type": "number",
+            "minimum": 2.4,
+            "maximum": 8,
+            "description": "м: высота этажа; все отметки перекрытий и маршей считаются от baseY + floorsCount · floorHeight"
+          },
+          "baseY": {
+            "type": "number",
+            "description": "м: пол первого этажа; по умолчанию — опора грунта под центром дома"
+          },
+          "facadeMaterial": {
+            "type": "string",
+            "description": "имя материала фасада; по нему ряды окон и вывесок берут надстройку из byMaterial",
+            "default": "concrete"
+          },
+          "roof": {
+            "type": "object",
+            "properties": {
+              "walkable": {
+                "type": "boolean",
+                "description": "true — кровля становится опорой (парапет J.parapetHeight по краю, маяк точки B может встать на неё); false — плита только картинка",
+                "default": false
+              },
+              "parapet": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1.5,
+                "description": "м: высота парапета ходовой кровли; 0 у non-walkable",
+                "default": 0.9
+              }
+            },
+            "additionalProperties": false,
+            "description": "кровля: плита на союзе footprint минус шахты маршей"
+          },
+          "footprint": {
+            "type": "array",
+            "minItems": 4,
+            "items": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "description": "м: мировая координата X"
+                },
+                "z": {
+                  "type": "number",
+                  "description": "м: мировая координата Z"
+                }
+              },
+              "required": [
+                "x",
+                "z"
+              ],
+              "additionalProperties": false,
+              "description": "точка в плане (метры)"
+            },
+            "description": "м: замкнутый полигон плана дома (ГПСЧ-сетка комнат вписывается в него)"
+          },
+          "rooms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "уникальный id комнаты"
+                },
+                "floor": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "эт: этаж комнаты (0 — пол на baseY)"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "office",
+                    "corridor",
+                    "hall",
+                    "room",
+                    "cafe",
+                    "utility",
+                    "lobby",
+                    "market",
+                    "warehouse"
+                  ],
+                  "description": "назначение: выводимый ряд витрин неона опирается на торговые типы"
+                },
+                "polygon": {
+                  "type": "array",
+                  "minItems": 4,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number",
+                        "description": "м: мировая координата X"
+                      },
+                      "z": {
+                        "type": "number",
+                        "description": "м: мировая координата Z"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "z"
+                    ],
+                    "additionalProperties": false,
+                    "description": "точка в плане (метры)"
+                  },
+                  "description": "м: план комнаты; обязан лежать внутри footprint и не пересекать другие комнаты"
+                },
+                "connections": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "string",
+                        "description": "id комнаты или улицы/настила по ту сторону проёма"
+                      },
+                      "portalPosition": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "м: мировая координата X"
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "м: мировая отметка"
+                          },
+                          "z": {
+                            "type": "number",
+                            "description": "м: мировая координата Z"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "z"
+                        ],
+                        "additionalProperties": false,
+                        "description": "точка в мире (метры)"
+                      },
+                      "linkType": {
+                        "type": "string",
+                        "enum": [
+                          "main_entrance",
+                          "door",
+                          "back_entrance"
+                        ],
+                        "description": "main_entrance / door / back_entrance: по нему нормализатор ставит проём и связывает внешний узел с решёткой дома"
+                      }
+                    },
+                    "required": [
+                      "target"
+                    ],
+                    "additionalProperties": false,
+                    "description": "одна дверь: id цели за проёмом, точка портала и тип связки"
+                  },
+                  "description": "двери комнаты; проём (rect), а не точка портала, решает связность"
+                }
+              },
+              "required": [
+                "id",
+                "floor",
+                "type",
+                "polygon"
+              ],
+              "additionalProperties": false,
+              "description": "одна комната: этаж, назначение, план и двери"
+            },
+            "description": "комнаты дома: решётка пола и граф навигации строятся по ним"
+          },
+          "stairs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "уникальный id марша"
+                },
+                "connectsFloors": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "description": "эт: [с, по] — концы марша; цепочка обязана быть непрерывной от пола до кровли, иначе _pruneToSpawn отсечёт решётку"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "straight",
+                    "l_shape",
+                    "spiral",
+                    "ladder"
+                  ],
+                  "description": "straight / l_shape / spiral / ladder; беговая длина ограничена stairRun (J.maxStairSlope), у ladder — J.maxRise на проступь"
+                },
+                "position": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "description": "м: мировая координата X"
+                    },
+                    "z": {
+                      "type": "number",
+                      "description": "м: мировая координата Z"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "z"
+                  ],
+                  "additionalProperties": false,
+                  "description": "точка в плане (метры)"
+                },
+                "rotation": {
+                  "type": "number",
+                  "description": "град: поворот марша в собственных осях дома",
+                  "default": 0
+                },
+                "dimensions": {
+                  "type": "object",
+                  "properties": {
+                    "width": {
+                      "type": "number",
+                      "minimum": 1,
+                      "description": "м: ширина марша (для лестницы) или сторона шахты"
+                    },
+                    "length": {
+                      "type": "number",
+                      "minimum": 1,
+                      "description": "м: беговая длина марша"
+                    },
+                    "height": {
+                      "type": "number",
+                      "description": "м: высота подъёма; по умолчанию шаг этажа"
+                    }
+                  },
+                  "required": [
+                    "width",
+                    "length"
+                  ],
+                  "additionalProperties": false,
+                  "description": "габарит шахты марша; для ladder по умолчанию J.ladderShaft × J.ladderShaft"
+                }
+              },
+              "required": [
+                "id",
+                "connectsFloors",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "один марш: какие этажи связывает, какой формы и где стоит его шахта"
+            },
+            "description": "марши дома"
+          }
+        },
+        "required": [
+          "id",
+          "floorsCount",
+          "floorHeight",
+          "footprint",
+          "rooms"
+        ],
+        "additionalProperties": false,
+        "description": "один дом: план footprint, этажность, комнаты с дверями и марши; отметки считаются от baseY"
+      },
+      "description": "авторские дома; кварталы генератора добавляются через `city`"
+    },
+    "landscapeObjects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "уникальный id предмета"
+          },
+          "model": {
+            "type": "string",
+            "enum": [
+              "concrete_pillar",
+              "lamp_post",
+              "tree",
+              "bench",
+              "bollard",
+              "vent",
+              "ac_unit",
+              "antenna",
+              "water_tank",
+              "wire_spool",
+              "barrier",
+              "container",
+              "market_stall",
+              "av_pad"
+            ],
+            "description": "имя модели из src/props.js; набор моделей открыт наружу как CONFIG.jsonMap.models"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "м: мировая координата X"
+              },
+              "y": {
+                "type": "number",
+                "description": "м: мировая отметка"
+              },
+              "z": {
+                "type": "number",
+                "description": "м: мировая координата Z"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "additionalProperties": false,
+            "description": "точка в мире (метры)"
+          },
+          "rotation": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "град",
+                "default": 0
+              },
+              "y": {
+                "type": "number",
+                "description": "град: азимут модели",
+                "default": 0
+              },
+              "z": {
+                "type": "number",
+                "description": "град",
+                "default": 0
+              }
+            },
+            "additionalProperties": false,
+            "description": "поворот по осям Object3D"
+          },
+          "scale": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "minimum": 0.05,
+                "description": "доля исходного размера модели",
+                "default": 1
+              },
+              "y": {
+                "type": "number",
+                "minimum": 0.05,
+                "description": "доля исходного размера модели",
+                "default": 1
+              },
+              "z": {
+                "type": "number",
+                "minimum": 0.05,
+                "description": "доля исходного размера модели",
+                "default": 1
+              }
+            },
+            "additionalProperties": false,
+            "description": "масштаб модели по осям Object3D"
+          }
+        },
+        "required": [
+          "id",
+          "model"
+        ],
+        "additionalProperties": false,
+        "description": "авторский декор: solids и навигации не создаёт (правило про декор в AGENTS.md)"
+      },
+      "description": "предметы ландшафта"
+    },
+    "lights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "уникальный id источника"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "point",
+              "spot",
+              "directional"
+            ],
+            "description": "point / spot / directional; настоящий directional в сцене один — «луна», она держит тени"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "м: мировая координата X"
+              },
+              "y": {
+                "type": "number",
+                "description": "м: мировая отметка"
+              },
+              "z": {
+                "type": "number",
+                "description": "м: мировая координата Z"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "additionalProperties": false,
+            "description": "точка в мире (метры)"
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "м: мировая координата X"
+              },
+              "y": {
+                "type": "number",
+                "description": "м: мировая отметка"
+              },
+              "z": {
+                "type": "number",
+                "description": "м: мировая координата Z"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ],
+            "additionalProperties": false,
+            "description": "точка в мире (метры)"
+          },
+          "color": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            ],
+            "description": "цвет огня",
+            "default": 16764826
+          },
+          "intensity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 400,
+            "description": "безразмерная яркость Three.js; предел на главу — J.maxRealLights настоящих источников",
+            "default": 60
+          },
+          "distance": {
+            "type": "number",
+            "minimum": 0,
+            "description": "м: радиус гасания (0 — без гасания)",
+            "default": 60
+          },
+          "angle": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1.57,
+            "description": "рад: раствор пятна только для spot",
+            "default": 0.7
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ],
+        "additionalProperties": false,
+        "description": "один источник: тип, позиция, цель, цвет, яркость и радиус гасания"
+      },
+      "description": "статичные источники света уровня; мойки направлены вверх, на корпуса"
+    },
+    "windows": {
+      "type": "object",
+      "properties": {
+        "spacing": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 12,
+          "description": "м: ритм окон вдоль грани; 0 — дому окна не рисуются вовсе",
+          "default": 3
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 6,
+          "description": "м: ширина квада",
+          "default": 1.15
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 6,
+          "description": "м: высота квада",
+          "default": 1.6
+        },
+        "sill": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "м: подоконник от пола этажа",
+          "default": 0.9
+        },
+        "offset": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 1,
+          "description": "м: вынос квада за грань стены",
+          "default": 0.06
+        },
+        "lit": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "доля окон светящимися (ГПСЧ вывода, солёный шаг на каждый отсчёт)",
+          "default": 0.4
+        }
+      },
+      "additionalProperties": false,
+      "description": "включатель + переопределение ряда окон: картинку выводит JsonMap, модуль главы этих чисел не содержит; по facadeMaterial работает надстройка byMaterial"
+    },
+    "clutter": {
+      "type": "object",
+      "properties": {
+        "tall": {
+          "type": "number",
+          "minimum": 3,
+          "maximum": 200,
+          "description": "м: предмет выше этого считается высоким и бракуется над кровлей",
+          "default": 26
+        },
+        "head": {
+          "type": "number",
+          "minimum": 1.5,
+          "maximum": 12,
+          "description": "м: свободный зазор над предметом, иначе он бракуется",
+          "default": 3.2
+        },
+        "roof": {
+          "type": "object",
+          "properties": {
+            "edge": {
+              "type": "number",
+              "minimum": 0.4,
+              "maximum": 8,
+              "description": "м: отступ предмета от борта кровли",
+              "default": 1.2
+            },
+            "step": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 20,
+              "description": "м: шаг сетки на кровле",
+              "default": 5
+            },
+            "keep": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "доля слотов, занятая мусором",
+              "default": 0.5
+            },
+            "perHouse": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "штук: не больше этого на дом",
+              "default": 3
+            }
+          },
+          "additionalProperties": false,
+          "description": "сетка мусора на кровле дома"
+        },
+        "street": {
+          "type": "object",
+          "properties": {
+            "every": {
+              "type": "number",
+              "minimum": 4,
+              "maximum": 60,
+              "description": "м: шаг вдоль настила",
+              "default": 30
+            },
+            "inset": {
+              "type": "number",
+              "minimum": 0.3,
+              "maximum": 6,
+              "description": "м: насколько предмет уйдёт с полотна к борту",
+              "default": 1.4
+            },
+            "minLamp": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 12,
+              "description": "м: не ближе этого к уже поставленному предмету или фонарю",
+              "default": 3
+            },
+            "keep": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "доля слотов, занятая мусором",
+              "default": 0.6
+            }
+          },
+          "additionalProperties": false,
+          "description": "ряд мусора вдоль тротуара/настила"
+        }
+      },
+      "additionalProperties": false,
+      "description": "включатель + переопределение ряда мусора кровель и тротуаров"
+    },
+    "signage": {
+      "type": "object",
+      "properties": {
+        "minFloors": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 40,
+          "description": "эт: дома ниже вывесок не носят",
+          "default": 4
+        },
+        "minRun": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 40,
+          "description": "м: минимальный бег фасадной грани",
+          "default": 8
+        },
+        "edge": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 8,
+          "description": "м: отступ панели от угла фасада",
+          "default": 1.2
+        },
+        "step": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 40,
+          "description": "м: шаг слотов вдоль грани",
+          "default": 10
+        },
+        "width": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 30
+          },
+          "description": "[min, max] м: разброс ширины панели",
+          "default": [
+            4,
+            8
+          ]
+        },
+        "minWidth": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 20,
+          "description": "м: уже этого панель — полоска, слот прочёркнут",
+          "default": 2.5
+        },
+        "panelFloors": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 12,
+          "description": "эт: высота панели через этажи; пояс клампится по floorsCount − floors",
+          "default": 2
+        },
+        "perFace": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 8,
+          "description": "штук: не больше N панелей на грань",
+          "default": 2
+        },
+        "keep": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "доля слотов, занятая вывесками",
+          "default": 0.6
+        },
+        "offset": {
+          "type": "number",
+          "minimum": 0.02,
+          "maximum": 2,
+          "description": "м: вынос за грань стены",
+          "default": 0.14
+        }
+      },
+      "additionalProperties": false,
+      "description": "включатель + переопределение ряда вывесок; byMaterial — надстройка над базой, а не замена"
+    },
+    "sky": {
+      "type": "object",
+      "properties": {
+        "sky": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
+          ],
+          "description": "цвет неба (фон сцены)",
+          "default": 11130101
+        },
+        "fog": {
+          "type": "object",
+          "properties": {
+            "color": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              ],
+              "description": "цвет тумана",
+              "default": 14084607
+            },
+            "near": {
+              "type": "number",
+              "minimum": 1,
+              "description": "м: начало тумана",
+              "default": 120
+            },
+            "far": {
+              "type": "number",
+              "minimum": 2,
+              "description": "м: полное затемнение; правки этой пары — стиль главы, дефолта в брифе не требуется",
+              "default": 460
+            }
+          },
+          "additionalProperties": false,
+          "description": "туман; секция мержится как { ...CONFIG.fog, ...sky.fog }"
+        },
+        "sun": {
+          "type": "object",
+          "properties": {
+            "color": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              ],
+              "description": "цвет «луны»",
+              "default": 16774368
+            },
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "яркость «луны»: единственный источник теней и яркость улицы (правило «достоинство луны, а не подсветок»)",
+              "default": 2.4
+            },
+            "position": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "number"
+              },
+              "description": "[x, y, z] мир: направление «луны»",
+              "default": [
+                150,
+                200,
+                -110
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "description": "мержится как { ...CONFIG.sun, ...sky.sun }"
+        },
+        "hemi": {
+          "type": "object",
+          "properties": {
+            "sky": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              ],
+              "description": "цвет верхнего полусферического света",
+              "default": 12575743
+            },
+            "ground": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              ],
+              "description": "цвет нижнего полусферического света",
+              "default": 4877107
+            },
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "яркость полусферического света",
+              "default": 1
+            }
+          },
+          "additionalProperties": false,
+          "description": "мержится как { ...CONFIG.hemi, ...sky.hemi }"
+        },
+        "lights": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 8,
+              "description": "штук: настоящих источников в пуле; по наличию этой секции заводится NightLights, без неё глава живёт на «луне» (глава 12)",
+              "default": 6
+            },
+            "reach": {
+              "type": "number",
+              "minimum": 1,
+              "description": "м: радиус поиска опорных точек вокруг камеры",
+              "default": 60
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0,
+              "description": "м: подъём огня над опорной точкой",
+              "default": 6
+            },
+            "spacing": {
+              "type": "number",
+              "minimum": 1,
+              "description": "м: минимальное разнос огней",
+              "default": 26
+            },
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "яркость одного огня пула",
+              "default": 60
+            }
+          },
+          "additionalProperties": false,
+          "description": "пул src/night-lights.js переставляет count огней на map.openPositions() рядом с камерой"
+        }
+      },
+      "additionalProperties": false,
+      "description": "ночь главы как данные: слияние с дефолтами делает game.js, номеров глав карта не знает"
+    },
+    "gameplay": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "enum": [
+            "exit"
+          ],
+          "description": "цель главы; в брифах только exit (дойти до точки B), coin-главы живут в уровнях-улицах глав 5–8"
+        },
+        "spawn": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number",
+              "description": "м: мировая координата X"
+            },
+            "z": {
+              "type": "number",
+              "description": "м: мировая координата Z"
+            }
+          },
+          "required": [
+            "x",
+            "z"
+          ],
+          "additionalProperties": false,
+          "description": "точка в плане (метры)"
+        },
+        "exit": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number",
+              "description": "м: мировая координата X"
+            },
+            "z": {
+              "type": "number",
+              "description": "м: мировая координата Z"
+            }
+          },
+          "required": [
+            "x",
+            "z"
+          ],
+          "additionalProperties": false,
+          "description": "точка в плане (метры)"
+        },
+        "exitRadius": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 40,
+          "description": "м: радиус зачётной зоны точки B",
+          "default": 3.5
+        },
+        "enemies": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "description": "штук: человек-противники; без секции — CONFIG.enemies.count"
+            }
+          },
+          "additionalProperties": false,
+          "description": "число пеших противников главы"
+        },
+        "alienEnemies": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "description": "штук: Чужие; без секции — CONFIG.alienEnemies.count"
+            }
+          },
+          "additionalProperties": false,
+          "description": "число Чужих главы"
+        },
+        "cars": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 8,
+              "description": "штук: обязан равняться длине spots, иначе невыполнимое обещание — ошибка схемы"
+            },
+            "spots": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "description": "м"
+                  },
+                  "z": {
+                    "type": "number",
+                    "description": "м"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "minimum": -360,
+                    "maximum": 360,
+                    "description": "град: азимут кузова",
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "x",
+                  "z"
+                ],
+                "additionalProperties": false,
+                "description": "одна стоянка: центр кузова в плане и его азимут"
+              },
+              "description": "точки стоянок: отметку y дописывает нормализатор по опоре точки, автор её не пишет"
+            }
+          },
+          "required": [
+            "count"
+          ],
+          "additionalProperties": false,
+          "description": "машины главы; без секции список пуст, поэтому главы 9–12 побайтовы без неё"
+        }
+      },
+      "required": [
+        "goal"
+      ],
+      "additionalProperties": false,
+      "description": "цель главы: точка A (spawn), точка B (exit), противники и автомобили"
+    },
+    "city": {
+      "type": "object",
+      "properties": {
+        "seed": {
+          "type": "number",
+          "description": "целое: сид ГПСЧ mulberry32. Единственный источник случайности квартала, и **порядок вызовов значим**: снять один гейт — сдвинуть счётчики всех последующих районов, поэтому перегенерированный модуль коммитится вместе с правкой"
+        },
+        "districts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "имя района: по нему строятся id лотов `<id>_<номер>` и префикс вытеснения авторской записи"
+              },
+              "name": {
+                "type": "string",
+                "description": "название для человека"
+              },
+              "style": {
+                "type": "string",
+                "enum": [
+                  "mixed",
+                  "corporate",
+                  "slum",
+                  "industrial",
+                  "kitsch"
+                ],
+                "description": "набор материалов фасада квартала",
+                "default": "mixed"
+              },
+              "block": {
+                "type": "object",
+                "properties": {
+                  "minX": {
+                    "type": "number",
+                    "description": "м: граница AABB квартала в мировых осях"
+                  },
+                  "maxX": {
+                    "type": "number",
+                    "description": "м: граница AABB квартала"
+                  },
+                  "minZ": {
+                    "type": "number",
+                    "description": "м: граница AABB квартала"
+                  },
+                  "maxZ": {
+                    "type": "number",
+                    "description": "м: граница AABB квартала"
+                  }
+                },
+                "required": [
+                  "minX",
+                  "maxX",
+                  "minZ",
+                  "maxZ"
+                ],
+                "additionalProperties": false,
+                "description": "прямоугольник квартала; при `polygon` (v2) это габарит полигона, и по нему мелится сетка"
+              },
+              "street": {
+                "type": "object",
+                "properties": {
+                  "pitch": {
+                    "type": "number",
+                    "minimum": 8,
+                    "description": "м: шаг улиц квартала",
+                    "default": 46
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 2,
+                    "description": "м: ширина проезжей части",
+                    "default": 14
+                  }
+                },
+                "additionalProperties": false,
+                "description": "сетка улиц района"
+              },
+              "lot": {
+                "type": "object",
+                "properties": {
+                  "pitch": {
+                    "type": "number",
+                    "minimum": 4,
+                    "description": "м: шаг лотов",
+                    "default": 12
+                  },
+                  "inset": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "м: отступ корпуса от границы лота",
+                    "default": 1.6
+                  },
+                  "merge": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "доля лотов, склеенных в один корпус",
+                    "default": 0.3
+                  }
+                },
+                "additionalProperties": false,
+                "description": "сетка лотов квартала"
+              },
+              "height": {
+                "type": "object",
+                "properties": {
+                  "minFloors": {
+                    "type": "number",
+                    "minimum": 1,
+                    "description": "эт: нижний предел этажности",
+                    "default": 2
+                  },
+                  "maxFloors": {
+                    "type": "number",
+                    "minimum": 1,
+                    "description": "эт: верхний предел этажности (вводимый дом ограничен J.enterableFloors)",
+                    "default": 9
+                  },
+                  "floorHeight": {
+                    "type": "number",
+                    "minimum": 2.4,
+                    "maximum": 8,
+                    "description": "м: высота этажа",
+                    "default": 3.4
+                  }
+                },
+                "additionalProperties": false,
+                "description": "разброс этажности квартала"
+              },
+              "tower": {
+                "type": "object",
+                "properties": {
+                  "chance": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "доля лотов, ставших башней",
+                    "default": 0.05
+                  },
+                  "floors": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "number",
+                      "minimum": 1
+                    },
+                    "description": "эт: [min, max] этажности башни",
+                    "default": [
+                      18,
+                      44
+                    ]
+                  },
+                  "floorHeight": {
+                    "type": "number",
+                    "minimum": 2.4,
+                    "maximum": 8,
+                    "description": "м: высота этажа башни",
+                    "default": 4
+                  }
+                },
+                "additionalProperties": false,
+                "description": "башни района: доля лотов и их этажность"
+              },
+              "archetypes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "box",
+                    "slab",
+                    "l",
+                    "u",
+                    "t",
+                    "cross",
+                    "bar_pair",
+                    "stepped2",
+                    "stepped3",
+                    "podium_tower"
+                  ]
+                },
+                "description": "разрешённые формы корпуса; ритм ГПСЧ района значим: снять форму — сдвинуть счётчики всех последующих лотов",
+                "default": [
+                  "box",
+                  "slab",
+                  "l",
+                  "u",
+                  "t",
+                  "cross",
+                  "bar_pair",
+                  "stepped2",
+                  "stepped3",
+                  "podium_tower"
+                ]
+              },
+              "enterableEvery": {
+                "type": "number",
+                "minimum": 1,
+                "description": "лот-кандидат (ровно один прямоугольник плана, не башня) открывается каждому N-му; отказ — счётчик house_not_rect / house_no_stair / house_no_entrance, а не молчание",
+                "default": 18
+              },
+              "skip": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "доля лотов, оставленных пустыми",
+                "default": 0.1
+              },
+              "courtyard": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "доля лотов, ставших замкнутым двором (формы u / t / l / bar_pair)",
+                "default": 0.12
+              },
+              "roofs": {
+                "type": "object",
+                "properties": {
+                  "walkable": {
+                    "type": "boolean",
+                    "description": "true — кровля становится опорой и по ней идёт граф навигации",
+                    "default": true
+                  },
+                  "access": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "доля домов с выходом на кровлю",
+                    "default": 0.45
+                  },
+                  "parapet": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1.5,
+                    "description": "м: высота парапета кровли",
+                    "default": 0.9
+                  }
+                },
+                "additionalProperties": false,
+                "description": "кровля квартала: ходовая ли она и у скольких домов есть выход на неё"
+              }
+            },
+            "required": [
+              "id",
+              "block"
+            ],
+            "additionalProperties": false,
+            "description": "квартал генератора (v1): размеры лота, отметки и план марша никогда не берутся из Math.random"
+          },
+          "description": "районы генератора"
+        }
+      },
+      "required": [
+        "seed",
+        "districts"
+      ],
+      "additionalProperties": false,
+      "description": "секция генератора кварталов (tools/city.js): разворачивается парсером в обычные roads/buildings и в модуль главы не доезжает. Для `validateLevel` невидима, необязательна и описана ради JSON Schema брифа"
+    }
+  },
+  "required": [
+    "metadata",
+    "roads",
+    "gameplay"
+  ],
+  "additionalProperties": false,
+  "description": "бриф главы v1 (`kind: json`): улицы и дома в осях мира, русла, свет и цель A→B. Длины и высоты — метры, углы — градусы; чего в брифе не написано, берётся из CONFIG.jsonMap"
+}

@@ -1,0 +1,671 @@
+{
+  "$schema": "../src/levels/level-v2.schema.json",
+  "kind": "open",
+  "metadata": {
+    "levelName": "open-2km",
+    "name": "Зонд открытого мира 1,96 км²",
+    "hint": "Замерная фикстура этапа 0 (docs/open-world-plan.md): не глава, а полигон для чисел. Плита 1400 × 1400 м, девять косых кварталов, рельеф с террасами, одно русло через весь мир и один участок трассы — чтобы цена точки решётки была худшей (перила, дуги, откосы), а не средней.",
+    "engine": "AI-First Three.js Pipeline",
+    "units": "meters",
+    "notes": "Цена сборки этого брифа — строка «2 км²» в таблице § 2.6 плана открытого мира. Правка плотности кварталов или радиуса петли меняет её, поэтому числа фикстуры авторские и не наследуются из главы 13."
+  },
+  "ground": {
+    "y": 0,
+    "size": 1400,
+    "color": "#2a2d33"
+  },
+  "windows": {
+    "lit": 0.42
+  },
+  "clutter": {
+    "roof": {
+      "perHouse": 4
+    },
+    "street": {
+      "every": 26
+    }
+  },
+  "signage": {
+    "keep": 0.7,
+    "width": [
+      3.5,
+      6.5
+    ]
+  },
+  "relief": {
+    "baseY": 0,
+    "hillMaxSlope": 0.06,
+    "maxSlope": 0.12,
+    "blend": 30,
+    "hills": [
+      {
+        "id": "ridge_east",
+        "x": 300,
+        "z": -240,
+        "bx": 620,
+        "bz": -60,
+        "radius": 220,
+        "height": 3.2
+      },
+      {
+        "id": "bench_west",
+        "x": -520,
+        "z": 120,
+        "bx": -260,
+        "bz": 300,
+        "radius": 240,
+        "height": -2.4
+      },
+      {
+        "id": "shelf_south",
+        "x": -120,
+        "z": -560,
+        "bx": 200,
+        "bz": -520,
+        "radius": 260,
+        "height": 2.8
+      },
+      {
+        "id": "crest_north",
+        "x": 60,
+        "z": 480,
+        "bx": 420,
+        "bz": 620,
+        "radius": 240,
+        "height": 3.6
+      },
+      {
+        "id": "dip_centre",
+        "x": -40,
+        "z": -40,
+        "bx": 160,
+        "bz": 60,
+        "radius": 180,
+        "height": -1.8
+      }
+    ],
+    "pads": [
+      {
+        "id": "terrace_se",
+        "minX": 500,
+        "maxX": 640,
+        "minZ": -640,
+        "maxZ": -500,
+        "y": -2.4
+      }
+    ]
+  },
+  "city": {
+    "seed": 41,
+    "districts": [
+      {
+        "id": "q0",
+        "name": "Проспект у причала",
+        "style": "industrial",
+        "block": {
+          "minX": -640,
+          "maxX": -340,
+          "minZ": -640,
+          "maxZ": -340
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": 0,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "q1",
+        "name": "Склады на склоне",
+        "style": "slum",
+        "block": {
+          "minX": -240,
+          "maxX": 60,
+          "minZ": -640,
+          "maxZ": -340
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": 14,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "q2",
+        "name": "Квартал гребня",
+        "style": "corporate",
+        "block": {
+          "minX": 160,
+          "maxX": 460,
+          "minZ": -640,
+          "maxZ": -340
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": -20,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "q3",
+        "name": "Трущобы западной террасы",
+        "style": "kitsch",
+        "block": {
+          "minX": -640,
+          "maxX": -340,
+          "minZ": -240,
+          "maxZ": 60
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": 8,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "q4",
+        "name": "Ядра под петлёй",
+        "style": "slum",
+        "block": {
+          "minX": -240,
+          "maxX": 60,
+          "minZ": -240,
+          "maxZ": 60
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": 0,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "q5",
+        "name": "Восточный проспект",
+        "style": "corporate",
+        "block": {
+          "minX": 160,
+          "maxX": 460,
+          "minZ": -240,
+          "maxZ": 60
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": -12,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "q6",
+        "name": "Квартал южной террасы",
+        "style": "mixed",
+        "block": {
+          "minX": -640,
+          "maxX": -340,
+          "minZ": 220,
+          "maxZ": 520
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": 22,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "q7",
+        "name": "Ангары у русла",
+        "style": "industrial",
+        "block": {
+          "minX": -240,
+          "maxX": 60,
+          "minZ": 220,
+          "maxZ": 520
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": 16,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "q8",
+        "name": "Квартал северного путепровода",
+        "style": "mixed",
+        "block": {
+          "minX": 160,
+          "maxX": 460,
+          "minZ": 220,
+          "maxZ": 520
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 1.6,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 10,
+          "floorHeight": 3.4
+        },
+        "tower": {
+          "chance": 0.08,
+          "floors": [
+            14,
+            24
+          ],
+          "floorHeight": 4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 2,
+        "skip": 0.02,
+        "courtyard": 0.14,
+        "yaw": -18,
+        "roofs": {
+          "walkable": true,
+          "access": 0.45,
+          "parapet": 0.9
+        }
+      }
+    ],
+    "track": {
+      "center": [
+        240,
+        34
+      ],
+      "radius": 150,
+      "turns": 10,
+      "minRadius": 60,
+      "curvatureJitter": 0.35,
+      "width": 10,
+      "bank": 6,
+      "grade": 0.08,
+      "clearance": 5,
+      "amplitude": 4,
+      "waves": 2,
+      "rails": true,
+      "lamps": false,
+      "entries": 2
+    }
+  },
+  "waterways": [
+    {
+      "id": "cut",
+      "width": 16,
+      "bedY": -4,
+      "surfaceY": -1.5,
+      "bank": "quay",
+      "wade": true,
+      "points": [
+        {
+          "x": -690,
+          "z": 120
+        },
+        {
+          "x": 690,
+          "z": 120
+        }
+      ],
+      "ramps": [
+        {
+          "at": {
+            "x": -300,
+            "z": 120
+          },
+          "width": 6
+        },
+        {
+          "at": {
+            "x": 300,
+            "z": 120
+          },
+          "width": 6
+        }
+      ]
+    }
+  ],
+  "roads": [],
+  "buildings": [],
+  "landscapeObjects": [],
+  "lights": [
+    {
+      "id": "moon",
+      "type": "directional",
+      "position": {
+        "x": 120,
+        "y": 220,
+        "z": 80
+      },
+      "color": "#bcd0ff",
+      "intensity": 3.5
+    }
+  ],
+  "sky": {
+    "sky": "#0b1020",
+    "fog": {
+      "color": "#0e1424",
+      "near": 40,
+      "far": 320
+    },
+    "hemi": {
+      "sky": "#1b2a44",
+      "ground": "#0a0d12",
+      "intensity": 0.7
+    }
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -500,
+      "z": -500
+    },
+    "exit": {
+      "x": 480,
+      "z": 460
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 8
+    },
+    "alienEnemies": {
+      "count": 2
+    }
+  },
+  "stream": {
+    "chunk": 350,
+    "keep": 1,
+    "aheadMin": 300,
+    "aheadMax": 900,
+    "budgetMs": 8
+  }
+}

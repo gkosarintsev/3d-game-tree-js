@@ -1,0 +1,260 @@
+{
+  "$schema": "./level-v2.schema.json",
+  "kind": "json2",
+  "metadata": {
+    "levelName": "level-13",
+    "name": "Глава 13. Трасса на гребне",
+    "hint": "Недобранный кольцевой автодром стоит поверх двух кварталов: подъём по съезду, обход петли по настилу, спуск вторым съездом на гребень, и оттуда — на кровлю, где маяк.",
+    "engine": "AI-First Three.js Pipeline",
+    "units": "meters"
+  },
+  "ground": {
+    "y": 0,
+    "size": 600,
+    "color": "#2a2d33"
+  },
+  "windows": {
+    "lit": 0.42
+  },
+  "clutter": {
+    "roof": {
+      "perHouse": 4
+    },
+    "street": {
+      "every": 26
+    }
+  },
+  "signage": {
+    "keep": 0.7,
+    "width": [
+      3.5,
+      6.5
+    ]
+  },
+  "relief": {
+    "baseY": 0,
+    "hillMaxSlope": 0.06,
+    "maxSlope": 0.12,
+    "blend": 30,
+    "hills": [
+      {
+        "id": "shelf_south",
+        "x": -220,
+        "z": -190,
+        "bx": 220,
+        "bz": -190,
+        "radius": 240,
+        "height": -3.2
+      },
+      {
+        "id": "bench_centre",
+        "x": -180,
+        "z": 20,
+        "bx": 180,
+        "bz": 20,
+        "radius": 260,
+        "height": 2.4
+      },
+      {
+        "id": "crest_north",
+        "x": -140,
+        "z": 230,
+        "bx": 200,
+        "bz": 230,
+        "radius": 220,
+        "height": 7.4
+      }
+    ],
+    "pads": [
+      {
+        "id": "terrace_south",
+        "minX": -240,
+        "maxX": 240,
+        "minZ": -300,
+        "maxZ": -140,
+        "y": -1.2
+      }
+    ]
+  },
+  "city": {
+    "seed": 16,
+    "districts": [
+      {
+        "id": "d0",
+        "name": "Проспект на гребне",
+        "style": "corporate",
+        "block": {
+          "minX": -74,
+          "maxX": 86,
+          "minZ": 118,
+          "maxZ": 278
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 12,
+          "inset": 2,
+          "merge": 0.45
+        },
+        "height": {
+          "minFloors": 4,
+          "maxFloors": 12,
+          "floorHeight": 3.8
+        },
+        "tower": {
+          "chance": 0.1,
+          "floors": [
+            14,
+            26
+          ],
+          "floorHeight": 4.2
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "stepped2",
+          "cross"
+        ],
+        "enterableEvery": 1,
+        "skip": 0.02,
+        "courtyard": 0.1,
+        "yaw": 18,
+        "roofs": {
+          "walkable": true,
+          "access": 0.5,
+          "parapet": 0.9
+        }
+      },
+      {
+        "id": "d1",
+        "name": "Квартал под петлёй",
+        "style": "slum",
+        "block": {
+          "minX": -89,
+          "maxX": 91,
+          "minZ": -165,
+          "maxZ": 15
+        },
+        "street": {
+          "pitch": 36,
+          "width": 14,
+          "grade": 0.06
+        },
+        "lot": {
+          "pitch": 10,
+          "inset": 1.5,
+          "merge": 0.5
+        },
+        "height": {
+          "minFloors": 2,
+          "maxFloors": 8,
+          "floorHeight": 3.2
+        },
+        "tower": {
+          "chance": 0.04,
+          "floors": [
+            10,
+            16
+          ],
+          "floorHeight": 3.4
+        },
+        "archetypes": [
+          "box",
+          "slab",
+          "l",
+          "u"
+        ],
+        "enterableEvery": 1,
+        "skip": 0.03,
+        "courtyard": 0.16,
+        "roofs": {
+          "walkable": true,
+          "access": 0.4,
+          "parapet": 0.9
+        }
+      }
+    ],
+    "track": {
+      "lamps": false
+    }
+  },
+  "waterways": [
+    {
+      "id": "cut",
+      "width": 14,
+      "bedY": -4,
+      "surfaceY": -1.5,
+      "bank": "quay",
+      "wade": false,
+      "points": [
+        { "x": -300, "z": 60 },
+        { "x": 300, "z": 60 }
+      ]
+    }
+  ],
+  "roads": [],
+  "buildings": [],
+  "landscapeObjects": [],
+  "lights": [
+    {
+      "id": "moon",
+      "type": "directional",
+      "position": {
+        "x": 120,
+        "y": 220,
+        "z": 80
+      },
+      "color": "#bcd0ff",
+      "intensity": 3.5
+    }
+  ],
+  "sky": {
+    "sky": "#0b1020",
+    "fog": {
+      "color": "#0e1424",
+      "near": 40,
+      "far": 320
+    },
+    "hemi": {
+      "sky": "#1b2a44",
+      "ground": "#0a0d12",
+      "intensity": 0.7
+    }
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": 6.23,
+      "z": -78.47
+    },
+    "exit": {
+      "x": -42.63,
+      "z": 176.15
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 8
+    },
+    "alienEnemies": {
+      "count": 2
+    },
+    "cars": {
+      "count": 2,
+      "spots": [
+        {
+          "x": 97.941,
+          "z": -20.601,
+          "yaw": 31.9
+        },
+        {
+          "x": -107.189,
+          "z": 22.497,
+          "yaw": -155.602
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,21 @@
+=== 1. расклад одной достройки по членам (мс) ===
+{"id":"0_0","loaded":1,"solids":558,"merge":3.3,"parts":{"_setInputs":0.4,"_indexPlans":0.1,"indexSolids":1.6,"_indexSurfaces":0.7,"_indexBlockers":0.5,"_boundsOf":0,"_collectAnchors":0,"_navLattice":0,"_navPasses":2.8,"_buildPicture":0,"collectPass":13.6,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":70.1}
+{"id":"0_1","loaded":2,"solids":714,"merge":2,"parts":{"_setInputs":0.1,"_indexPlans":0.1,"indexSolids":1.5,"_indexSurfaces":0.2,"_indexBlockers":0.1,"_boundsOf":0,"_collectAnchors":0,"_navLattice":0,"_navPasses":2.7,"_buildPicture":0,"collectPass":4,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":52.7}
+{"id":"0_2","loaded":3,"solids":1168,"merge":5.1,"parts":{"_setInputs":0.3,"_indexPlans":0.1,"indexSolids":3.6,"_indexSurfaces":0.6,"_indexBlockers":0.4,"_boundsOf":0.1,"_collectAnchors":0,"_navLattice":0,"_navPasses":2.2,"_buildPicture":0,"collectPass":7.9,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":48.7}
+{"id":"1_0","loaded":4,"solids":1705,"merge":8.9,"parts":{"_setInputs":0.2,"_indexPlans":0.1,"indexSolids":5.8,"_indexSurfaces":2.6,"_indexBlockers":0.2,"_boundsOf":0,"_collectAnchors":0,"_navLattice":0,"_navPasses":6.6,"_buildPicture":0,"collectPass":8,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":55.3}
+{"id":"1_1","loaded":5,"solids":1834,"merge":8.4,"parts":{"_setInputs":0.1,"_indexPlans":0,"indexSolids":7.2,"_indexSurfaces":0.6,"_indexBlockers":0.5,"_boundsOf":0,"_collectAnchors":0,"_navLattice":0,"_navPasses":6.4,"_buildPicture":0,"collectPass":2.1,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":46.3}
+{"id":"1_2","loaded":6,"solids":2261,"merge":13.3,"parts":{"_setInputs":0.2,"_indexPlans":0.1,"indexSolids":8.5,"_indexSurfaces":4.2,"_indexBlockers":0.3,"_boundsOf":0,"_collectAnchors":0,"_navLattice":0,"_navPasses":7,"_buildPicture":0,"collectPass":7.1,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":62.6}
+{"id":"2_0","loaded":7,"solids":3387,"merge":14.8,"parts":{"_setInputs":0.1,"_indexPlans":0.2,"indexSolids":12.6,"_indexSurfaces":1.2,"_indexBlockers":0.7,"_boundsOf":0,"_collectAnchors":0,"_navLattice":0,"_navPasses":13.2,"_buildPicture":0,"collectPass":14.3,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":78.3}
+{"id":"2_1","loaded":8,"solids":3469,"merge":12.3,"parts":{"_setInputs":0.2,"_indexPlans":0.2,"indexSolids":10.8,"_indexSurfaces":0.8,"_indexBlockers":0.3,"_boundsOf":0,"_collectAnchors":0,"_navLattice":0,"_navPasses":12.6,"_buildPicture":0,"collectPass":1,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":56.5}
+{"id":"2_2","loaded":9,"solids":3968,"merge":13.7,"parts":{"_setInputs":0.1,"_indexPlans":0.2,"indexSolids":12.2,"_indexSurfaces":0.9,"_indexBlockers":0.2,"_boundsOf":0.1,"_collectAnchors":0,"_navLattice":0,"_navPasses":12.5,"_buildPicture":0,"collectPass":7,"_navRooms":0,"_navRoofs":0,"_navStairs":0,"_navDecks":0,"_navWater":0,"_navDoors":0},"anchorCalls":0,"apply":61.8}
+=== 2. полосование решётки ===
+{"rows":"whole","ms":1.2,"lattice":0,"nodes":951,"links":3278,"keys":0}
+{"rows":1,"ms":2,"lattice":0,"nodes":951,"links":3278,"keys":0}
+{"rows":4,"ms":1.7,"lattice":0,"nodes":951,"links":3278,"keys":0}
+{"rows":8,"ms":1.1,"lattice":0,"nodes":951,"links":3278,"keys":0}
+{"rows":16,"ms":2.5,"lattice":0,"nodes":951,"links":3278,"keys":0}
+{"rows":"reference-applyChunk","nodes":2069,"links":7350,"keys":0}
+=== 3. цена индексов на заполненном окне ===
+{"counts":{"solids":3968,"surfaces":1359,"blockers":2014,"buildings":358,"prisms":13,"holes":21,"railWedges":0,"sweeps":0,"deckPlates":605},"ms":{"solids":11.5,"surfaces":1,"blockers":0.3,"plans":0.3,"anchorsWholePlate":5.8,"inputs":0.1,"mergeWhole":21},"perRecordUsec":{"solids":2.9,"surfaces":0.74,"blockers":0.15}}
+=== 4. выгрузка ===
+{"cells":9,"objs":228,"releaseMs":0,"unloadMs":101.2,"rebuildMs":100.4}

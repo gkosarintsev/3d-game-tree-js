@@ -1,0 +1,23 @@
+прогон 20 браузерных сюит на http://127.0.0.1:64207
+PASS alien-climb.test.js: 21/21
+PASS alien-enemy.test.js: 5/5
+PASS city-level.test.js: 15/15
+PASS json-level.test.js: 50/50
+PASS json2-level.test.js: 17/17
+PASS level-contract.test.js: 8/8
+PASS level-lifecycle.test.js: 5/5
+PASS model-level.test.js: 24/24
+PASS night-lights.test.js: 7/7
+PASS open-world.test.js: 14/14
+PASS relief-city.test.js: 14/14
+PASS relief-terrain.test.js: 12/12
+PASS rotated-house.test.js: 12/12
+PASS rotated-road.test.js: 12/12
+PASS rotated-solid.test.js: 10/10
+PASS rotated-sweep.test.js: 17/17
+PASS stream-map.test.js: 11/11
+PASS terrain-traverse.test.js: 18/18
+PASS track-city.test.js: 14/14
+PASS vehicle.test.js: 13/13
+
+браузер: 299/299 проверок зелёные по 20/20 сюжеткам

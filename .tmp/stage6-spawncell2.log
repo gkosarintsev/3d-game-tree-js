@@ -1,0 +1,96 @@
+{
+ "spawnCell": {
+  "id": "0_1",
+  "url": "/probe/open-600/chunk-0-1.json",
+  "bytes": 55209,
+  "fetchMs": 362.9,
+  "syncMs": 76.5,
+  "nodes": 1118,
+  "edges": 2020,
+  "builtAtSpawn": true,
+  "groundAtSpawn": 0,
+  "spawnY": 0,
+  "orphans": {
+   "start": 1032,
+   "count": 11,
+   "sample": [
+    {
+     "x": -222,
+     "y": -1.72,
+     "z": 42,
+     "deg": 0,
+     "fit": false
+    },
+    {
+     "x": 230,
+     "y": -4,
+     "z": 34.4,
+     "deg": 0,
+     "fit": false
+    },
+    {
+     "x": 230,
+     "y": -3.56,
+     "z": 35.9,
+     "deg": 0,
+     "fit": false
+    },
+    {
+     "x": 230,
+     "y": -3.11,
+     "z": 37.4,
+     "deg": 0,
+     "fit": false
+    },
+    {
+     "x": 230,
+     "y": -2.67,
+     "z": 38.8,
+     "deg": 0,
+     "fit": false
+    },
+    {
+     "x": 230,
+     "y": -2.22,
+     "z": 40.3,
+     "deg": 0,
+     "fit": false
+    }
+   ],
+   "fitCount": 0,
+   "fitSample": [],
+   "unfit": 11
+  },
+  "room": {
+   "total": 820,
+   "human": 820,
+   "alien": 820,
+   "need": 24
+  },
+  "anchors": {
+   "n": 199,
+   "floating": 0,
+   "worst": 0,
+   "unbuilt": 0
+  },
+  "route": {
+   "found": true,
+   "ms": 0.7,
+   "nodes": 52,
+   "len": 199,
+   "cells": [
+    "0_1"
+   ],
+   "offSupport": 0,
+   "worstSupport": 0,
+   "toExit": 252.07,
+   "exitRadius": 4
+  },
+  "sceneChildren": 29,
+  "counters": {
+   "windows": 1468,
+   "clutter": 36,
+   "signage": 20
+  }
+ }
+}

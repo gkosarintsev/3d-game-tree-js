@@ -1,0 +1,23 @@
+import { readFileSync } from 'node:fs';
+import { generateCatalog } from '../tools/build-level.mjs';
+
+const raw = JSON.parse(readFileSync('probe/open-2km.json', 'utf8'));
+raw.kind = 'open';
+raw.stream = { chunk: 350, keep: 1, aheadMin: 300, aheadMax: 900, budgetMs: 8 };
+const g = await generateCatalog(raw, 'probe/open-2km.json');
+const m = g.worldMap;
+const b = m.buildings.find(x => x.isEnterable);
+console.log('doors', JSON.stringify(b.doors, null, 1).slice(0, 1500));
+console.log('\nrooms[0]', JSON.stringify(b.rooms[0], null, 1).slice(0, 1500));
+console.log('\nstairs[0]', JSON.stringify(b.stairs?.[0], null, 1).slice(0, 1500));
+console.log('\nroof', JSON.stringify(b.roof, null, 1));
+console.log('\nroad ground deck sample', JSON.stringify(m.roads.find(r => r.type === 'ground').decks[0], null, 1));
+console.log('\nroad keys', Object.keys(m.roads.find(r => r.type === 'ground')));
+console.log('\nbridge road keys', Object.keys(m.roads.find(r => r.type === 'bridge')));
+const br = m.roads.find(r => r.type === 'bridge');
+console.log('bridge decks kinds', br.decks.map(d => (d.arc ? 'arc' : 'plate')), 'fill', br.fill?.length, 'aprons', br.aprons?.length, 'pillars', br.pillars?.length);
+const withApron = m.roads.filter(r => (r.aprons ?? []).length);
+console.log('roads with aprons', withApron.length, JSON.stringify(withApron[0]?.aprons?.[0], null, 1));
+const withFill = m.roads.filter(r => (r.fill ?? []).length);
+console.log('roads with fill', withFill.length, JSON.stringify(withFill[0]?.fill?.[0], null, 1));
+console.log('\nlights', m.lights?.length, 'props sample', JSON.stringify(m.props?.[0], null, 1));

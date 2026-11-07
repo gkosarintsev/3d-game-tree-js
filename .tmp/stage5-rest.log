@@ -1,0 +1,58 @@
+{
+  "seconds": 54.5,
+  "carsFoot": {
+    "frames": 2400,
+    "unloadedCarFrames": 868,
+    "worstAtOnce": 3,
+    "boardsIntoNothing": 0,
+    "yDrift": {
+      "count": 1735,
+      "min": 0,
+      "max": 0
+    }
+  },
+  "exit": {
+    "exit": {
+      "x": 150,
+      "z": -96
+    },
+    "cellOfExit": "2_1",
+    "frames": 2400,
+    "readyFrames": 0,
+    "yNoCell": 0,
+    "blockedNoCell": true,
+    "route": {
+      "frames": 2400,
+      "unloads": 2,
+      "loads": 5
+    },
+    "yLoaded": 0.12,
+    "blockedLoaded": false,
+    "goalY": 0,
+    "navNodesNear": 24
+  },
+  "minimap": {
+    "viewHalf": 324,
+    "plate": 600,
+    "range": 130,
+    "mismatchK": 2.492,
+    "playerMarkerPx": [
+      173,
+      178
+    ],
+    "playerPlanPx": [
+      168,
+      168
+    ],
+    "samplesPerPlanPx": 0.77,
+    "samplesPerMarkerPx": 1.93,
+    "levelStates": [
+      "0|0: 6 кадров, первый 0",
+      "0.04|13: 4 кадров, первый 6",
+      "0.04|26: 2390 кадров, первый 10"
+    ],
+    "flips": 2,
+    "frames": 2400,
+    "platesNoCells": 0
+  }
+}

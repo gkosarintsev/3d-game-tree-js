@@ -1,0 +1,12 @@
+file:///C:/Temp/003/tools/ci-browser.mjs:71
+  throw new Error(`playwright не найден (пробовал: ${candidates.join(', ') || 'пусто'}) `
+        ^
+
+Error: playwright не найден (пробовал: playwright, /usr/local/lib/node_modules/playwright, /usr/lib/node_modules/playwright) — гоняйте этот скрипт после установки пакета, в CI путь отдаёт NODE_PATH="$(npm root --global)"
+    at loadPlaywright (file:///C:/Temp/003/tools/ci-browser.mjs:71:9)
+    at file:///C:/Temp/003/tools/ci-browser.mjs:147:22
+    at ModuleJob.run (node:internal/modules/esm/module_job:377:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:691:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.11.0

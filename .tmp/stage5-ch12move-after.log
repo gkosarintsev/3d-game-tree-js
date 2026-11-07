@@ -1,0 +1,28 @@
+SECTION ch12move {"frames":1800,"samples":18000,"blocked":133,"byKind":{"AlienEnemy":133},"byState":{"ground":133},"offBounds":0,"tween":25,"ungrounded":12,"runMax":125,"nodeDistMax":6.500723642342249,"nodeDistSamples":133,"feetVsPos":{"mismatch":0},"byKindState":{"AlienEnemy/ground":133},"standingBlocked":133}
+{
+  "seconds": 560.3,
+  "ch12move": {
+    "frames": 1800,
+    "samples": 18000,
+    "blocked": 133,
+    "byKind": {
+      "AlienEnemy": 133
+    },
+    "byState": {
+      "ground": 133
+    },
+    "offBounds": 0,
+    "tween": 25,
+    "ungrounded": 12,
+    "runMax": 125,
+    "nodeDistMax": 6.500723642342249,
+    "nodeDistSamples": 133,
+    "feetVsPos": {
+      "mismatch": 0
+    },
+    "byKindState": {
+      "AlienEnemy/ground": 133
+    },
+    "standingBlocked": 133
+  }
+}

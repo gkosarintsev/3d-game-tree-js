@@ -1,0 +1,169 @@
+SECTION holes {"samples":19200,"holes":6784,"sweptByBounds":6784,"blockedInHole":6784,"blockedInsideLoaded":0,"insideLoaded":12416,"perType":{"Enemy":{"holes":5088,"inLoadedCell":0},"AlienEnemy":{"holes":1696,"inLoadedCell":0}},"frames":2400,"built":5,"unloaded":2,"loaded":4,"blockedInsideLoadedBy":{},"standingBlockedInsideLoaded":0,"holesBy":{"Enemy/ground":5088,"AlienEnemy/ground":1696},"buckets":{"60…120 м":1696,"sample 1":"Enemy (-174.0, 48.0) клетка 0_1 loaded=false до застроенного 74.00 м узел графа в 0.00 м isBlocked=true","2…20 м":2544,"sample 2":"Enemy (-108.0, -30.0) клетка 0_1 loaded=false до застроенного 8.00 м узел графа в 0.00 м isBlocked=true",">120 м":1696,"sample 3":"Enemy (-276.0, 84.0) клетка 0_1 loaded=false до застроенного 176.00 м узел графа в 0.00 м isBlocked=true","≤2 м (шов)":848,"sample 4":"Enemy (-102.0, 36.0) клетка 0_1 loaded=false до застроенного 2.00 м узел графа в 0.00 м isBlocked=true","sample 5":"Enemy (-114.0, 36.0) клетка 0_1 loaded=false до застроенного 14.00 м узел графа в 0.00 м isBlocked=true","sample 6":"Enemy (-198.0, -66.0) клетка 0_1 loaded=false до застроенного 98.00 м узел графа в 0.00 м isBlocked=true","sample 7":"AlienEnemy (-114.0, 60.0) клетка 0_1 loaded=false до застроенного 14.00 м узел графа в 0.00 м isBlocked=true","sample 8":"AlienEnemy (-288.0, 54.0) клетка 0_1 loaded=false до застроенного 188.00 м узел графа в 0.00 м isBlocked=true"}}
+SECTION holesLive {"samples":19200,"holes":5166,"sweptByBounds":5088,"blockedInHole":5166,"blockedInsideLoaded":2730,"insideLoaded":14034,"perType":{"Enemy":{"holes":5166,"inLoadedCell":0}},"frames":2400,"built":5,"unloaded":2,"loaded":4,"blockedInsideLoadedBy":{"AlienEnemy/ground":2730},"standingBlockedInsideLoaded":2730,"holesBy":{"Enemy/ground":5166},"buckets":{"20…60 м":2583,"sample 1":"Enemy (-154.4, -48.0) клетка 0_1 loaded=false до застроенного 54.43 м узел графа в 1.57 м isBlocked=true","sample 2":"Enemy (-132.0, -68.1) клетка 0_1 loaded=false до застроенного 32.00 м узел графа в 2.10 м isBlocked=true","sample 3":"Enemy (-153.9, -12.2) клетка 0_1 loaded=false до застроенного 53.94 м узел графа в 2.08 м isBlocked=true","2…20 м":861,"sample 4":"Enemy (-114.3, -69.9) клетка 0_1 loaded=false до застроенного 14.35 м узел графа в 2.15 м isBlocked=true","60…120 м":861,"sample 5":"Enemy (-216.5, 0.1) клетка 0_1 loaded=false до застроенного 116.52 м узел графа в 0.52 м isBlocked=true",">120 м":861,"sample 6":"Enemy (-258.8, -24.0) клетка 0_1 loaded=false до застроенного 158.82 м узел графа в 0.82 м isBlocked=true","sample 7":"Enemy (-154.4, -48.0) клетка 0_1 loaded=false до застроенного 54.43 м узел графа в 1.57 м isBlocked=true","sample 8":"Enemy (-132.0, -68.1) клетка 0_1 loaded=false до застроенного 32.00 м узел графа в 2.10 м isBlocked=true"}}
+SECTION holesZig {"samples":33888,"holes":15688,"sweptByBounds":11956,"blockedInHole":15688,"blockedInsideLoaded":2017,"insideLoaded":18200,"perType":{"Enemy":{"holes":14844,"inLoadedCell":0},"AlienEnemy":{"holes":844,"inLoadedCell":0}},"frames":4236,"built":5,"unloaded":2,"loaded":4,"blockedInsideLoadedBy":{"AlienEnemy/ground":1989,"AlienEnemy/transition":28},"standingBlockedInsideLoaded":1989,"holesBy":{"Enemy/ground":14844,"AlienEnemy/air":2,"AlienEnemy/ground":842},"buckets":{"2…20 м":856,"sample 1":"Enemy (-102.0, -64.6) клетка 0_1 loaded=false до застроенного 2.01 м узел графа в 1.45 м isBlocked=true","20…60 м":6078,"sample 2":"Enemy (-156.0, -0.6) клетка 0_1 loaded=false до застроенного 56.00 м узел графа в 0.57 м isBlocked=true","60…120 м":6876,"sample 3":"Enemy (-176.8, 30.0) клетка 0_1 loaded=false до застроенного 70.00 м узел графа в 2.78 м isBlocked=true","sample 4":"Enemy (-208.3, 78.0) клетка 0_1 loaded=false до застроенного 21.95 м узел графа в 1.74 м isBlocked=true","sample 5":"Enemy (-218.0, 6.0) клетка 0_1 loaded=false до застроенного 93.98 м узел графа в 2.03 м isBlocked=true","sample 6":"Enemy (-218.6, 60.0) клетка 0_1 loaded=false до застроенного 39.97 м узел графа в 2.60 м isBlocked=true","sample 7":"Enemy (-102.0, -64.6) клетка 0_1 loaded=false до застроенного 2.01 м узел графа в 1.45 м isBlocked=true","sample 8":"Enemy (-156.0, -0.6) клетка 0_1 loaded=false до застроенного 56.00 м узел графа в 0.57 м isBlocked=true",">120 м":1852,"≤2 м (шов)":26}}
+SECTION enemiesZig {"holeFrames":657,"holeMax":5,"holeSamples":3145,"samples":33888,"sweptByBounds":11966,"outsideLoaded":15111,"walkedOutOfWindow":8,"blockedInsideLoaded":3482,"samplesInsideLoaded":18777,"offstageFrames":0,"aliveAtEnd":8,"perType":{"Enemy":{"samples":25416,"holes":3145,"blockedInLoaded":0,"outsideLoaded":14269},"AlienEnemy":{"samples":8472,"holes":0,"blockedInLoaded":3482,"outsideLoaded":842}},"route":{"distance":600,"speed":8.5,"update":true,"ping":false},"count":8}
+{
+  "seconds": 84.7,
+  "holes": {
+    "samples": 19200,
+    "holes": 6784,
+    "sweptByBounds": 6784,
+    "blockedInHole": 6784,
+    "blockedInsideLoaded": 0,
+    "insideLoaded": 12416,
+    "perType": {
+      "Enemy": {
+        "holes": 5088,
+        "inLoadedCell": 0
+      },
+      "AlienEnemy": {
+        "holes": 1696,
+        "inLoadedCell": 0
+      }
+    },
+    "frames": 2400,
+    "built": 5,
+    "unloaded": 2,
+    "loaded": 4,
+    "blockedInsideLoadedBy": {},
+    "standingBlockedInsideLoaded": 0,
+    "holesBy": {
+      "Enemy/ground": 5088,
+      "AlienEnemy/ground": 1696
+    },
+    "buckets": {
+      "60…120 м": 1696,
+      "sample 1": "Enemy (-174.0, 48.0) клетка 0_1 loaded=false до застроенного 74.00 м узел графа в 0.00 м isBlocked=true",
+      "2…20 м": 2544,
+      "sample 2": "Enemy (-108.0, -30.0) клетка 0_1 loaded=false до застроенного 8.00 м узел графа в 0.00 м isBlocked=true",
+      ">120 м": 1696,
+      "sample 3": "Enemy (-276.0, 84.0) клетка 0_1 loaded=false до застроенного 176.00 м узел графа в 0.00 м isBlocked=true",
+      "≤2 м (шов)": 848,
+      "sample 4": "Enemy (-102.0, 36.0) клетка 0_1 loaded=false до застроенного 2.00 м узел графа в 0.00 м isBlocked=true",
+      "sample 5": "Enemy (-114.0, 36.0) клетка 0_1 loaded=false до застроенного 14.00 м узел графа в 0.00 м isBlocked=true",
+      "sample 6": "Enemy (-198.0, -66.0) клетка 0_1 loaded=false до застроенного 98.00 м узел графа в 0.00 м isBlocked=true",
+      "sample 7": "AlienEnemy (-114.0, 60.0) клетка 0_1 loaded=false до застроенного 14.00 м узел графа в 0.00 м isBlocked=true",
+      "sample 8": "AlienEnemy (-288.0, 54.0) клетка 0_1 loaded=false до застроенного 188.00 м узел графа в 0.00 м isBlocked=true"
+    }
+  },
+  "holesLive": {
+    "samples": 19200,
+    "holes": 5166,
+    "sweptByBounds": 5088,
+    "blockedInHole": 5166,
+    "blockedInsideLoaded": 2730,
+    "insideLoaded": 14034,
+    "perType": {
+      "Enemy": {
+        "holes": 5166,
+        "inLoadedCell": 0
+      }
+    },
+    "frames": 2400,
+    "built": 5,
+    "unloaded": 2,
+    "loaded": 4,
+    "blockedInsideLoadedBy": {
+      "AlienEnemy/ground": 2730
+    },
+    "standingBlockedInsideLoaded": 2730,
+    "holesBy": {
+      "Enemy/ground": 5166
+    },
+    "buckets": {
+      "20…60 м": 2583,
+      "sample 1": "Enemy (-154.4, -48.0) клетка 0_1 loaded=false до застроенного 54.43 м узел графа в 1.57 м isBlocked=true",
+      "sample 2": "Enemy (-132.0, -68.1) клетка 0_1 loaded=false до застроенного 32.00 м узел графа в 2.10 м isBlocked=true",
+      "sample 3": "Enemy (-153.9, -12.2) клетка 0_1 loaded=false до застроенного 53.94 м узел графа в 2.08 м isBlocked=true",
+      "2…20 м": 861,
+      "sample 4": "Enemy (-114.3, -69.9) клетка 0_1 loaded=false до застроенного 14.35 м узел графа в 2.15 м isBlocked=true",
+      "60…120 м": 861,
+      "sample 5": "Enemy (-216.5, 0.1) клетка 0_1 loaded=false до застроенного 116.52 м узел графа в 0.52 м isBlocked=true",
+      ">120 м": 861,
+      "sample 6": "Enemy (-258.8, -24.0) клетка 0_1 loaded=false до застроенного 158.82 м узел графа в 0.82 м isBlocked=true",
+      "sample 7": "Enemy (-154.4, -48.0) клетка 0_1 loaded=false до застроенного 54.43 м узел графа в 1.57 м isBlocked=true",
+      "sample 8": "Enemy (-132.0, -68.1) клетка 0_1 loaded=false до застроенного 32.00 м узел графа в 2.10 м isBlocked=true"
+    }
+  },
+  "holesZig": {
+    "samples": 33888,
+    "holes": 15688,
+    "sweptByBounds": 11956,
+    "blockedInHole": 15688,
+    "blockedInsideLoaded": 2017,
+    "insideLoaded": 18200,
+    "perType": {
+      "Enemy": {
+        "holes": 14844,
+        "inLoadedCell": 0
+      },
+      "AlienEnemy": {
+        "holes": 844,
+        "inLoadedCell": 0
+      }
+    },
+    "frames": 4236,
+    "built": 5,
+    "unloaded": 2,
+    "loaded": 4,
+    "blockedInsideLoadedBy": {
+      "AlienEnemy/ground": 1989,
+      "AlienEnemy/transition": 28
+    },
+    "standingBlockedInsideLoaded": 1989,
+    "holesBy": {
+      "Enemy/ground": 14844,
+      "AlienEnemy/air": 2,
+      "AlienEnemy/ground": 842
+    },
+    "buckets": {
+      "2…20 м": 856,
+      "sample 1": "Enemy (-102.0, -64.6) клетка 0_1 loaded=false до застроенного 2.01 м узел графа в 1.45 м isBlocked=true",
+      "20…60 м": 6078,
+      "sample 2": "Enemy (-156.0, -0.6) клетка 0_1 loaded=false до застроенного 56.00 м узел графа в 0.57 м isBlocked=true",
+      "60…120 м": 6876,
+      "sample 3": "Enemy (-176.8, 30.0) клетка 0_1 loaded=false до застроенного 70.00 м узел графа в 2.78 м isBlocked=true",
+      "sample 4": "Enemy (-208.3, 78.0) клетка 0_1 loaded=false до застроенного 21.95 м узел графа в 1.74 м isBlocked=true",
+      "sample 5": "Enemy (-218.0, 6.0) клетка 0_1 loaded=false до застроенного 93.98 м узел графа в 2.03 м isBlocked=true",
+      "sample 6": "Enemy (-218.6, 60.0) клетка 0_1 loaded=false до застроенного 39.97 м узел графа в 2.60 м isBlocked=true",
+      "sample 7": "Enemy (-102.0, -64.6) клетка 0_1 loaded=false до застроенного 2.01 м узел графа в 1.45 м isBlocked=true",
+      "sample 8": "Enemy (-156.0, -0.6) клетка 0_1 loaded=false до застроенного 56.00 м узел графа в 0.57 м isBlocked=true",
+      ">120 м": 1852,
+      "≤2 м (шов)": 26
+    }
+  },
+  "enemiesZig": {
+    "holeFrames": 657,
+    "holeMax": 5,
+    "holeSamples": 3145,
+    "samples": 33888,
+    "sweptByBounds": 11966,
+    "outsideLoaded": 15111,
+    "walkedOutOfWindow": 8,
+    "blockedInsideLoaded": 3482,
+    "samplesInsideLoaded": 18777,
+    "offstageFrames": 0,
+    "aliveAtEnd": 8,
+    "perType": {
+      "Enemy": {
+        "samples": 25416,
+        "holes": 3145,
+        "blockedInLoaded": 0,
+        "outsideLoaded": 14269
+      },
+      "AlienEnemy": {
+        "samples": 8472,
+        "holes": 0,
+        "blockedInLoaded": 3482,
+        "outsideLoaded": 842
+      }
+    },
+    "route": {
+      "distance": 600,
+      "speed": 8.5,
+      "update": true,
+      "ping": false
+    },
+    "count": 8
+  }
+}
