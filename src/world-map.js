@@ -738,7 +738,6 @@ export class WorldMap extends JsonMap {
     const radius = this._windowRadius(speed);
     this.pump.radius = radius;
     const want = this._windowCells(x, z, radius);
-    console.error('[WM-DEBUG] streamStep: want=', want.length, 'radius=', radius.toFixed(0), 'loaded=', this.loaded.size, 'task=', this.pump.task?.id);
     this._prefetch(want, radius, x, z);
     const started = performance.now();
     let run = 0;
@@ -833,14 +832,12 @@ export class WorldMap extends JsonMap {
   async _readCell(id) {
     const url = this.chunkUrl(id);
     const t0 = performance.now();
-    console.error('[WM-DEBUG] _readCell fetch start, url=', url);
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`${url}: ${res.status}`);
       return await res.json();
     } finally {
       const ms = performance.now() - t0;
-      console.error('[WM-DEBUG] _readCell fetch done, url=', url, 'ms=', ms.toFixed(0));
       const st = this.pump.stats;
       st.fetches += 1;
       st.fetchMs += ms;
@@ -855,9 +852,8 @@ export class WorldMap extends JsonMap {
   _fetchCell(id) {
     const req = { data: null, t0: performance.now() };
     this.pump.requests.set(id, req);
-    console.error('[WM-DEBUG] _fetchCell start, id=', id, 'url=', this.chunkUrl(id));
     this._readCell(id).then(
-      (data) => { req.data = data; console.error('[WM-DEBUG] _fetchCell done, id=', id); },
+      (data) => { req.data = data; },
       (e) => {
         const st = this.pump.stats;
         st.errors += 1;

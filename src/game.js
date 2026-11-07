@@ -110,7 +110,6 @@ export class Game {
    */
   async _loadLevel(index) {
     const level = LEVELS[index];
-    console.error('[GW-DEBUG] _loadLevel start, index=', index, 'name=', level.name, 'cells=', level.map?.cells?.length);
 
     // выгрузка сущностей предыдущей главы: снятие слушателей (см. AGENTS.md)
     if (this.player) {
@@ -129,18 +128,12 @@ export class Game {
       // до постановки тел, а второй `await` после сборки дал бы главе кадр с
       // пустой плитой (замер этапа 6: узлов 0, `isBlocked(spawn)` истинен)
       if (CONFIG.physics?.mode === 'rapier') await PhysicsIndex.init();
-      const tPre0 = performance.now();
       await Promise.all([preloadMapAsset(level.map), preloadWorldCells(level.map)]);
-      const tPre1 = performance.now();
-      console.error('[GW-DEBUG] _loadLevel: preload done in', (tPre1 - tPre0).toFixed(0), 'ms');
       // после await собираем именно эту главу, а не «ту, что сейчас в this.level»:
       // вызовы _loadLevel могли наложиться (меню ?debug=1 зовёт его по клику, а две
       // главы на GLB стоят подряд) — иначе отложенный preload одной главы строит
       // карту другой, ассет которой ещё не прочитан
-      const tBuild0 = performance.now();
       this._buildLevel(index, level); // интертитр главы снимает отложенный показ загрузки
-      const tBuild1 = performance.now();
-      console.error('[GW-DEBUG] _loadLevel: _buildLevel done in', (tBuild1 - tBuild0).toFixed(0), 'ms, total=', (tBuild1 - tPre0).toFixed(0), 'ms');
     } catch (e) {
       // непрогруженный ассет или непроходимая точка спавна: главе нечего показывать
       console.error(e);
