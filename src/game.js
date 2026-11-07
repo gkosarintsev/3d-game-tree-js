@@ -482,6 +482,7 @@ export class Game {
   /** Горизонтальная скорость того, кем управляют: в поездке — кузов, пешком —
    *  персонаж. Карта по ней выбирает между `stream.aheadMin` и `aheadMax`. */
   _bodySpeed() {
+    if (!this.player?.velocity) return 0;
     if (this.player.vehicle && this.cars?.driven) return Math.abs(this.cars.driven.speed);
     const v = this.player.velocity;
     return Math.hypot(v.x, v.z);
