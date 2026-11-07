@@ -153,23 +153,16 @@ export class Game {
     this.levelIndex = index;
     this.level = level;
     const gp = level.gameplay ?? {};
-    console.error('[GW-DEBUG] _buildLevel start, level=', level.name);
     const tDispose0 = performance.now();
     // прошлая карта обязана освободить свои меши и свет: сцена пересоздаётся, а
     // буферы района 600 м без dispose повисли бы в GPU памяти на каждую перезагрузку
     this.map?.dispose?.();
     if (CONFIG.physics?.mode === 'rapier') PhysicsIndex.dispose();
-    const tDispose1 = performance.now();
-    console.error('[GW-DEBUG] _buildLevel: dispose done in', (tDispose1 - tDispose0).toFixed(0), 'ms');
     const tMap0 = performance.now();
     this.map = this.createMap(level.map);
-    const tMap1 = performance.now();
-    console.error('[GW-DEBUG] _buildLevel: createMap done in', (tMap1 - tMap0).toFixed(0), 'ms, kind=', this.map.kind);
     this._initScene(level.sky);
     const tBuild0 = performance.now();
     this.map.build(this.scene);
-    const tBuild1 = performance.now();
-    console.error('[GW-DEBUG] _buildLevel: map.build done in', (tBuild1 - tBuild0).toFixed(0), 'ms, loaded=', this.map.loaded?.size);
     if (CONFIG.physics?.mode === 'rapier') PhysicsIndex.buildFrom(this.map);
     // карта теней заморожена — пересчитать под новую сцену
     this.renderer.shadowMap.needsUpdate = true;
@@ -191,6 +184,12 @@ export class Game {
       gp.minCoinDistance ?? CONFIG.minCoinDistance,
     );
     this.player = this._createPlayer();
+    // отладочная информация о спавне: координаты и проходимость точки
+    const spawn = level.map.spawn;
+    const blocked = this.map.isBlocked(spawn.x, spawn.z, CONFIG.radius, spawn.y ?? 0, CONFIG.eyeHeight);
+    const groundY = this.map.groundHeightAt(spawn.x, spawn.z, spawn.y ?? 0);
+    const built = this.map.isBuiltAt(spawn.x, spawn.z);
+    console.error(`[SPAWN-DEBUG] level=${level.name} spawn=(${spawn.x},${spawn.z}) built=${built} blocked=${blocked} groundY=${groundY?.toFixed(2)} radius=${CONFIG.radius}`);
     this.enemies = new Enemies(this.scene, this.map, this.player, this.camera, this.tracers, {
       count: gp.enemies?.count,
       alienCount: gp.alienEnemies?.count,
