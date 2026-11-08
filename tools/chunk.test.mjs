@@ -32,9 +32,9 @@ import { decodeChunk } from '../src/level-bin.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const FIXTURE = 'probe/open-2km.json';
-// Клетка 200 м вместо 350 м этапа 1: с этапа 3 сторона обязана быть кратной
-// `J.relief.meshCell` (8 м), иначе нарезка грунта соседних клеток не сходится
-// по вершинам на шве. Из делителей 1 400 м в пределах схемы этому кратны 200 и
+// Клетка 200 м вместо 350 м этапа 1: сторона обязана делить плиту нацело — для
+// малых плит снята кратность `J.relief.meshCell` (глава 2, приоритет размера
+// чанка автору). Из делителей 1 400 м в пределах схемы подходят 200 и
 // 280 (§ 6.3.1 плана), берём меньшую — она держит худшую цену сборки окна.
 const CHUNK = 200;
 const R = CONFIG.radius;
@@ -665,23 +665,21 @@ t('схема: stream берёт только open; open без него и json
     'stream', 'v1 со stream принят');
   hasError(validateLevel(openBrief(CHUNK, r => { r.stream.aheadMax = 100; }), LEVEL_SPEC_V2).errors,
     'ahead', 'aheadMax меньше aheadMin принят');
-  hasError(validateLevel(openBrief(50), LEVEL_SPEC_V2).errors,
-    'chunk', 'сторона клетки 50 м принята');
+  hasError(validateLevel(openBrief(45), LEVEL_SPEC_V2).errors,
+    'chunk', 'клетка 45 м, не делящая плиту, принята');
   hasError(validateLevel(openBrief(CHUNK, r => { r.stream.extra = 1; }), LEVEL_SPEC_V2).errors,
     'extra', 'неописанное поле stream принято');
 
-  // Два гейта клетки мерятся раздельно: кратность шагу нарезки грунта (новый,
-  // § 6.3.1) и деление плиты нацело (был с этапа 1) — у 240 м первый пройден,
-  // у 350 м пройден второй, и ошибка обязана называть подходящие стороны
+  // Гейт клетки теперь один — деление плиты нацело (для малых плит снята и
+  // кратность meshCell, глава 2). Клетка, не делящая плиту, — ошибка, и она
+  // обязана называть подходящие стороны
   const e1 = validateLevel(openBrief(240), LEVEL_SPEC_V2).errors.join(' | ');
   assert(/не делит плиту/.test(e1) && /200/.test(e1),
     `клетка 240 на плите 1400 не названа ошибкой со списком подходящих сторон: ${e1.slice(0, 240)}`);
-  const mesh = CONFIG.jsonMap.relief.meshCell;
-  const e2 = validateLevel(openBrief(350), LEVEL_SPEC_V2).errors.join(' | ');
-  assert(/не кратно/.test(e2) && e2.includes(String(mesh)),
-    `клетка 350, кратная плите но не ${mesh} м, не названа ошибкой: ${e2.slice(0, 240)}`);
-  eq(cellChoices(worldMap.ground.size).join(', '), '200, 280',
-    'стороны клетки, которые принимает эта плита (деление и кратность `meshCell`)');
+  const ok350 = validateLevel(openBrief(350), LEVEL_SPEC_V2);
+  eq(ok350.errors.length, 0, `клетка 350 на плите 1400 теперь должна быть принята: ${ok350.errors.slice(0, 3).join(' | ')}`);
+  eq(cellChoices(worldMap.ground.size).join(', '), '40, 56, 200, 280',
+    'стороны клетки, которые принимает эта плита (деление нацело; кратность meshCell для малых плит снята)');
 });
 
 t('обе JSON Schema побайтово равны выводу DSL', () => {
