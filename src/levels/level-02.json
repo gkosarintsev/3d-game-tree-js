@@ -1,0 +1,67 @@
+{
+  "$schema": "./level-v2.schema.json",
+  "kind": "open",
+  "metadata": {
+    "levelName": "level-02",
+    "name": "Глава 2. Перевал (открытый мир)",
+    "hint": "Пройдите от точки A до маяка точки B: по мосту через пропасть.",
+    "units": "meters",
+    "notes": "Копия уровня 1 в формате открытого мира. Плита 240×240 м, 16 чанков 60×60 м, разрезка парсером автоматически. Функциональное ядро уровня 1: мост через пропасть с подъездами."
+  },
+  "ground": { "size": 240, "color": 7322954 },
+  "stream": {
+    "chunk": 60,
+    "keep": 1,
+    "aheadMin": 60,
+    "aheadMax": 120,
+    "budgetMs": 40
+  },
+  "waterways": [
+    {
+      "id": "chasm",
+      "width": 12,
+      "bedY": -6,
+      "surfaceY": 0,
+      "bank": "quay",
+      "wade": false,
+      "points": [ { "x": 82, "z": -92 }, { "x": 82, "z": 36 } ],
+      "ramps": [ { "at": { "x": 84, "z": -28 }, "width": 8 } ]
+    }
+  ],
+  "roads": [
+    {
+      "id": "approach_bridge_west",
+      "type": "ground",
+      "width": 8,
+      "points": [ { "x": 38, "z": -4, "y": 0 }, { "x": 50, "z": -4, "y": 2.4 } ]
+    },
+    {
+      "id": "bridge_main",
+      "type": "bridge",
+      "width": 8,
+      "points": [ { "x": 50, "z": -4, "y": 2.4 }, { "x": 94, "z": -4, "y": 2.4 } ]
+    },
+    {
+      "id": "approach_bridge_east",
+      "type": "ground",
+      "width": 8,
+      "points": [ { "x": 94, "z": -4, "y": 2.4 }, { "x": 106, "z": -4, "y": 0 } ]
+    }
+  ],
+  "buildings": [],
+  "lights": [],
+  "gameplay": {
+    "goal": "exit",
+    "spawn": { "x": -104, "z": -4 },
+    "exit": { "x": 104, "z": -4 },
+    "exitRadius": 3.5,
+    "enemies": { "count": 2 },
+    "alienEnemies": { "count": 0 }
+  },
+  "sky": {
+    "sky": 12575732,
+    "fog": { "color": 14230008, "near": 90, "far": 520 },
+    "sun": { "color": 16771932, "intensity": 2.3, "position": [-120, 160, -90] },
+    "hemi": { "sky": 13613055, "ground": 5527871, "intensity": 1.0 }
+  }
+}

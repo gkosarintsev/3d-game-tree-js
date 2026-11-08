@@ -8,6 +8,8 @@
  * нельзя выводить из индекса массива.
  *
  * Глава 1 — рельеф (`TerrainMap`): перевал из A в B через пещеру и мост.
+ * Глава 2 — **открытый мир** (`kind: 'open'`): копия уровня 1, плита 240 × 240 м,
+ * разрезана парсером на 16 чанков 60 м (`src/levels/level-02/`).
  * Глава 4 — весь ночной макет GLB активным окном со стримингом (`StreamedModelMap`).
  * Глава 6 — уличный уровень `TownMap` со сбором монет.
  * Главы 11–13 — переходы A→B из JSON-брифа (`kind: 'json2'`): 11 — v2 с
@@ -23,6 +25,7 @@
  * `node tools/build-level.mjs src/levels/level-14.json`.
  */
 import { LEVEL_01 } from './level-01.js';
+import { LEVEL_02 } from './level-02/index.js';
 import { LEVEL_04 } from './level-04.js';
 import { LEVEL_06 } from './level-06.js';
 import { LEVEL_11 } from './level-11.js';
@@ -31,9 +34,9 @@ import { LEVEL_13 } from './level-13.js';
 import { LEVEL_14 } from './level-14/index.js';
 
 export const LEVELS = [
-  LEVEL_01, LEVEL_04, LEVEL_06,
+  LEVEL_01, LEVEL_02, LEVEL_04, LEVEL_06,
   LEVEL_11, LEVEL_12, LEVEL_13, LEVEL_14,
 ];
 
 /** Номер главы для каждой позиции `LEVELS` (файлы `level-NN`). */
-export const LEVEL_NUMBERS = [1, 4, 6, 11, 12, 13, 14];
+export const LEVEL_NUMBERS = [1, 2, 4, 6, 11, 12, 13, 14];
