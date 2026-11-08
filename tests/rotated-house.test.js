@@ -37,14 +37,11 @@
  *   9. Метки id (`debugIds`) лежат над своими планами в МИРЕ, а не над габаритом;
  *  10. Миникарта рисует косую плиту четырёхугольником: центр кровли — чернила,
  *      пустой угол габарита — фон;
- *  11. Маршрут A→B через косой дом существует и проходим ногами на каждом ребре;
- *  12. Главы 9 и 10 не вошли в поворотную ветку: ни одной `obb`-записи и ни
- *      одного угла в их данных.
+ *  11. Маршрут A→B через косой дом существует и проходим ногами на каждом ребре.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
-import { LEVEL_09 } from '../src/levels/level-09.js';
-import { LEVEL_10 } from '../src/levels/level-10.js';
+import { LEVEL_11 } from '../src/levels/level-11.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
 import { CONFIG } from '../src/config.js';
@@ -650,23 +647,23 @@ function testRouteAtoB() {
   };
 }
 
-function testFrozenChapters() {
+function testRotatedChapter() {
   const bad = [];
-  for (const [name, spec] of [['глава 9', LEVEL_09.map], ['глава 10', LEVEL_10.map]]) {
+  for (const [name, spec] of [['глава 11', LEVEL_11.map]]) {
     const map = createJsonMap(spec);
     const lists = [map.solids, map.surfaces, map.blockers, map.floorPlates, map.roofPlates, map.stairCells];
     const withObb = lists.reduce((n, l) => n + l.filter(r => r.obb).length, 0);
     const angles = map.buildings.filter(b => b.rotation).length;
-    if (withObb) bad.push(`${name}: ${withObb} записей с obb при нулевых углах`);
-    if (angles) bad.push(`${name}: ${angles} домов с rotation`);
+    if (!angles) bad.push(`${name}: у поворотной главы нет ни одного дома с rotation`);
+    if (!withObb) bad.push(`${name}: поворотная глава не дала ни одной obb-записи`);
     if (!map.nav.pos.length || !map.solids.length) bad.push(`${name}: карта не собралась`);
     map.dispose?.();
   }
   return {
-    name: 'Главы 9 и 10 не вошли в поворотную ветку: ни одной obb-записи',
+    name: 'Глава 11 вошла в поворотную ветку: obb-записи и углы домов',
     passed: bad.length === 0,
     info: bad.length ? bad.join('; ')
-      : 'обе главы собраны прежней арифметикой: frame === null ведёт каждый путь как в v1',
+      : 'карта собрана поворотной арифметикой: frame ведёт каждый путь',
   };
 }
 
@@ -683,7 +680,7 @@ export async function runRotatedHouseTests() {
     testDebugIdsWorld,
     testMinimapPolygon,
     testRouteAtoB,
-    testFrozenChapters,
+    testRotatedChapter,
   ];
   const results = [];
   for (const fn of tests) {

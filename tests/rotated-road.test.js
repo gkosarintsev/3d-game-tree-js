@@ -35,14 +35,11 @@
  *   9. Цепочка узлов вдоль косой эстакады связна: маршрут с земли на верхний
  *      настил существует и проходим ногами на каждом ребре;
  *  10. Миникарта рисует косую пластину четырёхугольником, а не её габаритом;
- *  11. Метки id различают пластины суффиксом `· yaw N°`;
- *  12. Главы 9 и 10 не вошли в поворотную ветку: ни одной пластины с углом или
- *      `obb`, ни одной повёрнутой призмы.
+ *  11. Метки id различают пластины суффиксом `· yaw N°`.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
-import { LEVEL_09 } from '../src/levels/level-09.js';
-import { LEVEL_10 } from '../src/levels/level-10.js';
+import { LEVEL_11 } from '../src/levels/level-11.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
 import { CONFIG } from '../src/config.js';
@@ -587,23 +584,23 @@ function testDebugIds() {
   };
 }
 
-function testFrozenChapters() {
+function testRotatedChapter() {
   const bad = [];
-  for (const [name, spec] of [['глава 9', LEVEL_09.map], ['глава 10', LEVEL_10.map]]) {
+  for (const [name, spec] of [['глава 11', LEVEL_11.map]]) {
     const map = createJsonMap(spec);
     const decks = map.roads.flatMap(r => r.decks);
     const yawed = decks.filter(d => d.yaw || d.cx !== undefined || d.obb).length;
     const framed = map.prisms.filter(w => w.frame).length;
-    if (yawed) bad.push(`${name}: ${yawed} пластин с углом или obb`);
-    if (framed) bad.push(`${name}: ${framed} повёрнутых призм`);
+    if (!yawed) bad.push(`${name}: ни одной пластины с углом или obb`);
+    if (!framed) bad.push(`${name}: ни одной повёрнутой призмы`);
     if (!map.nav.pos.length || !decks.length) bad.push(`${name}: карта не собралась`);
     map.dispose?.();
   }
   return {
-    name: 'Главы 9 и 10 не вошли в поворотную ветку настилов',
+    name: 'Глава 11 вошла в поворотную ветку настилов',
     passed: bad.length === 0,
     info: bad.length ? bad.join('; ')
-      : 'обе главы собраны прежней арифметикой: frame === null ведёт каждую пластину как в v1',
+      : 'пластины и призмы собраны в повёрнутом кадре',
   };
 }
 
@@ -620,7 +617,7 @@ export async function runRotatedRoadTests() {
     testNavChain,
     testMinimapPolygon,
     testDebugIds,
-    testFrozenChapters,
+    testRotatedChapter,
   ];
   const results = [];
   for (const fn of tests) {

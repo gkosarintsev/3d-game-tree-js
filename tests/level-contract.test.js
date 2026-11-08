@@ -15,9 +15,7 @@
  * собралась бы улицей без геометрии — молча.
  */
 import * as THREE from 'three';
-console.error('[TEST-DEBUG] importing tests/level-contract.test.js');
-import { LEVELS } from '../src/levels/index.js';
-console.error('[TEST-DEBUG] LEVELS imported');
+import { LEVELS, LEVEL_NUMBERS } from '../src/levels/index.js';
 import { CONFIG } from '../src/config.js';
 import { preloadMapAsset } from '../src/glb.js';
 import { preloadWorldCells } from '../src/world-map.js';
@@ -65,9 +63,10 @@ const cache = new Map();
  * `kind`, что в `Game.createMap`).
  *
  * Открытая глава (`streamStep`) достраивается здесь целиком, клетка за клеткой
- * из `cells[]` определения: её маршрут A→B идёт через три клетки (замер главы
- * 14 — `0_1 → 1_1 → 2_1`, 93 узла / 455 м), а окно спавна держит четыре других
- * (`0_1, 0_2, 1_1, 1_2`), и конца маршрута в нём нет вовсе. Мерить контракт
+ * из `cells[]` определения: её маршрут A→B идёт через девять клеток (замер
+ * главы 14 — `0_4 → 0_3 → 1_3 → 1_2 → 1_1 → 2_1 → 3_1 → 3_0 → 4_0`,
+ * 528 узлов / 3 191 м), а окно спавна держит четыре клетки
+ * (`0_3, 0_4, 1_3, 1_4`), и конца маршрута в нём нет вовсе. Мерить контракт
  * маршрута на окне значило бы проверять не главу, а её первый кадр. Оконное
  * поведение — растяжка достройки, выгрузка, поп-ин, снятие сущностей — живёт в
  * `tests/open-world.test.js`, где мир собирается в своём порядке и ходит
@@ -76,54 +75,42 @@ const cache = new Map();
 async function assemble(level) {
   const factory = window.game?.createMap?.bind(window.game);
   if (!factory) throw new Error('сюита собирает главы фабрикой движка; откройте 3d-game.html, где main.js создал window.game');
-  const tPreload0 = performance.now();
-  console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): preloadMapAsset + preloadWorldCells start`);
   // единственная точка await — правило «загрузка ассета» в AGENTS.md; движок
   // ждёт здесь же и стартовую клетку открытого мира (`_loadLevel`)
   await Promise.all([preloadMapAsset(level.map), preloadWorldCells(level.map)]);
-  const tPreload1 = performance.now();
-  console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): preload done in ${(tPreload1 - tPreload0).toFixed(0)} мс`);
-  const tFactory0 = performance.now();
   const map = factory(level.map);
-  const tFactory1 = performance.now();
-  console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): factory + constructor in ${(tFactory1 - tFactory0).toFixed(0)} мс, kind=${map.kind}, cells=${map.cells?.length}`);
-  const tBuild0 = performance.now();
   const scene = new THREE.Scene();
   map.build(scene);
-  const tBuild1 = performance.now();
-  console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): map.build in ${(tBuild1 - tBuild0).toFixed(0)} мс`);
   if (typeof map.streamStep === 'function') {
-    const tLoad0 = performance.now();
-    // Открытый мир: грузим клетки окна спавна и на маршруте A→B, а если клеток
-    // мало (≤ 100) — все, чтобы findPath в storyline-сюжетке нашёл маршрут.
+    // Открытый мир: грузим окно спавна и коридор маршрута A→B. Полная загрузка
+    // всех клеток (100+ на 4×4 км) не укладывается в браузерный прогон, а
+    // storyline-фикстура меряет только наличие маршрута и опор на нём.
     const allCells = level.map.cells ?? [];
     const windowCells = new Set();
-    const wantAll = allCells.length <= 100;
-    if (wantAll) {
-      for (const c of allCells) windowCells.add(c.id);
-    } else {
-      const spawnCell = map.spawnCell();
-      if (spawnCell) windowCells.add(spawnCell.id);
-      if (level.gameplay?.goal === 'exit' && level.gameplay.exit) {
-        const from = map.spawn;
-        const to = level.gameplay.exit;
-        const r = map.stream.chunk;
-        const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / r));
-        for (let i = 0; i <= steps; i++) {
-          const t = i / steps;
-          const x = from.x + (to.x - from.x) * t;
-          const z = from.z + (to.z - from.z) * t;
-          const c = map.cellAt(x, z);
-          if (c) windowCells.add(c.id);
-        }
+    const addNear = (x, z, r) => {
+      for (const c of allCells) {
+        const rc = c.rect;
+        const dx = Math.max(rc.minX - x, 0, x - rc.maxX);
+        const dz = Math.max(rc.minZ - z, 0, z - rc.maxZ);
+        if (dx * dx + dz * dz <= r * r) windowCells.add(c.id);
+      }
+    };
+    const radius = (map.stream?.keep ?? 1) * (map.stream?.chunk ?? 400)
+      + (map.stream?.aheadMin ?? 100);
+    addNear(map.spawn.x, map.spawn.z, radius);
+    if (level.gameplay?.goal === 'exit' && level.gameplay.exit) {
+      const from = map.spawn;
+      const to = level.gameplay.exit;
+      const step = map.stream?.chunk ?? 400;
+      const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / (step / 2)));
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        addNear(from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t, step);
       }
     }
-    console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): loadChunk (${windowCells.size} из ${map.cells?.length}) start`);
     for (const id of windowCells) {
       await map.loadChunk(id);
     }
-    const tLoad1 = performance.now();
-    console.error(`[TEST-DEBUG] assemble(level ${level.map.name}): loadChunk done in ${(tLoad1 - tLoad0).toFixed(0)} мс`);
   }
   return { map, scene };
 }
@@ -137,18 +124,13 @@ async function assemble(level) {
 async function chapter(index) {
   if (cache.has(index)) return cache.get(index);
   const level = LEVELS[index];
-  const t0 = performance.now();
-  console.error(`[TEST-DEBUG] chapter(${index + 1}) '${level.name}' start`);
   const realError = console.error;
   console.error = (...a) => {
-    const msg = a.map(String).join(' ');
-    if (!msg.startsWith('[TEST-DEBUG]')) errors.push(`глава ${index + 1}: ${msg}`);
+    errors.push(`глава ${index + 1}: ${a.map(String).join(' ')}`);
     realError(...a);
   };
   try {
     const { map, scene } = await assemble(level);
-    const t1 = performance.now();
-    console.error(`[TEST-DEBUG] chapter(${index + 1}) '${level.name}' assembled in ${(t1 - t0).toFixed(0)} мс`);
     const ctx = { level, map, scene };
     cache.set(index, ctx);
     return ctx;
@@ -222,13 +204,13 @@ async function testContractMembers() {
   const bad = [];
   for (let i = 0; i < LEVELS.length; i++) {
     const { map } = await chapter(i);
-    for (const m of METHODS) if (typeof map[m] !== 'function') bad.push(`${i + 1}: метода ${m} нет`);
-    for (const d of DATA) if (map[d] === undefined) bad.push(`${i + 1}: члена данных ${d} нет`);
-    if (!Number.isFinite(map.width) || !Number.isFinite(map.depth)) bad.push(`${i + 1}: плита не числа`);
-    if (!Array.isArray(map.solids)) bad.push(`${i + 1}: solids не массив`);
-    if (!Number.isFinite(map.spawn?.x)) bad.push(`${i + 1}: спавна без координат нет`);
+    for (const m of METHODS) if (typeof map[m] !== 'function') bad.push(`${LEVEL_NUMBERS[i]}: метода ${m} нет`);
+    for (const d of DATA) if (map[d] === undefined) bad.push(`${LEVEL_NUMBERS[i]}: члена данных ${d} нет`);
+    if (!Number.isFinite(map.width) || !Number.isFinite(map.depth)) bad.push(`${LEVEL_NUMBERS[i]}: плита не числа`);
+    if (!Array.isArray(map.solids)) bad.push(`${LEVEL_NUMBERS[i]}: solids не массив`);
+    if (!Number.isFinite(map.spawn?.x)) bad.push(`${LEVEL_NUMBERS[i]}: спавна без координат нет`);
     for (const b of ['minX', 'maxX', 'minZ', 'maxZ']) {
-      if (!Number.isFinite(map.bounds?.[b])) bad.push(`${i + 1}: bounds.${b} не число`);
+      if (!Number.isFinite(map.bounds?.[b])) bad.push(`${LEVEL_NUMBERS[i]}: bounds.${b} не число`);
     }
   }
   return { name: 'contract-members', passed: bad.length === 0, info: bad.slice(0, 6).join(' | ') || `${LEVELS.length} глав держат ${METHODS.length + DATA.length} членов контракта` };
@@ -246,25 +228,25 @@ async function testKindSelectsImplementation() {
     const { map } = await chapter(i);
     const name = map.constructor.name;
     const kind = LEVELS[i].map?.kind;
-    if (!kind && name !== 'TownMap') bad.push(`${i + 1}: без kind ожидался TownMap, получен ${name}`);
+    if (!kind && name !== 'TownMap') bad.push(`${LEVEL_NUMBERS[i]}: без kind ожидался TownMap, получен ${name}`);
     if (kind && kind !== 'town' && name === 'TownMap') {
-      bad.push(`${i + 1}: kind '${kind}' дал TownMap — опечатка в kind или в таблице фабрики`);
+      bad.push(`${LEVEL_NUMBERS[i]}: kind '${kind}' дал TownMap — опечатка в kind или в таблице фабрики`);
     }
     for (const m of OPTIONAL) {
       const present = typeof map[m] === 'function';
-      if (kind === 'stream' && m === 'updateStreaming' && !present) bad.push(`${i + 1}: стримящая карта без updateStreaming`);
-      if (['json', 'json2'].includes(kind) && m === 'debugIds' && !present) bad.push(`${i + 1}: карта из брифа без debugIds`);
+      if (kind === 'stream' && m === 'updateStreaming' && !present) bad.push(`${LEVEL_NUMBERS[i]}: стримящая карта без updateStreaming`);
+      if (['json', 'json2'].includes(kind) && m === 'debugIds' && !present) bad.push(`${LEVEL_NUMBERS[i]}: карта из брифа без debugIds`);
       if (kind === 'open' && ['streamStep', 'isBuiltAt', 'debugIds'].includes(m) && !present) {
-        bad.push(`${i + 1}: открытый мир без ${m}`);
+        bad.push(`${LEVEL_NUMBERS[i]}: открытый мир без ${m}`);
       }
       // член открытого мира у остальных карт — тоже ошибка: движок различает
       // помпу по наличию метода, и `streamStep` у главы без клеток звал бы её
       // на карте, которая окно не держит
       if (kind !== 'open' && ['streamStep', 'isBuiltAt'].includes(m) && present) {
-        bad.push(`${i + 1}: ${m} у карты kind '${kind ?? 'town'}' — движок принял бы её за открытый мир`);
+        bad.push(`${LEVEL_NUMBERS[i]}: ${m} у карты kind '${kind ?? 'town'}' — движок принял бы её за открытый мир`);
       }
       if (kind === 'open' && m === 'updateStreaming' && present) {
-        bad.push(`${i + 1}: открытый мир с updateStreaming — помпа не сдвигает мир и не пропускает кадр`);
+        bad.push(`${LEVEL_NUMBERS[i]}: открытый мир с updateStreaming — помпа не сдвигает мир и не пропускает кадр`);
       }
     }
   }
@@ -284,12 +266,12 @@ async function testPointsOnPlate() {
       ? { x: (map.cityBounds.maxX - map.cityBounds.minX) / 2, z: (map.cityBounds.maxZ - map.cityBounds.minZ) / 2 }
       : { x: map.width / 2, z: map.depth / 2 };
     const check = (label, p) => {
-      if (!Number.isFinite(p?.x) || !Number.isFinite(p?.z)) { bad.push(`${i + 1}: ${label} без координат`); return; }
+      if (!Number.isFinite(p?.x) || !Number.isFinite(p?.z)) { bad.push(`${LEVEL_NUMBERS[i]}: ${label} без координат`); return; }
       if (Math.abs(p.x) > plate.x || Math.abs(p.z) > plate.z) {
-        bad.push(`${i + 1}: ${label} (${p.x.toFixed(1)}, ${p.z.toFixed(1)}) за пределами ±${plate.x.toFixed(0)}/${plate.z.toFixed(0)} — там isBlocked истинен`);
+        bad.push(`${LEVEL_NUMBERS[i]}: ${label} (${p.x.toFixed(1)}, ${p.z.toFixed(1)}) за пределами ±${plate.x.toFixed(0)}/${plate.z.toFixed(0)} — там isBlocked истинен`);
       }
       const y = map.groundHeightAt(p.x, p.z, 500);
-      if (!Number.isFinite(y)) bad.push(`${i + 1}: ${label} — groundHeightAt дал ${y}`);
+      if (!Number.isFinite(y)) bad.push(`${LEVEL_NUMBERS[i]}: ${label} — groundHeightAt дал ${y}`);
     };
     check('spawn', map.spawn);
     if (level.gameplay?.goal === 'exit' && level.gameplay.exit) check('gameplay.exit', level.gameplay.exit);
@@ -302,10 +284,10 @@ async function testPointsOnPlate() {
     let floating = 0;
     for (const p of map.openPositions()) {
       const g = map.groundHeightAt(p.x, p.z, 500);
-      if (!Number.isFinite(g)) { bad.push(`${i + 1}: openPositions отдала точку без опоры`); break; }
+      if (!Number.isFinite(g)) { bad.push(`${LEVEL_NUMBERS[i]}: openPositions отдала точку без опоры`); break; }
       if (p.y - g > CONFIG.building.stepUp) floating++;
     }
-    if (floating) bad.push(`${i + 1}: точек объектов выше высшей опоры больше чем на подъём ноги — ${floating}`);
+    if (floating) bad.push(`${LEVEL_NUMBERS[i]}: точек объектов выше высшей опоры больше чем на подъём ноги — ${floating}`);
   }
   return { name: 'points-on-plate', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || 'спавн, B и точки объектов лежат в плите и имеют опору' };
 }
@@ -330,15 +312,15 @@ async function testRouteAtoB() {
   const skipped = [];
   for (const { i } of exitChapters()) {
     const { map, level } = await chapter(i);
-    if (typeof map.updateStreaming === 'function') { skipped.push(i + 1); continue; }
+    if (typeof map.updateStreaming === 'function') { skipped.push(LEVEL_NUMBERS[i]); continue; }
     const from = map.spawn;
     const to = exitNode({ map, level });
     const path = map.findPath(from, to);
-    if (!path || path.length < 2) { bad.push(`${i + 1}: маршрута A→B нет`); continue; }
+    if (!path || path.length < 2) { bad.push(`${LEVEL_NUMBERS[i]}: маршрута A→B нет`); continue; }
     const last = path[path.length - 1];
     const toExit = Math.hypot(last.x - to.x, last.z - to.z);
     if (toExit > exitRadiusOf(level) + 4) {
-      bad.push(`${i + 1}: конец маршрута в ${toExit.toFixed(1)} м от B — дальше допуска цели`);
+      bad.push(`${LEVEL_NUMBERS[i]}: конец маршрута в ${toExit.toFixed(1)} м от B — дальше допуска цели`);
     }
     let len = 0;
     let off = 0;
@@ -357,12 +339,12 @@ async function testRouteAtoB() {
       if (prev === undefined || here === undefined || !map.nav.adj[prev].includes(here)) brokenEdge++;
       prev = here;
     }
-    if (off > 0) bad.push(`${i + 1}: узлов вне опоры ${off} из ${path.length}, худшее расхождение ${worst.toFixed(3)} м`);
-    if (brokenEdge > 0) bad.push(`${i + 1}: шагов вне рёбер графа ${brokenEdge} из ${path.length - 1} — маршрут телепортируется`);
+    if (off > 0) bad.push(`${LEVEL_NUMBERS[i]}: узлов вне опоры ${off} из ${path.length}, худшее расхождение ${worst.toFixed(3)} м`);
+    if (brokenEdge > 0) bad.push(`${LEVEL_NUMBERS[i]}: шагов вне рёбер графа ${brokenEdge} из ${path.length - 1} — маршрут телепортируется`);
     const straight = Math.hypot(to.x - from.x, to.z - from.z);
     const budget = straight * 10 + 50;
-    if (len > budget) bad.push(`${i + 1}: маршрут ${len.toFixed(0)} м против прямой ${straight.toFixed(0)} м — бюджет ${budget.toFixed(0)} м`);
-    stats.push(`${i + 1}: ${path.length} узлов / ${len.toFixed(0)} м, опора ±${worst.toFixed(2)} м`);
+    if (len > budget) bad.push(`${LEVEL_NUMBERS[i]}: маршрут ${len.toFixed(0)} м против прямой ${straight.toFixed(0)} м — бюджет ${budget.toFixed(0)} м`);
+    stats.push(`${LEVEL_NUMBERS[i]}: ${path.length} узлов / ${len.toFixed(0)} м, опора ±${worst.toFixed(2)} м`);
   }
   const note = skipped.length ? ` (главы ${skipped.join(', ')} — стриминг, вне окна)` : '';
   return { name: 'route-ato-b', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || `маршруты${note}: ${stats.join('; ')}` };
@@ -373,8 +355,8 @@ async function testRouteAtoB() {
  *
  * У открытого мира меряются **годные** узлы (`navFit`): граф append-only, и в
  * списке остаются узлы выгруженных клеток и свес решётки за край загруженной
- * (замер главы 14 на всех девяти клетках — 3 таких узла из 10 113, на окне
- * спавна — 12 из 4 247). Требовать связности от них значило бы проверять
+ * (замер главы 14 на всех 25 клетках — 13 таких узлов из 111 939, на окне
+ * спавна — 12 из 17 083). Требовать связности от них значило бы проверять
  * список, а не сеть: `navFit` бракует их и по достижимости от спавна (§ 10.12(а)
  * плана), поэтому маршрут и респавн их не видят. Главы без предиката меряются
  * целиком, как раньше.
@@ -385,7 +367,7 @@ async function testSingleConnectedNetwork() {
   for (let i = 0; i < LEVELS.length; i++) {
     const { map } = await chapter(i);
     const fit = fitOf(map);
-    if (!map.nav.pos.length) { bad.push(`${i + 1}: графа навигации нет`); continue; }
+    if (!map.nav.pos.length) { bad.push(`${LEVEL_NUMBERS[i]}: графа навигации нет`); continue; }
     const seen = reachableFrom(map, nodeAt(map, map.spawn.x, map.spawn.y, map.spawn.z, fit), fit);
     let total = 0;
     let orphan = 0;
@@ -394,9 +376,9 @@ async function testSingleConnectedNetwork() {
       total++;
       if (!seen[k]) orphan++;
     }
-    if (!total) { bad.push(`${i + 1}: годных узлов графа нет`); continue; }
-    if (orphan) bad.push(`${i + 1}: изолированных узлов ${orphan} из ${total}`);
-    if (fit) notes.push(`${i + 1}: годных ${total} из ${map.nav.pos.length}`);
+    if (!total) { bad.push(`${LEVEL_NUMBERS[i]}: годных узлов графа нет`); continue; }
+    if (orphan) bad.push(`${LEVEL_NUMBERS[i]}: изолированных узлов ${orphan} из ${total}`);
+    if (fit) notes.push(`${LEVEL_NUMBERS[i]}: годных ${total} из ${map.nav.pos.length}`);
   }
   const note = notes.length ? ` (${notes.join(', ')})` : '';
   return { name: 'one-connected-network', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || `каждая глава держит одну связную сеть от спавна${note}` };
@@ -431,14 +413,14 @@ async function testRespawnRoom() {
     }
     const need = (humans + aliens) * ROOM_PER_ENEMY;
     if (room < need) {
-      bad.push(`${i + 1}: узлов респавна ${room} при нужде ${need} (врагов ${humans + aliens})`);
+      bad.push(`${LEVEL_NUMBERS[i]}: узлов респавна ${room} при нужде ${need} (врагов ${humans + aliens})`);
     }
     if (roomHuman < humans * ROOM_PER_ENEMY) {
-      bad.push(`${i + 1}: узлов, свободных человеком (r ${CONFIG.radius}), ${roomHuman} `
+      bad.push(`${LEVEL_NUMBERS[i]}: узлов, свободных человеком (r ${CONFIG.radius}), ${roomHuman} `
         + `при нужде ${humans * ROOM_PER_ENEMY}`);
     }
     if (roomAlien < aliens * ROOM_PER_ENEMY) {
-      bad.push(`${i + 1}: узлов, свободных Чужим (r ${CONFIG.alien.radius}), ${roomAlien} `
+      bad.push(`${LEVEL_NUMBERS[i]}: узлов, свободных Чужим (r ${CONFIG.alien.radius}), ${roomAlien} `
         + `при нужде ${aliens * ROOM_PER_ENEMY}`);
     }
   }
@@ -466,14 +448,14 @@ async function testNoLeaks() {
     for (let round = 0; round < 2; round++) {
       const { map, scene } = await assemble(LEVELS[i]);
       counts.push(scene.children.length);
-      if (typeof map.dispose !== 'function') { bad.push(`${i + 1}: у карты нет dispose()`); break; }
+      if (typeof map.dispose !== 'function') { bad.push(`${LEVEL_NUMBERS[i]}: у карты нет dispose()`); break; }
       map.dispose();
       if (scene.children.length !== 0) {
-        bad.push(`${i + 1}: после dispose() в сцене осталось ${scene.children.length} объектов`);
+        bad.push(`${LEVEL_NUMBERS[i]}: после dispose() в сцене осталось ${scene.children.length} объектов`);
       }
     }
     if (counts.length === 2 && counts[0] !== counts[1]) {
-      bad.push(`${i + 1}: вторая сборка дала ${counts[1]} объектов против ${counts[0]} — схема зависит от порядка прогонов`);
+      bad.push(`${LEVEL_NUMBERS[i]}: вторая сборка дала ${counts[1]} объектов против ${counts[0]} — схема зависит от порядка прогонов`);
     }
   }
   return { name: 'no-leaks', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || 'build/dispose/build: сцена возвращается к пустоте, число объектов не растёт' };
@@ -506,25 +488,16 @@ const tests = [
  */
 export async function runLevelContractTests() {
   const results = [];
-  const t0 = performance.now();
-  console.error('[TEST-DEBUG] runLevelContractTests start');
   for (const fn of tests) {
-    const tFn0 = performance.now();
     try {
       results.push(await fn());
-      const tFn1 = performance.now();
-      console.error(`[TEST-DEBUG] ${fn.name}: ${(tFn1 - tFn0).toFixed(0)} мс`);
     } catch (e) {
-      const tFn1 = performance.now();
-      console.error(`[TEST-DEBUG] ${fn.name}: ОШИБКА после ${(tFn1 - tFn0).toFixed(0)} мс: ${e.message}`);
       results.push({ name: fn.name, passed: false, info: `ошибка: ${e.message}` });
     }
   }
   results.push(testNoConsoleErrors());
 
   const passed = results.filter(r => r.passed).length;
-  const t1 = performance.now();
-  console.error(`[TEST-DEBUG] runLevelContractTests done: ${(t1 - t0).toFixed(0)} мс, ${passed}/${results.length}`);
   console.group('Контракт карты по всем главам');
   for (const r of results) console.log(`${r.passed ? 'PASS' : 'FAIL'} — ${r.name}: ${r.info}`);
   console.log(`Итого: ${passed}/${results.length}`);

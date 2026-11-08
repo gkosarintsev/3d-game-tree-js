@@ -25,7 +25,7 @@ import { CONFIG } from '../src/config.js';
 
 const J = CONFIG.jsonMap;
 const ROOT = resolve(import.meta.dirname, '..');
-const LEVEL_PATH = resolve(ROOT, 'src/levels/level-09.json');
+const LEVEL_PATH = resolve(ROOT, 'probe/v1-brief.json');
 const rawLevel = JSON.parse(readFileSync(LEVEL_PATH, 'utf8'));
 
 let passed = 0;
@@ -84,15 +84,20 @@ function facesAxis(lamp, axis, cos = 0.999) {
   return L > 1e-6 && ((Math.sin(th) * dx + Math.cos(th) * dz) / L) > cos;
 }
 
-// ---------------------------------------------------------------- глава 9 как данные
+// ---------------------------------------------------------------- фикстура v1 как данные
+//
+// Главы v1 из реестра удалены, но схема и парсер v1 остаются (их печатает
+// `export-schema.mjs`, на них держится отказ от полей v2). Поэтому единственный
+// v1-бриф живёт фикстурой в `probe/` и не попадает ни в реестр, ни в приёмку
+// закоммиченных глав.
 
-t('исходная глава проходит валидатор без ошибок и предупреждений', () => {
+t('исходная фикстура проходит валидатор без ошибок и предупреждений', () => {
   const { errors, warnings } = validateLevel(rawLevel);
   eq(errors.length, 0, `ошибки: ${errors.join(' | ')}`);
   eq(warnings.length, 0, `предупреждения: ${warnings.join(' | ')}`);
 });
 
-t('нормализация главы не бросает и даёт все секции карты', () => {
+t('нормализация фикстуры не бросает и даёт все секции карты', () => {
   const level = normalizeLevel(rawLevel);
   eq(level.map.kind, 'json', 'kind карты');
   assert(level.map.buildings.length === 4, `зданий ${level.map.buildings.length}, ожидалось 4`);
@@ -181,7 +186,7 @@ t('косой марш (rotation не кратен 90°) отклоняется 
   // показать это списком, а не упасть на середине записи
   let thrown = null;
   try {
-    generateModule(raw, 'src/levels/level-09.json');
+    generateModule(raw, 'probe/v1-brief.json');
   } catch (e) {
     thrown = e;
   }
@@ -495,7 +500,7 @@ t('полигон воды проходит валидатор и нормали
 /**
  * В русло сбрасывается только фонарь наземной улицы: настил моста и эстакады
  * сам держит свою опору света над водой, и фонарь на нём — не ошибка. Прежнее
- * правило, одинаковое для всех типов дороги, молчало на главе 10 восемнадцатью
+ * правило, одинаковое для всех типов дороги, молчало на развёрнутом городе восемнадцатью
  * «фонарь встал в русло» на трёх мостах, то есть браковало законные огни.
  */
 t('фонарь моста над руслом остаётся, фонарь наземной улицы в русло не ставится', () => {
@@ -630,16 +635,16 @@ t('waterwayFoot: дно, склон и сход отдают свою отмет
   eq(foot(0, 0), null, 'вне русла');
 });
 
-t('секция channels появляется только у главы с руслом', () => {
-  const withWater = generateModule(waterLevel(), 'src/levels/level-10.json').code;
+t('секция channels появляется только у брифа с руслом', () => {
+  const withWater = generateModule(waterLevel(), 'probe/v1-brief.json').code;
   assert(withWater.includes('"channels"'), 'каналов в модуле нет');
-  assert(!generateModule(structuredClone(rawLevel), 'src/levels/level-09.json').code.includes('"channels"'),
-    'у главы 9 появилась секция channels');
+  assert(!generateModule(structuredClone(rawLevel), 'probe/v1-brief.json').code.includes('"channels"'),
+    'у фикстуры без русла появилась секция channels');
 });
 
 t('парсер воды детерминирован: два прогона дают побайтово равный модуль', () => {
-  const a = generateModule(waterLevel(), 'src/levels/level-10.json');
-  const b = generateModule(waterLevel(), 'src/levels/level-10.json');
+  const a = generateModule(waterLevel(), 'probe/v1-brief.json');
+  const b = generateModule(waterLevel(), 'probe/v1-brief.json');
   eq(a.code, b.code, 'текст модуля различится');
 });
 
@@ -744,13 +749,13 @@ t('секция roof есть только у заданного дома, па�
   eq(low.map.buildings[0].roof.parapet, 0.4, 'парапет из брифа');
 });
 
-t('глава 9 остаётся без секции roof — и в данных, и в байтах модуля', () => {
+t('фикстура v1 остаётся без секции roof — и в данных, и в байтах модуля', () => {
   const level = normalizeLevel(rawLevel);
   for (const b of level.map.buildings) {
     assert(b.roof === undefined, `${b.id}: roof там, где её не задавали`);
   }
-  const mod = generateModule(structuredClone(rawLevel), 'src/levels/level-09.json').code;
-  assert(!mod.includes('"roof"'), 'ключ roof завёлся в модуле главы 9 — байты не сойдутся');
+  const mod = generateModule(structuredClone(rawLevel), 'probe/v1-brief.json').code;
+  assert(!mod.includes('"roof"'), 'ключ roof завёлся в модуле v1-фикстуры — байты не сойдутся');
 });
 
 t('этажи: вводимый дом ограничен enterableFloors, невводимая башня — до 60', () => {
@@ -830,7 +835,7 @@ t('свисяющий торец skybridge — ошибка; торец у дв�
  * План наземной улицы кончается концом пластины, а не выступает за него на
  * полширины: дом, приставленный вровень с торцом, стоит на земле рядом с
  * асфальтом, а не на асфальте. Заодно это чинит 24 ложных «дома в улице» на
- * развёрнутом городе главы 10, где тупики улиц обрамлены кварталами.
+ * развёрнутом городе, где тупики улиц обрамлены кварталами.
  */
 t('план дороги — конец пластины: дом вровень с её торцом не «в улице»', () => {
   const level = normalizeLevel(vertLevel());
@@ -855,7 +860,7 @@ t('план дороги — конец пластины: дом вровень 
 
 /**
  * Торец перехода опирается в план с допуском `J.skybridgeFit` и симметрично по
- * высоте: главу 10 сборка отвергала на стыке «ровно в ноль» — кровля подиума
+ * высоте: сборку отвергало на стыке «ровно в ноль» — кровля подиума
  * заканчивается там же, где начинается пластина перехода, и строгое пересечение
  * с габаритом не прощало нулевой нахлёст. Дверь при этом меряется проёмом
  * (`door.rect`), а не точкой портала, вынесенной на 1,4 м за фасад.
@@ -881,62 +886,28 @@ t('под skybridge опор нет, под мостом — есть; фона�
 });
 
 t('парсер вертикали детерминирован: два прогона дают побайтово равный модуль', () => {
-  const a = generateModule(vertLevel(), 'src/levels/level-10.json');
-  const b = generateModule(vertLevel(), 'src/levels/level-10.json');
+  const a = generateModule(vertLevel(), 'probe/v1-brief.json');
+  const b = generateModule(vertLevel(), 'probe/v1-brief.json');
   eq(a.code, b.code, 'текст модуля различится');
 });
 
 // ---------------------------------------------------------------- CLI и детерминизм
 
 t('парсер детерминирован: два прогона дают побайтово равный модуль', () => {
-  const a = generateModule(structuredClone(rawLevel), 'src/levels/level-09.json');
-  const b = generateModule(structuredClone(rawLevel), 'src/levels/level-09.json');
+  const a = generateModule(structuredClone(rawLevel), 'probe/v1-brief.json');
+  const b = generateModule(structuredClone(rawLevel), 'probe/v1-brief.json');
   eq(a.code, b.code, 'текст модуля различится');
 });
 
-t('закоммиченный level-09.js совпадает с тем, что даёт парсер', () => {
-  const committed = readFileSync(resolve(ROOT, 'src/levels/level-09.js'), 'utf8').replace(/\r\n/g, '\n');
-  const fresh = generateModule(rawLevel, 'src/levels/level-09.json').code;
-  assert(committed === fresh,
-    `level-09.js устарел на ${(committed.length - fresh.length)} символов — перезапустите node tools/build-level.mjs src/levels/level-09.json`);
-});
-
-// Глава 10 несёт то, чего глава 9 не проверяла: развёрнутый парсером город
-// (секция `city`) плюс русло, мосты и авторские доминанты в одном брифе. Здесь
-// пайплайн обязан сойтись побайтово И не оставить предупреждений: расхождение
-// модуля с парсером значит, что глава в репозитории собрана из другого брифа,
-// а предупреждение — что геометрия отдана на откуп обходному пути (пропущенный
-// фонарь, бракованный торец перехода), и в браузере её уже не видно.
-const LEVEL10_PATH = resolve(ROOT, 'src/levels/level-10.json');
-
-t('закоммиченный level-10.js совпадает с парсером и собран без предупреждений', () => {
-  const raw = JSON.parse(readFileSync(LEVEL10_PATH, 'utf8'));
-  const fresh = generateModule(raw, 'src/levels/level-10.json');
-  eq(fresh.warnings.length, 0, `парсер дал предупреждения: ${fresh.warnings.slice(0, 3).join(' | ')}`);
-  const committed = readFileSync(resolve(ROOT, 'src/levels/level-10.js'), 'utf8').replace(/\r\n/g, '\n');
-  assert(committed === fresh.code,
-    `level-10.js расходится с парсером на ${committed.length - fresh.code.length} символов — перезапустите node tools/build-level.mjs src/levels/level-10.json`);
-});
-
-t('модуль главы 10 — валидный ES-модуль с экспортом LEVEL_10', async () => {
-  const mod = await import(new URL('../src/levels/level-10.js', import.meta.url).href);
-  assert(mod.LEVEL_10?.map?.kind === 'json', 'экспорт LEVEL_10 с kind=json не найден');
-  assert(mod.LEVEL_10.gameplay.goal === 'exit', 'цель главы 10 не exit');
-  assert(mod.LEVEL_10.map.buildings.length > 200, `домов ${mod.LEVEL_10.map.buildings.length}`);
-});
-
-t('модуль главы — валидный ES-модуль с экспортом LEVEL_09', async () => {
-  const url = new URL('../src/levels/level-09.js', import.meta.url).href;
-  const mod = await import(url);
-  assert(mod.LEVEL_09?.map?.kind === 'json', 'экспорт LEVEL_09 с kind=json не найден');
-  assert(mod.LEVEL_09.gameplay.goal === 'exit', 'цель главы не exit');
-});
+// Побайтовость закоммиченных модулей в реестре проверяет `check-levels.mjs`
+// (он обходит все `src/levels/level-*.json`), а здесь остаётся лишь чистая
+// арифметика парсера на фикстурах: v1-бриф больше не зарегистрирован главой.
 
 t('ошибка валидации не оставляет частичного модуля', () => {
   const raw = structuredClone(rawLevel);
   raw.buildings[0].rooms[0].floor = 9;
   let thrown = null;
-  try { generateModule(raw, 'src/levels/level-09.json'); } catch (e) { thrown = e; }
+  try { generateModule(raw, 'probe/v1-brief.json'); } catch (e) { thrown = e; }
   assert(thrown && thrown.errors.length > 0, 'кривой уровень прошёл');
   assert(!/\bexport const/.test(thrown.message), 'текст модуля попал в сообщение об ошибке');
 });
@@ -944,13 +915,12 @@ t('ошибка валидации не оставляет частичного 
 // -------------------------------------------------- заморозка v1 (docs/city-v2-plan.md)
 
 /**
- * Глава 10 и её генератор — v1: права на поворотные дома и кривые настилы у них нет,
+ * v1-бриф и его генератор: права на поворотные дома и кривые настилы у них нет,
  * и поля v2 обязаны отбраковываться здесь, а не молча игнорироваться нормализатором.
- * Иначе побайтовая сверка `level-10.js` перестаёт быть защитой: бриф с `rotation`
- * собрался бы, но собрался бы прямоугольником, и автор косого города получил бы
- * тихую подмену вместо ошибки.
+ * Иначе бриф с `rotation` собрался бы прямоугольником, и автор косого города
+ * получил бы тихую подмену вместо ошибки.
  */
-t('v1 заморожен: rotation у дома и elements у дороги — чужие поля для главы 9-10', () => {
+t('v1 заморожен: rotation у дома и elements у дороги — чужие поля для v1-брифа', () => {
   const rot = structuredClone(rawLevel);
   rot.buildings[0].rotation = 30;
   const e1 = validateLevel(rot).errors;
@@ -989,7 +959,7 @@ t('v1 заморожен: relief, yaw района, полигон и профи
 
   // генератор читает `city` раньше схемы, поэтому его молчание опаснее ошибки:
   // район с `yaw` собрался бы осевым, а автор правил бы несуществующее поле
-  const cityRaw = JSON.parse(readFileSync(resolve(ROOT, 'src/levels/level-10.json'), 'utf8'));
+  const cityRaw = JSON.parse(readFileSync(resolve(ROOT, 'probe/city-600.json'), 'utf8'));
   const cases = [
     ['yaw', r => { r.city.districts[0].yaw = 18; }],
     ['polygon', r => {
@@ -1013,12 +983,12 @@ t('v1 заморожен: relief, yaw района, полигон и профи
   }
 });
 
-t('v1 заморожен: служебные поля metadata не попадают в модуль главы', () => {
-  const base = generateModule(structuredClone(rawLevel), 'src/levels/level-09.json').code;
+t('v1 заморожен: служебные поля metadata не попадают в модуль', () => {
+  const base = generateModule(structuredClone(rawLevel), 'probe/v1-brief.json').code;
   const withFlag = structuredClone(rawLevel);
   withFlag.metadata.engine = 'city-v1';
-  assert(generateModule(withFlag, 'src/levels/level-09.json').code === base,
-    'модуль главы изменился от служебной строки метаданных');
+  assert(generateModule(withFlag, 'probe/v1-brief.json').code === base,
+    'модуль изменился от служебной строки метаданных');
 });
 
 // ------------------------------------------------------- поворотный дом (v2, этап 2)
@@ -1373,7 +1343,7 @@ t('v2: наклонная пластина держит опоры, и низ к
 
 /**
  * Нос подъёма: свободный торец моста, опущенный к земле, обязан прийти на полотно
- * наземной улицы (замер глав 10–11: из 6 свободных носов 3 кончались в 4 и 13 м от
+ * наземной улицы (замер развёрнутых глав: из 6 свободных носов 3 кончались в 4 и 13 м от
  * улицы, один стоял над домом). Дальность меряется до ПЛАНА улицы, а не до её
  * осевой: нос в полуметре от борта — это уже обочина. Свободный конец выше
  * `bridgeMinHeight` над грунтом — устой пролёта, его стыкует автор, и требовать
@@ -1456,7 +1426,7 @@ t('фонари косой улицы стоят на её бортах и см�
     assert(Math.abs(p.x) <= 20.001, 'фонарь за торцом полотна');
     // голова обязана смотреть ОТ столба К ОСЕВОЙ: прежний поворот `−yaw` держал
     // её перпендикулярно оси в одну сторону с обоих бортов, и половина пар
-    // светила мимо асфальта (замер глав 10–11: 658 вдоль + 290 прочь из 1238)
+    // светила мимо асфальта (замер развёрнутых глав: 658 вдоль + 290 прочь из 1238)
     const axis = rotatePoint(f, p.x, 40);
     assert(facesAxis(l, axis), `фонарь светит мимо полотна: θ=${l.rotationY} при v=${(p.z - 40).toFixed(1)}`);
   }
@@ -2485,7 +2455,7 @@ t('перекрёстки: прогон обрывается у борта пе�
   const decks = level.map.roads.filter(r => r.type === 'ground')
     .flatMap(r => r.decks.map(d => ({ id: r.id, d })));
   // было 25 пар и 3600 м² наложений на этом же фикстуре (замер `probe/stage6b.mjs`),
-  // 158 пар и 24 367 м² в главе 10: встречные полосы лежали одной плоскостью
+  // 158 пар и 24 367 м² на развёрнутом городе: встречные полосы лежали одной плоскостью
   const bad = [];
   for (let i = 0; i < decks.length; i++) {
     for (let k = i + 1; k < decks.length; k++) {
@@ -2773,7 +2743,7 @@ t('улицы генератора идут по профилю поля, а п�
     close(p.rise, r3(along), 0.01, `перекрёсток ${r.id}: подъём пластины не равен перепаду поля вдоль её оси`);
   }
 
-  // без секции рельефа профиль не строится вовсе: главы 9–10 остаются лентой
+  // без секции рельефа профиль не строится вовсе: улицы остаются лентой
   // `ground.y + streetRise`, и их модули обязаны побайтовость не потерять
   const flat = structuredClone(skewRaw());
   delete flat.relief;
@@ -2919,7 +2889,7 @@ t('нос подъёма получает улицу: сетка района с
   const bLines = hLines(lostOut);
   assert(bLines.every(z => z > 0), `ряды района 'a' всё-таки вставились под чужой нос: ${bLines}`);
 
-  // v1 (глава 10): сетка района нос не ищет, иначе её модуль разойдётся с парсером
+  // v1: сетка района нос не ищет, иначе её модуль разойдётся с парсером
   const v1 = noseRaw(90, { x: -100, z: -70 });
   delete v1.kind;
   const v1Stats = {};
@@ -3091,7 +3061,7 @@ t('gameplay.cars: стоянка в русле вне настила — пре�
 // брифов самим подмножеством draft-07, который мы печатаем (иначе экспортёр
 // выдавал бы файл, отвергающий законную главу — как это сделал бы пропущенный
 // `kind: 'json'` в v1).
-const BRIEFS = ['09', '10', '11', '12', '13'].map(n => `src/levels/level-${n}.json`);
+const BRIEFS = ['11', '12', '13'].map(n => `src/levels/level-${n}.json`);
 
 /** Subset-валидатор draft-07: ровно теKeywords, которые печатает экспортёр. */
 function checkJsonSchema(value, schema, path, errors) {
@@ -3168,7 +3138,7 @@ function renderFor(spec, title) {
 
 t('схема отбраковывает ключ, которого в ней нет, и число вне предела', () => {
   const v1 = renderFor(SCHEMA_FILES[0].spec, SCHEMA_FILES[0].title);
-  const stray = structuredClone(JSON.parse(readFileSync(resolve(ROOT, BRIEFS[0]), 'utf8')));
+  const stray = structuredClone(JSON.parse(readFileSync(resolve(ROOT, 'probe/v1-brief.json'), 'utf8')));
   stray.tunnel = 1;
   const errors = [];
   checkJsonSchema(stray, v1, '', errors);

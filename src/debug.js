@@ -13,7 +13,7 @@
  */
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
-import { LEVELS } from './levels/index.js';
+import { LEVELS, LEVEL_NUMBERS } from './levels/index.js';
 
 const get = (obj, path) => path.split('.').reduce((a, k) => (a == null ? undefined : a[k]), obj);
 const set = (obj, path, value) => {
@@ -166,10 +166,49 @@ function createIdLabels(game, onChange) {
   };
 }
 
+/**
+ * Состояние клеток открытого мира и накопленная цена достройки (§ 4.4 плана
+ * docs/open-world-plan.md): предел бюджета кадра назначается по этим числам,
+ * а не по замыслу. Стримящая карта отличается **наличием** `streamStep`
+ * (правило AGENTS.md), а не `map.kind`; схему уровня панель не пересобирает —
+ * id клеток, их состояние и меры помпы она читает у самой карты.
+ *
+ * Три состояния клетки: «нет» (файл не прочитан), «грузится» (читается или
+ * достраивается — между `commit` и `picture` клетка уже твёрдая, но ещё не
+ * нарисованная), «построен» (`pic` есть). Цена — wall-clock последней достройки
+ * этой клетки из очереди мер помпы: она включает сеть и разбор, которых в
+ * бюджете кадра нет, поэтому рядом стоят худшие цены **срезов**.
+ */
+function streamText(map) {
+  const pump = map.pump;
+  const st = pump.stats;
+  const cost = new Map();
+  for (const c of st.chunks) if (c.kind !== 'unload') cost.set(c.id, c.ms);
+  const state = (id) => {
+    const entry = map.loaded.get(id);
+    if (entry?.pic) return 'построен';
+    if (entry || pump.requests.has(id) || pump.task?.id === id) return 'грузится';
+    return 'нет';
+  };
+  const ms = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(0)} мс`);
+  const task = pump.task;
+  return [
+    `Клетки мира: ${map.loaded.size} из ${map.cells.length} загружено`,
+    `окно ${pump.radius.toFixed(0)} м, клетка ${map.stream.chunk} м, потолок кадра ${map.stream.budgetMs} мс`,
+    `в работе: ${task ? `${task.id} (${task.kind}, срез ${task.sliceDone}/${task.sliceTotal})` : 'нет'}, чтений ${pump.requests.size}`
+      + `, срезов ${st.slices}, достроек ${st.built}, выгрузок ${st.unloaded}, ошибок ${st.errors}`,
+    `до играбельного окна ${ms(st.firstChunkMs)}, худшая клетка ${st.worstChunkMs.toFixed(0)} мс (${st.worstChunk ?? '—'})`,
+    `худший срез ${st.worstSliceMs.toFixed(1)} мс (${st.worstSlice ?? '—'})`,
+    `худшие цены срезов: ${[...pump.costWorst].map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', ') || '—'}`,
+    ...map.cells.map((c) => `${c.id} — ${state(c.id)}${cost.has(c.id) ? `, ${cost.get(c.id).toFixed(0)} мс` : ''}`),
+  ].join('\n');
+}
+
 export function mountDebug(game) {
   let idsOn = false;
   let idsBtn = null;
   let idsNote = null;
+  let streamBox = null;
 
   // смена подписи — одна функция на кнопку и на перестройку меток после загрузки
   // главы: застывшее число после перехода в другую главу вводило бы в заблуждение
@@ -186,6 +225,14 @@ export function mountDebug(game) {
   };
 
   const idLabels = createIdLabels(game, syncIdsBtn);
+
+  const syncStream = () => {
+    if (!streamBox) return;
+    const map = game.map;
+    const on = typeof map?.streamStep === 'function';
+    streamBox.style.display = on ? '' : 'none';
+    if (on) streamBox.textContent = streamText(map);
+  };
 
   const panel = document.createElement('div');
   panel.id = 'debugPanel';
@@ -208,7 +255,8 @@ export function mountDebug(game) {
     LEVELS.forEach((l, i) => {
       const opt = document.createElement('option');
       opt.value = String(i);
-      opt.textContent = `${i + 1}. ${l.name}`;
+      const title = l.name.replace(/^Глава\s+\d+\.\s*/, '');
+      opt.textContent = `${LEVEL_NUMBERS[i]}. ${title}`;
       if (i === game.levelIndex) opt.selected = true;
       select.appendChild(opt);
     });
@@ -237,6 +285,15 @@ export function mountDebug(game) {
     idsNote.style.cssText = 'margin:-4px 0 6px;color:#7d94ad;font-size:11px;';
     panel.appendChild(idsNote);
     syncIdsBtn();
+
+    // блок потока живёт только у стримящей карты: у главы-улицы показывать
+    // нечего, а пустая рамка обещала бы механизм, которого в карте нет
+    streamBox = document.createElement('div');
+    streamBox.style.cssText =
+      'display:none;margin:0 0 6px;padding:6px;border:1px solid #22344c;border-radius:5px;'
+      + 'background:#101a26;color:#9fd8b8;font:11px/1.45 "Segoe UI",sans-serif;white-space:pre-wrap;';
+    panel.appendChild(streamBox);
+    syncStream();
 
     for (const f of FIELDS) {
       if (f.group) {
@@ -286,5 +343,19 @@ export function mountDebug(game) {
 
   render();
   document.body.appendChild(panel);
+
+  // Числа помпы меняются срезами, а не пикселями, поэтому обновление — четыре
+  // раза в секунду. Цепочка кадров кончается сама, когда панель снята с
+  // документа: отдельного слушателя на window она не оставляет.
+  let lastStream = 0;
+  const watchStream = (now) => {
+    if (!panel.isConnected) return;
+    if (now - lastStream >= 250) {
+      lastStream = now;
+      syncStream();
+    }
+    requestAnimationFrame(watchStream);
+  };
+  requestAnimationFrame(watchStream);
   return panel;
 }

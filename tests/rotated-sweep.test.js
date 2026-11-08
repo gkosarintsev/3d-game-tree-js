@@ -41,7 +41,7 @@
  *   5. Сфера на дуге выходит по точной грани, в плите — по наименьшей глубине, а
  *      в пустом углу габарита и в отверстии кольца её не трогают;
  *   6. Тело-сфера самоходом проходит подъём и спуск дуги, не уходя с полотна;
- *   7. Главы 9 и 10 не вошли в ветку дуг: sweeps пуст, topAt отвечает null;
+ *   7. Глава 11 вошла в ветку дуг: sweeps не пуст;
  *   8. Луч бьёт в ту же ленту, что нарисована: вертикальные пробы сверху
  *      сходятся с аналитическим верхом в пределах хорды нарезки (≤ 0,05 м);
  *      подземные пробы у начала (крен топит внутренний край) не сверяются;
@@ -64,8 +64,7 @@
  *      полотне, а узлы на нём стоят на плоскости дуги и не выброшены как карман.
  */
 import { createJsonMap } from '../src/json-map.js';
-import { LEVEL_09 } from '../src/levels/level-09.js';
-import { LEVEL_10 } from '../src/levels/level-10.js';
+import { LEVEL_11 } from '../src/levels/level-11.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
 import { CONFIG } from '../src/config.js';
@@ -839,20 +838,19 @@ function testNavAlongArc() {
   };
 }
 
-function testFrozenChapters() {
+function testRotatedChapter() {
   const bad = [];
-  for (const [name, spec] of [['глава 9', LEVEL_09.map], ['глава 10', LEVEL_10.map]]) {
+  for (const [name, spec] of [['глава 11', LEVEL_11.map]]) {
     const map = createJsonMap(spec);
-    if (map.sweeps.length) bad.push(`${name}: ${map.sweeps.length} дуг`);
-    if (map.topAt(0, 0) !== null) bad.push(`${name}: topAt ответил на карте без дуг`);
+    if (!map.sweeps.length) bad.push(`${name}: в поворотной главе нет ни одной дуги`);
     if (!map.nav.pos.length) bad.push(`${name}: карта не собралась`);
     map.dispose?.();
   }
   return {
-    name: 'Главы 9 и 10 не вошли в ветку дуг: sweeps пуст, topAt отвечает null',
+    name: 'Глава 11 вошла в ветку дуг: sweeps не пуст',
     passed: bad.length === 0,
     info: bad.length ? bad.join('; ')
-      : 'обе главы собраны прежней арифметикой: sweeps пуст, groundHeightAt идёт по призмам',
+      : 'дуги собраны той же арифметикой, что и остальные настилы',
   };
 }
 
@@ -874,7 +872,7 @@ export async function runRotatedSweepTests() {
     testRailPushesSphereRadially,
     testMinimapArc,
     testNavAlongArc,
-    testFrozenChapters,
+    testRotatedChapter,
   ];
   const results = [];
   for (const fn of tests) {

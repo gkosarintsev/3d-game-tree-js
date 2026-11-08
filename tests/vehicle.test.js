@@ -59,8 +59,6 @@
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
-import { LEVEL_09 } from '../src/levels/level-09.js';
-import { LEVEL_10 } from '../src/levels/level-10.js';
 import { LEVEL_11 } from '../src/levels/level-11.js';
 import { LEVEL_12 } from '../src/levels/level-12.js';
 import { LEVEL_13 } from '../src/levels/level-13.js';
@@ -172,13 +170,13 @@ function testCarsComeFromTheBrief() {
   if (clamped.count !== 1) problems.push(`count 5 при одной точке дал ${clamped.count} машин`);
 
   // главы без `gameplay.cars` — ни одного кузова
-  for (const [name, level] of [['9', LEVEL_09], ['10', LEVEL_10], ['11', LEVEL_11], ['12', LEVEL_12]]) {
+  for (const [name, level] of [['11', LEVEL_11], ['12', LEVEL_12]]) {
     const n = new Cars(new THREE.Scene(), flatMap(), level.gameplay?.cars).count;
     if (n !== 0) problems.push(`глава ${name} без секции cars дала ${n} машин`);
   }
   cars.dispose(); clamped.dispose();
   return verdict('автомобили приходят данными главы', problems,
-    `${builtCount} машины из ${data.spots.length} точек, ${BODY_CHILDREN} мешей на кузов с общей геометрией, главы 9–12 — 0 машин`);
+    `${builtCount} машины из ${data.spots.length} точек, ${BODY_CHILDREN} мешей на кузов с общей геометрией, главы 11–12 — 0 машин`);
 }
 
 /** 2. Отметка точки — её собственная опора, и кузов на ней стоит. */

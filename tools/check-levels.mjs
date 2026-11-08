@@ -270,14 +270,16 @@ for (const asset of assets) {
 /**
  * Числы уровня печатаются, но ничего не запрещают: предел, придуманный без
  * замера, краснеет на законной главе (предложенный «модуль ≤ 500 КБ» нарушают
- * уже level-10.js и level-12.js). Пороги владелец назначает по этому отчёту.
+ * уже level-12.js). Пороги владелец назначает по этому отчёту.
  */
 function budgetRows() {
   const rows = [];
   for (let i = 0; i < registry.LEVELS.length; i++) {
     const level = registry.LEVELS[i];
     const map = level.map ?? {};
-    const stem = `src/levels/level-${String(i + 1).padStart(2, '0')}`;
+    // номер главы берётся из реестра, а не из позиции: после удаления части
+    // глав `i + 1` указывал бы на чужой файл
+    const stem = `src/levels/level-${String(registry.LEVEL_NUMBERS[i]).padStart(2, '0')}`;
     // открытая глава не имеет одного «модуля»: её вывод — каталог, и для бюджета
     // интересен наибольший чанк, потому что его и читает движок по ходу пути
     const chunks = existsSync(resolve(ROOT, `${stem}.js`)) ? []

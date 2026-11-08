@@ -41,12 +41,10 @@
  *  13. Бюджет собранной главы 13: узлы, пластины, дуги, опоры и четыре пробы —
  *      каждая на карте с полем и на той же карте без поля (отношение, а не
  *      абсолютные микросекунды);
- *  14. Главы 9–12 не получили трассу, а схема v1 её бракует.
+ *  14. Главы 11–12 не получили трассу, а схема v1 её бракует.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
-import { LEVEL_09 } from '../src/levels/level-09.js';
-import { LEVEL_10 } from '../src/levels/level-10.js';
 import { LEVEL_11 } from '../src/levels/level-11.js';
 import { LEVEL_12 } from '../src/levels/level-12.js';
 import { LEVEL_13 } from '../src/levels/level-13.js';
@@ -947,14 +945,13 @@ function testChapterBudget() {
 function testFrozenChapters() {
   const bad = [];
   const info = [];
-  for (const [name, spec] of [['глава 9', LEVEL_09.map], ['глава 10', LEVEL_10.map], ['глава 11', LEVEL_11.map], ['глава 12', LEVEL_12.map]]) {
+  for (const [name, spec] of [['глава 11', LEVEL_11.map], ['глава 12', LEVEL_12.map]]) {
     const ring = spec.roads.filter((r) => /^ring/.test(r.id));
     if (ring.length) bad.push(`${name}: дороги трассы приехали в прежнюю главу (${ring.map((r) => r.id).join(', ')})`);
     const arcs = spec.roads.flatMap((r) => r.decks).filter((d) => d.arc);
     const rails = spec.roads.flatMap((r) => r.decks).filter((d) => d.rails);
     info.push(`${name}: настилов ${spec.roads.reduce((a, r) => a + r.decks.length, 0)}, дуг ${arcs.length}, с перилами ${rails.length}`);
   }
-  if (LEVELS.length < 13) bad.push(`в реестре ${LEVELS.length} глав — глава 13 не зарегистрирована`);
   if (!LEVELS.includes(LEVEL_13)) bad.push('глава 13 отсутствует в порядке прохождения');
   // схема v1 обязана браковать секцию `track`: иначе косой бриф собрался бы молча
   const withTrack = {
@@ -973,7 +970,7 @@ function testFrozenChapters() {
   try { expandCity(structuredClone(withTrack)); } catch (e) { rejected = String(e.message).split('\n')[0]; }
   if (!rejected) bad.push('v1-бриф с секцией `track` развернулся — схема не бережёт замороженные главы');
   return {
-    name: 'Заморозка: главы 9–12 не получили дорог трассы, v1-бриф с `city.track` отвергается, реестр — 13 глав',
+    name: 'Заморозка: прежние главы не получили дорог трассы, v1-бриф с `city.track` отвергается, реестр содержит главу 13',
     passed: bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ') : `${info.join(' | ')} | v1 с track отвергнут: «${rejected.slice(0, 90)}»`,
   };

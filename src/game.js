@@ -177,12 +177,6 @@ export class Game {
       gp.minCoinDistance ?? CONFIG.minCoinDistance,
     );
     this.player = this._createPlayer();
-    // отладочная информация о спавне: координаты и проходимость точки
-    const spawn = level.map.spawn;
-    const blocked = this.map.isBlocked(spawn.x, spawn.z, CONFIG.radius, spawn.y ?? 0, CONFIG.eyeHeight);
-    const groundY = this.map.groundHeightAt(spawn.x, spawn.z, spawn.y ?? 0);
-    const built = typeof this.map.isBuiltAt === 'function' ? this.map.isBuiltAt(spawn.x, spawn.z) : true;
-    console.error(`[SPAWN-DEBUG] level=${level.name} spawn=(${spawn.x},${spawn.z}) built=${built} blocked=${blocked} groundY=${groundY?.toFixed(2)} radius=${CONFIG.radius}`);
     this.enemies = new Enemies(this.scene, this.map, this.player, this.camera, this.tracers, {
       count: gp.enemies?.count,
       alienCount: gp.alienEnemies?.count,
@@ -375,7 +369,7 @@ export class Game {
    *
    * Оверлей загрузки здесь не показываем: карточка `hud.showLoading` появляется
    * с порогом 300 мс («быстрая глава не должна мигать»), а перестановка окна
-   * укладывается в 132–188 мс (замеры — docs/plan.md, F2), то есть за ней
+   * укладывается в 132–188 мс (замер), то есть за ней
    * нечего ждать.
    *
    * @returns {boolean} была ли перестройка (тогда кадр симуляцию не ведёт)
@@ -457,8 +451,9 @@ export class Game {
    * Центр окна за интертитром — `map.spawn`, а не тело: до захвата курсора
    * `position` персонажа это обзорная камера (`_setOverviewCamera`), потому что
    * `spawnAt` зовётся только в `_onLock`. Замер главы 14: камера стоит в
-   * (−120, 7, −106), спавн в (−120, 96), и окно по камере собрало `0_0`/`1_0` —
-   * два района **за рекой**, тогда как игрок появится на северном берегу. Тот же
+   * (−800, 160, 592), спавн в (−800, 800), и окно по камере — шесть клеток
+   * вместо четырёх: две лишние (`0_2`, `1_2`) лежат в пустоши южнее и не несут
+   * ничего (по 43 Б данных), а центр окна уехал бы на 208 м от игрока. Тот же
    * уговор, что у первой посадки врагов (AGENTS.md, «Сущности и жизненный цикл»).
    * На паузе курсор отпущен, но камера осталась на месте тела, поэтому там центр
    * по-прежнему берётся от персонажа.

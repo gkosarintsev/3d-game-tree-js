@@ -1,7 +1,7 @@
 /**
- * CLI пайплайна «уровень из JSON» (docs/json-pipeline-plan.md):
+ * CLI пайплайна «уровень из JSON»:
  *
- *   node tools/build-level.mjs src/levels/level-09.json [--check] [--out path]
+ *   node tools/build-level.mjs src/levels/level-13.json [--check] [--out path]
  *
  * Читает сырой бриф, разворачивает из него секцию `city` в улицы и дома
  * (`tools/city.js`), валлидирует результат (`tools/level-schema.mjs`),
@@ -69,7 +69,7 @@ function prepare(raw, sourceName) {
 
 /**
  * @param {object} raw сырой уровень (уже прочитанный JSON, может содержать `city`)
- * @param {string} sourceName имя исходника для шапки (src/levels/level-09.json)
+ * @param {string} sourceName имя исходника для шапки (src/levels/level-13.json)
  * @returns {{name:string, code:string, warnings:string[]}} текст модуля главы
  */
 export function generateModule(raw, sourceName) {
@@ -86,12 +86,12 @@ export function generateModule(raw, sourceName) {
   const notice = warnings.length
     ? `\n * Предупреждения парсера:\n${warnings.map(w => ` *   — ${w}`).join('\n')}\n *`
     : '';
-  // строка появляется только у брифа с секцией `city` — глава 9 от этого
-  // текста не меняется и остаётся байт в байт прежней
+  // строка появляется только у брифа с секцией `city` — бриф без неё от этого
+  // текста не меняется и остаётся байт в байт прежним
   const seeded = raw.city
     ? `\n *\n * Секцию \`city\* развернул генератор кварталов (tools/city.js): его ГПСЧ сидит\n * в \`city.seed\`, поэтому и этот файл детерминирован — правка района в брифе\n * меняет дома, а правка сида меняет весь район целиком.`
     : '';
-  // абзац появляется только у брифа `kind: 'json2'` — главы 9 и 10 обязаны
+  // абзац появляется только у брифа `kind: 'json2'` — модули v1-глав обязаны
   // остаться побайтово прежними
   const turned = expanded.kind === 'json2'
     ? `\n *\n * Поворотные дома (\`buildings[].rotation\*) ставят корпус под углом к северу:\n * весь внутренний расчёт — стены, комнаты, шахты маршей и проёмы дверей —\n * идёт в его собственных осях, а в мировом плане его держит ориентированная\n * коробка (src/solids.js), потому что габарит решил бы твёрдость вокруг дома\n * и вокруг неё выросли бы невидимые башни.`
@@ -249,7 +249,7 @@ export function generateOutput(raw, sourceName, opts = {}) {
   return raw?.kind === 'open' ? generateCatalog(raw, sourceName, opts) : generateModule(raw, sourceName);
 }
 
-/** Имя экспорта из имени файла: level-09.json → LEVEL_09, city-3 → CITY_3. */
+/** Имя экспорта из имени файла: level-13.json → LEVEL_13, city-3 → CITY_3. */
 function exportName(sourceName) {
   const stem = basename(sourceName, extname(sourceName));
   return stem.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'LEVEL';
@@ -264,7 +264,7 @@ class ValidationError extends Error {
   }
 }
 
-/** Путь модуля главы по пути JSON: src/levels/level-09.json → .../level-09.js */
+/** Путь модуля главы по пути JSON: src/levels/level-13.json → .../level-13.js */
 const defaultOut = jsonPath => resolve(dirname(jsonPath), `${basename(jsonPath, extname(jsonPath))}.js`);
 
 function main(argv) {

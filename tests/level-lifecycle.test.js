@@ -21,10 +21,10 @@
  * Симуляция не крутится: `_tick` ведёт врагов и игрока только при
  * `state === 'playing'` (src/game.js:414), а до захвата курсора глава стоит на
  * интертитре. Значит, позиции врагов — ровно те, что им дал `Enemies` при сборке,
- * и допуск «нога на опоре» здесь строгий (в `tests/model-level.test.js` он
+ * и допуск «нога на опоре» здесь строгий (в сюите главы с ходом он
  * краснеет на транзите через ступень именно потому, что там 600 кадров хода).
  */
-import { LEVELS } from '../src/levels/index.js';
+import { LEVELS, LEVEL_NUMBERS } from '../src/levels/index.js';
 import { CONFIG } from '../src/config.js';
 import { AlienEnemy } from '../src/enemies.js';
 
@@ -33,7 +33,7 @@ const METHODS = ['groundHeightAt', 'isBlocked', 'openPositions', 'worldToNormali
   'build', 'drawMinimap', 'raySolid', 'resolveSphere', 'rayHitDistance', 'findPath', 'randomNavPoint'];
 const DATA = ['width', 'depth', 'spawn', 'bounds', 'solids'];
 
-/** Рост тела врага — то же число, с которым `isBlocked` зовёт `model-level`. */
+/** Рост тела врага — то же число, с которым `isBlocked` зовёт проба колонок ночного макета. */
 const BODY_H = 1.9;
 
 /** Допуск «нога на опоре»: шов картинки пола, больше на стоящем теле нечего. */
@@ -44,11 +44,12 @@ const SUPPORT_TOL = Math.max(CONFIG.jsonMap.floorRise, 0.05);
  * опоры среди узлов графа самой главы**: решётка стоит шагом 6 м и берёт y узла
  * со своей опоры, но клетка колонок шажнее решётки, поэтому у марша лестницы
  * узел законно стоит на нижней ступени, а `groundHeightAt` отвечает верх
- * колонки. Замер по всем 13 главам (полный обход узлов): главы 9–13 дают 35…534
- * узла с отклонением 0,05…0,633 м при нулевых отклонениях у глав 1, 3, 4 — то
- * есть абсолютный порог «0,05» краснел бы на законных картах, а «0,7» не
- * краснел бы ни на одной. Сравнение с собственным графом ловит именно то, ради
- * чего сюжетка написана: тело глубже любой опоры, которую карта предлагает.
+ * колонки. Замер по главам реестра (полный обход узлов): карты из брифа дают
+ * 35…534 узла с отклонением 0,05…0,633 м при нулевых отклонениях у карт с
+ * плоской опорой — то есть абсолютный порог «0,05» краснел бы на законных картах,
+ * а «0,7» не краснел бы ни на одной. Сравнение с собственным графом ловит именно
+ * то, ради чего сюжетка написана: тело глубже любой опоры, которую карта
+ * предлагает.
  */
 
 /** Зазор «враг стоит ровно на узле графа»: `respawn` берёт узел без округления. */
@@ -104,7 +105,7 @@ async function runPass() {
  *
  * У открытого мира считаются только **годные** узлы (`navFit`): граф append-only,
  * и в списке остаётся свес решётки за край загруженной клетки (замер главы 14
- * сразу после `_loadLevel` — 10 узлов из 1 118). Их опора — «пол мира» под
+ * сразу после `_loadLevel` — 10 узлов из 3 959). Их опора — «пол мира» под
  * незастроенной клеткой, и отклонение в 4 м раздуло бы предел главы настолько,
  * что проверка «враг не глубже любого узла карты» перестала бы ловить хоть
  * что-нибудь.
@@ -185,10 +186,10 @@ async function testEveryChapterLoads() {
   const v = await visits();
   const bad = [];
   for (const x of v) {
-    if (x.state !== 'chapter') bad.push(`${x.index + 1}: состояние '${x.state}' вместо 'chapter' (ошибка сборки)`);
-    if (x.levelIndex !== x.index) bad.push(`${x.index + 1}: levelIndex ${x.levelIndex}`);
-    if (!x.mapHere) bad.push(`${x.index + 1}: движок держит не ту главу или не держит карту`);
-    if (x.missing.length) bad.push(`${x.index + 1}: карте игры не хватает ${x.missing.join(', ')}`);
+    if (x.state !== 'chapter') bad.push(`${LEVEL_NUMBERS[x.index]}: состояние '${x.state}' вместо 'chapter' (ошибка сборки)`);
+    if (x.levelIndex !== x.index) bad.push(`${LEVEL_NUMBERS[x.index]}: levelIndex ${x.levelIndex}`);
+    if (!x.mapHere) bad.push(`${LEVEL_NUMBERS[x.index]}: движок держит не ту главу или не держит карту`);
+    if (x.missing.length) bad.push(`${LEVEL_NUMBERS[x.index]}: карте игры не хватает ${x.missing.join(', ')}`);
   }
   const slowest = v.filter(x => x.ms !== null).sort((a, b) => b.ms - a.ms)[0];
   return {
@@ -205,12 +206,12 @@ async function testEntitiesMatchBrief() {
   const bad = [];
   for (const x of v) {
     if (x.exit.want !== x.exit.has) {
-      bad.push(`${x.index + 1}: цель exit=${x.exit.want}, маяк в игре ${x.exit.has ? 'есть' : 'нет'}`);
+      bad.push(`${LEVEL_NUMBERS[x.index]}: цель exit=${x.exit.want}, маяк в игре ${x.exit.has ? 'есть' : 'нет'}`);
     }
-    if (x.coins.want !== x.coins.has) bad.push(`${x.index + 1}: монет ${x.coins.has} при замысле ${x.coins.want}`);
-    if (x.cars.want !== x.cars.has) bad.push(`${x.index + 1}: кузовов ${x.cars.has} при данных ${x.cars.want}`);
+    if (x.coins.want !== x.coins.has) bad.push(`${LEVEL_NUMBERS[x.index]}: монет ${x.coins.has} при замысле ${x.coins.want}`);
+    if (x.cars.want !== x.cars.has) bad.push(`${LEVEL_NUMBERS[x.index]}: кузовов ${x.cars.has} при данных ${x.cars.want}`);
     if (x.enemies.items.length !== x.enemies.want) {
-      bad.push(`${x.index + 1}: врагов ${x.enemies.items.length} при данных ${x.enemies.want}`);
+      bad.push(`${LEVEL_NUMBERS[x.index]}: врагов ${x.enemies.items.length} при данных ${x.enemies.want}`);
     }
   }
   return { name: 'entities-match-brief', passed: bad.length === 0, info: bad.slice(0, 5).join(' | ') || 'цель, монеты, кузова и число врагов совпадают с брифом во всех главах' };
@@ -219,7 +220,7 @@ async function testEntitiesMatchBrief() {
 /**
  * Заспавненные враги: тела конечны, каждый стоит ровно на узле графа, и нога ни
  * глубже опоры, чем худший узел **этой** карты (см. `SUPPORT_TOL`). Строже, чем
- * `model-level`, — здесь никто никуда не шёл, и транзита через ступень, который
+ * проба ночного макета, — здесь никто никуда не шёл, и транзита через ступень, который
  * тот сюжет ловит в 600 кадрах хода, быть не может. Маршрут человека сюда не
  * входит: `Enemy` берёт точку блуждания на первом `update`, а до интертитра
  * симуляция не идёт (src/game.js:414) — проходовому маршруту место в
@@ -253,17 +254,17 @@ async function testEnemiesStandOnSupport() {
     worstGap = Math.max(worstGap, ...items.map(e => e.nodeGap), 0);
     worstNode = Math.max(worstNode, x.nodeStats.worstOff);
     buried += inColumn;
-    if (nan) bad.push(`${x.index + 1}: тел с нечисловыми координатами ${nan}`);
+    if (nan) bad.push(`${LEVEL_NUMBERS[x.index]}: тел с нечисловыми координатами ${nan}`);
     if (offNode.length) {
-      bad.push(`${x.index + 1}: ${offNode.length} врагов не на узле графа `
+      bad.push(`${LEVEL_NUMBERS[x.index]}: ${offNode.length} врагов не на узле графа `
         + `(худший зазор ${offNode[0].nodeGap.toFixed(3)} м)`);
     }
     if (floating.length) {
-      bad.push(`${x.index + 1}: ${floating.length} врагов глубже опоры, чем любой узел карты `
+      bad.push(`${LEVEL_NUMBERS[x.index]}: ${floating.length} врагов глубже опоры, чем любой узел карты `
         + `(худшее ${floating[0].off.toFixed(3)} м при пределе главы ${limit.toFixed(3)} м)`);
     }
     if (items.length && inColumn === items.length) {
-      bad.push(`${x.index + 1}: вся команда из ${inColumn} тел в колонке `
+      bad.push(`${LEVEL_NUMBERS[x.index]}: вся команда из ${inColumn} тел в колонке `
         + `(свободных узлов графа ${x.nodeStats.nodes - x.nodeStats.blockedNodes} из ${x.nodeStats.nodes})`);
     }
   }

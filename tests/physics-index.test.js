@@ -97,7 +97,7 @@ export async function runPhysicsIndexTests() {
 
   const map = new JsonMap(LEVEL_12.map);
   PhysicsIndex.buildFrom(map);
-  PhysicsIndex.world.step(); // scène видит коллайдеры после первого step (§ 13 плана)
+  PhysicsIndex.world.step(); // сцена видит коллайдеры после первого step (§ 13 плана)
   const edges = collectEdges(map.nav);
 
   // Базовая форма — своя проба (режим own), считаем годными рёбрами те, что она пропускает.
@@ -142,7 +142,9 @@ export async function runPhysicsIndexTests() {
   PhysicsIndex.dispose();
 
   return {
-    passed: results.every((r) => r.passed),
+    // число, а не boolean: раннер CI складывает `passed` по сюжеткам, и `true`
+    // считалось бы за одну проверку из пяти (вердикт сюиты при этом тот же)
+    passed: results.filter((r) => r.passed).length,
     total: results.length,
     results,
     info: `init ${initMs.toFixed(0)} мс, рёбер=${edges.length}`,

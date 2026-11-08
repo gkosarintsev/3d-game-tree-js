@@ -698,7 +698,7 @@ async function testBuiltMemberAndBoundsHole() {
   const cRect = map.cellById.get(centre).rect;
   const holeInsideBounds = inBounds(b, (cRect.minX + cRect.maxX) / 2, (cRect.minZ + cRect.maxZ) / 2);
   // обычный тип карты члена не имеет, и правило снятия обязано gated-иться
-  // наличием `streamStep`, а не этим методом: иначе глава 9 упала бы на
+  // наличием `streamStep`, а не этим методом: иначе карта из брифа упала бы на
   // первом же кадре с «isBuiltAt is not a function»
   const memberHere = typeof map.isBuiltAt;
   const jsonHasIt = typeof JsonMap.prototype.isBuiltAt;
@@ -1244,13 +1244,15 @@ async function testPumpFrameBudget() {
  * выводила бы ни одного ряда — п. 2 § 7.2 плана называл это незакрытым).
  *
  * Окно за интертитром меряется тем же `_worldPump`, которым его зовёт `_tick`:
- * центр — `map.spawn`, а не обзорная камера (замер этапа 6: камера стоит в
- * (−120, 7, −106), спавн в (−120, 96), и окно по камере собрало `0_0`/`1_0` —
- * два района **за рекой**, куда игрок ещё не пошёл). Пределы кадра те же, что у
+ * центр — `map.spawn`, а не обзорная камера (замер главы 14: камера стоит в
+ * (−800, 160, 592), спавн в (−800, 800), и окно по камере — шесть клеток вместо
+ * четырёх: две лишние, `0_2`/`1_2`, лежат в пустоши южнее и не несут ничего).
+ * Пределы кадра те же, что у
  * гейта этапа 4: неразделимый атом ≤ `stream.budgetMs` главы, накопление ≤
  * просьбы движка. Маршрут до точки B здесь **частичный** — её клетка за окном
  * спавна, поэтому мера «путь не идёт дырой» берётся по каждому узлу пути, а
- * критерий «≥ 3 чанка» мерит `level-contract` на мире целиком.
+ * критерий «≥ 3 чанка» мерит `level-contract` на мире целиком (замер главы 14 —
+ * 9 клеток, 528 узлов / 3 191 м, опора ±0,00 м).
  *
  * Проверка идёт последней в сюите: заглушка `_tick` не переназначает
  * `requestAnimationFrame`, поэтому кадр страницы после неё не наступает (тот же
@@ -1273,21 +1275,17 @@ async function testEngineChapter() {
   // допуск тот же, что у `level-lifecycle` (NODE_GAP): `respawn` берёт узел без
   // округления, поэтому зазор меряется до узла, а не до клетки решётки
   const nodeGap = 0.02;
-  const rows = [['windows', 'windowCount'], ['clutter', 'clutterCount'], ['signage', 'signageCount']];
+  const rows = ['windows', 'clutter', 'signage'];
   const heldTick = game._tick;
   game._tick = () => {};
-  const t0 = performance.now();
   let loadMs = 0;
   let map = null;
   let at = null;
   let rest = null;
   try {
-    console.error('[OW-DEBUG] testEngineChapter: start _loadLevel for level', index, level.name);
     const tLoad0 = performance.now();
     await game._loadLevel(index);
-    const tLoad1 = performance.now();
-    loadMs = tLoad1 - tLoad0;
-    console.error('[OW-DEBUG] testEngineChapter: _loadLevel finished in', loadMs.toFixed(0), 'ms, state=', game.state);
+    loadMs = performance.now() - tLoad0;
     map = game.map;
     const startId = map.spawnCell()?.id ?? null;
     // тела — той же формулой, что и `level-lifecycle`: у Чужого `position` есть
@@ -1355,17 +1353,12 @@ async function testEngineChapter() {
       inFrame.push({ label: slice.label, ms: performance.now() - t });
     };
     try {
-      console.error('[OW-DEBUG] testEngineChapter: start pump loop');
       for (let frameIdx = 0; ; frameIdx++) {
         const before = map.pump.stats.slices;
         inFrame = [];
         const f0 = performance.now();
         game._worldPump();
         const ms = performance.now() - f0;
-        if (frameIdx % 10 === 0 || ms > 10) {
-          console.error('[OW-DEBUG] testEngineChapter: frame', frameIdx, 'ms=', ms.toFixed(1), 'loaded=', map.loaded.size, 'task=', map.pump.task?.id);
-        }
-        frames += 1;
         frames += 1;
         let atom = 0;
         let label = null;
@@ -1424,9 +1417,8 @@ async function testEngineChapter() {
   const frameCap = map.stream.budgetMs;
   // ряд обязан выводиться, если его секция есть в данных главы: ноль при секции
   // — это потерянный формат каталога, а не воля автора
-  const rowsOk = (snap) => rows.every(([key, field]) => snap.counters[key] === snap.sums[key]
-    && (!level.map[key] || snap.counters[key] > 0))
-    && Object.values(snap.counters).every((n) => n === snap.sums[{ windows: 'windows', clutter: 'clutter', signage: 'signage' }[Object.keys(snap.counters).find((k) => snap.counters[k] === n)]]);
+  const rowsOk = (snap) => rows.every((key) => snap.counters[key] === snap.sums[key]
+    && (!level.map[key] || snap.counters[key] > 0));
   const bodiesOk = (list) => list.length === wantEnemies
     && list.every((e) => e.built && !e.offstage && e.gap <= nodeGap);
   const beaconOk = (b) => (wantExit
@@ -1444,7 +1436,7 @@ async function testEngineChapter() {
     && rest.route.nodes >= 2 && rest.route.cells.length >= 2
     && rest.route.unbuilt === 0 && rest.route.offSupport === 0 && rest.errors === 0;
   const worstGap = (list) => list.reduce((m, e) => Math.max(m, e.gap), 0);
-  const rowText = (snap) => rows.map(([key]) => `${key} ${snap.counters[key]}`).join('/');
+  const rowText = (snap) => rows.map((key) => `${key} ${snap.counters[key]}`).join('/');
   return {
     name: 'глава из реестра грузится движком: спавн, цель, тела и ряды по данным, окно за интертитром в бюджете',
     passed: ok,
@@ -1456,9 +1448,9 @@ async function testEngineChapter() {
       + ` ${at.sceneChildren}; врагов ${at.enemies.length} при данных ${wantEnemies} (вне застроенных`
       + ` ${at.enemies.filter((e) => !e.built).length}, снятых ${at.enemies.filter((e) => e.offstage).length},`
       + ` худший зазор до узла ${worstGap(at.enemies).toFixed(3)} м при допуске ${nodeGap}), кузовов`
-      + ` ${at.cars} при данных ${wantCars}; маяк ${at.beacon === null ? 'не нужен' : `в (${level.gameplay?.exit?.x ?? 0}, ${level.gameplay?.exit?.z ?? 0})`}`
+      + ` ${at.cars} при данных ${wantCars}; маяк ${at.beacon === null ? 'не нужен' : `в (${gp.exit?.x ?? 0}, ${gp.exit?.z ?? 0})`}`
       + `; ряды на старте ${rowText(at)} (сумма по клеткам ${rowText({ counters: at.sums })});`
-      + ` за интертитром ${rest.frames} кадров, покой на ${rest.idleAt ?? 'не reached'}, срезов ${rest.slices},`
+      + ` за интертитром ${rest.frames} кадров, покой на ${rest.idleAt ?? 'не наступил'}, срезов ${rest.slices},`
       + ` достроек ${rest.built}, чтений ${rest.fetches}, ошибок ${rest.errors}; окно ${rest.cells.join(',')}`
       + ` против расчётного ${rest.want.join(',')} (радиус ${map.pump.radius.toFixed(0)} м), все нарисованы`
       + ` ${rest.drawn}; худший кадр ${rest.worstFrameMs.toFixed(1)} мс при потолке главы ${frameCap}`
@@ -1489,6 +1481,8 @@ export async function runOpenWorldTests() {
     testExitAndCarsOnlyInBuiltCells,
     testMinimapPlanFrame,
     testPumpFrameBudget,
+    // последней: заглушка `_tick` обрывает цепочку кадров страницы (см. выше)
+    testEngineChapter,
   ];
   const results = [];
   for (const fn of tests) {

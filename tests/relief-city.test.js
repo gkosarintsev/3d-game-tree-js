@@ -44,12 +44,10 @@
  *      дороже вдвое») мерился отношением, а не плавающими микросекундами;
  *  13. Свет главы 12: улица держится луны, летающего пула огней в данных нет,
  *      грунт и полотно одной яркости;
- *  14. Главы 9–11 не вошли в рельефную ветку.
+ *  14. Глава 11 не вошла в рельефную ветку.
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
-import { LEVEL_09 } from '../src/levels/level-09.js';
-import { LEVEL_10 } from '../src/levels/level-10.js';
 import { LEVEL_11 } from '../src/levels/level-11.js';
 import { LEVEL_12 } from '../src/levels/level-12.js';
 import { expandCity } from '../tools/city.js';
@@ -736,12 +734,12 @@ function testBudget() {
  * переводили на разогрев и лучшее из окон именно поэтому).
  *
  * Узлы меряются **плотностью к решётке**, а не абсолютным числом. Исходное
- * «≤ 9 000 при 600 м» сравнивало главу 12 с главой 10, у которой решётку съели
- * дома (2 420 узла значили «проходима только улица», а не «рельеф дёшев»;
- * у самой главы 10 узлов 13 881). Смысл ограничения «рельеф не должен удвоить
- * узлы» — в том, сколько промежуточных узлов добавляет склон (`_linkRise`) и
- * сколько кладут сверху решётки кровли и настилы: ≤ 1,5 решёточной точки на
- * клетку шага `J.navStep`.
+ * «≤ 9 000 при 600 м» сравнивало главу 12 с развёрнутым v1-городом, у которого
+ * решётку съели дома (2 420 узла значили «проходима только улица», а не «рельеф
+ * дёшев»; у самого города узлов 13 881). Смысл ограничения «рельеф не должен
+ * удвоить узлы» — в том, сколько промежуточных узлов добавляет склон
+ * (`_linkRise`) и сколько кладут сверху решётки кровли и настилы: ≤ 1,5
+ * решёточной точки на клетку шага `J.navStep`.
  *
  * До индекса планов (луч и сферы перебирали ВСЕ призмы, перила и дуги) эти же
  * пробы на главе 12 стоили 208 мкс на луче в 2,7 м, 256 мкс на 120 м вниз,
@@ -948,7 +946,7 @@ function testMoonLight() {
 function testFrozenChapters() {
   const bad = [];
   const info = [];
-  for (const [name, spec] of [['глава 9', LEVEL_09.map], ['глава 10', LEVEL_10.map], ['глава 11', LEVEL_11.map]]) {
+  for (const [name, spec] of [['глава 11', LEVEL_11.map]]) {
     const map = createJsonMap(spec);
     if (map.relief !== null) bad.push(`${name}: поле рельефа построено у замороженной главы`);
     const decks = spec.roads.flatMap(r => r.decks).filter(d => d.length !== undefined);
@@ -956,16 +954,11 @@ function testFrozenChapters() {
     if (crossing.length) bad.push(`${name}: перекрёстки генератора приехали в замороженную главу`);
     const profiled = decks.filter(d => Math.abs((d.topAtMax ?? d.topAtMin) - d.topAtMin) > 1e-9);
     info.push(`${name}: ${decks.length} пластин, ${profiled.length} с подъёмом`);
-    if (name !== 'глава 11' && profiled.length && spec.relief === undefined) {
-      // у глав без рельефа настил обязан лежать ровно на `ground.y + streetRise`
-      const off = decks.filter(d => Math.abs(d.topAtMin - (spec.ground.y + J.streetRise)) > 1e-9);
-      if (off.length) bad.push(`${name}: ${off.length} пластин не на «ground.y + streetRise» (первая ${off[0].topAtMin})`);
-    }
   }
   const v1 = expandCity(structuredClone(baseRawNoRelief()));
   if (!v1.roads.every(r => r.points && !r.crossing)) bad.push('генератор v1 поехал в пластины и перекрёстки');
   return {
-    name: 'Заморозка: главы 9–11 не получили ни поля рельефа, ни перекрёстков, улицы v1 — полоса points',
+    name: 'Заморозка: глава 11 не получила ни поля рельефа, ни перекрёстков, улицы v1 — полоса points',
     passed: bad.length === 0,
     info: bad.length ? bad.slice(0, 3).join('; ') : info.join(' | '),
   };

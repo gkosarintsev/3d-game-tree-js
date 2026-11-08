@@ -625,8 +625,8 @@ t('index.js держит мировые секции ровно один раз,
 });
 
 // § 7.1 п. 6.
-t('модули глав 9–13 побайтово прежние, и разрезка к ним не прикоснулась', () => {
-  for (const nn of ['09', '10', '11', '12', '13']) {
+t('модули глав из брифа побайтово прежние, и разрезка к ним не прикоснулась', () => {
+  for (const nn of ['11', '12', '13']) {
     const file = `src/levels/level-${nn}.json`;
     const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
     const committed = readFileSync(resolve(ROOT, `src/levels/level-${nn}.js`), 'utf8').replace(/\r\n/g, '\n');

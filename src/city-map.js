@@ -348,7 +348,7 @@ export class CityMap extends SolidField {
 }
 
 /**
- * Создаёт карту города по определению уровня (см. src/levels/level-02.js).
+ * Создаёт карту города по определению уровня (см. map-секцию главы).
  * Всё необязательно: недостающее берётся из CONFIG.city.
  */
 export function createCityMap(spec = {}) {

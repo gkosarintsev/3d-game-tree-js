@@ -11,8 +11,6 @@
  */
 import * as THREE from 'three';
 import { createJsonMap } from '../src/json-map.js';
-import { LEVEL_09 } from '../src/levels/level-09.js';
-import { LEVEL_10 } from '../src/levels/level-10.js';
 import { LEVEL_11 } from '../src/levels/level-11.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
@@ -717,7 +715,7 @@ function testPerfBudget() {
 function testFrozenChapters() {
   const bad = [];
   const info = [];
-  for (const [name, spec] of [['глава 9', LEVEL_09.map], ['глава 10', LEVEL_10.map], ['глава 11', LEVEL_11.map]]) {
+  for (const [name, spec] of [['глава 11', LEVEL_11.map]]) {
     const map = createJsonMap(spec);
     if (map.relief !== null) bad.push(`${name}: поле рельефа построено у замороженной главы`);
     if (map.floorAt !== null) bad.push(`${name}: floorAt переопределён без секции relief`);
@@ -739,7 +737,7 @@ function testFrozenChapters() {
     map.dispose?.();
   }
   return {
-    name: 'Главы 9, 10 и 11 не вошли в рельеф: пол — ноль, грунт — плоскость',
+    name: 'Глава 11 не вошла в рельеф: пол — ноль, грунт — плоскость',
     passed: bad.length === 0,
     info: bad.length ? bad.join('; ') : info.join(' | '),
   };
