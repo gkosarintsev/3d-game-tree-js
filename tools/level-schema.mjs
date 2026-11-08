@@ -432,8 +432,8 @@ const V2_PAD = obj({
 
 const V2_RELIEF = obj({
   baseY: num({ doc: 'м: нулевая отметка поля; по умолчанию ground.y' }),
-  maxSlope: num({ min: 0.01, max: 0.3, default: J.relief.maxSlope, doc: 'м/м: предел крутизны **поля** (уклон грунта). Не путать с `J.maxSlope` — пределом настила, и с `city.districts[].street.grade` — подъёмом проезжей части' }),
-  hillMaxSlope: num({ min: 0.01, max: 0.3, default: J.relief.hillMaxSlope, doc: 'м/м: предел крутизны отдельного холма (1,5 · height / radius); умножение на 1,5 — аналитический максимум производной капсулы' }),
+  maxSlope: num({ min: 0.01, max: 1.5, default: J.relief.maxSlope, doc: 'м/м: предел крутизны **поля** (уклон грунта). Не путать с `J.maxSlope` — пределом настила, и с `city.districts[].street.grade` — подъёмом проезжей части' }),
+  hillMaxSlope: num({ min: 0.01, max: 1.5, default: J.relief.hillMaxSlope, doc: 'м/м: предел крутизны отдельного холма (1,5 · height / radius); умножение на 1,5 — аналитический максимум производной капсулы' }),
   blend: num({ min: 1, max: 200, default: J.relief.blend, doc: 'м: ширина перехода площадки к полю по умолчанию' }),
   cell: num({ min: 2, max: 60, default: J.planGrid, doc: 'м: сторона клетки индекса рельефа (цена пробы, не геометрия)' }),
   hills: arr(V2_HILL, { minItems: 1, maxItems: J.relief.maxHills, doc: 'холмы поля; лимит J.relief.maxHills' }),

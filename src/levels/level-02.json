@@ -18,12 +18,12 @@
   },
   "relief": {
     "baseY": 0,
-    "maxSlope": 0.3,
-    "hillMaxSlope": 0.2,
+    "maxSlope": 1.5,
+    "hillMaxSlope": 1.2,
     "hills": [
-      { "id": "main_ridge", "x": -30, "z": -20, "bx": 20, "bz": -4, "radius": 30, "height": 3 },
-      { "id": "west_hill", "x": -45, "z": 15, "bx": -15, "bz": 35, "radius": 20, "height": 2 },
-      { "id": "east_hill", "x": 15, "z": -45, "bx": 45, "bz": -25, "radius": 24, "height": 2.5 }
+      { "id": "main_ridge", "x": -4, "z": -12, "radius": 30, "height": 19 },
+      { "id": "west_hill", "x": -30, "z": 26, "radius": 20, "height": 14 },
+      { "id": "east_hill", "x": 30, "z": -34, "radius": 24, "height": 15 }
     ]
   },
   "waterways": [

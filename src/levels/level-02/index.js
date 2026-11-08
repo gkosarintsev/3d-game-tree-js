@@ -273,34 +273,28 @@ export const LEVEL_02 = {
       "cell": 24,
       "hills": [
         {
-          "bx": 20,
-          "bz": -4,
-          "height": 3,
+          "height": 19,
           "id": "main_ridge",
           "radius": 30,
-          "x": -30,
-          "z": -20
+          "x": -4,
+          "z": -12
         },
         {
-          "bx": -15,
-          "bz": 35,
-          "height": 2,
+          "height": 14,
           "id": "west_hill",
           "radius": 20,
-          "x": -45,
-          "z": 15
+          "x": -30,
+          "z": 26
         },
         {
-          "bx": 45,
-          "bz": -25,
-          "height": 2.5,
+          "height": 15,
           "id": "east_hill",
           "radius": 24,
-          "x": 15,
-          "z": -45
+          "x": 30,
+          "z": -34
         }
       ],
-      "maxSlope": 0.3,
+      "maxSlope": 1.5,
       "pads": []
     },
     "spawn": {

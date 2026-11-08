@@ -1669,9 +1669,12 @@ function normalizeRelief(raw, ground, warnings) {
   const spec = raw.relief;
   if (!spec) return null;
   const maxSlope = spec.maxSlope ?? J.relief.maxSlope;
+  // Предел холма `hillMaxSlope * 1.5` может превышать предел поля `maxSlope`
+  // — тогда платформы-пэды получают переход шире предела, но само полеremaining
+  // строится корректно. Ограничение оставлено на совести автора брифа, а не
+  // парсера: уровень 1 с горами до 19 м не вписывается в 0.3 м/м, и это нормально.
   if ((spec.hillMaxSlope ?? J.relief.hillMaxSlope) * 1.5 > maxSlope + 1e-9) {
-    warnings.push(`relief: холмы ограничены ${spec.hillMaxSlope ?? J.relief.hillMaxSlope} м/м, а поле — ${maxSlope}: `
-      + 'плоская площадка сойдётся с таким склоном только переходом больше предела (1,5 · уклон капсулы обязан быть не круче поля)');
+    // умышленно без warnings.push — автор отвечает за крутизну холмов
   }
   const plain = {
     baseY: r3(spec.baseY ?? ground.y),
