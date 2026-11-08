@@ -25,11 +25,13 @@ AGENTS.md. Сжатые формулировки v2 (`json2`) живут в AGEN
 Схема имеет **одно описание** — DSL в `tools/level-schema.mjs` — и две читательские
 ипостаси: структуру проверяет `validateSpec`/`checkValue`, а ИИ и автор до первого
 запуска парсера читают exported JSON Schema draft-07. Exportёр
-(`tools/export-schema.mjs`) пишет из того же DSL два файла —
-`src/levels/level.schema.json` (v1: 52 850 символов, 15 полей верхнего уровня) и
-`src/levels/level-v2.schema.json` (v2: 72 120 символов, 16 полей), — и первый ключ
+(`tools/export-schema.mjs`) пишет из того же DSL три файла —
+`src/levels/level.schema.json` (v1: 52 850 символов, 15 полей верхнего уровня),
+`src/levels/level-v2.schema.json` (v2: 75 773 символа, 17 полей) и
+`src/levels/level-v3.schema.json` (v3: 135 226 символов, 18 полей), — и первый ключ
 каждого брифа — `"$schema"` с путём по версии (`./level.schema.json` у v1-брифов,
-`./level-v2.schema.json` у глав из брифа).
+`./level-v2.schema.json` у глав из брифа, `./level-v3.schema.json` у глав
+`kind: 'cityforge'`).
 
 - **Две схемы, а не одна с `allOf`.** `additionalProperties: false` внутри ветки
   не видит внешние `properties`, поэтому объединённая схема бракует v1-бриф на

@@ -199,7 +199,7 @@ await tr.runTrackCityTests();
 даёт **130/130**, арифметика поля —
 `node tools/relief.test.mjs` **11/11**, геометрия трассы (`city.track`) —
 `node tools/track.test.mjs` **30/30**, экспортируемые JSON Schema —
-`node tools/export-schema.mjs --check` (оба файла совпадают с DSL побайтово).
+`node tools/export-schema.mjs --check` (все три файла совпадают с DSL побайтово).
 
 Каждый модуль печатает отчёт `PASS/FAIL` и итог `N/M` в консоль, а также возвращает
 объект `{ passed, total, results }`.
@@ -218,7 +218,7 @@ await tr.runTrackCityTests();
 | `node tools/check-levels.mjs` | каждый закоммиченный бриф: детерминизм двух прогонов, ноль предупреждений, побайтовость модуля, спавн и точка B в плите, атрибуция GLB, таблица бюджета (отчёт) |
 | `node tools/level-parser.test.mjs` | арифметику парсера на фикстурах (130 проверок) |
 | `node tools/relief.test.mjs` · `node tools/track.test.mjs` | поле рельефа (11) · трассу-кольцо (30) |
-| `node tools/export-schema.mjs --check` | обе JSON Schema — побайтово равны DSL |
+| `node tools/export-schema.mjs --check` | все три JSON Schema — побайтово равны DSL |
 | `node tools/ci-browser.mjs` | все браузерные сюиты в chromium; `--suites level-contract` — одну, `--flake файл::проверка` — вынести проверку из вердикта, `--fast` — пропустить тяжёлые и perf-проверки (для разработки) |
 
 Новая глава не требует нового тестового файла: её бриф находится по имени
@@ -272,6 +272,9 @@ src/
     level-13.js     глава 13 — нормализованные данные (производное: тот же парсер)
     level.schema.json     схема брифа v1 в JSON Schema draft-07 (производное: пишет export-schema.mjs)
     level-v2.schema.json  схема брифа v2 в JSON Schema draft-07 (тот же экспортёр)
+    level-v3.schema.json  схема брифа v3 (CityForge, `kind: 'cityforge'`) в JSON
+                          Schema draft-07 (тот же экспортёр; наследует v2 и добавляет
+                          корневую секцию `cityforge`)
   map.js            карта-улица (TownMap): опорные поверхности, коллизии, пути, миникарта
   terrain-map.js    карта-рельеф (TerrainMap): колонки высот, пещеры, пропасти, мосты
   city-map.js       карта-город (CityMap): кварталы, улицы, дома и их ярусы
@@ -332,7 +335,7 @@ tools/
   level-schema.mjs        схема брифа и правила валидации (ошибки — с адресом поля);
                           у каждого поля здесь же `doc` (что поле значит) и `default`
                           (что парсер подставляет) — из них живёт и экспортируемая JSON Schema
-  export-schema.mjs       CLI: `node tools/export-schema.mjs` пишет два `.schema.json` в
+  export-schema.mjs       CLI: `node tools/export-schema.mjs` пишет три `.schema.json` в
                           `src/levels/` из того же DSL; `--check` сверяет их побайтово
                           (код 2 при расхождении), как и парсер — модуль главы
   normalize-level.mjs     бриф → данные уровня: полигоны в прямоугольники, высоты, проступи,
@@ -385,7 +388,8 @@ docs/
 проступи маршей, пластины настилов, опоры и фонари), проверяет схему и пишет
 модуль главы. `JsonMap` при этом не знает ни номера главы, ни схемы — он ест те
 же данные, что и остальные типы карт едят свою `map`-секцию. Первый ключ каждого
-брифа — `"$schema"` (`./level.schema.json` у v1, `./level-v2.schema.json` у v2):
+брифа — `"$schema"` (`./level.schema.json` у v1, `./level-v2.schema.json` у v2,
+`./level-v3.schema.json` у v3):
 он ведёт к JSON Schema, собранной из того же DSL, что и валидатор, поэтому уровень
 можно править (или генерировать) до первого запуска парсера, не угадывая имена
 полей и пределы. Причина, по которой в брифе нет второй правды: экспортёр читает

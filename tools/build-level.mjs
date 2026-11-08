@@ -23,7 +23,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
+import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2, LEVEL_SPEC_V3 } from './level-schema.mjs';
 import { normalizeLevel, isV2Kind } from './normalize-level.mjs';
 import { expandCity } from './city.js';
 import { splitLevel, stringifyStable } from './chunk-level.mjs';
@@ -54,7 +54,7 @@ function prepare(raw, sourceName) {
   // переключатель версии — в самом брифе: v1 (`kind: 'json'` или без него) не
   // принимает ни `rotation`, ни дуги, поэтому схема обязана выбираться до
   // геометрического прохода, а не после
-  const spec = isV2Kind(expanded.kind) ? LEVEL_SPEC_V2 : LEVEL_SPEC;
+  const spec = expanded.kind === 'cityforge' ? LEVEL_SPEC_V3 : isV2Kind(expanded.kind) ? LEVEL_SPEC_V2 : LEVEL_SPEC;
   const { errors, warnings: geoWarnings } = validateLevel(expanded, spec);
   if (errors.length) throw new ValidationError(errors, geoWarnings);
   let level;

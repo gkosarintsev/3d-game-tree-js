@@ -4,7 +4,8 @@
  *   node tools/export-schema.mjs [--check]
  *
  * Пишет `src/levels/level.schema.json` (v1, `kind: 'json'`) и
- * `src/levels/level-v2.schema.json` (v2, `kind: 'json2'`). Оба файла —
+ * `src/levels/level-v2.schema.json` (v2, `kind: 'json2'`) и
+ * `src/levels/level-v3.schema.json` (v3, `kind: 'cityforge'`). Все три файла —
  * производное от `tools/level-schema.mjs`: единственный источник правды остаётся
  * DSL, а JSON Schema — его вывод для тех, кто читает бриф ДО запуска пайплайна
  * (редактор, ИИ, ревьюер). Поэтому файл, написанный руками, был бы вторым
@@ -23,6 +24,10 @@
  * draft-07 не видит `properties` outside, и объединённая схема отвергала бы
  * `relief` и `elements` у законного v2-брифа.
  *
+ * Три схемы, а не две с `allOf`: третья (v3, CityForge) наследует поля v2 и
+ * добавляет корневую секцию `cityforge` — иначе CityForge-элементы из
+ * `docs/world-format.md` оказались бы в файле руками, а не в DSL.
+ *
  * `--check` ничего не пишет и уходит с кодом 2 при расхождении — так
  * детерминизм вывода проверяется в автотесте (сюжет «схемные файлы совпадают с
  * экспортёром»).
@@ -30,7 +35,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
+import { LEVEL_SPEC, LEVEL_SPEC_V2, LEVEL_SPEC_V3 } from './level-schema.mjs';
 
 const DRAFT = 'http://json-schema.org/draft-07/schema#';
 const COLOR_PATTERN = '^#[0-9a-fA-F]{6}$';
@@ -107,6 +112,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 export const SCHEMA_FILES = [
   { spec: LEVEL_SPEC, title: 'Level brief v1 (kind: json)', out: resolve(ROOT, 'src/levels/level.schema.json') },
   { spec: LEVEL_SPEC_V2, title: 'Level brief v2 (kind: json2 | open)', out: resolve(ROOT, 'src/levels/level-v2.schema.json') },
+  { spec: LEVEL_SPEC_V3, title: 'Level brief v3 (kind: cityforge)', out: resolve(ROOT, 'src/levels/level-v3.schema.json') },
 ];
 
 function main(argv) {

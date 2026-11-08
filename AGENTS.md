@@ -236,16 +236,17 @@
   как остальные типы едят свою map-секцию.
 - Схема брифа живёт **в одном DSL** (`tools/level-schema.mjs`) и печатает из себя
   JSON Schema draft-07 (`node tools/export-schema.mjs` →
-  `src/levels/level.schema.json` и `level-v2.schema.json`); рукописного
-  `.schema.json` в репозитории нет и не будет — второй файл с теми же числами
+  `src/levels/level.schema.json`, `src/levels/level-v2.schema.json` и
+  `src/levels/level-v3.schema.json`); рукописного
+  `.schema.json` в репозитории нет и не будет — третий файл с теми же числами
   разошёлся бы с валидатором при первой правке. Каждый бриф обязан начинаться с
   `$schema` на файл **своей версии** (`./level.schema.json` для v1,
-  `./level-v2.schema.json` для `json2`), потому что две схемы, а не одна с
-  `allOf`: `additionalProperties: false` внутри ветки draft-07 не видит внешние
-  `properties` и отвергал бы законные `relief`/`elements`. Совпадение экспорта с
-  DSL, полноту описаний и приемку всех закоммиченных брифов сторожат сюиты
-  `tools/level-parser.test.mjs`; экспортёр, как и парсер, обязан сходиться
-  побайтово (`--check`).
+  `./level-v2.schema.json` для `json2`, `./level-v3.schema.json` для `kind: 'cityforge'`),
+  потому что три схемы, а не две с `allOf`: `additionalProperties: false` внутри
+  ветки draft-07 не видит внешние `properties` и отвергал бы законные `relief`/`elements`.
+  Совпадение экспорта с DSL, полноту описаний и приёмку всех закоммиченных брифов
+  сторожат сюиты `tools/level-parser.test.mjs`; экспортёр, как и парсер, обязан
+  сходиться побайтово (`--check`).
 - У каждого узла DSL, который автор адресует по имени (поле и object-элемент
   массива), обязан быть `doc` — смысл, единица и источник предела; примитивный
   элемент массива описывает сам массив (`«[min, max] этажности башни»`).

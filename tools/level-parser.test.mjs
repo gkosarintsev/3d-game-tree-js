@@ -3223,7 +3223,7 @@ t('ключи city в схеме равны гейтам генератора, �
 });
 
 t('$schema каждого брифа ведёт к существующему файлу своей версии', () => {
-  const want = v => v === 'json2' ? './level-v2.schema.json' : './level.schema.json';
+  const want = v => v === 'json2' ? './level-v2.schema.json' : v === 'cityforge' ? './level-v3.schema.json' : './level.schema.json';
   for (const file of BRIEFS) {
     const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
     eq(raw.$schema, want(raw.kind), `${file}: $schema не соответствует kind '${raw.kind ?? 'json'}'`);
