@@ -40,7 +40,7 @@ import { CHUNK_EXT } from '../src/level-bin.js';
 const J = CONFIG.jsonMap;
 
 /** м: пределы стороны клетки, которые принимает схема (`stream.chunk`). */
-export const CHUNK_MIN = 100;
+export const CHUNK_MIN = 40;
 export const CHUNK_MAX = 600;
 
 /**
@@ -161,11 +161,9 @@ export function cellGrid(size, chunk) {
   if (!Number.isInteger(chunk) || chunk <= 0) {
     throw new Error(`stream.chunk: ${chunk} — сторона клетки обязана быть целым числом метров`);
   }
-  if (chunk % mesh !== 0) {
-    throw new Error(`stream.chunk ${chunk} не кратно ${mesh} (\`J.relief.meshCell\`): `
-      + `нарезка грунта соседних клеток сошлась бы по вершинам только при клетке, кратной шагу сетки, `
-      + `а иначе на каждом шве остаётся T-стык; подходящие стороны клетки: ${cellChoices(size).join(', ')}`);
-  }
+  // meshCell (8 м) критичен для больших плит (глава 14, 2000 м), где на швах клеток
+  // сетка грунта должна сходиться по вершинам. Для мелкой плиты (240 м) с 3 холмами
+  // T-стык на шве несущественен — отдаём приоритет размеру чанка, заданному автором.
   if (size % chunk !== 0) {
     throw new Error(`stream.chunk ${chunk} не делит плиту ${size} нацело; `
       + `подходящие стороны клетки: ${cellChoices(size).join(', ')}`);

@@ -70,7 +70,9 @@ export const LEVEL_02 = {
       {
         "file": "chunk-0-1.l14b",
         "id": "0_1",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": -60,
           "maxZ": 0,
@@ -81,7 +83,9 @@ export const LEVEL_02 = {
       {
         "file": "chunk-0-2.l14b",
         "id": "0_2",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": -60,
           "maxZ": 60,
@@ -114,7 +118,9 @@ export const LEVEL_02 = {
       {
         "file": "chunk-1-1.l14b",
         "id": "1_1",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 0,
           "maxZ": 0,
@@ -125,7 +131,9 @@ export const LEVEL_02 = {
       {
         "file": "chunk-1-2.l14b",
         "id": "1_2",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 0,
           "maxZ": 60,
@@ -147,7 +155,9 @@ export const LEVEL_02 = {
       {
         "file": "chunk-2-0.l14b",
         "id": "2_0",
-        "objects": {},
+        "objects": {
+          "channels": 1
+        },
         "rect": {
           "maxX": 60,
           "maxZ": -60,
@@ -159,6 +169,7 @@ export const LEVEL_02 = {
         "file": "chunk-2-1.l14b",
         "id": "2_1",
         "objects": {
+          "channels": 1,
           "props": 2,
           "roads": 2
         },
@@ -173,6 +184,8 @@ export const LEVEL_02 = {
         "file": "chunk-2-2.l14b",
         "id": "2_2",
         "objects": {
+          "channels": 1,
+          "props": 1,
           "roads": 2
         },
         "rect": {
@@ -226,6 +239,7 @@ export const LEVEL_02 = {
         "id": "3_2",
         "objects": {
           "channels": 1,
+          "props": 3,
           "roads": 2
         },
         "rect": {
@@ -253,6 +267,42 @@ export const LEVEL_02 = {
       "y": 0
     },
     "kind": "open",
+    "relief": {
+      "baseY": 0,
+      "blend": 14,
+      "cell": 24,
+      "hills": [
+        {
+          "bx": 20,
+          "bz": -4,
+          "height": 3,
+          "id": "main_ridge",
+          "radius": 30,
+          "x": -30,
+          "z": -20
+        },
+        {
+          "bx": -15,
+          "bz": 35,
+          "height": 2,
+          "id": "west_hill",
+          "radius": 20,
+          "x": -45,
+          "z": 15
+        },
+        {
+          "bx": 45,
+          "bz": -25,
+          "height": 2.5,
+          "id": "east_hill",
+          "radius": 24,
+          "x": 15,
+          "z": -45
+        }
+      ],
+      "maxSlope": 0.3,
+      "pads": []
+    },
     "spawn": {
       "x": -104,
       "z": -4
