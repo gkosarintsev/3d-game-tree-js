@@ -66,6 +66,28 @@ function discoverBriefs(argv) {
  * проверки, а не исключение из сюиты: текст ошибки валидатора и есть полезный
  * отчёт.
  */
+function sameBytes(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+function fileSig(f) {
+  if (f.bytes) return [f.path, f.bytes];
+  return [f.path, f.code];
+}
+function joinedSig(files) {
+  // Сигнатура вывода для детерминизма: текст — строкой, байты — длиной и контрольной суммой.
+  // Имя файла входит, чтобы перестановка не сошлась за совпадение.
+  return files.map(f => {
+    if (f.bytes) {
+      let h = 2166136261 >>> 0;
+      for (let i = 0; i < f.bytes.length; i++) h = Math.imul(h ^ f.bytes[i], 16777619) >>> 0;
+      return `${f.path}\0bin:${f.bytes.length}:${h}`;
+    }
+    return `${f.path}\0txt:${f.code}`;
+  }).join('\n');
+}
+
 function parseBrief(file) {
   const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
   let first;
@@ -76,16 +98,13 @@ function parseBrief(file) {
     throw new Error(`парсер отверг бриф: ${e.errors.slice(0, 2).join(' | ')}`);
   }
   const again = generateOutput(structuredClone(raw), file);
-  // имя файла входит в сравнение: перестановка чанков местами не сойдёт за
-  // совпадение, а без неё два прогона различить нельзя
-  const joined = (files) => files.map(f => `${f.path}\n${f.code}`).join('');
   return {
     raw,
     dir: first.dir,
     files: first.files,
     warnings: first.warnings,
-    code: joined(first.files),
-    again: joined(again.files),
+    code: joinedSig(first.files),
+    again: joinedSig(again.files),
   };
 }
 
@@ -154,8 +173,13 @@ for (const file of briefs) {
         stale.push(`${rel}: файла нет — запустите node tools/build-level.mjs ${file}`);
         continue;
       }
-      const committed = readFileSync(resolve(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
-      if (committed !== f.code) stale.push(`${rel} устарел на ${committed.length - f.code.length} символов`);
+      if (f.bytes) {
+        const committed = readFileSync(resolve(ROOT, rel));
+        if (!sameBytes(committed, f.bytes)) stale.push(`${rel}: бинарный файл расходится с парсером (${committed.length} против ${f.bytes.length} байт)`);
+      } else {
+        const committed = readFileSync(resolve(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
+        if (committed !== f.code) stale.push(`${rel} устарел на ${committed.length - f.code.length} символов`);
+      }
     }
     assert(stale.length === 0, stale.join(' | '));
   });

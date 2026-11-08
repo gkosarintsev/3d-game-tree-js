@@ -28,6 +28,7 @@ import { normalizeLevel, isV2Kind } from './normalize-level.mjs';
 import { expandCity } from './city.js';
 import { splitLevel, stringifyStable } from './chunk-level.mjs';
 import { skeletonOf } from './skeleton.mjs';
+import { encodeChunk, encodeSkeleton, SKELETON_FILE } from '../src/level-bin.js';
 
 /** Корень репозитория: от него печатается браузерный путь каталога (`catalog`). */
 const ROOT = resolve(import.meta.dirname, '..');
@@ -169,64 +170,65 @@ export function generateCatalog(raw, sourceName, opts = {}) {
   // (`python -m http.server` в корне, `file://` не поддерживается), поэтому
   // браузерный путь к файлам клеток — это он же с ведущим слэшем.
   const dir = relative(ROOT, resolve(opts.outDir ?? resolve(dirname(sourceName), stem))).replace(/\\/g, '/');
-  // В файл едут только числа, которые читает движок: `sk.meta` (компоненты,
-  // отказы, цена фаз) остаётся у парсера и сюиты, потому что обход от них не
-  // зависит, а побайтовость `index.js` — зависит.
-  // `catalog` — путь, по которому `WorldMap.chunkUrl` берёт файлы клеток:
-  // вывести его из URL модуля главы движку нечем (данные — обычный объект, а
-  // не `import.meta`), а догадываться он не должен (§ 10.13 плана).
-  const indexMap = { ...split.indexMap, catalog: `/${dir}`, skeleton: { nodes: sk.nodes, edges: sk.edges } };
   const meta = { ...split.meta, skeleton: sk.meta };
   const notice = warnings.length
     ? `\n * Предупреждения парсера:\n${warnings.map(w => ` *   — ${w}`).join('\n')}\n *`
     : '';
-  const body = stringifyStable({
-    name: level.name, hint: level.hint, map: indexMap, sky: level.sky, gameplay: level.gameplay,
-  }).replace(/\n$/, '');
+
+  // Данные каталога в бинарном виде: чанки и скелет — файлы данных, не JSON.
+  // `index.js` остаётся тонким ES-модулем (реестр импортирует его статически),
+  // но тяжёлый скелет уезжает в `skeleton.l14b` (плоские typed arrays) и
+  // догружается через top-level await. Так «все файлы данных» каталога — бинарные,
+  // а точка входа модуля сохраняется.
+  const skeletonBytes = encodeSkeleton({ nodes: sk.nodes, edges: sk.edges });
+  const chunkFiles = split.chunks.map(c => ({ path: c.file, bytes: encodeChunk(c.map), map: c.map }));
+  const skeletonData = { nodes: sk.nodes, edges: sk.edges };
+  // В map-литерале index.js скелета нет (он придёт из .l14b), но в объекте,
+  // который видят инструменты/тесты в памяти, он есть целиком.
+  const indexMapLite = { ...split.indexMap, catalog: `/${dir}` };
+  const indexMapFull = { ...indexMapLite, skeleton: skeletonData };
+  const levelLite = { name: level.name, hint: level.hint, map: indexMapLite, sky: level.sky, gameplay: level.gameplay };
+  const bodyLite = stringifyStable(levelLite).replace(/\n$/, '');
   const indexCode = `/**
  * СГЕНЕРИРОВАННО — руками не править.
  *
  * Источник правки: ${sourceName}. После его изменения запуск
  * \`node tools/build-level.mjs ${sourceName}\` перезаписывает этот файл и все
- * \`chunk-*.json\` каталога побайтово одинаково (ГПСЧ в разрезке нет, ключи и
+ * бинарные файлы каталога побайтово одинаково (ГПСЧ в разрезке нет, ключи и
  * объекты отсортированы).
  *
- * Открытая глава (этапы 1 и 3 плана docs/open-world-plan.md): геометрии здесь
- * нет. Мир лежит по клеткам \`cells[]\`, у каждой — прямоугольник в мировых
- * осях и свой файл \`chunk-<i>-<j>.json\` с обычными данными \`JsonMap\` в тех же
- * мировых осях: координаты чанка равны координатам мира слово в слово, а всё
- * мировое (плита \`ground\`, габарит \`bounds\`, \`spawn\`, \`relief\` и секции
- * \`windows\`/\`clutter\`/\`signage\`) лежит здесь один раз. Местный кадр клетки,
- * который держала версия этапа 1, убран: он требовал бы от движка второго
- * переводчика координат в каждой выводимой коллекции, а клеточную цену
- * решётки навигации держит обход прямоугольников загруженных клеток, а не
- * размер плиты чанка. Мировой кадр один, и координаты игрока не правятся
- * никогда — в отличие от окна главы 4.
+ * Открытая глава: геометрии здесь нет. Мир лежит по клеткам \`cells[]\`, у каждой
+ * — прямоугольник в мировых осях и свой файл \`chunk-<i>-<j>.l14b\` с данными
+ * \`JsonMap\` в бинарном кодеке (src/level-bin.js) в тех же мировых осях. Скелет
+ * — глобальная сеть улиц/русов/дверей — лежит в \`${SKELETON_FILE}\` плоскими
+ * typed arrays и догружается top-level await; в браузере и в Node один и тот же
+ * модуль, поэтому загрузка идёт через \`fetch\` относительного URL с откатом на
+ * \`node:fs\` под Node.
  *
  * Файлы клеток берёт \`WorldMap.chunkUrl\` из \`catalog\` — браузерного пути
- * каталога от корня сайта. Он лежит в данных, потому что определение главы —
- * обычный объект: вывести путь из URL этого модуля движку нечем, а угадывать
- * его по номеру главы нельзя (§ 10.13 плана).
- *
- * Дом, вставший на шов, едет в каждый пересекающий чанк (маргин
- * \`stream.overlap\` — его вывел парсер, движку считать его нечем), а картинку и
- * свет даёт только владеющий: у его копии стоит флаг \`owner: true\`.
- *
- * Скелет (\`skeleton.nodes\`/\`skeleton.edges\`) — глобальная сеть улиц, русел и
- * наружных дверей в **мировых** осях: узлы идут шагом 24 м вдоль осевых
- * полилиний, а не по решётке плиты, поэтому их число растёт с километражом
- * содержимого, а не с площадью — на фикстуре 1,96 км² это 3 864 узла против
- * 54 756 клеток (234²), которые решётка навигации поставила бы по всей плите
- * шагом 6 м. Рёбра уже проверены пробами карты (\`edgeOk\` — тот же габарит и
- * та же опора, что у графа главы) на парсере, и связность мира проверяется здесь
- * же, до движка: WorldMap только цепляет решётки загруженных чанков на этот
- * каркас.${notice}
+ * каталога от корня сайта.${notice}
  */
-export const ${constName} = ${body};
+import { decodeSkeleton } from '../../level-bin.js';
+
+async function loadSkel() {
+  const url = new URL('./${SKELETON_FILE}', import.meta.url);
+  if (typeof process !== 'undefined' && process.versions?.node) {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    return readFileSync(fileURLToPath(url));
+  }
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(url + ': ' + r.status);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+export const ${constName} = ${bodyLite};
+${constName}.map.skeleton = decodeSkeleton(await loadSkel());
 `;
   const files = [
     { path: 'index.js', code: indexCode.replace(/\r\n/g, '\n') },
-    ...split.chunks.map(c => ({ path: c.file, code: stringifyStable(c.map) })),
+    { path: SKELETON_FILE, bytes: skeletonBytes },
+    ...chunkFiles.map(c => ({ path: c.path, bytes: c.bytes })),
   ];
   return {
     name: constName,
@@ -235,11 +237,8 @@ export const ${constName} = ${body};
     files,
     warnings,
     meta,
-    indexMap,
-    chunks: split.chunks,
-    // нормализованная карта мира: сюита § 7.1 сверяет с ней чанки (план, владение,
-    // вердикт у шва), и второй раз гонять нормализатор ради этого было бы вдвое
-    // дороже замера
+    indexMap: indexMapFull,
+    chunks: split.chunks.map((c, i) => ({ ...c, map: chunkFiles[i].map, bytes: chunkFiles[i].bytes })),
     worldMap: level.map,
   };
 }
@@ -300,10 +299,11 @@ function main(argv) {
 
   // Модуль — один файл рядом с JSON. Каталог — папка с тем же stem, и `--out`
   // для неё означает каталог, а не файл: чанков много и имя каждого даёт разрезка.
+  // Файл каталога несёт либо текст (`code`), либо байты (`bytes`) — чанки и скелет бинарные.
   const targets = generated.kind === 'catalog'
     ? generated.files.map(f => ({
       path: join(outArg ?? resolve(dirname(jsonPath), basename(jsonPath, extname(jsonPath))), f.path),
-      code: f.code,
+      code: f.code, bytes: f.bytes,
     }))
     : [{ path: outArg ?? defaultOut(jsonPath), code: generated.code }];
 
@@ -314,31 +314,38 @@ function main(argv) {
         console.error(`${t.path}: файла нет — запустите без --check`);
         return 2;
       }
-      if (readFileSync(t.path, 'utf8').replace(/\r\n/g, '\n') !== t.code) stale.push(basename(t.path));
+      if (t.bytes) {
+        const cur = readFileSync(t.path);
+        const same = cur.length === t.bytes.length && cur.every((v, i) => v === t.bytes[i]);
+        if (!same) stale.push(basename(t.path));
+      } else if (readFileSync(t.path, 'utf8').replace(/\r\n/g, '\n') !== t.code) stale.push(basename(t.path));
     }
     if (stale.length) {
       console.error(`${stale.join(', ')}: расходится с тем, что даёт парсер (${generated.warnings.length} предупреждений)`);
       return 2;
     }
     console.log(generated.kind === 'catalog'
-      ? `каталог ${generated.name}: index.js и ${targets.length - 1} чанков совпадают с парсером`
+      ? `каталог ${generated.name}: index.js и ${targets.length - 1} файлов данных совпадают с парсером`
       : `${basename(targets[0].path)}: совпадает с парсером, ${generated.name}`);
     return 0;
   }
 
   for (const t of targets) {
     mkdirSync(dirname(t.path), { recursive: true });
-    writeFileSync(t.path, t.code, 'utf8');
+    if (t.bytes) writeFileSync(t.path, t.bytes);
+    else writeFileSync(t.path, t.code, 'utf8');
   }
   if (generated.kind === 'catalog') {
     const m = generated.meta;
-    const sizes = generated.files.slice(1).map(f => f.code.length);
-    const total = sizes.reduce((s, v) => s + v, 0);
-    console.log(`${basename(jsonPath)}: каталог ${dirname(targets[0].path)} записан — ${sizes.length} чанков`
+    const dataFiles = generated.files.filter(f => f.bytes);
+    const chunkBytes = dataFiles.filter(f => f.path.startsWith('chunk-')).map(f => f.bytes.length);
+    const skelBytes = (dataFiles.find(f => f.path.includes('skeleton'))?.bytes.length) ?? 0;
+    const total = chunkBytes.reduce((s, v) => s + v, 0);
+    console.log(`${basename(jsonPath)}: каталог ${dirname(targets[0].path)} записан — ${chunkBytes.length} чанков`
       + ` (сетка ${m.grid}×${m.grid}, сторона клетки ${m.chunk} м, плита ${m.size} м),`
       + ` участников ${m.participants}, владельцев ${m.owners}, маргин ${m.overlap} м`);
-    console.log(`  данные чанков — ${total} Б (средний ${Math.round(total / sizes.length)} Б, наибольший ${Math.max(...sizes)} Б),`
-      + ` индекс ${generated.files[0].code.length} Б, предупреждений — ${generated.warnings.length}`);
+    console.log(`  чанки (бинарные) — ${total} Б (средний ${Math.round(total / (chunkBytes.length || 1))} Б, наибольший ${Math.max(0, ...chunkBytes)} Б),`
+      + ` скелет ${skelBytes} Б, индекс ${generated.files[0].code.length} Б, предупреждений — ${generated.warnings.length}`);
     const sk = m.skeleton;
     console.log(`  скелет — ${sk.nodes} узлов / ${sk.edges} рёбер, компонент ${sk.components.before} → `
       + `${sk.components.after}, длинных рёбер принято ${sk.joined} (худшее ${sk.longestJoin} м), `

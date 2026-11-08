@@ -35,6 +35,7 @@
  * обязана оставаться монотонной (§ 4.1, цена ×1,065…1,091 записей).
  */
 import { CONFIG } from '../src/config.js';
+import { CHUNK_EXT } from '../src/level-bin.js';
 
 const J = CONFIG.jsonMap;
 
@@ -179,7 +180,7 @@ export function cellGrid(size, chunk) {
         i,
         j,
         id: `${i}_${j}`,
-        file: `chunk-${i}-${j}.json`,
+        file: `chunk-${i}-${j}${CHUNK_EXT}`,
         rect: { minX, maxX: minX + chunk, minZ, maxZ: minZ + chunk },
         origin: { x: minX + chunk / 2, z: minZ + chunk / 2 },
       });

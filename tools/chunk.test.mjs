@@ -28,6 +28,7 @@ import { schemaText, SCHEMA_FILES } from './export-schema.mjs';
 import {
   splitLevel, chunkOverlap, planOf, cellChoices, CHUNK_COLLECTIONS, stringifyStable,
 } from './chunk-level.mjs';
+import { decodeChunk } from '../src/level-bin.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const FIXTURE = 'probe/open-2km.json';
@@ -221,18 +222,29 @@ const DEPTHS = [0.05, 0.25, R, OVERLAP - R - 0.01];
 
 // ------------------------------------------------------------------ проверки
 
+function fileBytes(f) { return f.bytes ? f.bytes : Buffer.from(f.code ?? '', 'utf8'); }
+function sameFile(a, b) {
+  if (!a || !b || a.path !== b.path) return false;
+  const A = fileBytes(a), B = fileBytes(b);
+  return A.length === B.length && A.every((v, i) => v === B[i]);
+}
+
 // § 7.1 п. 1.
-t('детерминизм: два прогона парсера дают побайтово одинаковые index.js и все chunk-*.json', () => {
-  eq(full.files.length, full.meta.cells + 1, 'файлов каталога (индекс плюс чанки)');
+t('детерминизм: два прогона парсера дают побайтово одинаковые файлы каталога', () => {
+  eq(full.files.length, again.files.length, 'число файлов каталога');
   const diff = [];
   full.files.forEach((f, i) => {
     const a = again.files[i];
-    if (!a || a.path !== f.path) diff.push(`файл №${i}: ${f.path} против ${a?.path}`);
-    else if (a.code !== f.code) diff.push(`${f.path}: байты разошлись на ${Math.abs(a.code.length - f.code.length)} символов`);
+    if (!sameFile(f, a)) diff.push(`${f.path} против ${a?.path}: байты разошлись`);
   });
   assert(diff.length === 0, diff.slice(0, 3).join(' | '));
-  // печать обязана быть обратима: файл — те же данные, что вернула разрезка
-  eq(stringifyStable(JSON.parse(full.files[1].code)), full.files[1].code, 'чанк не сходится с собственной печатью');
+  // бинарный чанк обязан декодироваться в те же данные, что вернула разрезка
+  const cf = full.files.find(f => f.path.startsWith('chunk-') && f.bytes);
+  assert(cf, 'в каталоге нет бинарного чанка');
+  const decoded = decodeChunk(cf.bytes);
+  const expected = full.chunks.find(c => c.file === cf.path)?.map;
+  assert(expected, `нет семантического чанка для ${cf.path}`);
+  eq(stringifyStable(decoded), stringifyStable(expected), 'бинарный чанк не сходится с данными разрезки');
 });
 
 // § 7.1 п. 2.
@@ -247,9 +259,9 @@ t('идемпотность к порядку: обход клеток и объ
   assert(diff.length === 0, diff.slice(0, 3).join(' | '));
   eq(stringifyStable(backwards.indexMap), stringifyStable(full.indexMap), 'index.js зависит от порядка обхода');
   // байты файла, а не только его данные: эмиссия правит шапку и порядок ключей,
-  // и скелет в `index.js` обязан пережить обратный обход без расхождения
+  // и скелет обязан пережить обратный обход без расхождения
   eq(backwards.files.length, full.files.length, 'файлов каталога при обратном обходе');
-  const drifted = full.files.filter((f, i) => backwards.files[i].code !== f.code).map(f => f.path);
+  const drifted = full.files.filter((f, i) => !sameFile(f, backwards.files[i])).map(f => f.path);
   eq(drifted.length, 0, 'файлов, чьи байты зависят от порядка обхода');
 });
 
@@ -771,8 +783,10 @@ t('чанк — законные данные карты: мировая пли�
 // ------------------------------------------------------------------- вердикт
 
 console.log('\nпрайс разрезки (фикстура 2 км):');
-const sizes = full.files.slice(1).map(f => f.code.length);
+const chunkDataFiles = full.files.filter(f => f.path.startsWith('chunk-'));
+const sizes = chunkDataFiles.map(f => fileBytes(f).length);
 const total = sizes.reduce((s, v) => s + v, 0);
+const skelBytes = (full.files.find(f => f.path.includes('skeleton'))?.bytes?.length) ?? 0;
 // мир печатается тем же принтером, что и чанки: сравнение компактного
 // `JSON.stringify` с отступами чанков приписало бы дублированию каждые
 // отступы и переносы
@@ -786,9 +800,10 @@ console.table([{
   'дублирование': (total / worldBytes).toFixed(2),
   'мир, КБ': Math.round(worldBytes / 1024),
   'чанки, КБ': Math.round(total / 1024),
-  'средний чанк, КБ': Math.round(total / sizes.length / 1024),
-  'наибольший чанк, КБ': Math.round(Math.max(...sizes) / 1024),
-  'index, КБ': Math.round(full.files[0].code.length / 1024),
+  'средний чанк, КБ': Math.round(total / (sizes.length || 1) / 1024),
+  'наибольший чанк, КБ': Math.round(Math.max(0, ...sizes) / 1024),
+  'скелет, КБ': Math.round(skelBytes / 1024),
+  'index, КБ': Math.round(fileBytes(full.files[0]).length / 1024),
 }]);
 for (const n of notes) console.log(`  · ${n}`);
 {

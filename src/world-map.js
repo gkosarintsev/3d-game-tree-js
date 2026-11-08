@@ -2,6 +2,7 @@ import { CONFIG } from './config.js';
 import { NavGraph } from './nav-graph.js';
 import { DATA_SINKS } from './surfaces.js';
 import { JsonMap } from './json-map.js';
+import { decodeChunk } from './level-bin.js';
 
 const J = CONFIG.jsonMap;
 
@@ -55,7 +56,10 @@ export async function preloadWorldCells(spec) {
   if (startCells.has(url)) return;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
-  startCells.set(url, await res.json());
+  const data = (cell.file || '').endsWith('.l14b')
+    ? decodeChunk(new Uint8Array(await res.arrayBuffer()))
+    : await res.json();
+  startCells.set(url, data);
 }
 
 /**
@@ -828,13 +832,17 @@ export class WorldMap extends JsonMap {
     }
   }
 
-  /** wall-clock чтения одного файла: сеть + `JSON.parse`. */
+  /** wall-clock чтения одного файла: сеть + разбор (JSON или бинарный кодек). */
   async _readCell(id) {
     const url = this.chunkUrl(id);
+    const cell = this.cellById.get(id);
     const t0 = performance.now();
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`${url}: ${res.status}`);
+      if ((cell?.file || url).endsWith('.l14b')) {
+        return decodeChunk(new Uint8Array(await res.arrayBuffer()));
+      }
       return await res.json();
     } finally {
       const ms = performance.now() - t0;
