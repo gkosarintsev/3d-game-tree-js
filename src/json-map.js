@@ -1374,12 +1374,14 @@ export class JsonMap extends SurfaceField {
     let rects = [rect ?? { minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
     for (const h of this.holes) rects = rects.flatMap(r => subtractRect(r, h));
     if (!this.relief) {
-      return mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
+      const geo = mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
         r.maxX - r.minX, r.maxZ - r.minZ,
       ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0)), false);
+      geo?.computeBoundingSphere();
+      return geo;
     }
     const cell = J.relief.meshCell;
-    return mergeGeometries(rects.map(r => {
+    const geo = mergeGeometries(rects.map(r => {
       const g = new THREE.PlaneGeometry(
         r.maxX - r.minX, r.maxZ - r.minZ,
         Math.max(1, Math.round((r.maxX - r.minX) / cell)),
@@ -1394,8 +1396,12 @@ export class JsonMap extends SurfaceField {
         const n = this.relief.normalAt(x, z);
         nrm.setXYZ(k, n.x, -n.z, n.y);
       }
+      pos.needsUpdate = true;
+      nrm.needsUpdate = true;
       return g;
     }), false);
+    geo?.computeBoundingSphere();
+    return geo;
   }
 
   /**
