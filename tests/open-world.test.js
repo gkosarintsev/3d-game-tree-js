@@ -1465,6 +1465,41 @@ async function testEngineChapter() {
   };
 }
 
+/**
+ * Туннель в данных стрим-чанка: коридор должен дойти до мировых списков
+ * (`solids`/`blockers`/`surfaces`) через проход данных и оставаться проходимым
+ * на середине. Без `_collectTunnels` в `collectPass` стриминги-ветка молча
+ * не собирала туннели: мир из брифа это давало, стрим — нет.
+ */
+async function testStreamedTunnel() {
+  const world = await makeWorld();
+  const id = world.map.spawnCell().id;
+  const cell = world.map.cellById.get(id);
+  const data = await chunkData(cell.file);
+  const z = cell.rect.minZ + 30;
+  const x0 = cell.rect.minX + 30;
+  const x1 = cell.rect.minX + 130;
+  const y = world.map.groundHeightAt(x0, z);
+  data.tunnels = [{
+    id: 'tunnel_stream', owner: true,
+    points: [ { x: x0, y, z }, { x: x1, y, z } ],
+    width: 8, height: 3.2,
+  }];
+  world.map.applyChunk(id, data);
+  const inside = (r) => r.minX < x1 && r.maxX > x0 && r.minZ < z + 4 && r.maxZ > z - 4;
+  const solids = world.map.solids.filter(inside);
+  const blockers = world.map.blockers.filter(inside);
+  const surfaces = world.map.surfaces.filter(inside);
+  const midBlocked = world.map.isBlocked((x0 + x1) / 2, z, CONFIG.radius, y, CONFIG.eyeHeight);
+  world.map.dispose();
+  return {
+    name: 'стрим: туннель чанка доходит до мировых списков и коридор проходит',
+    passed: solids.length > 0 && blockers.length > 0 && surfaces.length > 0 && !midBlocked,
+    info: `коридор x[${x0.toFixed(0)}, ${x1.toFixed(0)}] z=${z}: твёрдость тела ${solids.length}, блокеров ${blockers.length},`
+      + ` опор пола ${surfaces.length}, середина коридора ${midBlocked ? 'заблокирована' : 'проходима'}`,
+  };
+}
+
 export async function runOpenWorldTests() {
   const tests = [
     testCatalogShape,
@@ -1481,6 +1516,7 @@ export async function runOpenWorldTests() {
     testExitAndCarsOnlyInBuiltCells,
     testMinimapPlanFrame,
     testPumpFrameBudget,
+    testStreamedTunnel,
     // последней: заглушка `_tick` обрывает цепочку кадров страницы (см. выше)
     testEngineChapter,
   ];

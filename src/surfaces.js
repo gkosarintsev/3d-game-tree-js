@@ -296,6 +296,7 @@ export class SurfaceField extends SolidField {
     return this._withInputs({ ...src, ...fresh }, () => {
       this._collectBuildings();
       this._collectRoads();
+      this._collectTunnels();
       this._collectWater();
       return out;
     }, { geo, muteGeo: !geo, owners: owners === true });
@@ -415,6 +416,7 @@ export class SurfaceField extends SolidField {
    */
   _collectTunnels() {
     for (const t of this.tunnels ?? []) {
+      if (!this._drawn(t)) continue;
       const pts = t.points ?? [];
       const from = pts[0], to = pts[pts.length - 1];
       if (!from || !to) continue;

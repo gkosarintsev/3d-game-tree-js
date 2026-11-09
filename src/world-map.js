@@ -8,7 +8,7 @@ const J = CONFIG.jsonMap;
 
 /** Коллекции чанка, которые читает картинка: у `JsonMap` они приходят прямо из
  *  брифа, у открытого мира — из файла клетки. */
-const DRAWN_INPUTS = Object.freeze(['buildings', 'roads', 'channels', 'props', 'lights']);
+const DRAWN_INPUTS = Object.freeze(['buildings', 'roads', 'channels', 'props', 'lights', 'tunnels']);
 
 /**
  * Данные стартовых клеток открытых глав, прочитанные до `createMap` (ключ — URL
