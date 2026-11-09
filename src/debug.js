@@ -295,6 +295,70 @@ export function mountDebug(game) {
     panel.appendChild(streamBox);
     syncStream();
 
+    // --- обзор уровня: свободная камера на паузе (симуляция не идёт) ---
+    const overview = (label, pos, look, up) => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.style.cssText =
+        'flex:1;min-width:0;margin:1px;padding:4px 2px;cursor:pointer;border:1px solid #2b3d55;'
+        + 'border-radius:4px;background:#142638;color:#cfe0f4;font:11px "Segoe UI",sans-serif;';
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const map = game.map;
+        if (!map) return;
+        // пауза без карточки: _onUnlock вернётся рано, если state уже не 'playing'
+        if (game.state === 'playing') { game.state = 'paused'; game.hud.hide(); }
+        game.player?.unlock?.();
+        game.camera.up.set(up?.[0] ?? 0, up?.[1] ?? 1, up?.[2] ?? 0);
+        game.camera.position.set(pos[0], pos[1], pos[2]);
+        game.camera.lookAt(look[0], look[1], look[2]);
+        // камера могла уехать далеко — туман не должен резать обзор целиком
+        if (game.scene?.fog && game.scene.fog.far < Math.abs(pos[1]) * 3) {
+          game.scene.fog.far = Math.abs(pos[1]) * 4;
+        }
+      });
+      return btn;
+    };
+    const addOverview = () => {
+      const h = document.createElement('div');
+      h.textContent = 'Обзор уровня';
+      h.style.cssText = 'margin:8px 0 4px;font-weight:600;color:#8fb8e8;border-top:1px solid #22344c;padding-top:6px;';
+      panel.appendChild(h);
+      const map = game.map;
+      const half = map?.half ?? map?.width / 2 ?? 100;
+      const gy = map?.groundY ?? 0;
+      const cy = Math.max(60, half * 0.18) + gy;
+      const d = half * 1.35;
+      const topY = half * 1.45 + gy;
+      const row = (btns) => {
+        const r = document.createElement('div');
+        r.style.cssText = 'display:flex;gap:2px;margin:2px 0;';
+        for (const b of btns) r.appendChild(b);
+        panel.appendChild(r);
+      };
+      row([
+        overview('Сверху', [0, topY, 0.01], [0, gy, 0], [0, 0, -1]),
+        overview('К спавну', [map?.spawn?.x ?? 0, (map?.spawn?.y ?? gy) + 1.7, (map?.spawn?.z ?? 0) + 0.01], [map?.spawn?.x ?? 0, (map?.spawn?.y ?? gy) + 1.7, (map?.spawn?.z ?? 0)], [0, 1, 0]),
+      ]);
+      row([
+        overview('Сев. +Z', [0, cy, d], [0, gy, 0]),
+        overview('Юг −Z', [0, cy, -d], [0, gy, 0]),
+      ]);
+      row([
+        overview('Зап. −X', [-d, cy, 0], [0, gy, 0]),
+        overview('Вост. +X', [d, cy, 0], [0, gy, 0]),
+      ]);
+      row([
+        overview('ЮЗ', [-d * 0.8, cy * 1.2, -d * 0.8], [0, gy, 0]),
+        overview('СВ', [d * 0.8, cy * 1.2, d * 0.8], [0, gy, 0]),
+      ]);
+      const note = document.createElement('div');
+      note.textContent = 'Обзор ставит паузу и отпускает курсор; клик по игре — вернуться.';
+      note.style.cssText = 'margin:2px 0 4px;color:#7d94ad;font-size:11px;';
+      panel.appendChild(note);
+    };
+    addOverview();
+
     for (const f of FIELDS) {
       if (f.group) {
         const h = document.createElement('div');
