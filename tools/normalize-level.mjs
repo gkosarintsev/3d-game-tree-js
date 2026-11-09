@@ -697,45 +697,44 @@ function normalizeRoad(road, ground, tunnels) {
     return { ...p, y: Math.max(p.y, r3(land + J.streetRise)) };
   };
   // наземная дорога обязана идти не ниже ландшафта (рельефа): прямой пролёт
-  // между концами может рассечь склон/гору посередине. Драпируем равномерной
-  // выборкой: в каждой точке берём max(линейный профиль поднятых концов,
-  // land+streetRise) — сохраняем авторский уклон (рампа к мосту) там, где он над
-  // рельефом, и поднимаем только там, где рельеф его пробивает («внутрь горы» →
-  // дорога следует поверхности рельефа поверх бугра). Так не создаём провалов к
-  // земле посреди намеренной рампы (от них nav-узел теряет опору). Шаг ограничен
-  // (перф), мост/эстакада и участок в туннеле не трогаем.
+  // между концами может рассечь склон/гору. Адаптивно дробим там, где линейный
+  // верх (max от поднятых концов — сохраняем авторский уклон рампы) ниже
+  // land+streetRise, и вставляем точку на max(линейный, land+streetRise).
+  // Рекурсия с пределом глубины гарантирует, что и между вставленными точками
+  // полотно не уходит в рельеф (грубая равномерная выборка пропускала гребень
+  // холма между сэмплами). Мост/эстакада и участок в туннеле не трогаем.
   const drape = (pts) => {
     if (road.type !== 'ground' || !ground.land) return pts.map(lift);
     const rise = J.streetRise;
     const src = (pts ?? []).map(lift);
     const out = [];
     const same = (a, b) => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.z - b.z) < 1e-6;
-    for (let i = 0; i + 1 < src.length; i++) {
-      const A = src[i], B = src[i + 1];
-      const segLen = Math.hypot(B.x - A.x, B.z - A.z);
-      // проверяем, есть ли вообще захоронение на сегменте, прежде чем дробить
-      let buried = false;
-      const steps = Math.min(24, Math.max(1, Math.ceil(segLen / 12)));
-      for (let k = 1; k < steps && !buried; k++) {
-        const t = k / steps;
-        const x = A.x + (B.x - A.x) * t, z = A.z + (B.z - A.z) * t;
-        const lin = A.y + (B.y - A.y) * t;
-        if (inTunnel(x, z, lin, tunnels)) continue;
-        if (lin < ground.land(x, z) + rise - 0.03) buried = true;
-      }
-      if (!out.length || !same(out[out.length - 1], A)) out.push(A);
-      if (buried) {
-        for (let k = 1; k < steps; k++) {
-          const t = k / steps;
-          const x = A.x + (B.x - A.x) * t, z = A.z + (B.z - A.z) * t;
-          const lin = A.y + (B.y - A.y) * t;
-          const land = inTunnel(x, z, lin, tunnels) ? -Infinity : ground.land(x, z);
-          out.push({ x: r3(x), z: r3(z), y: r3(Math.max(lin, land + rise)) });
+    const bury = (x, z, linY) => {
+      if (inTunnel(x, z, linY, tunnels)) return -Infinity;
+      const land = ground.land(x, z);
+      return linY < land + rise - 0.03 ? land : -Infinity;
+    };
+    const refine = (a, b, depth) => {
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const len = Math.hypot(dx, dz);
+      // проверяем середину и четверти — ловим гребень между точками
+      if (depth < 7 && len > 2) {
+        for (const t of [0.5, 0.25, 0.75]) {
+          const x = a.x + dx * t, z = a.z + dz * t;
+          const lin = a.y + (b.y - a.y) * t;
+          const land = bury(x, z, lin);
+          if (land > -Infinity) {
+            const M = { x: r3(x), z: r3(z), y: r3(Math.max(lin, land + rise)) };
+            refine(a, M, depth + 1);
+            refine(M, b, depth + 1);
+            return;
+          }
         }
       }
-      out.push(B);
-    }
-    // склейка стыков
+      if (!out.length || !same(out[out.length - 1], a)) out.push(a);
+      out.push(b);
+    };
+    for (let i = 0; i + 1 < src.length; i++) refine(src[i], src[i + 1], 0);
     const dedup = [];
     for (const p of out) {
       if (!dedup.length || !same(dedup[dedup.length - 1], p)) dedup.push(p);
