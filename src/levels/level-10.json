@@ -1,0 +1,2687 @@
+{
+  "$schema": "./level-v3.schema.json",
+  "kind": "cityforge",
+  "metadata": {
+    "levelName": "level-10",
+    "name": "Глава 10. Река и мосты (CityForge v3)",
+    "hint": "Холмистый ландшафт (до 45 м) с рекой, изгибающейся через всю карту. Пересекайте реку по мостам — подъезды плавно стыкуются с дорогами. Доберитесь до маяка на противоположной стороне.",
+    "engine": "open",
+    "units": "meters",
+    "notes": "Плита 1280×1280 м, 5×5 чанков по 256 м, открытый мир A→B. Холмы до 45 м, река (waterway, axis-aligned с поворотами) через всю карту, мосты (приподнятые road-сегменты) с плавными рампами-подъездами на стыках с наземными дорогами. Дороги по поверхности рельефа, дома foundation:terrain, машина у спавна."
+  },
+  "ground": {
+    "y": 0,
+    "size": 1280
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -480,
+      "z": -480
+    },
+    "exit": {
+      "x": 440,
+      "z": 440
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 5
+    },
+    "alienEnemies": {
+      "count": 0
+    },
+    "cars": {
+      "count": 1,
+      "spots": [
+        {
+          "x": -474,
+          "z": -480,
+          "yaw": 0
+        }
+      ]
+    }
+  },
+  "stream": {
+    "chunk": 256,
+    "keep": 2,
+    "aheadMin": 200,
+    "aheadMax": 1200,
+    "budgetMs": 80
+  },
+  "buildings": [
+    {
+      "id": "h10_0",
+      "name": "Дом 1",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": -326,
+          "z": -325
+        },
+        {
+          "x": -314,
+          "z": -325
+        },
+        {
+          "x": -314,
+          "z": -315
+        },
+        {
+          "x": -326,
+          "z": -315
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h10_1",
+      "name": "Дом 2",
+      "isEnterable": false,
+      "floorsCount": 2,
+      "floorHeight": 3.4,
+      "foundation": "terrain",
+      "facadeMaterial": "wood",
+      "footprint": [
+        {
+          "x": -325,
+          "z": -205
+        },
+        {
+          "x": -315,
+          "z": -205
+        },
+        {
+          "x": -315,
+          "z": -195
+        },
+        {
+          "x": -325,
+          "z": -195
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h10_3",
+      "name": "Дом 4",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 3.6,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": -85,
+          "z": -326
+        },
+        {
+          "x": -75,
+          "z": -326
+        },
+        {
+          "x": -75,
+          "z": -314
+        },
+        {
+          "x": -85,
+          "z": -314
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h10_4",
+      "name": "Дом 5",
+      "isEnterable": false,
+      "floorsCount": 2,
+      "floorHeight": 3.3,
+      "foundation": "terrain",
+      "facadeMaterial": "wood",
+      "footprint": [
+        {
+          "x": -66,
+          "z": 195
+        },
+        {
+          "x": -54,
+          "z": 195
+        },
+        {
+          "x": -54,
+          "z": 205
+        },
+        {
+          "x": -66,
+          "z": 205
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h10_5",
+      "name": "Дом 6",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "concrete",
+      "footprint": [
+        {
+          "x": -85,
+          "z": 355
+        },
+        {
+          "x": -75,
+          "z": 355
+        },
+        {
+          "x": -75,
+          "z": 365
+        },
+        {
+          "x": -85,
+          "z": 365
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h10_6",
+      "name": "Дом 7",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 3.8,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": 234,
+          "z": -345
+        },
+        {
+          "x": 246,
+          "z": -345
+        },
+        {
+          "x": 246,
+          "z": -335
+        },
+        {
+          "x": 234,
+          "z": -335
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h10_8",
+      "name": "Дом 9",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "concrete",
+      "footprint": [
+        {
+          "x": 234,
+          "z": 415
+        },
+        {
+          "x": 246,
+          "z": 415
+        },
+        {
+          "x": 246,
+          "z": 425
+        },
+        {
+          "x": 234,
+          "z": 425
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h10_18",
+      "name": "Дом 19",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": 535,
+          "z": 415
+        },
+        {
+          "x": 545,
+          "z": 415
+        },
+        {
+          "x": 545,
+          "z": 425
+        },
+        {
+          "x": 535,
+          "z": 425
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h10_19",
+      "name": "Дом 20",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 3.6,
+      "foundation": "terrain",
+      "facadeMaterial": "wood",
+      "footprint": [
+        {
+          "x": -566,
+          "z": -425
+        },
+        {
+          "x": -554,
+          "z": -425
+        },
+        {
+          "x": -554,
+          "z": -415
+        },
+        {
+          "x": -566,
+          "z": -415
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    }
+  ],
+  "cityforge": {
+    "format": "cityforge",
+    "version": "0.1",
+    "world": {
+      "units": "meters",
+      "coordinateSystem": {
+        "type": "local",
+        "handedness": "right",
+        "up": "Z"
+      },
+      "origin": [
+        0,
+        0,
+        0
+      ],
+      "bounds": {
+        "min": [
+          -640,
+          -640,
+          -50
+        ],
+        "max": [
+          640,
+          640,
+          140
+        ]
+      }
+    },
+    "generation": {
+      "seed": 10,
+      "generatorVersion": "0.1",
+      "deterministic": true
+    },
+    "assets": [
+      {
+        "id": "ground.placeholder",
+        "kind": "procedural",
+        "generator": "placeholder.flat",
+        "bounds": [
+          1280,
+          1280,
+          1
+        ]
+      }
+    ],
+    "districts": [],
+    "blocks": [],
+    "parcels": [],
+    "instances": [],
+    "terrain": {
+      "base": {
+        "type": "heightfield",
+        "source": "procedural",
+        "resolution": 4
+      },
+      "modifiers": [
+        {
+          "id": "h1",
+          "type": "mountain",
+          "center": [
+            -360,
+            -380
+          ],
+          "radius": 430,
+          "height": 42,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h2",
+          "type": "mountain",
+          "center": [
+            40,
+            -360
+          ],
+          "radius": 400,
+          "height": 35,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h3",
+          "type": "mountain",
+          "center": [
+            400,
+            -300
+          ],
+          "radius": 420,
+          "height": 45,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h4",
+          "type": "mountain",
+          "center": [
+            -420,
+            -40
+          ],
+          "radius": 380,
+          "height": 28,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h5",
+          "type": "mountain",
+          "center": [
+            -60,
+            -120
+          ],
+          "radius": 360,
+          "height": 30,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h6",
+          "type": "mountain",
+          "center": [
+            440,
+            80
+          ],
+          "radius": 390,
+          "height": 32,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h7",
+          "type": "mountain",
+          "center": [
+            -340,
+            400
+          ],
+          "radius": 440,
+          "height": 40,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h8",
+          "type": "mountain",
+          "center": [
+            80,
+            380
+          ],
+          "radius": 380,
+          "height": 38,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h9",
+          "type": "mountain",
+          "center": [
+            360,
+            420
+          ],
+          "radius": 420,
+          "height": 34,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h10",
+          "type": "mountain",
+          "center": [
+            220,
+            -420
+          ],
+          "radius": 340,
+          "height": 25,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h11",
+          "type": "mountain",
+          "center": [
+            -520,
+            220
+          ],
+          "radius": 320,
+          "height": 26,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h12",
+          "type": "mountain",
+          "center": [
+            520,
+            -120
+          ],
+          "radius": 300,
+          "height": 22,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        }
+      ]
+    },
+    "hydrology": {
+      "rivers": [
+        {
+          "id": "river_main",
+          "path": [
+            [
+              -640,
+              0,
+              70
+            ],
+            [
+              -220,
+              0,
+              70
+            ],
+            [
+              -220,
+              0,
+              -90
+            ],
+            [
+              100,
+              0,
+              -90
+            ],
+            [
+              100,
+              0,
+              110
+            ],
+            [
+              380,
+              0,
+              110
+            ],
+            [
+              380,
+              0,
+              -50
+            ],
+            [
+              640,
+              0,
+              -50
+            ]
+          ],
+          "width": 18,
+          "depth": 4,
+          "flow": "start_to_end",
+          "carveTerrain": false
+        }
+      ],
+      "lakes": []
+    },
+    "networks": {
+      "roads": {
+        "nodes": [
+          {
+            "id": "N_0",
+            "position": [
+              -480,
+              0,
+              -580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_1",
+            "position": [
+              -480,
+              0,
+              31
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_2",
+            "position": [
+              -480,
+              5,
+              59
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_3",
+            "position": [
+              -480,
+              5,
+              81
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_4",
+            "position": [
+              -480,
+              0,
+              109
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_5",
+            "position": [
+              -480,
+              0,
+              580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_6",
+            "position": [
+              -160,
+              0,
+              -580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_7",
+            "position": [
+              -160,
+              0,
+              -129
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_8",
+            "position": [
+              -160,
+              5,
+              -101
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_9",
+            "position": [
+              -160,
+              5,
+              -79
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_10",
+            "position": [
+              -160,
+              0,
+              -51
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_11",
+            "position": [
+              -160,
+              0,
+              580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_12",
+            "position": [
+              160,
+              0,
+              -580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_13",
+            "position": [
+              160,
+              0,
+              71
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_14",
+            "position": [
+              160,
+              5,
+              99
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_15",
+            "position": [
+              160,
+              5,
+              121
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_16",
+            "position": [
+              160,
+              0,
+              149
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_17",
+            "position": [
+              160,
+              0,
+              580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_18",
+            "position": [
+              480,
+              0,
+              -580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_19",
+            "position": [
+              480,
+              0,
+              -89
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_20",
+            "position": [
+              480,
+              5,
+              -61
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_21",
+            "position": [
+              480,
+              5,
+              -39
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_22",
+            "position": [
+              480,
+              0,
+              -11
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_23",
+            "position": [
+              480,
+              0,
+              580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_24",
+            "position": [
+              -580,
+              0,
+              -480
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_25",
+            "position": [
+              580,
+              0,
+              -480
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_26",
+            "position": [
+              -580,
+              0,
+              -160
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_27",
+            "position": [
+              580,
+              0,
+              -160
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_28",
+            "position": [
+              -580,
+              0,
+              160
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_29",
+            "position": [
+              580,
+              0,
+              160
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_30",
+            "position": [
+              -580,
+              0,
+              480
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "N_31",
+            "position": [
+              580,
+              0,
+              480
+            ],
+            "layer": "ground"
+          }
+        ],
+        "segments": [
+          {
+            "id": "rv_nm480_0_0_a",
+            "from": "N_0",
+            "to": "N_1",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -480,
+                0,
+                -580
+              ],
+              [
+                -480,
+                0,
+                31
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm480_0_apS_0",
+            "from": "N_1",
+            "to": "N_2",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -480,
+                0,
+                31
+              ],
+              [
+                -480,
+                5,
+                59
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm480_0_br_0",
+            "from": "N_2",
+            "to": "N_3",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -480,
+                5,
+                59
+              ],
+              [
+                -480,
+                5,
+                81
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm480_0_apN_0",
+            "from": "N_3",
+            "to": "N_4",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -480,
+                5,
+                81
+              ],
+              [
+                -480,
+                0,
+                109
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm480_0_1_b",
+            "from": "N_4",
+            "to": "N_5",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -480,
+                0,
+                109
+              ],
+              [
+                -480,
+                0,
+                580
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm160_0_0_a",
+            "from": "N_6",
+            "to": "N_7",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -160,
+                0,
+                -580
+              ],
+              [
+                -160,
+                0,
+                -129
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm160_0_apS_0",
+            "from": "N_7",
+            "to": "N_8",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -160,
+                0,
+                -129
+              ],
+              [
+                -160,
+                5,
+                -101
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm160_0_br_0",
+            "from": "N_8",
+            "to": "N_9",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -160,
+                5,
+                -101
+              ],
+              [
+                -160,
+                5,
+                -79
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm160_0_apN_0",
+            "from": "N_9",
+            "to": "N_10",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -160,
+                5,
+                -79
+              ],
+              [
+                -160,
+                0,
+                -51
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_nm160_0_1_b",
+            "from": "N_10",
+            "to": "N_11",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -160,
+                0,
+                -51
+              ],
+              [
+                -160,
+                0,
+                580
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n160_0_0_a",
+            "from": "N_12",
+            "to": "N_13",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                160,
+                0,
+                -580
+              ],
+              [
+                160,
+                0,
+                71
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n160_0_apS_0",
+            "from": "N_13",
+            "to": "N_14",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                160,
+                0,
+                71
+              ],
+              [
+                160,
+                5,
+                99
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n160_0_br_0",
+            "from": "N_14",
+            "to": "N_15",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                160,
+                5,
+                99
+              ],
+              [
+                160,
+                5,
+                121
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n160_0_apN_0",
+            "from": "N_15",
+            "to": "N_16",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                160,
+                5,
+                121
+              ],
+              [
+                160,
+                0,
+                149
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n160_0_1_b",
+            "from": "N_16",
+            "to": "N_17",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                160,
+                0,
+                149
+              ],
+              [
+                160,
+                0,
+                580
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n480_0_0_a",
+            "from": "N_18",
+            "to": "N_19",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                480,
+                0,
+                -580
+              ],
+              [
+                480,
+                0,
+                -89
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n480_0_apS_0",
+            "from": "N_19",
+            "to": "N_20",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                480,
+                0,
+                -89
+              ],
+              [
+                480,
+                5,
+                -61
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n480_0_br_0",
+            "from": "N_20",
+            "to": "N_21",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                480,
+                5,
+                -61
+              ],
+              [
+                480,
+                5,
+                -39
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n480_0_apN_0",
+            "from": "N_21",
+            "to": "N_22",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                480,
+                5,
+                -39
+              ],
+              [
+                480,
+                0,
+                -11
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rv_n480_0_1_b",
+            "from": "N_22",
+            "to": "N_23",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                480,
+                0,
+                -11
+              ],
+              [
+                480,
+                0,
+                580
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rh_n0_m480_0_b",
+            "from": "N_24",
+            "to": "N_25",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -580,
+                0,
+                -480
+              ],
+              [
+                580,
+                0,
+                -480
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rh_n0_m160_0_b",
+            "from": "N_26",
+            "to": "N_27",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -580,
+                0,
+                -160
+              ],
+              [
+                580,
+                0,
+                -160
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rh_n0_160_0_b",
+            "from": "N_28",
+            "to": "N_29",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -580,
+                0,
+                160
+              ],
+              [
+                580,
+                0,
+                160
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "rh_n0_480_0_b",
+            "from": "N_30",
+            "to": "N_31",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -580,
+                0,
+                480
+              ],
+              [
+                580,
+                0,
+                480
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          }
+        ],
+        "junctions": []
+      },
+      "railways": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      },
+      "paths": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      }
+    },
+    "structures": {
+      "bridges": [],
+      "tunnels": []
+    },
+    "chunks": [
+      {
+        "id": "chunk_0_0",
+        "bounds": {
+          "min": [
+            -640,
+            -640,
+            -50
+          ],
+          "max": [
+            -384,
+            -384,
+            140
+          ]
+        },
+        "file": "chunks/0_0/chunk.json"
+      },
+      {
+        "id": "chunk_0_1",
+        "bounds": {
+          "min": [
+            -640,
+            -384,
+            -50
+          ],
+          "max": [
+            -384,
+            -128,
+            140
+          ]
+        },
+        "file": "chunks/0_1/chunk.json"
+      },
+      {
+        "id": "chunk_0_2",
+        "bounds": {
+          "min": [
+            -640,
+            -128,
+            -50
+          ],
+          "max": [
+            -384,
+            128,
+            140
+          ]
+        },
+        "file": "chunks/0_2/chunk.json"
+      },
+      {
+        "id": "chunk_0_3",
+        "bounds": {
+          "min": [
+            -640,
+            128,
+            -50
+          ],
+          "max": [
+            -384,
+            384,
+            140
+          ]
+        },
+        "file": "chunks/0_3/chunk.json"
+      },
+      {
+        "id": "chunk_0_4",
+        "bounds": {
+          "min": [
+            -640,
+            384,
+            -50
+          ],
+          "max": [
+            -384,
+            640,
+            140
+          ]
+        },
+        "file": "chunks/0_4/chunk.json"
+      },
+      {
+        "id": "chunk_1_0",
+        "bounds": {
+          "min": [
+            -384,
+            -640,
+            -50
+          ],
+          "max": [
+            -128,
+            -384,
+            140
+          ]
+        },
+        "file": "chunks/1_0/chunk.json"
+      },
+      {
+        "id": "chunk_1_1",
+        "bounds": {
+          "min": [
+            -384,
+            -384,
+            -50
+          ],
+          "max": [
+            -128,
+            -128,
+            140
+          ]
+        },
+        "file": "chunks/1_1/chunk.json"
+      },
+      {
+        "id": "chunk_1_2",
+        "bounds": {
+          "min": [
+            -384,
+            -128,
+            -50
+          ],
+          "max": [
+            -128,
+            128,
+            140
+          ]
+        },
+        "file": "chunks/1_2/chunk.json"
+      },
+      {
+        "id": "chunk_1_3",
+        "bounds": {
+          "min": [
+            -384,
+            128,
+            -50
+          ],
+          "max": [
+            -128,
+            384,
+            140
+          ]
+        },
+        "file": "chunks/1_3/chunk.json"
+      },
+      {
+        "id": "chunk_1_4",
+        "bounds": {
+          "min": [
+            -384,
+            384,
+            -50
+          ],
+          "max": [
+            -128,
+            640,
+            140
+          ]
+        },
+        "file": "chunks/1_4/chunk.json"
+      },
+      {
+        "id": "chunk_2_0",
+        "bounds": {
+          "min": [
+            -128,
+            -640,
+            -50
+          ],
+          "max": [
+            128,
+            -384,
+            140
+          ]
+        },
+        "file": "chunks/2_0/chunk.json"
+      },
+      {
+        "id": "chunk_2_1",
+        "bounds": {
+          "min": [
+            -128,
+            -384,
+            -50
+          ],
+          "max": [
+            128,
+            -128,
+            140
+          ]
+        },
+        "file": "chunks/2_1/chunk.json"
+      },
+      {
+        "id": "chunk_2_2",
+        "bounds": {
+          "min": [
+            -128,
+            -128,
+            -50
+          ],
+          "max": [
+            128,
+            128,
+            140
+          ]
+        },
+        "file": "chunks/2_2/chunk.json"
+      },
+      {
+        "id": "chunk_2_3",
+        "bounds": {
+          "min": [
+            -128,
+            128,
+            -50
+          ],
+          "max": [
+            128,
+            384,
+            140
+          ]
+        },
+        "file": "chunks/2_3/chunk.json"
+      },
+      {
+        "id": "chunk_2_4",
+        "bounds": {
+          "min": [
+            -128,
+            384,
+            -50
+          ],
+          "max": [
+            128,
+            640,
+            140
+          ]
+        },
+        "file": "chunks/2_4/chunk.json"
+      },
+      {
+        "id": "chunk_3_0",
+        "bounds": {
+          "min": [
+            128,
+            -640,
+            -50
+          ],
+          "max": [
+            384,
+            -384,
+            140
+          ]
+        },
+        "file": "chunks/3_0/chunk.json"
+      },
+      {
+        "id": "chunk_3_1",
+        "bounds": {
+          "min": [
+            128,
+            -384,
+            -50
+          ],
+          "max": [
+            384,
+            -128,
+            140
+          ]
+        },
+        "file": "chunks/3_1/chunk.json"
+      },
+      {
+        "id": "chunk_3_2",
+        "bounds": {
+          "min": [
+            128,
+            -128,
+            -50
+          ],
+          "max": [
+            384,
+            128,
+            140
+          ]
+        },
+        "file": "chunks/3_2/chunk.json"
+      },
+      {
+        "id": "chunk_3_3",
+        "bounds": {
+          "min": [
+            128,
+            128,
+            -50
+          ],
+          "max": [
+            384,
+            384,
+            140
+          ]
+        },
+        "file": "chunks/3_3/chunk.json"
+      },
+      {
+        "id": "chunk_3_4",
+        "bounds": {
+          "min": [
+            128,
+            384,
+            -50
+          ],
+          "max": [
+            384,
+            640,
+            140
+          ]
+        },
+        "file": "chunks/3_4/chunk.json"
+      },
+      {
+        "id": "chunk_4_0",
+        "bounds": {
+          "min": [
+            384,
+            -640,
+            -50
+          ],
+          "max": [
+            640,
+            -384,
+            140
+          ]
+        },
+        "file": "chunks/4_0/chunk.json"
+      },
+      {
+        "id": "chunk_4_1",
+        "bounds": {
+          "min": [
+            384,
+            -384,
+            -50
+          ],
+          "max": [
+            640,
+            -128,
+            140
+          ]
+        },
+        "file": "chunks/4_1/chunk.json"
+      },
+      {
+        "id": "chunk_4_2",
+        "bounds": {
+          "min": [
+            384,
+            -128,
+            -50
+          ],
+          "max": [
+            640,
+            128,
+            140
+          ]
+        },
+        "file": "chunks/4_2/chunk.json"
+      },
+      {
+        "id": "chunk_4_3",
+        "bounds": {
+          "min": [
+            384,
+            128,
+            -50
+          ],
+          "max": [
+            640,
+            384,
+            140
+          ]
+        },
+        "file": "chunks/4_3/chunk.json"
+      },
+      {
+        "id": "chunk_4_4",
+        "bounds": {
+          "min": [
+            384,
+            384,
+            -50
+          ],
+          "max": [
+            640,
+            640,
+            140
+          ]
+        },
+        "file": "chunks/4_4/chunk.json"
+      }
+    ],
+    "chunkIndex": {
+      "version": "0.1",
+      "chunks": [
+        {
+          "id": "chunk_0_0",
+          "bounds": {
+            "min": [
+              -640,
+              -640,
+              -50
+            ],
+            "max": [
+              -384,
+              -384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_0_1",
+            "chunk_1_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_0_1",
+          "bounds": {
+            "min": [
+              -640,
+              -384,
+              -50
+            ],
+            "max": [
+              -384,
+              -128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_0_0",
+            "chunk_0_2",
+            "chunk_1_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_0_2",
+          "bounds": {
+            "min": [
+              -640,
+              -128,
+              -50
+            ],
+            "max": [
+              -384,
+              128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_0_1",
+            "chunk_0_3",
+            "chunk_1_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_0_3",
+          "bounds": {
+            "min": [
+              -640,
+              128,
+              -50
+            ],
+            "max": [
+              -384,
+              384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_0_2",
+            "chunk_0_4",
+            "chunk_1_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_0_4",
+          "bounds": {
+            "min": [
+              -640,
+              384,
+              -50
+            ],
+            "max": [
+              -384,
+              640,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_0_3",
+            "chunk_1_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_0",
+          "bounds": {
+            "min": [
+              -384,
+              -640,
+              -50
+            ],
+            "max": [
+              -128,
+              -384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_1_1",
+            "chunk_0_0",
+            "chunk_2_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_1",
+          "bounds": {
+            "min": [
+              -384,
+              -384,
+              -50
+            ],
+            "max": [
+              -128,
+              -128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_1_0",
+            "chunk_1_2",
+            "chunk_0_1",
+            "chunk_2_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_2",
+          "bounds": {
+            "min": [
+              -384,
+              -128,
+              -50
+            ],
+            "max": [
+              -128,
+              128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_1_1",
+            "chunk_1_3",
+            "chunk_0_2",
+            "chunk_2_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_3",
+          "bounds": {
+            "min": [
+              -384,
+              128,
+              -50
+            ],
+            "max": [
+              -128,
+              384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_1_2",
+            "chunk_1_4",
+            "chunk_0_3",
+            "chunk_2_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_4",
+          "bounds": {
+            "min": [
+              -384,
+              384,
+              -50
+            ],
+            "max": [
+              -128,
+              640,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_1_3",
+            "chunk_0_4",
+            "chunk_2_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_0",
+          "bounds": {
+            "min": [
+              -128,
+              -640,
+              -50
+            ],
+            "max": [
+              128,
+              -384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_2_1",
+            "chunk_1_0",
+            "chunk_3_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_1",
+          "bounds": {
+            "min": [
+              -128,
+              -384,
+              -50
+            ],
+            "max": [
+              128,
+              -128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_2_0",
+            "chunk_2_2",
+            "chunk_1_1",
+            "chunk_3_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_2",
+          "bounds": {
+            "min": [
+              -128,
+              -128,
+              -50
+            ],
+            "max": [
+              128,
+              128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_2_1",
+            "chunk_2_3",
+            "chunk_1_2",
+            "chunk_3_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_3",
+          "bounds": {
+            "min": [
+              -128,
+              128,
+              -50
+            ],
+            "max": [
+              128,
+              384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_2_2",
+            "chunk_2_4",
+            "chunk_1_3",
+            "chunk_3_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_4",
+          "bounds": {
+            "min": [
+              -128,
+              384,
+              -50
+            ],
+            "max": [
+              128,
+              640,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_2_3",
+            "chunk_1_4",
+            "chunk_3_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_0",
+          "bounds": {
+            "min": [
+              128,
+              -640,
+              -50
+            ],
+            "max": [
+              384,
+              -384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_3_1",
+            "chunk_2_0",
+            "chunk_4_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_1",
+          "bounds": {
+            "min": [
+              128,
+              -384,
+              -50
+            ],
+            "max": [
+              384,
+              -128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_3_0",
+            "chunk_3_2",
+            "chunk_2_1",
+            "chunk_4_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_2",
+          "bounds": {
+            "min": [
+              128,
+              -128,
+              -50
+            ],
+            "max": [
+              384,
+              128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_3_1",
+            "chunk_3_3",
+            "chunk_2_2",
+            "chunk_4_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_3",
+          "bounds": {
+            "min": [
+              128,
+              128,
+              -50
+            ],
+            "max": [
+              384,
+              384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_3_2",
+            "chunk_3_4",
+            "chunk_2_3",
+            "chunk_4_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_4",
+          "bounds": {
+            "min": [
+              128,
+              384,
+              -50
+            ],
+            "max": [
+              384,
+              640,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_3_3",
+            "chunk_2_4",
+            "chunk_4_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_0",
+          "bounds": {
+            "min": [
+              384,
+              -640,
+              -50
+            ],
+            "max": [
+              640,
+              -384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_4_1",
+            "chunk_3_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_1",
+          "bounds": {
+            "min": [
+              384,
+              -384,
+              -50
+            ],
+            "max": [
+              640,
+              -128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_4_0",
+            "chunk_4_2",
+            "chunk_3_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_2",
+          "bounds": {
+            "min": [
+              384,
+              -128,
+              -50
+            ],
+            "max": [
+              640,
+              128,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_4_1",
+            "chunk_4_3",
+            "chunk_3_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_3",
+          "bounds": {
+            "min": [
+              384,
+              128,
+              -50
+            ],
+            "max": [
+              640,
+              384,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_4_2",
+            "chunk_4_4",
+            "chunk_3_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_4",
+          "bounds": {
+            "min": [
+              384,
+              384,
+              -50
+            ],
+            "max": [
+              640,
+              640,
+              140
+            ]
+          },
+          "neighbors": [
+            "chunk_4_3",
+            "chunk_3_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        }
+      ]
+    }
+  }
+}

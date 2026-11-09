@@ -28,6 +28,11 @@
  * `foundation: 'terrain'`, включая район небоскрёбов (shell), дороги по поверхности
  * рельефа, машина у спавна. Источник — CityForge v3 (`src/levels/level-09.json`),
  * компилируется в `level-09/`: `node tools/build-level.mjs src/levels/level-09.json`.
+ * Глава 10 — **открытый мир** (`kind: 'open'`): плита 1280 × 1280 м, 5×5 чанков по 256 м,
+ * цель A→B. Неровный ландшафт с холмами до 45 м, река (axis-aligned, повороты) через
+ * всю карту, мосты с плавными рампами-подъездами, дороги по поверхности рельефа,
+ * дома `foundation: 'terrain'`, машина у спавна. Источник — CityForge v3
+ * (`src/levels/level-10.json`): `node tools/build-level.mjs src/levels/level-10.json`.
  * Глава 4 — весь ночной макет GLB активным окном со стримингом (`StreamedModelMap`).
  * Глава 6 — уличный уровень `TownMap` со сбором монет.
  * Главы 11–13 — переходы A→B из JSON-брифа (`kind: 'json2'`): 11 — v2 с
@@ -50,6 +55,7 @@ import { LEVEL_06 } from './level-06.js';
 import { LEVEL_07 } from './level-07/index.js';
 import { LEVEL_08 } from './level-08/index.js';
 import { LEVEL_09 } from './level-09/index.js';
+import { LEVEL_10 } from './level-10/index.js';
 import { LEVEL_11 } from './level-11.js';
 import { LEVEL_12 } from './level-12.js';
 import { LEVEL_13 } from './level-13.js';
@@ -57,9 +63,9 @@ import { LEVEL_14 } from './level-14/index.js';
 
 export const LEVELS = [
   LEVEL_01, LEVEL_02, LEVEL_03, LEVEL_04, LEVEL_06,
-  LEVEL_07, LEVEL_08, LEVEL_09,
+  LEVEL_07, LEVEL_08, LEVEL_09, LEVEL_10,
   LEVEL_11, LEVEL_12, LEVEL_13, LEVEL_14,
 ];
 
 /** Номер главы для каждой позиции `LEVELS` (файлы `level-NN`). */
-export const LEVEL_NUMBERS = [1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14];
+export const LEVEL_NUMBERS = [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14];

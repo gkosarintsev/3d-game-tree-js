@@ -70,6 +70,60 @@ function compileHills(cf, errors) {
 }
 
 /**
+ * CityForge hydrology.rivers → engine waterways (ось-в-плане русла). Река в
+ * движке задаётся ломаной из осево-выравненных точек {x,z}, дном/зеркалом и
+ * берегом; CF-река несёт path (point3 [x,y,z]), width, depth. Диагональный
+ * сегмент CF-пути раскладывается на два осевых (манхэттен), чтобы пройти
+ * валидацию waterways; повороты (смена оси) сохраняются.
+ */
+function compileHydrology(cf, groundY, warnings) {
+  const rivers = cf?.hydrology?.rivers ?? [];
+  if (!rivers.length) return [];
+  const out = [];
+  const AX = 1e-6;
+  for (const r of rivers) {
+    const rawPts = (r.path ?? []).map(p => Array.isArray(p) ? { x: p[0], z: p[2] } : { x: p.x ?? 0, z: p.z ?? 0 });
+    if (rawPts.length < 2) continue;
+    const pts = [{ x: rawPts[0].x, z: rawPts[0].z }];
+    for (let i = 1; i < rawPts.length; i++) {
+      const a = pts[pts.length - 1], b = rawPts[i];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      // диагональ → вставляем угол (ось X, затем ось Z), сохраняя поворот
+      if (Math.abs(dx) > AX && Math.abs(dz) > AX) pts.push({ x: b.x, z: a.z });
+      // пропуск нулевого шага
+      if (Math.abs(b.x - pts[pts.length - 1].x) < AX && Math.abs(b.z - pts[pts.length - 1].z) < AX) continue;
+      pts.push({ x: b.x, z: b.z });
+    }
+    // схлопнуть вырожденные/коллинеарные повторы по одной оси
+    const clean = [];
+    for (const p of pts) {
+      const n = clean.length;
+      if (n >= 2) {
+        const a = clean[n - 2], b = clean[n - 1];
+        const colX = Math.abs(a.x - b.x) < AX && Math.abs(b.x - p.x) < AX;
+        const colZ = Math.abs(a.z - b.z) < AX && Math.abs(b.z - p.z) < AX;
+        if (colX || colZ) { clean[n - 1] = p; continue; }
+      }
+      if (!n || Math.abs(clean[n - 1].x - p.x) > AX || Math.abs(clean[n - 1].z - p.z) > AX) clean.push(p);
+    }
+    const depth = r.depth ?? 3;
+    const bedY = +(groundY - depth).toFixed(3);
+    const surfaceY = +(groundY - 0.2).toFixed(3);
+    out.push({
+      id: r.id ?? 'river',
+      width: r.width ?? 12,
+      bedY,
+      surfaceY,
+      bank: r.bank ?? 'quay',
+      wade: false,
+      points: clean.map(p => ({ x: +p.x.toFixed(3), z: +p.z.toFixed(3) })),
+    });
+  }
+  if (cf?.hydrology?.lakes?.length) warnings.push('cityforge.hydrology.lakes: озёра компилятор пока пропускает (река собрана)');
+  return out;
+}
+
+/**
  * Сегменты сети дорог CityForge → оси полотен v2. Каждый сегмент сети — отдельная
  * дорога: классификация (bridge/ground) и валидация зазоров тогда считаются по
  * реальному профилю сегмента. Навигация и опоры соединяются по общей геометрии,
@@ -168,14 +222,16 @@ export function compileCityforge(raw) {
   SUPPORTED_EMPTY(cf.blocks, 'cityforge.blocks', errors);
   SUPPORTED_EMPTY(cf.parcels, 'cityforge.parcels', errors);
   SUPPORTED_EMPTY(cf.caves?.systems ?? cf.caves, 'cityforge.caves', errors);
-  SUPPORTED_NONE(cf.hydrology, 'cityforge.hydrology', errors);
   SUPPORTED_NONE(cf.networks?.railways, 'cityforge.networks.railways', errors);
   SUPPORTED_NONE(cf.networks?.paths, 'cityforge.networks.paths', errors);
-  // мосты пока не компилируются: в abbreviated-форме у них другой состав полотен
-  // (съезды/опоры), а у туннелей состав простее — пол, стены, потолок
-  SUPPORTED_NONE(cf.structures?.bridges, 'cityforge.structures.bridges', errors);
+  // формальные CF-мосты (decks/spans) компилятор не разворачивает; мосты главы
+  // задаются как приподнятые сегменты roads (type bridge по высоте) с плавными
+  // стыками — их compileRoads обрабатывает. Непустые структуры пропускаем с
+  // предупреждением, чтобы не терять молча, но не роняем сборку.
+  if ((cf.structures?.bridges ?? []).length) warnings.push('cityforge.structures.bridges: формальные мосты не разворачиваются компилятором — используйте приподнятые road-сегменты (type/высота bridge)');
   const hills = compileHills(cf, errors);
   const roads = compileRoads(cf, raw.ground?.y ?? 0);
+  const waterways = compileHydrology(cf, raw.ground?.y ?? 0, warnings);
   const tunnels = compileTunnels(cf, roads, errors);
   if (errors.length) {
     const e = new Error(errors.join('\n'));
@@ -245,6 +301,7 @@ export function compileCityforge(raw) {
     // компиляция instances/building-шаблонов — отдельный шаг формата.
     buildings: Array.isArray(raw.buildings) ? raw.buildings : [],
     roads: [pad('spawn_pad', sx, sz, padY(sx, sz, gy)), pad('exit_pad', ex, ez, padY(ex, ez, gy)), ...tunnelPads, ...roads],
+    ...(waterways.length ? { waterways } : {}),
     tunnels,
     lights: [],
     gameplay: {
