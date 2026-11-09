@@ -3,10 +3,11 @@
   "kind": "cityforge",
   "metadata": {
     "levelName": "level-03",
-    "name": "Глава 3. Пустой открытый мир (CityForge v3)",
-    "hint": "Тестовый пустой мир нового формата: дойдите от точки A до маяка B.",
+    "name": "Глава 3. Горы и серпантинная дорога (CityForge v3)",
+    "hint": "Тестовый мир нового формата: дойдите от точки A до маяка B через горный туннель.",
+    "engine": "open",
     "units": "meters",
-    "notes": "Пустая глава для тестирования формата v3 (CityForge). 5×5 чанков по 256 м, плита 1280 м, открытый мир со стримингом, цель A→B. Геометрии намеренно нет."
+    "notes": "Глава 3 для тестирования формата v3 (CityForge): один большой холм, серпантинная дорога A→B через туннель в горах. 5×5 чанков по 256 м, плита 1280 м, открытый мир со стримингом, цель A→B."
   },
   "ground": {
     "y": 0,
@@ -52,6 +53,108 @@
     "districts": [],
     "blocks": [],
     "parcels": [],
+    "instances": [],
+    "terrain": {
+      "base": { "type": "heightfield", "source": "procedural", "resolution": 4 },
+      "modifiers": [
+        {
+          "id": "hill_mountain",
+          "type": "mountain",
+          "center": [0, 0],
+          "radius": 800,
+          "height": 32,
+          "falloff": "smooth",
+          "path": [[-1000, -1000], [1000, 1000]],
+          "width": 2,
+          "depth": 0,
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        }
+      ]
+    },
+    "hydrology": { "rivers": [], "lakes": [] },
+    "networks": {
+      "roads": {
+        "nodes": [
+          { "id": "n_spawn", "position": [-512, 8, 512], "layer": "ground" },
+          { "id": "n_tunnel_in", "position": [-150, 38, -150], "layer": "ground" },
+          { "id": "n_tunnel_out", "position": [250, 38, -150], "layer": "ground" },
+          { "id": "n_exit", "position": [512, 8, -512], "layer": "ground" }
+        ],
+        "segments": [
+          {
+            "id": "road_spawn_tunnel",
+            "from": "n_spawn",
+            "to": "n_tunnel_in",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [-512, 8, 512],
+              [-60, 8, 512],
+              [-60, 38, -150],
+              [-150, 38, -150]
+            ],
+            "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
+            "shoulderWidth": 2,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_tunnel_exit",
+            "from": "n_tunnel_out",
+            "to": "n_exit",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [250, 38, -150],
+              [250, 38, -512],
+              [150, 38, -512],
+              [512, 8, -512]
+            ],
+            "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
+            "shoulderWidth": 2,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          }
+        ],
+        "junctions": []
+      },
+      "railways": { "nodes": [], "segments": [], "junctions": [] },
+      "paths": { "nodes": [], "segments": [], "junctions": [] }
+    },
+    "structures": {
+      "bridges": [],
+      "tunnels": [
+        {
+          "id": "tunnel_mountain",
+          "type": "tunnel",
+          "template": "tunnel.rock",
+          "roadRefs": [ "road_spawn_tunnel" ],
+          "portals": [
+            {
+              "id": "portal_start",
+              "position": [ -150, 38, -150 ],
+              "networkRef": "n_spawn",
+              "roadRef": "road_spawn_tunnel",
+              "layer": "ground",
+              "tangent": [ 1, 0, 0 ]
+            },
+            {
+              "id": "portal_end",
+              "position": [ 250, 38, -150 ],
+              "networkRef": "n_exit",
+              "roadRef": "road_spawn_tunnel",
+              "layer": "ground",
+              "tangent": [ 1, 0, 0 ]
+            }
+          ],
+          "parameters": { "lining": "concrete", "lighting": false }
+        }
+      ]
+    },
     "instances": [],
     "chunks": [
       { "id": "chunk_0_0", "bounds": { "min": [-640, -640, -50], "max": [-384, -384, 100] }, "file": "chunks/0_0/chunk.json" },

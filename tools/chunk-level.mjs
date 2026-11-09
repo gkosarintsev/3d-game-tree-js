@@ -98,6 +98,19 @@ const PLANS = {
   ],
   props: (p) => [pointRect(p.position)],
   lights: (l) => [pointRect(l.position)],
+  tunnels: (t) => {
+    const pts = t.points ?? [];
+    const from = pts[0], to = pts[pts.length - 1];
+    if (!from || !to) throw new Error(`tunnels: '${t.id}' не имеет плана — чанк не смог бы ни владеть им, ни дать опору`);
+    const dx = to.x - from.x, dz = to.z - from.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) throw new Error(`tunnels: '${t.id}' — порталы совпадают, коридор пуст`);
+    const halfW = (t.width ?? 0) / 2;
+    const rect = Math.abs(dx) >= Math.abs(dz)
+      ? { minX: from.x, maxX: to.x, minZ: from.z - halfW, maxZ: from.z + halfW }
+      : { minX: from.x - halfW, maxX: from.x + halfW, minZ: from.z, maxZ: to.z };
+    return [rect];
+  },
 };
 
 /** Коллекции, которые разрезка умеет размещать по клеткам, — он же список для сюиты. */

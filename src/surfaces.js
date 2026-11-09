@@ -69,6 +69,8 @@ export class SurfaceField extends SolidField {
     // предела высоты должен иметь куда упасть). С рельефом плоскости нет: грунт
     // для луча — поле, и `raySolid` марширует по нему сам
     this.groundPlane = this.relief ? null : { y: this.groundY, half: this.half };
+    /** прямые туннели коридорами: порталы {x,y,z} + ширина/высота коридора */
+    this.tunnels = [];
 
     this._setInputs(spec);
 
@@ -132,6 +134,7 @@ export class SurfaceField extends SolidField {
     this._buildingBoxes = this.buildings.map(b => obbOf(b.bounds, this._frames.get(b)));
     this.roads = src.roads ?? [];
     this.channels = src.channels ?? [];
+    this.tunnels = src.tunnels ?? [];
   }
 
   /**
@@ -152,6 +155,7 @@ export class SurfaceField extends SolidField {
   collectData() {
     this._collectBuildings();
     this._collectRoads();
+    this._collectTunnels();
     this._collectWater();
     this._indexPlans();
     this.indexSolids();
@@ -397,6 +401,58 @@ export class SurfaceField extends SolidField {
       // насыпь: грунт под настилом — и опора быть не может, и идти сквозь него нельзя
       for (const f of road.fill) this._box(f, f.bottomY, f.topY, 'earth', { collide: true });
       for (const a of road.aprons) this._apron(a);
+    }
+  }
+
+  /**
+   * Прямые туннели коридорами: пол (настил), стены и потолок. Коридор прямой —
+   * от первого портаала до последнего, поэтому его план — прямоугольник оси ± полуширины
+   * коридора (у оси X — срез поперёк по Z, у оси Z — по X). Пол отдаёт опору
+   * (`surface`) и твёрдость луча (как у настилов: без `collide` он не блокирует
+   * тело, его держит опора), стены и потолок — твёрдость тела (`collide`) и картина
+   * той же коробкой `_box` (`_addGeo` рисует её в группу) — правило «твёрдость
+   * обязана совпадать с картинкой» не даёт нам рисовать меш из габаритов.
+   */
+  _collectTunnels() {
+    for (const t of this.tunnels ?? []) {
+      const pts = t.points ?? [];
+      const from = pts[0], to = pts[pts.length - 1];
+      if (!from || !to) continue;
+      const dx = to.x - from.x, dz = to.z - from.z;
+      const len = Math.hypot(dx, dz);
+      if (len < 1e-6) continue;
+      const halfW = (t.width ?? 0) / 2;
+      const floorY = from.y;
+      const ceilY = floorY + (t.height ?? 0);
+      const axisX = Math.abs(dx) >= Math.abs(dz);
+      const plan = axisX
+        ? { minX: from.x, maxX: to.x, minZ: from.z - halfW, maxZ: from.z + halfW }
+        : { minX: from.x - halfW, maxX: from.x + halfW, minZ: from.z, maxZ: to.z };
+      // пол коридора: опора для ног и твёрдость для луча (deck), collide не ставим —
+      // тело держит опора, как у любого настилом
+      this._box(plan, floorY - J.deckThickness, floorY, 'decks', { surface: true });
+      this.deckPlates.push({
+        minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ,
+        topY: floorY, bottomY: floorY - J.deckThickness,
+        topAtMin: floorY, topAtMax: floorY, ramp: false, arc: false,
+      });
+      // стены: две поперечные коробки, от пола до потолка
+      const wallT = J.wallThickness;
+      const wallRects = axisX
+        ? [
+          { minX: plan.minX, maxX: plan.maxX, minZ: from.z - halfW, maxZ: from.z - halfW + wallT, y0: floorY, y1: ceilY },
+          { minX: plan.minX, maxX: plan.maxX, minZ: from.z + halfW - wallT, maxZ: from.z + halfW, y0: floorY, y1: ceilY },
+        ]
+        : [
+          { minX: from.x - halfW, maxX: from.x - halfW + wallT, minZ: plan.minZ, maxZ: plan.maxZ, y0: floorY, y1: ceilY },
+          { minX: from.x + halfW - wallT, maxX: from.x + halfW, minZ: plan.minZ, maxZ: plan.maxZ, y0: floorY, y1: ceilY },
+        ];
+      for (const w of wallRects) this._box(w, w.y0, w.y1, 'walls', { collide: true });
+      // потолок: твёрдость тела, картинка в своей группе
+      const ceilingPlan = axisX
+        ? { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ }
+        : { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ };
+      this._box(ceilingPlan, ceilY - J.deckThickness, ceilY, 'ceilings', { collide: true });
     }
   }
 

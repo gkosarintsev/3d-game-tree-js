@@ -173,6 +173,13 @@ export function normalizeLevel(raw) {
       // тот же порядок у мусора кровель и тротуаров и у неона фасадов
       ...(raw.clutter ? { clutter: raw.clutter } : {}),
       ...(raw.signage ? { signage: raw.signage } : {}),
+      // прямые туннели: коридор между двумя порталами; пол — настил, стены и
+      // потолок — призмы/солиды. Секция появляется только если туннели заданы:
+      // бриф без туннелей обязан остаться побайтово тем же
+      ...(raw.tunnels ? { tunnels: (raw.tunnels ?? []).map(t => ({
+        ...t,
+        points: (t.points ?? []).map(p => ({ x: r3(p.x), y: r3(p.y), z: r3(p.z) })),
+      })) } : {}),
     },
     warnings,
   };

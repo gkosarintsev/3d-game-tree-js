@@ -46,7 +46,7 @@ export const LEVEL_03 = {
     "exitRadius": 4,
     "goal": "exit"
   },
-  "hint": "Тестовый пустой мир нового формата: дойдите от точки A до маяка B.",
+  "hint": "Тестовый мир нового формата: дойдите от точки A до маяка B через горный туннель.",
   "map": {
     "bounds": {
       "maxX": 640,
@@ -104,7 +104,8 @@ export const LEVEL_03 = {
         "file": "chunk-0-4.l14b",
         "id": "0_4",
         "objects": {
-          "roads": 1
+          "props": 22,
+          "roads": 2
         },
         "rect": {
           "maxX": -384,
@@ -127,7 +128,11 @@ export const LEVEL_03 = {
       {
         "file": "chunk-1-1.l14b",
         "id": "1_1",
-        "objects": {},
+        "objects": {
+          "props": 4,
+          "roads": 1,
+          "tunnels": 1
+        },
         "rect": {
           "maxX": -128,
           "maxZ": -128,
@@ -160,7 +165,10 @@ export const LEVEL_03 = {
       {
         "file": "chunk-1-4.l14b",
         "id": "1_4",
-        "objects": {},
+        "objects": {
+          "props": 21,
+          "roads": 1
+        },
         "rect": {
           "maxX": -128,
           "maxZ": 640,
@@ -182,7 +190,11 @@ export const LEVEL_03 = {
       {
         "file": "chunk-2-1.l14b",
         "id": "2_1",
-        "objects": {},
+        "objects": {
+          "props": 10,
+          "roads": 1,
+          "tunnels": 1
+        },
         "rect": {
           "maxX": 128,
           "maxZ": -128,
@@ -193,7 +205,9 @@ export const LEVEL_03 = {
       {
         "file": "chunk-2-2.l14b",
         "id": "2_2",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 128,
           "maxZ": 128,
@@ -204,7 +218,9 @@ export const LEVEL_03 = {
       {
         "file": "chunk-2-3.l14b",
         "id": "2_3",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 128,
           "maxZ": 384,
@@ -215,7 +231,9 @@ export const LEVEL_03 = {
       {
         "file": "chunk-2-4.l14b",
         "id": "2_4",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 128,
           "maxZ": 640,
@@ -226,7 +244,10 @@ export const LEVEL_03 = {
       {
         "file": "chunk-3-0.l14b",
         "id": "3_0",
-        "objects": {},
+        "objects": {
+          "props": 38,
+          "roads": 1
+        },
         "rect": {
           "maxX": 384,
           "maxZ": -384,
@@ -237,7 +258,11 @@ export const LEVEL_03 = {
       {
         "file": "chunk-3-1.l14b",
         "id": "3_1",
-        "objects": {},
+        "objects": {
+          "props": 38,
+          "roads": 1,
+          "tunnels": 1
+        },
         "rect": {
           "maxX": 384,
           "maxZ": -128,
@@ -282,7 +307,7 @@ export const LEVEL_03 = {
         "file": "chunk-4-0.l14b",
         "id": "4_0",
         "objects": {
-          "roads": 1
+          "roads": 2
         },
         "rect": {
           "maxX": 640,
@@ -342,6 +367,24 @@ export const LEVEL_03 = {
       "y": 0
     },
     "kind": "open",
+    "relief": {
+      "baseY": 0,
+      "blend": 14,
+      "cell": 24,
+      "hills": [
+        {
+          "bx": 0,
+          "bz": 0,
+          "height": 32,
+          "id": "hill_mountain",
+          "radius": 800,
+          "x": 0,
+          "z": 0
+        }
+      ],
+      "maxSlope": 0.12,
+      "pads": []
+    },
     "spawn": {
       "x": -512,
       "z": 512
@@ -356,7 +399,7 @@ export const LEVEL_03 = {
     },
     "units": "meters"
   },
-  "name": "Глава 3. Пустой открытый мир (CityForge v3)",
+  "name": "Глава 3. Горы и серпантинная дорога (CityForge v3)",
   "sky": {
     "fog": {
       "color": 14230008,

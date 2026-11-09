@@ -2143,6 +2143,74 @@
       },
       "additionalProperties": false,
       "description": "аналитическое поле высот: при наличии секции гасится groundPlane («пол мира — ноль» больше не опора)"
+    },
+    "tunnels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "уникальный id туннеля"
+          },
+          "points": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "description": "м: мировая координата X портала"
+                },
+                "y": {
+                  "type": "number",
+                  "description": "м: отметка пола коридора на портале"
+                },
+                "z": {
+                  "type": "number",
+                  "description": "м: мировая координата Z портала"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
+              ],
+              "additionalProperties": false,
+              "description": "портал коридора: отметка пола на его торце"
+            },
+            "description": "м: порталы коридора (открытый и закрытый конец) — прямой коридор"
+          },
+          "width": {
+            "type": "number",
+            "minimum": 2,
+            "maximum": 30,
+            "description": "м: ширина коридора"
+          },
+          "height": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 60,
+            "description": "м: высота коридора над полом"
+          },
+          "lamps": {
+            "type": "boolean",
+            "description": "ставить ли автогенерированные фонари внутри коридора",
+            "default": false
+          }
+        },
+        "required": [
+          "id",
+          "points",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false,
+        "description": "прямой туннель: коридор между двумя порталами, пол — настил, стены и потолок — призмы"
+      },
+      "description": "прямые туннели: коридор между двумя порталами, пол — настил, стены/потолок — призмы"
     }
   },
   "required": [

@@ -24,7 +24,7 @@ import { SurfaceField } from '../src/surfaces.js';
 import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { generateCatalog, generateModule } from './build-level.mjs';
 import { SKELETON_STEP, GROUND_FIT, axisLength, skeletonOf } from './skeleton.mjs';
-import { schemaText, SCHEMA_FILES } from './export-schema.mjs';
+import { schemaText, schemaTextFor, SCHEMA_FILES } from './export-schema.mjs';
 import {
   splitLevel, chunkOverlap, planOf, cellChoices, CHUNK_COLLECTIONS, stringifyStable,
 } from './chunk-level.mjs';
@@ -683,9 +683,10 @@ t('схема: stream берёт только open; open без него и json
 });
 
 t('обе JSON Schema побайтово равны выводу DSL', () => {
-  for (const { spec, title, out } of SCHEMA_FILES) {
+  for (const entry of SCHEMA_FILES) {
+    const { spec, title, out } = entry;
     const committed = readFileSync(out, 'utf8').replace(/\r\n/g, '\n');
-    const fresh = schemaText(spec, title);
+    const fresh = schemaTextFor(entry);
     assert(committed === fresh,
       `${out.split(/[\\/]/).pop()}: расходится с DSL на ${committed.length - fresh.length} символов — запустите node tools/export-schema.mjs`);
   }

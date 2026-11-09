@@ -128,7 +128,7 @@ export class JsonMap extends SurfaceField {
    * ошибку.
    */
   _geoGroups() {
-    return { walls: [], slabs: [], stairs: [], decks: [], earth: [], rails: [] };
+    return { walls: [], slabs: [], stairs: [], decks: [], earth: [], rails: [], ceilings: [] };
   }
 
   /**
@@ -1980,6 +1980,7 @@ export class JsonMap extends SurfaceField {
       decks: new THREE.MeshStandardMaterial({ color: J.asphalt, roughness: 0.95, metalness: 0 }),
       earth: new THREE.MeshStandardMaterial({ color: J.earth, roughness: 1, metalness: 0 }),
       rails: new THREE.MeshStandardMaterial({ color: J.railColor, roughness: 0.55, metalness: 0.5 }),
+      ceilings: new THREE.MeshStandardMaterial({ color: J.slabs, roughness: 0.95, metalness: 0.05 }),
     };
     for (const key of Object.keys(groups)) {
       const geos = groups[key];
