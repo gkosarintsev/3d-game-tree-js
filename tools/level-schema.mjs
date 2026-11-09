@@ -1362,10 +1362,6 @@ export function validateLevel(raw, spec = LEVEL_SPEC) {
     for (let i = 0; i + 1 < w.points.length; i++) {
       const a = w.points[i], b = w.points[i + 1];
       const dx = Math.abs(a.x - b.x), dz = Math.abs(a.z - b.z);
-      if (dx > AXIS_EPS && dz > AXIS_EPS) {
-        errors.push(`${label}: отрезок ${i}→${i + 1} косой — ось русла обязана идти по X или Z`);
-        continue;
-      }
       if (dx < AXIS_EPS && dz < AXIS_EPS) errors.push(`${label}: отрезок ${i}→${i + 1} нулевой длины`);
     }
     for (const [i, p] of w.points.entries()) {

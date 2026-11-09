@@ -70,11 +70,11 @@ function compileHills(cf, errors) {
 }
 
 /**
- * CityForge hydrology.rivers → engine waterways (ось-в-плане русла). Река в
- * движке задаётся ломаной из осево-выравненных точек {x,z}, дном/зеркалом и
- * берегом; CF-река несёт path (point3 [x,y,z]), width, depth. Диагональный
- * сегмент CF-пути раскладывается на два осевых (манхэттен), чтобы пройти
- * валидацию waterways; повороты (смена оси) сохраняются.
+ * CityForge hydrology.rivers → engine waterways. Ось русла — ломаная {x,z} в
+ * плане: двигательная геометрия (нормализатор/surfaces) принимает произвольное
+ * направление сегмента, поэтому кривая река передаётся как есть (гладкая
+ * полилиния), без манхэттен-разложения. CF-река несёт path (point3 [x,y,z]),
+ * width, depth.
  */
 function compileHydrology(cf, groundY, warnings) {
   const rivers = cf?.hydrology?.rivers ?? [];
@@ -83,29 +83,13 @@ function compileHydrology(cf, groundY, warnings) {
   const AX = 1e-6;
   for (const r of rivers) {
     const rawPts = (r.path ?? []).map(p => Array.isArray(p) ? { x: p[0], z: p[2] } : { x: p.x ?? 0, z: p.z ?? 0 });
-    if (rawPts.length < 2) continue;
-    const pts = [{ x: rawPts[0].x, z: rawPts[0].z }];
-    for (let i = 1; i < rawPts.length; i++) {
-      const a = pts[pts.length - 1], b = rawPts[i];
-      const dx = b.x - a.x, dz = b.z - a.z;
-      // диагональ → вставляем угол (ось X, затем ось Z), сохраняя поворот
-      if (Math.abs(dx) > AX && Math.abs(dz) > AX) pts.push({ x: b.x, z: a.z });
-      // пропуск нулевого шага
-      if (Math.abs(b.x - pts[pts.length - 1].x) < AX && Math.abs(b.z - pts[pts.length - 1].z) < AX) continue;
-      pts.push({ x: b.x, z: b.z });
-    }
-    // схлопнуть вырожденные/коллинеарные повторы по одной оси
     const clean = [];
-    for (const p of pts) {
+    for (const p of rawPts) {
+      const q = { x: +p.x.toFixed(3), z: +p.z.toFixed(3) };
       const n = clean.length;
-      if (n >= 2) {
-        const a = clean[n - 2], b = clean[n - 1];
-        const colX = Math.abs(a.x - b.x) < AX && Math.abs(b.x - p.x) < AX;
-        const colZ = Math.abs(a.z - b.z) < AX && Math.abs(b.z - p.z) < AX;
-        if (colX || colZ) { clean[n - 1] = p; continue; }
-      }
-      if (!n || Math.abs(clean[n - 1].x - p.x) > AX || Math.abs(clean[n - 1].z - p.z) > AX) clean.push(p);
+      if (!n || Math.abs(clean[n - 1].x - q.x) > AX || Math.abs(clean[n - 1].z - q.z) > AX) clean.push(q);
     }
+    if (clean.length < 2) continue;
     const depth = r.depth ?? 3;
     const bedY = +(groundY - depth).toFixed(3);
     const surfaceY = +(groundY - 0.2).toFixed(3);
@@ -116,7 +100,7 @@ function compileHydrology(cf, groundY, warnings) {
       surfaceY,
       bank: r.bank ?? 'quay',
       wade: false,
-      points: clean.map(p => ({ x: +p.x.toFixed(3), z: +p.z.toFixed(3) })),
+      points: clean,
     });
   }
   if (cf?.hydrology?.lakes?.length) warnings.push('cityforge.hydrology.lakes: озёра компилятор пока пропускает (река собрана)');

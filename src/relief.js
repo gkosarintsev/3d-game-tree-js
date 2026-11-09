@@ -163,15 +163,63 @@ export function reliefOf(spec = {}) {
     minZ: Math.min(h.z, h.bz), maxZ: Math.max(h.z, h.bz), pad: h.radius,
   }));
 
+  // Речные вырезы: ландшафт строится ОТ РЕКИ. На берегу (край русла, halfW от
+  // оси) высота = bankY (постоянный низкий уровень берега), от берега рельеф идёт
+  // только вверх — плавный подъём к отметке холмов за шириной перехода ramp.
+  // Внутри русла отметка подавляется до bedY (картина/опора русла перекрывают
+  // канал, но поле само не должно поднимать воду холмом).
+  const rivers = (spec.rivers ?? []).map(rv => {
+    const segs = (rv.segments ?? []).map(s => {
+      const dx = s.bx - s.ax, dz = s.bz - s.az;
+      const L = Math.hypot(dx, dz) || 1;
+      return { ax: s.ax, az: s.az, tx: dx / L, tz: dz / L, L, halfW: rv.halfW ?? 0 };
+    });
+    return { bankY: rv.bankY ?? baseY, bedY: rv.bedY ?? (rv.bankY ?? baseY) - 2, ramp: rv.ramp ?? 40, segs };
+  });
+  // индекс сегментов рек по клеткам (с раздутием на ramp+halfW)
+  let riverAtCell = null;
+  if (rivers.length) {
+    const buckets = new Map(), pad = 60;
+    rivers.forEach((rv, ri) => rv.segs.forEach((s, si) => {
+      const ref = { rv, s };
+      const minX = Math.min(s.ax, s.ax+s.tx*s.L)-s.halfW-rv.ramp, maxX = Math.max(s.ax, s.ax+s.tx*s.L)+s.halfW+rv.ramp;
+      const minZ = Math.min(s.az, s.az+s.tz*s.L)-s.halfW-rv.ramp, maxZ = Math.max(s.az, s.az+s.tz*s.L)+s.halfW+rv.ramp;
+      const i0=Math.floor(minX/cell), i1=Math.floor((maxX-1e-9)/cell), j0=Math.floor(minZ/cell), j1=Math.floor((maxZ-1e-9)/cell);
+      for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){ const k=(i+4096)*8192+(j+4096); const b=buckets.get(k); if(b)b.push(ref); else buckets.set(k,[ref]); }
+    }));
+    riverAtCell = (x,z) => buckets.get((Math.floor(x/cell)+4096)*8192+(Math.floor(z/cell)+4096)) ?? EMPTY;
+  }
+  const distRiver = riverAtCell ? (x, z) => {
+    let best = Infinity, rv = rivers[0];
+    const list = riverAtCell(x, z);
+    if (!list.length) return { d: Infinity, rv };
+    for (let k = 0; k < list.length; k++) {
+      const { rv: r, s } = list[k];
+      const u = Math.max(0, Math.min(s.L, (x - s.ax) * s.tx + (z - s.az) * s.tz));
+      const d = Math.hypot(x - (s.ax + s.tx * u), z - (s.az + s.tz * u));
+      if (d < best) { best = d; rv = r; }
+    }
+    return { d: best - rv.halfW, rv };
+  } : null;
+
   /**
-   * Отметка «природы» — земля без площадок: только холмы и долины над `baseY`.
-   * Цена пробы зависит от того, где точка, а не от числа холмов в брифе: индекс
-   * отдаёт те капсулы, чей радиус накрывает клетку.
+   * Отметка «природы» — земля без площадок: холмы и долины над `baseY`, с
+   * речным вырезом (на берегу = bankY, от берега только вверх).
    */
   const reliefHeightAt = (x, z) => {
     let y = baseY;
     const list = hillsAtCell(x, z);
     for (let k = 0; k < list.length; k++) y += hillAt(list[k], x, z);
+    if (distRiver) {
+      const { d, rv } = distRiver(x, z);
+      if (d <= 0) return rv.bedY; // в русле — дно
+      if (d < rv.ramp) {
+        const t = ease(d / rv.ramp); // 0 на берегу, 1 на конце перехода
+        y = rv.bankY + (Math.max(y, rv.bankY) - rv.bankY) * t;
+      } else {
+        y = Math.max(y, rv.bankY);
+      }
+    }
     return y;
   };
 
@@ -201,10 +249,20 @@ export function reliefOf(spec = {}) {
    * брак по валидатору (этап 2), а не поле, которое нужно сглаживать.
    */
   const heightAt = (x, z) => {
-    let y = reliefHeightAt(x, z);
-    // тот же порядок и та же формула, что у `padsAt`, но без массива и без
-    // объекта на каждую площадку: проба поля вызывается с каждого шага марша
-    // луча и с каждой клетки решётки навигации
+    let y = baseY;
+    const hl = hillsAtCell(x, z);
+    for (let k = 0; k < hl.length; k++) y += hillAt(hl[k], x, z);
+    let inRiver = false;
+    if (distRiver) {
+      const dr = distRiver(x, z);
+      if (dr.d <= 0) return dr.rv.bedY;
+      if (dr.d < dr.rv.ramp) {
+        const t = ease(dr.d / dr.rv.ramp);
+        y = dr.rv.bankY + (Math.max(y, dr.rv.bankY) - dr.rv.bankY) * t;
+      } else {
+        y = Math.max(y, dr.rv.bankY);
+      }
+    }
     const list = padsAtCell(x, z);
     for (let k = 0; k < list.length; k++) {
       const pad = list[k];

@@ -417,3 +417,35 @@ export function polyEdges(poly) {
   }
   return out;
 }
+
+/**
+ * Локальные координаты точки плана относительно сегмента русла: `along` вдоль
+ * (от a), `cross` поперёк (знак слева от направления). Осевой сегмент (`axis`)
+ * хранит прежнюю форму — арифметика обязана дать то же, что до обобщения, иначе
+ * закоммиченные главы 02/11/12/13/14 разъедутся. Общий сегмент несёт кадр
+ * `(ax,az,tx,tz)`.
+ */
+export function waterwaySegLocal(s, x, z) {
+  if (s.axis === 'x' || s.axis === 'z') {
+    const along = s.axis === 'x' ? x : z;
+    const cross = s.axis === 'x' ? z : x;
+    return { along, cross };
+  }
+  const dx = x - s.ax, dz = z - s.az;
+  return { along: dx * s.tx + dz * s.tz, cross: -dx * s.tz + dz * s.tx };
+}
+
+/** Точка плана внутри полосы русла сегмента (дно + продолжение на углах). */
+export function inWaterwaySeg(s, x, z) {
+  const L = waterwaySegLocal(s, x, z);
+  if (s.axis === 'x' || s.axis === 'z') {
+    return L.along >= s.lo && L.along <= s.hi && Math.abs(L.cross - s.cross) <= s.halfW;
+  }
+  return L.along >= s.lo && L.along <= s.hi && Math.abs(L.cross) <= s.halfW;
+}
+
+/** Отметка верха на береговом склоне/сходе русла в точке (u поперёк, v вдоль). */
+export function waterwayDescentY(d, u) {
+  const t = d.u1 === d.u0 ? 0 : (u - d.u0) / (d.u1 - d.u0);
+  return d.y0 + (d.y1 - d.y0) * t;
+}

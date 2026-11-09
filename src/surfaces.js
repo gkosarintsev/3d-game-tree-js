@@ -1,6 +1,6 @@
 import { CONFIG } from './config.js';
 import { SolidField, circleHitsBox } from './solids.js';
-import { r3, frameAt, frameOf, obbOf, obbHitsRect, rotatePoint, rotatedBounds, subtractRect, unrotatePoint, arcDelta, arcBankAt } from './geo2d.js';
+import { r3, frameAt, frameOf, obbOf, obbHitsRect, rotatePoint, rotatedBounds, subtractRect, unrotatePoint, arcDelta, arcBankAt, inWaterwaySeg } from './geo2d.js';
 import { reliefOf } from './relief.js';
 
 const J = CONFIG.jsonMap;
@@ -139,6 +139,8 @@ export class SurfaceField extends SolidField {
     this.roads = src.roads ?? [];
     this.channels = src.channels ?? [];
     this.tunnels = src.tunnels ?? [];
+    /** сегменты кривых русел (плоская принадлежность по расстоянию до оси) */
+    this.channelSegs = this.channels.flatMap(ch => (ch.segments ?? []).filter(s => !s.axis));
   }
 
   /**
@@ -617,23 +619,51 @@ export class SurfaceField extends SolidField {
    * неё к дну.
    */
   _collectWater() {
+    const DEG = 180 / Math.PI;
     for (const ch of this.channels) {
       if (!this._drawn(ch)) continue;
       for (const s of ch.segments) {
-        const axis = s.axis === 'x' ? 'z' : 'x';   // профиль отложен поперёк русла
-        const bed = makePrism(axis, s.lo, s.hi, [
-          [s.cross - s.halfW, ch.bedY], [s.cross + s.halfW, ch.bedY],
-          [s.cross + s.halfW, r3(ch.bedY - J.bedThickness)], [s.cross - s.halfW, r3(ch.bedY - J.bedThickness)],
-        ]);
-        this.prisms.push(bed);
-        this._addGeo('earth', { kind: 'prism', w: bed });
-        this.holes.push(s.bed);
-        this.waterRects.push({ ...s.bed, y: ch.surfaceY });
-        if (!ch.wade) {
-          this.blockers.push({ ...s.bed, y0: r3(ch.bedY - 0.05), y1: r3(this.groundY + 1) });
+        if (s.axis) {
+          const axis = s.axis === 'x' ? 'z' : 'x';   // профиль отложен поперёк русла
+          const bed = makePrism(axis, s.lo, s.hi, [
+            [s.cross - s.halfW, ch.bedY], [s.cross + s.halfW, ch.bedY],
+            [s.cross + s.halfW, r3(ch.bedY - J.bedThickness)], [s.cross - s.halfW, r3(ch.bedY - J.bedThickness)],
+          ]);
+          this.prisms.push(bed);
+          this._addGeo('earth', { kind: 'prism', w: bed });
+          this.holes.push(s.bed);
+          this.waterRects.push({ ...s.bed, y: ch.surfaceY });
+          if (!ch.wade) {
+            this.blockers.push({ ...s.bed, y0: r3(ch.bedY - 0.05), y1: r3(this.groundY + 1) });
+          }
+        } else {
+          // кривой сегмент: призма дна в локальном кадре (u=вдоль, v=поперёк)
+          const frame = frameAt(s.ax, s.az, Math.atan2(s.tz, s.tx) * DEG);
+          const bed = makePrism('x', -s.halfW, s.halfW, [
+            [s.lo, ch.bedY], [s.hi, ch.bedY],
+            [s.hi, r3(ch.bedY - J.bedThickness)], [s.lo, r3(ch.bedY - J.bedThickness)],
+          ], frame);
+          this.prisms.push(bed);
+          this._addGeo('earth', { kind: 'prism', w: bed });
+          // strip-дыра: broadphase-габарит для индекса; точность — inWaterwaySeg
+          this.holes.push({ ...s.bed, strip: true, seg: s.bed.seg ?? s });
+          this.waterRects.push({ ...s.bed, y: ch.surfaceY, strip: true, seg: s.bed.seg ?? s });
+          // непроходимое кривое русло: блока rect-габаритом не ставим (он режет за
+          // пределами полосы); физику держит дно-призма (−4 м) + _inChannel для нав.
         }
       }
       for (const d of ch.descents) {
+        if (d.strip) {
+          const s = d.s;
+          const frame = frameAt(s.ax, s.az, Math.atan2(s.tz, s.tx) * DEG);
+          const inner = d.side * s.halfW, outer = inner + d.side * s.run;
+          const w = makePrism('z', s.lo, s.hi, [[inner, d.y0], [outer, d.y1], [outer, d.y0]], frame);
+          this.prisms.push(w);
+          w.descentId = d.id;
+          this._addGeo('earth', { kind: 'prism', w });
+          this.descents.push(d);
+          continue;
+        }
         // у схода плита с толщиной (по ней ходят и она же держит картинку
         // пандуса), у берега — клин под склоном: его верхняя грань ровно на
         // уклоне, а на отметке дна он сходится с руслом в ноль. Треугольник с
@@ -996,15 +1026,35 @@ export class SurfaceField extends SolidField {
   }
 
   _inChannel(x, z) {
+    if (!this.holes.length && !(this.channelSegs?.length)) return false;
+    // кривые сегменты: точная принадлежность по расстоянию до оси (полоса)
+    if (this.channelSegs?.length) {
+      for (const s of this.channelSegs) if (inWaterwaySeg(s, x, z)) return true;
+    }
     if (!this.holes.length) return false;
     const out = this._tmpIdx;
     out.length = 0;
     this._plansAround(this._holeCells, x, z, out, 0);
     for (const idx of out) {
       const r = this.holes[idx];
+      if (r.strip) { if (inWaterwaySeg(r.seg ?? r, x, z)) return true; continue; }
       if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
     }
     return false;
+  }
+
+  /** Отметка дна/берега русла в точке канала (для выреза меша рельефа). */
+  _channelBedY(x, z) {
+    for (const ch of this.channels ?? []) {
+      for (const s of ch.segments ?? []) {
+        if (!s.axis && inWaterwaySeg(s, x, z)) return ch.bedY;
+        if (s.axis) {
+          const L = s.axis === 'x' ? { along: x, cross: z } : { along: z, cross: x };
+          if (L.along >= s.lo && L.along <= s.hi && Math.abs(L.cross - s.cross) <= s.halfW) return ch.bedY;
+        }
+      }
+    }
+    return this.groundY - 4;
   }
 
   // ------------------------------------------------------- проба рёбер графа
@@ -1131,6 +1181,19 @@ export class SurfaceField extends SolidField {
    * дна, здесь только сама цепочка.
    */
   descentChain(d, step) {
+    if (d.strip) {
+      const s = d.s, rise = Math.abs(d.y1 - d.y0), span = Math.abs(s.run);
+      if (span <= 0.01 || rise <= 0.01) return null;
+      const inner = d.side * s.halfW, outer = inner + d.side * s.run;
+      const uMid = (s.lo + s.hi) / 2; // середина по длине (упрощённо)
+      const count = Math.max(1, Math.ceil(span / Math.min(step, this.stepUp * 0.8 * span / rise)));
+      const pts = [];
+      for (let k = 0; k <= count; k++) {
+        const t = k / count, v = inner + (outer - inner) * t;
+        pts.push({ x: s.ax + s.tx * uMid + s.nx * v, y: d.y0 + (d.y1 - d.y0) * t, z: s.az + s.tz * uMid + s.nz * v });
+      }
+      return pts;
+    }
     const span = Math.abs(d.u1 - d.u0);
     const rise = Math.abs(d.y1 - d.y0);
     if (span <= 0.01 || rise <= 0.01) return null;

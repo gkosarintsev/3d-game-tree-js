@@ -16,7 +16,7 @@ import { CONFIG } from '../src/config.js';
 import {
   normalizePolygon, pointInPoly, polyBounds, polyEdges, polyRects, r3, rectsIntersect,
   subtractRect, unionBounds, frameOf, frameAt, obbHitsRect, obbHitsObb, obbOf, unrotatePoint, rotatePoint,
-  arcBounds, arcDelta, arcBankAt,
+  arcBounds, arcDelta, arcBankAt, waterwaySegLocal, inWaterwaySeg, waterwayDescentY, AXIS_EPS,
 } from '../src/geo2d.js';
 import { reliefOf } from '../src/relief.js';
 
@@ -59,9 +59,13 @@ export function normalizeLevel(raw) {
   // получают ту же константу, поэтому их модули обязаны остаться байт-в-байт.
   ground.land = relief ? ((x, z) => relief.fieldAt(x, z)) : (() => ground.y);
 
+  const channels = (raw.waterways ?? []).map(w => normalizeWaterway(w, ground));
+  if (relief && channels.some(c => c.curved)) {
+    // ландшафт от реки: на берегу = bankY, от берега только вверх (level-10)
+    relief.addRivers(channels.filter(c => c.curved), ground);
+  }
   const buildings = (raw.buildings ?? []).map(b => normalizeBuilding(b, ground, warnings));
   const roads = (raw.roads ?? []).map(r => normalizeRoad(r, ground, raw.tunnels ?? []));
-  const channels = (raw.waterways ?? []).map(w => normalizeWaterway(w, ground));
   if (relief) {
     // авторский дом без района стоит на своей площадке: под ним плоский пол, а не
     // склон, и терраса района его не касается
@@ -1677,11 +1681,15 @@ const pointRect = p => ({ minX: p.x - 0.1, maxX: p.x + 0.1, minZ: p.z - 0.1, max
 // ------------------------------------------------------------------- вода
 
 /**
- * Русло → сегменты осевой ломаной (этап 2 плана города).
+ * Русло → сегменты ломаной (этап 2 плана города).
  *
- * Считается один раз здесь, валидатор импортирует этот же экспорт: проверка
- * «сход попадает в своё русло» и нормализация не имеют права разойтись в
- * арифметике, иначе парсер поставил бы пандус там, где схема его не ждала.
+ * Осевой сегмент (по X или Z) отдаёт прежнюю форму (`axis/cross/lo/hi/bed`-rect) —
+ * валидатор, нормализатор, парсер-сюиты и закоммиченные модули глав 02/11/12/13/14
+ * обязаны остаться побайтово теми же. Диагональный/криволинейный сегмент (кривая
+ * река, глава 10) несёт локальный кадр `(ax,az,tx,tz,nx,nz,L)` и габарит `bed`:
+ * прямоугольную обрезку грунта по `subtractRect` для него карта не делает (дырой в
+ * rect-разложении он не выражается), визуально русло вырезается сдвигом вершин
+ * грунта по `inWaterwaySeg`, а физика/навигация — той же принадлежностью.
  *
  * `depth` — насколько берег отходит от русла: толщина стенки у карниза (`quay`)
  * и заложение склона у откоса (`slope`). `rampRun` — длина схода в русло: крутизну
@@ -1696,21 +1704,40 @@ export function waterwaySegments(w, groundY) {
   const out = [];
   for (let i = 0; i + 1 < w.points.length; i++) {
     const a = w.points[i], b = w.points[i + 1];
-    const axis = Math.abs(a.x - b.x) >= Math.abs(a.z - b.z) ? 'x' : 'z';
-    const aAlong = axis === 'x' ? a.x : a.z;
-    const bAlong = axis === 'x' ? b.x : b.z;
-    const from = Math.min(aAlong, bAlong), to = Math.max(aAlong, bAlong);
-    const cross = axis === 'x' ? a.z : a.x;
-    out.push({
-      axis, cross: r3(cross), halfW: r3(halfW), run: r3(run), depth: r3(depth),
-      // русло по длине продлено на полширины: на повороте два соседних русла
-      // закрывают угол квадрата, а не оставляют в нём сухую клетку
-      lo: r3(from - halfW), hi: r3(to + halfW),
-      rampRun: r3(Math.max((groundY - w.bedY) / J.maxSlope, depth + 1)),
-      bed: axis === 'x'
-        ? { minX: r3(from - halfW), maxX: r3(to + halfW), minZ: r3(cross - halfW), maxZ: r3(cross + halfW) }
-        : { minX: r3(cross - halfW), maxX: r3(cross + halfW), minZ: r3(from - halfW), maxZ: r3(to + halfW) },
-    });
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const L = Math.hypot(dx, dz);
+    if (L < AXIS_EPS) continue;
+    const isAxisX = Math.abs(dz) <= AXIS_EPS;
+    const isAxisZ = Math.abs(dx) <= AXIS_EPS;
+    // русло по длине продлено на полширины: на повороте два соседних русла
+    // закрывают угол квадрата, а не оставляют в нём сухую клетку
+    const lo = r3(-halfW), hi = r3(L + halfW);
+    const rampRun = r3(Math.max((groundY - w.bedY) / J.maxSlope, depth + 1));
+    if (isAxisX || isAxisZ) {
+      const axis = isAxisX ? 'x' : 'z';
+      const from = axis === 'x' ? Math.min(a.x, b.x) : Math.min(a.z, b.z);
+      const to = axis === 'x' ? Math.max(a.x, b.x) : Math.max(a.z, b.z);
+      const cross = axis === 'x' ? a.z : a.x;
+      out.push({
+        axis, cross: r3(cross), halfW: r3(halfW), run: r3(run), depth: r3(depth),
+        lo: r3(from - halfW), hi: r3(to + halfW), rampRun,
+        bed: axis === 'x'
+          ? { minX: r3(from - halfW), maxX: r3(to + halfW), minZ: r3(cross - halfW), maxZ: r3(cross + halfW) }
+          : { minX: r3(cross - halfW), maxX: r3(cross + halfW), minZ: r3(from - halfW), maxZ: r3(to + halfW) },
+      });
+    } else {
+      const tx = dx / L, tz = dz / L, nx = -tz, nz = tx;
+      const corners = [a, b].flatMap(p => [1, -1].map(s => ({ x: p.x + nx * s * halfW, z: p.z + nz * s * halfW })));
+      const xs = corners.map(p => p.x), zs = corners.map(p => p.z);
+      const seg = {
+        halfW: r3(halfW), run: r3(run), depth: r3(depth),
+        lo, hi, rampRun,
+        ax: r3(a.x), az: r3(a.z), bx: r3(b.x), bz: r3(b.z),
+        tx: r3(tx), tz: r3(tz), nx: r3(nx), nz: r3(nz), L: r3(L),
+      };
+      seg.bed = { minX: r3(Math.min(...xs)), maxX: r3(Math.max(...xs)), minZ: r3(Math.min(...zs)), maxZ: r3(Math.max(...zs)), strip: true, seg: { ax: seg.ax, az: seg.az, tx: seg.tx, tz: seg.tz, nx: seg.nx, nz: seg.nz, lo, hi, halfW: seg.halfW, L: seg.L } };
+      out.push(seg);
+    }
   }
   return out;
 }
@@ -1718,17 +1745,16 @@ export function waterwaySegments(w, groundY) {
 /**
  * Русло: дно, берега и сходы в плане.
  *
- * Дно и берег — не коробки, а призма профиля: у дна верх — горизонталь на
- * `bedY`, у откоса — наклонная от кромки дна до земли, у схода — наклонная
- * от дна до земли поперёк берега. Коробка по низу русла стала бы невидимой
- * стеной там, где глаз видит склон (правило AGENTS «твёрдость обязана совпадать
- * с картинкой»), а «пол мира — ноль» не дал бы ноге встать ниже нуля.
- *
- * Сходы считаются раньше берегов: план пандуса вырезает дыру в стенке карниза,
- * иначе сход упирался бы в неё носом, а не проходил сквозь проём.
+ * Осевые сегменты (по X/Z) отдают прежнюю геометрию побайтово — закоммиченные
+ * главы 02/11/12/13/14 и все проверки по ним обязаны остаться зелёными. Кривой
+ * сегмент (кривая река) несёт локальный кадр: стены карниза и сходы-рампы на
+ * кривой не поддерживаются (сход в кривую реку — отдельная задача; level-10 их
+ * не использует) и отвергаются с ясной причиной; дно, откос-берег и блокер
+ * непроходимого русла строятся по полосе сегмента.
  */
 function normalizeWaterway(w, ground) {
   const segs = waterwaySegments(w, ground.y);
+  const isCurved = segs.some(s => !s.axis);
   const channel = {
     id: w.id,
     bank: w.bank,
@@ -1740,11 +1766,13 @@ function normalizeWaterway(w, ground) {
     walls: [],
     descents: [],
     holes: [],
+    ...(isCurved ? { curved: true } : {}),
   };
   const t = J.wallThickness;
 
   for (const r of (w.ramps ?? [])) {
     const seg = nearestSegment(segs, r.at);
+    if (!seg.axis) throw new Error(`сход ${r.at.x}, ${r.at.z}: рампы на криволинейном русле не поддерживаются`);
     const descAxis = seg.axis === 'x' ? 'z' : 'x';
     const atCross = seg.axis === 'x' ? r.at.z : r.at.x;
     const atAlong = seg.axis === 'x' ? r.at.x : r.at.z;
@@ -1763,6 +1791,21 @@ function normalizeWaterway(w, ground) {
   }
 
   for (const [i, s] of segs.entries()) {
+    if (!s.axis) {
+      // кривой сегмент: берег/стенки как прямоугольники не выразить; дно даёт
+      // призму и полосу-преграду в surfaces, _inChannel — по расстоянию до оси
+      if (channel.bank === 'slope') {
+        // откос-берег с каждой стороны — полоса шириной run вдоль нормали
+        for (const side of [-1, 1]) {
+          channel.descents.push({
+            id: `${w.id}:берег${channel.descents.length + 1}`, kind: 'bank', seg: i,
+            strip: true, side, s,
+            y0: channel.bedY, y1: r3(ground.y),
+          });
+        }
+      }
+      continue;
+    }
     const descAxis = s.axis === 'x' ? 'z' : 'x';
     if (channel.bank === 'quay') {
       for (const side of [-1, 1]) {
@@ -1794,21 +1837,26 @@ function normalizeWaterway(w, ground) {
   }
 
   for (const s of segs) channel.holes.push(s.bed);
-  for (const d of channel.descents) channel.holes.push(d.plan);
+  for (const d of channel.descents) if (d.plan) channel.holes.push(d.plan);
   for (const w2 of channel.walls) channel.holes.push(w2.rect);
   return channel;
 }
 
 /** Сегмент, чей план ближе всего к точке поперёк русла; бросает, если русла нет вовсе. */
 function nearestSegment(segs, at) {
-  const alongOf = s => (s.axis === 'x' ? at.x : at.z);
-  const crossOf = s => (s.axis === 'x' ? at.z : at.x);
   let best = null, bestD = Infinity;
   for (const s of segs) {
-    const a = alongOf(s);
-    if (a < s.lo || a > s.hi) continue;
-    const d = Math.abs(crossOf(s) - s.cross);
-    if (d < bestD) { bestD = d; best = s; }
+    if (s.axis === 'x' || s.axis === 'z') {
+      const a = s.axis === 'x' ? at.x : at.z;
+      if (a < s.lo || a > s.hi) continue;
+      const d = Math.abs((s.axis === 'x' ? at.z : at.x) - s.cross);
+      if (d < bestD) { bestD = d; best = s; }
+    } else {
+      const L = waterwaySegLocal(s, at.x, at.z);
+      if (L.along < s.lo || L.along > s.hi) continue;
+      const d = Math.abs(L.cross);
+      if (d < bestD) { bestD = d; best = s; }
+    }
   }
   if (!best) {
     throw new Error(`сход ${at.x}, ${at.z}: вне длины русла — пандус не на что опереть`);
@@ -1827,14 +1875,25 @@ export function waterwayFoot(channels) {
     let best = null;
     const take = y => { if (best === null || y > best) best = y; };
     for (const ch of channels) {
-      for (const s of ch.segments) if (inRect(x, z, s.bed)) take(ch.bedY);
+      for (const s of ch.segments) {
+        if (inWaterwaySeg(s, x, z)) take(ch.bedY);
+      }
       for (const d of ch.descents) {
+        if (d.strip) {
+          // берег-полоса вдоль кривого сегмента
+          const s = d.s, L = waterwaySegLocal(s, x, z);
+          if (L.along < s.lo || L.along > s.hi) continue;
+          const inner = d.side * s.halfW, outer = inner + d.side * s.run;
+          const v = L.cross;
+          if (Math.abs(v - inner) + Math.abs(outer - v) - Math.abs(outer - inner) > 1e-6) continue;
+          take(waterwayDescentY({ y0: d.y0, y1: d.y1, u0: inner, u1: outer }, v));
+          continue;
+        }
         const u = d.axis === 'x' ? x : z;
         if (u < Math.min(d.u0, d.u1) || u > Math.max(d.u0, d.u1)) continue;
         const v = d.axis === 'x' ? z : x;
-        if (v < d.v0 || v > d.v1) continue;
-        const t = d.u1 === d.u0 ? 0 : (u - d.u0) / (d.u1 - d.u0);
-        take(d.y0 + (d.y1 - d.y0) * t);
+        if (v < d.v0 || d.v1 < v) continue;
+        take(waterwayDescentY(d, u));
       }
     }
     return best === null ? null : r3(best);
@@ -1881,6 +1940,7 @@ function normalizeRelief(raw, ground, warnings) {
       id: p.id, minX: r3(p.minX), maxX: r3(p.maxX), minZ: r3(p.minZ), maxZ: r3(p.maxZ),
       y: r3(p.y), blend: r3(p.blend ?? spec.blend ?? J.relief.blend), yaw: p.yaw,
     })),
+    ...(spec.rivers?.length ? { rivers: spec.rivers } : {}),
   };
   // Пробное поле каждой площадки строится заново на каждом шаге подгонки:
   // итоговый градиент — это не только кольцо, но и склон под ним, а формула
@@ -1898,6 +1958,22 @@ function normalizeRelief(raw, ground, warnings) {
         fitPadBlend(p, plain, maxSlope, plain.pads);
         plain.pads.push(p);
       }
+      relief.field = reliefOf(plain);
+    },
+    // Речные вырезы из нормализованных русел: ландшафт строится от реки (на
+    // берегу = bankY, от берега только вверх). Вызывается после нормализации
+    // waterways, до финализации поля.
+    addRivers(channels, ground) {
+      if (!channels?.length) return;
+      plain.rivers = channels.map(ch => ({
+        bankY: r3(ch.bank === 'quay' ? (ground?.y ?? plain.baseY) : (ground?.y ?? plain.baseY)),
+        bedY: r3(ch.bedY),
+        halfW: r3(ch.width / 2),
+        ramp: r3(Math.max(30, (ground?.y ?? plain.baseY) - ch.bedY + 10)),
+        segments: (ch.segments ?? []).map(s => s.axis
+          ? { ax: r3(s.ax), az: r3(s.az), bx: r3(s.bx), bz: r3(s.bz) }
+          : { ax: r3(s.ax), az: r3(s.az), bx: r3(s.bx), bz: r3(s.bz) }),
+      }));
       relief.field = reliefOf(plain);
     },
     // Второй заход по СОБРАННОМУ полю: подгонка по предыстории не видит колец,

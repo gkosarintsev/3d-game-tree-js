@@ -1415,7 +1415,13 @@ export class JsonMap extends SurfaceField {
    */
   _groundGeo(rect = null) {
     let rects = [rect ?? { minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
-    for (const h of this.holes) rects = rects.flatMap(r => subtractRect(r, h));
+    // strip-дыры кривых русел вырезаются сдвигом вершин по _inChannel, а не
+    // rect-разложением: их габарит — over-approximation, и subtractRect съел бы
+    // сушу вокруг излучины
+    for (const h of this.holes) {
+      if (h.strip && this.relief) continue;
+      rects = rects.flatMap(r => subtractRect(r, h));
+    }
     for (const h of (this.tunnelHoles ?? [])) rects = rects.flatMap(r => subtractRect(r, h));
     if (!this.relief) {
       const geo = mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
@@ -1425,6 +1431,7 @@ export class JsonMap extends SurfaceField {
       return geo;
     }
     const cell = J.relief.meshCell;
+    const hasCurved = this.channelSegs?.length > 0;
     const geo = mergeGeometries(rects.map(r => {
       const g = new THREE.PlaneGeometry(
         r.maxX - r.minX, r.maxZ - r.minZ,
@@ -1436,7 +1443,9 @@ export class JsonMap extends SurfaceField {
       for (let k = 0; k < pos.count; k++) {
         const x = pos.getX(k), z = -pos.getY(k);
         // позиция задаётся относительно `ground.position.y = groundY`
-        pos.setZ(k, this.relief.heightAt(x, z) - this.groundY);
+        let h = this.relief.heightAt(x, z);
+        if (hasCurved && this._inChannel(x, z)) h = this._channelBedY(x, z);
+        pos.setZ(k, h - this.groundY);
         const n = this.relief.normalAt(x, z);
         nrm.setXYZ(k, n.x, -n.z, n.y);
       }
@@ -1455,13 +1464,34 @@ export class JsonMap extends SurfaceField {
    *
    * `rects` — зеркала одной области: у клетки их отдаёт проход картинки, потому
    * что мировое поле содержит и чужие копии русел, а пластина воды на шве
-   * обязана быть одна.
+   * обязана быть одна. Кривое русло (`strip`) отдаёт ленту-квад по каждому
+   * сегменту оси — та же отметка, только повёрнутая в план.
    */
   _buildWater(scene, rects, objs) {
     if (!rects.length) return;
-    const geo = mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
-      r.maxX - r.minX, r.maxZ - r.minZ,
-    ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, r.y)), false);
+    const geos = rects.map(r => {
+      if (r.strip && r.seg) {
+        const s = r.seg;
+        // 4 угла полосы в мире (XZ), Y = r.y; геометрия в мировых координатах
+        // (меш воды без поворота родителя в этом вызове кладётся в сцену так же,
+        // как rect-путь? rect-путь делает PlaneGeometry в XY, translate z=r.y,
+        // и меш поворачивается на -90°X — значит вершина (X,-Zloc,r.y) в локале
+        // после поворота даёт (X,r.y,Zloc) в мире. Проще построить в мире и не
+        // вращать: но меш один на все rects. Поэтому для strip строим в той же
+        // локальной системе: (wx, -wz, wy).
+        const P = (u, v) => [s.ax + s.tx * u + s.nx * v, -(s.az + s.tz * u + s.nz * v), r.y];
+        const a = P(s.lo, -s.halfW), b = P(s.hi, -s.halfW), c = P(s.hi, s.halfW), d = P(s.lo, s.halfW);
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...d], 3));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute([0,0,1, 0,0,1, 0,0,1, 0,0,1], 3));
+        g.setIndex([0,1,2, 0,2,3]);
+        return g;
+      }
+      return new THREE.PlaneGeometry(
+        r.maxX - r.minX, r.maxZ - r.minZ,
+      ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, r.y);
+    });
+    const geo = mergeGeometries(geos, false);
     const water = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
       color: J.waterColor, roughness: 0.3, metalness: 0.1,
       transparent: true, opacity: J.waterOpacity,
