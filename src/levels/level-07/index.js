@@ -46,7 +46,7 @@ export const LEVEL_07 = {
     "exitRadius": 4,
     "goal": "exit"
   },
-  "hint": "Вы стартуете в начале туннеля: пройдите сквозь высокую гору и доберитесь до маяка B.",
+  "hint": "Стартуйте в начале туннеля, пройдите сквозь гору и объедьте её по кольцевой трассе с плавными поворотами: спуск к маяку B на юге, подъём обратно к северному порталу.",
   "map": {
     "bounds": {
       "maxX": 640,
@@ -170,8 +170,8 @@ export const LEVEL_07 = {
         "file": "chunk-2-0.l14b",
         "id": "2_0",
         "objects": {
-          "props": 4,
-          "roads": 3,
+          "props": 36,
+          "roads": 4,
           "tunnels": 1
         },
         "rect": {
@@ -224,7 +224,8 @@ export const LEVEL_07 = {
         "file": "chunk-2-4.l14b",
         "id": "2_4",
         "objects": {
-          "roads": 3,
+          "props": 34,
+          "roads": 2,
           "tunnels": 1
         },
         "rect": {
@@ -237,7 +238,10 @@ export const LEVEL_07 = {
       {
         "file": "chunk-3-0.l14b",
         "id": "3_0",
-        "objects": {},
+        "objects": {
+          "props": 12,
+          "roads": 3
+        },
         "rect": {
           "maxX": 384,
           "maxZ": -384,
@@ -282,6 +286,7 @@ export const LEVEL_07 = {
         "file": "chunk-3-4.l14b",
         "id": "3_4",
         "objects": {
+          "props": 44,
           "roads": 1
         },
         "rect": {
@@ -294,7 +299,9 @@ export const LEVEL_07 = {
       {
         "file": "chunk-4-0.l14b",
         "id": "4_0",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 640,
           "maxZ": -384,
@@ -305,7 +312,9 @@ export const LEVEL_07 = {
       {
         "file": "chunk-4-1.l14b",
         "id": "4_1",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 640,
           "maxZ": -128,
@@ -316,7 +325,9 @@ export const LEVEL_07 = {
       {
         "file": "chunk-4-2.l14b",
         "id": "4_2",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 640,
           "maxZ": 128,
@@ -327,7 +338,9 @@ export const LEVEL_07 = {
       {
         "file": "chunk-4-3.l14b",
         "id": "4_3",
-        "objects": {},
+        "objects": {
+          "roads": 1
+        },
         "rect": {
           "maxX": 640,
           "maxZ": 384,
@@ -339,7 +352,8 @@ export const LEVEL_07 = {
         "file": "chunk-4-4.l14b",
         "id": "4_4",
         "objects": {
-          "roads": 2
+          "props": 22,
+          "roads": 4
         },
         "rect": {
           "maxX": 640,

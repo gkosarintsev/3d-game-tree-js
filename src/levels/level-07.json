@@ -4,7 +4,7 @@
   "metadata": {
     "levelName": "level-07",
     "name": "Глава 7. Горный туннель (CityForge v3)",
-    "hint": "Вы стартуете в начале туннеля: пройдите сквозь высокую гору и доберитесь до маяка B.",
+    "hint": "Стартуйте в начале туннеля, пройдите сквозь гору и объедьте её по кольцевой трассе с плавными поворотами: спуск к маяку B на юге, подъём обратно к северному порталу.",
     "engine": "open",
     "units": "meters",
     "notes": "Глава 7: те же размеры, что у главы 3 (плита 1280×1280 м, 5×5 чанков по 256 м), открытый мир со стримингом, цель A→B. Одна высокая гора (гряда вдоль X), прямой тоннель идёт сквозь неё поперёк (вдоль Z) и выходит на южный склон; спавн — в начале тоннеля. Stream — играбельный (окно)."
@@ -80,8 +80,12 @@
           { "id": "n_spawn", "position": [0, 32, -450], "layer": "ground" },
           { "id": "n_tunnel_n", "position": [0, 32, -420], "layer": "ground" },
           { "id": "n_tunnel_s", "position": [0, 32, 420], "layer": "ground" },
-          { "id": "n_slope_base", "position": [0, 0, 540], "layer": "ground" },
-          { "id": "n_exit", "position": [520, 0, 540], "layer": "ground" }
+          { "id": "n_south_low", "position": [520, 1, 540], "layer": "ground" },
+          { "id": "n_south_ground", "position": [524, 0, 540], "layer": "ground" },
+          { "id": "n_east_s", "position": [600, 0, 540], "layer": "ground" },
+          { "id": "n_east_n", "position": [600, 0, -540], "layer": "ground" },
+          { "id": "n_north_ground", "position": [200, 0, -540], "layer": "ground" },
+          { "id": "n_north_low", "position": [200, 1, -535], "layer": "ground" }
         ],
         "segments": [
           {
@@ -101,37 +105,89 @@
             "speedLimit": 30
           },
           {
-            "id": "road_tunnel_exit",
+            "id": "track_south_around",
             "from": "n_tunnel_s",
-            "to": "n_slope_base",
-            "type": "local",
+            "to": "n_south_low",
+            "type": "arterial",
             "layer": "ground",
-            "path": [
-              [0, 32, 420],
-              [0, 16, 480],
-              [0, 0, 540]
+            "elements": [
+              { "plate": { "x": 0, "z": 430, "yaw": 90, "length": 20, "width": 8, "y": 32, "rise": 0, "rails": true } },
+              { "arc": { "cx": 90, "cz": 440, "radius": 90, "from": 180, "to": 90, "width": 8, "y": [32, 22], "bank": 0, "rails": true } },
+              { "plate": { "x": 305, "z": 535, "yaw": 1.3322, "length": 430.116, "width": 8, "y": 22, "rise": -21, "rails": true } }
             ],
             "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
             "shoulderWidth": 2,
             "sidewalk": false,
             "surface": "asphalt",
-            "speedLimit": 30
+            "speedLimit": 40
           },
           {
-            "id": "road_to_exit",
-            "from": "n_slope_base",
-            "to": "n_exit",
+            "id": "ramp_south_exit",
+            "from": "n_south_low",
+            "to": "n_south_ground",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [520, 1, 540],
+              [524, 0, 540]
+            ],
+            "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
+            "shoulderWidth": 0,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 20
+          },
+          {
+            "id": "road_east_ring",
+            "from": "n_south_ground",
+            "to": "n_north_ground",
             "type": "local",
             "layer": "ground",
             "path": [
-              [0, 0, 540],
-              [520, 0, 540]
+              [524, 0, 540],
+              [520, 0, 540],
+              [600, 0, 540],
+              [600, 0, -540],
+              [200, 0, -540]
             ],
             "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
             "shoulderWidth": 2,
             "sidewalk": false,
             "surface": "asphalt",
-            "speedLimit": 30
+            "speedLimit": 40
+          },
+          {
+            "id": "ramp_north_up",
+            "from": "n_north_ground",
+            "to": "n_north_low",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [200, 0, -540],
+              [200, 1, -535]
+            ],
+            "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
+            "shoulderWidth": 0,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 20
+          },
+          {
+            "id": "track_north_around",
+            "from": "n_north_low",
+            "to": "n_tunnel_n",
+            "type": "arterial",
+            "layer": "ground",
+            "elements": [
+              { "plate": { "x": 145, "z": -532.5, "yaw": 177.3974, "length": 110.114, "width": 8, "y": 1, "rise": 21, "rails": true } },
+              { "arc": { "cx": 90, "cz": -440, "radius": 90, "from": 270, "to": 180, "width": 8, "y": [22, 32], "bank": 0, "rails": true } },
+              { "plate": { "x": 0, "z": -430, "yaw": 90, "length": 20, "width": 8, "y": 32, "rise": 0, "rails": true } }
+            ],
+            "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
+            "shoulderWidth": 2,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 40
           }
         ],
         "junctions": []
@@ -151,7 +207,7 @@
             {
               "id": "portal_north",
               "position": [ 0, 32, -420 ],
-              "networkRef": "n_spawn",
+              "networkRef": "n_tunnel_n",
               "roadRef": "road_spawn_tunnel",
               "layer": "ground",
               "tangent": [ 0, 0, 1 ]
@@ -159,8 +215,8 @@
             {
               "id": "portal_south",
               "position": [ 0, 32, 420 ],
-              "networkRef": "n_exit",
-              "roadRef": "road_spawn_tunnel",
+              "networkRef": "n_tunnel_s",
+              "roadRef": "track_south_around",
               "layer": "ground",
               "tangent": [ 0, 0, 1 ]
             }

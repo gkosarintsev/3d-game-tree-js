@@ -72,16 +72,32 @@ function compileHills(cf, errors) {
 /**
  * Сегменты сети дорог CityForge → оси полотен v2. Каждый сегмент сети — отдельная
  * дорога: классификация (bridge/ground) и валидация зазоров тогда считаются по
- * реальному профилю сегмента, а не по объединённой цепочке (иначе наземный участок
- * маршрута, присоединённый к высокому подъёму, наследовал бы тип «мост» и давал
- * предупреждение о зазоре «под ним не пройти» у самого земли). Навигация и опоры
- * соединяются по общей геометрии/решётке, поэтому разрыв на объекты не создаёт
- * разрыва проходимости.
+ * реальному профилю сегмента. Навигация и опоры соединяются по общей геометрии,
+ * поэтому разрыв на объекты не создаёт разрыва проходимости.
+ *
+ * Сегмент с полем `elements` (v2 arc/plate) отдаётся как дорога с `elements`
+ * напрямую — так можно описать плавные повороты (как в главе 13) в CityForge-
+ * источнике; нормализатор развернёт элементы в настилы. Тип определяется по
+ * верхней отметке элементов.
  */
 function compileRoads(cf, groundY) {
   const roads = [];
   const segments = cf?.networks?.roads?.segments ?? [];
   for (const s of segments) {
+    if (Array.isArray(s.elements) && s.elements.length > 0) {
+      let top = -Infinity;
+      for (const el of s.elements) {
+        if (el.arc) top = Math.max(top, ...(el.arc.y ?? [0]));
+        if (el.plate) top = Math.max(top, el.plate.y ?? 0, (el.plate.y ?? 0) + (el.plate.rise ?? 0));
+      }
+      roads.push({
+        id: s.id,
+        type: top - groundY > J.bridgeMinHeight ? 'bridge' : 'ground',
+        width: s.lanes?.[0]?.width ?? 8,
+        elements: s.elements,
+      });
+      continue;
+    }
     const points = [];
     for (const p of s.path ?? []) {
       const last = points[points.length - 1];

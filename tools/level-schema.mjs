@@ -810,6 +810,12 @@ const CF_SEGMENT = obj({
   type: str({ enum: ['local', 'collector', 'arterial', 'highway', 'ramp', 'merge', 'split', 'connector'] }),
   layer: str({ pattern: CF_LAYER_PATTERN, doc: 'Logical topology label; the _N suffix marks a stacked tier.' }),
   path: arr(ref('point3'), { minItems: 2 }),
+  // v2 arc/plate chain for smooth turns (like chapter 13 track); alternative to axis-aligned path.
+  elements: arr(obj({
+    plate: V2_PLATE,
+    arc: V2_ARC,
+    connect: str({ enum: ['tangent'] }),
+  })),
   lanes: arr(ref('lane'), { minItems: 0 }),
   shoulderWidth: num({ min: 0 }),
   sidewalk: bool({ default: false }),
