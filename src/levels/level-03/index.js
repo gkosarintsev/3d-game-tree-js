@@ -129,8 +129,7 @@ export const LEVEL_03 = {
         "file": "chunk-1-1.l14b",
         "id": "1_1",
         "objects": {
-          "props": 4,
-          "roads": 1,
+          "roads": 2,
           "tunnels": 1
         },
         "rect": {
@@ -166,7 +165,7 @@ export const LEVEL_03 = {
         "file": "chunk-1-4.l14b",
         "id": "1_4",
         "objects": {
-          "props": 21,
+          "props": 42,
           "roads": 1
         },
         "rect": {
@@ -191,7 +190,6 @@ export const LEVEL_03 = {
         "file": "chunk-2-1.l14b",
         "id": "2_1",
         "objects": {
-          "props": 10,
           "roads": 1,
           "tunnels": 1
         },
@@ -232,6 +230,7 @@ export const LEVEL_03 = {
         "file": "chunk-2-4.l14b",
         "id": "2_4",
         "objects": {
+          "props": 12,
           "roads": 1
         },
         "rect": {
@@ -245,7 +244,6 @@ export const LEVEL_03 = {
         "file": "chunk-3-0.l14b",
         "id": "3_0",
         "objects": {
-          "props": 38,
           "roads": 1
         },
         "rect": {
@@ -259,8 +257,7 @@ export const LEVEL_03 = {
         "file": "chunk-3-1.l14b",
         "id": "3_1",
         "objects": {
-          "props": 38,
-          "roads": 1,
+          "roads": 2,
           "tunnels": 1
         },
         "rect": {
@@ -373,16 +370,16 @@ export const LEVEL_03 = {
       "cell": 24,
       "hills": [
         {
-          "bx": 0,
-          "bz": 0,
-          "height": 32,
+          "bx": 350,
+          "bz": -150,
+          "height": 110,
           "id": "hill_mountain",
-          "radius": 800,
-          "x": 0,
-          "z": 0
+          "radius": 600,
+          "x": -300,
+          "z": -150
         }
       ],
-      "maxSlope": 0.12,
+      "maxSlope": 0.28,
       "pads": []
     },
     "spawn": {
@@ -390,11 +387,11 @@ export const LEVEL_03 = {
       "z": 512
     },
     "stream": {
-      "aheadMax": 400,
-      "aheadMin": 100,
+      "aheadMax": 1200,
+      "aheadMin": 1200,
       "budgetMs": 16,
       "chunk": 256,
-      "keep": 1,
+      "keep": 4,
       "overlap": 1.175
     },
     "units": "meters"

@@ -1373,6 +1373,7 @@ export class JsonMap extends SurfaceField {
   _groundGeo(rect = null) {
     let rects = [rect ?? { minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
     for (const h of this.holes) rects = rects.flatMap(r => subtractRect(r, h));
+    for (const h of (this.tunnelHoles ?? [])) rects = rects.flatMap(r => subtractRect(r, h));
     if (!this.relief) {
       const geo = mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
         r.maxX - r.minX, r.maxZ - r.minZ,
@@ -1967,7 +1968,7 @@ export class JsonMap extends SurfaceField {
   _buildPicture(scene, groups, rect, water) {
     const objs = [];
     const ground = new THREE.Mesh(
-      (rect || this.holes.length || this.relief)
+      (rect || this.holes.length || (this.tunnelHoles?.length) || this.relief)
         ? this._groundGeo(rect)
         : new THREE.PlaneGeometry(this.width, this.depth),
       new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }),

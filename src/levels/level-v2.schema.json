@@ -2068,8 +2068,8 @@
               },
               "height": {
                 "type": "number",
-                "minimum": -60,
-                "maximum": 60,
+                "minimum": -300,
+                "maximum": 300,
                 "description": "м: подъём над полем; отрицательное — провал (долина). Крутизна холма ограничена relief.hillMaxSlope"
               }
             },

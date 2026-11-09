@@ -18,7 +18,7 @@ const DEG = Math.PI / 180;
  */
 export const DATA_SINKS = Object.freeze([
   'solids', 'surfaces', 'blockers', 'stairCells', 'floorPlates', 'roofPlates',
-  'deckPlates', 'sweeps', 'prisms', 'railWedges', 'rails', 'holes', 'descents',
+  'deckPlates', 'sweeps', 'prisms', 'railWedges', 'rails', 'holes', 'tunnelHoles', 'descents',
   'waterRects',
 ]);
 
@@ -100,6 +100,8 @@ export class SurfaceField extends SolidField {
     this.rails = [];
     /** планы, где грунт уровня прорезан руслом: в них нет «пола мира — ноль» */
     this.holes = [];
+    /** планы туннелей: вырез в меше земли (чтобы рельеф не перекрывал коридор), но НЕ русло для _inChannel */
+    this.tunnelHoles = [];
     /** сходы в русло и берега-склоны: узлы графа вдоль уклона */
     this.descents = [];
     /** зеркала воды: план на отметке surfaceY (меш без коллизий рисует карта) */
@@ -455,6 +457,8 @@ export class SurfaceField extends SolidField {
         ? { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ }
         : { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ };
       this._box(ceilingPlan, ceilY - J.deckThickness, ceilY, 'ceilings', { collide: true });
+      // вырез в меше рельефа, чтобы склон не перекрывал тоннель (как holes для русла, но без логики _inChannel)
+      this.tunnelHoles.push({ minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ });
     }
   }
 

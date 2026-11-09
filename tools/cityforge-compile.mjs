@@ -54,9 +54,15 @@ function compileHills(cf, errors) {
       return;
     }
     const c = Array.isArray(m.center) ? m.center : [m.center?.x ?? 0, m.center?.z ?? 0];
+    // Ridge/capsule: path with 2 points gives the spine ends (bx,bz); else point hill
+    const path = Array.isArray(m.path) && m.path.length >= 2 ? m.path : null;
+    const bx = path ? (Array.isArray(path[path.length - 1]) ? path[path.length - 1][0] : c[0]) : c[0];
+    const bz = path ? (Array.isArray(path[path.length - 1]) ? path[path.length - 1][1] : c[1]) : c[1];
+    const ax = path ? (Array.isArray(path[0]) ? path[0][0] : c[0]) : c[0];
+    const az = path ? (Array.isArray(path[0]) ? path[0][1] : c[1]) : c[1];
     hills.push({
       id: m.id ?? `hill_${i}`,
-      x: c[0], z: c[1], bx: c[0], bz: c[1],
+      x: ax, z: az, bx, bz,
       radius: m.radius, height: m.operation === 'subtract' ? -m.height : m.height,
     });
   });
@@ -200,7 +206,15 @@ export function compileCityforge(raw) {
 
   const sx = gp.spawn?.x ?? 0, sz = gp.spawn?.z ?? 0;
   const ex = gp.exit?.x ?? 0, ez = gp.exit?.z ?? 0;
-  const pad = (id, x, z) => ({ id, type: 'ground', width: 6, points: [{ x: x - 3, z, y: ground.y ?? 0 }, { x: x + 3, z, y: ground.y ?? 0 }] });
+  const pad = (id, x, z, y = ground.y ?? 0) => ({
+    id, type: 'ground', width: 6,
+    points: [{ x: x - 3, z, y }, { x: x + 3, z, y }],
+  });
+  // Площадки у порталов туннелей: подъёмные «носы» мостов обязаны приходить на
+  // полотно (валидатор bridgeNoses), а у тоннеля это его портал на отметке пола.
+  const tunnelPads = tunnels.flatMap((t, i) => (t.points ?? []).map((p, j) =>
+    pad(`tunnel_${t.id}_p${j}`, p.x, p.z, p.y)
+  ));
 
   const sky = raw.sky ?? {
     sky: 12575732,
@@ -232,7 +246,7 @@ export function compileCityforge(raw) {
       budgetMs: stream.budgetMs,
     },
     buildings: [],
-    roads: [pad('spawn_pad', sx, sz), pad('exit_pad', ex, ez), ...roads],
+    roads: [pad('spawn_pad', sx, sz), pad('exit_pad', ex, ez), ...tunnelPads, ...roads],
     tunnels,
     lights: [],
     gameplay: {
@@ -247,8 +261,16 @@ export function compileCityforge(raw) {
     sky,
   };
   if (hills.length) {
+    const maxH = Math.max(...hills.map((h) => Math.abs(h.height)));
+    const minR = Math.min(...hills.map((h) => h.radius));
+    // запас над аналитическим максимумом производной капсулы (1.5*H/R) и над
+    // крутизной суммарного поля: «большая гора» может быть круче дефолтов.
+    const hillMaxSlope = Math.max(J.relief.hillMaxSlope, Math.ceil((1.5 * maxH / Math.max(minR, 1)) * 100) / 100);
+    const maxSlope = Math.max(J.relief.maxSlope, hillMaxSlope);
     engine.relief = {
       baseY: ground.y ?? 0,
+      hillMaxSlope,
+      maxSlope,
       hills,
     };
   }

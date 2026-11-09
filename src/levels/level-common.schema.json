@@ -651,8 +651,8 @@
         },
         "height": {
           "type": "number",
-          "minimum": -60,
-          "maximum": 60
+          "minimum": -300,
+          "maximum": 300
         },
         "falloff": {
           "type": "string",

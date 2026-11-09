@@ -414,7 +414,7 @@ const V2_HILL = obj({
   bx: num({ doc: 'м: конец капсулы; без пары к (x,z) это круг' }),
   bz: num({ doc: 'м: конец капсулы' }),
   radius: num({ min: 2, req: true, doc: 'м: радиус capsule' }),
-  height: num({ min: -60, max: 60, req: true, doc: 'м: подъём над полем; отрицательное — провал (долина). Крутизна холма ограничена relief.hillMaxSlope' }),
+  height: num({ min: -300, max: 300, req: true, doc: 'м: подъём над полем; отрицательное — провал (долина). Крутизна холма ограничена relief.hillMaxSlope' }),
 }, { doc: 'холм-капсула поля высот' });
 
 // Авторская площадка: терраса района, площадь, насыпь. Отметка `y` держится в
@@ -721,7 +721,7 @@ const CF_TERRAIN_MODIFIER = obj({
   type: str({ enum: ['mountain', 'valley', 'terrain_modifier'], req: true }),
   center: ref('point2'),
   radius: num({ min: 2 }),
-  height: num({ min: -60, max: 60 }),
+  height: num({ min: -300, max: 300 }),
   falloff: str({ enum: ['smooth', 'linear', 'step'] }),
   path: arr(ref('point2'), { minItems: 2 }),
   width: num({ min: 2 }),
