@@ -14,7 +14,7 @@ import { resolve } from 'node:path';
 import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel, waterwayFoot, stairRun } from './normalize-level.mjs';
 import { generateModule } from './build-level.mjs';
-import { schemaText, SCHEMA_FILES } from './export-schema.mjs';
+import { schemaTextFor, SCHEMA_FILES } from './export-schema.mjs';
 import {
   expandCity, ARCHETYPE_NAMES, DISTRICT_DEFAULTS, TRACK_DEFAULTS,
   CITY_KEYS, DISTRICT_KEYS, DISTRICT_SECTION_KEYS, V2_DISTRICT_KEYS, V2_DISTRICT_SECTION_KEYS, TRACK_KEYS,
@@ -3064,10 +3064,18 @@ t('gameplay.cars: стоянка в русле вне настила — пре�
 const BRIEFS = ['11', '12', '13'].map(n => `src/levels/level-${n}.json`);
 
 /** Subset-валидатор draft-07: ровно теKeywords, которые печатает экспортёр. */
-function checkJsonSchema(value, schema, path, errors) {
+function checkJsonSchema(value, schema, path, errors, defs) {
+  defs = defs ?? schema.__defs;
+  if (schema.$ref) {
+    const name = schema.$ref.slice(schema.$ref.lastIndexOf('/') + 1);
+    const target = defs?.[name];
+    if (!target) { errors.push(`${path}: $ref ${schema.$ref} не разрешён`); return; }
+    checkJsonSchema(value, target, path, errors, defs);
+    return;
+  }
   if (schema.oneOf) {
     // color: число ИЛИ строка-хекс; достаточно пройти одной ветке
-    if (!schema.oneOf.some(br => !checkJsonSchema(value, br, path, []))) {
+    if (!schema.oneOf.some(br => !checkJsonSchema(value, br, path, [], defs))) {
       errors.push(`${path}: не подходит ни под одну ветку oneOf`);
     }
     return;
@@ -3090,7 +3098,7 @@ function checkJsonSchema(value, schema, path, errors) {
       if (!Array.isArray(value)) { errors.push(`${path}: ожидался массив`); return; }
       if (schema.minItems !== undefined && value.length < schema.minItems) errors.push(`${path}: меньше ${schema.minItems} элементов`);
       if (schema.maxItems !== undefined && value.length > schema.maxItems) errors.push(`${path}: больше ${schema.maxItems} элементов`);
-      value.forEach((v, i) => checkJsonSchema(v, schema.items, `${path}[${i}]`, errors));
+      value.forEach((v, i) => checkJsonSchema(v, schema.items, `${path}[${i}]`, errors, defs));
       return;
     case 'object': {
       if (value === null || typeof value !== 'object' || Array.isArray(value)) { errors.push(`${path}: ожидался объект`); return; }
@@ -3098,7 +3106,7 @@ function checkJsonSchema(value, schema, path, errors) {
         if (value[key] === undefined) errors.push(`${path}.${key}: обязательное поле отсутствует`);
       }
       for (const [key, sub] of Object.entries(schema.properties ?? {})) {
-        if (value[key] !== undefined) checkJsonSchema(value[key], sub, `${path}.${key}`, errors);
+        if (value[key] !== undefined) checkJsonSchema(value[key], sub, `${path}.${key}`, errors, defs);
       }
       if (schema.additionalProperties === false) {
         for (const key of Object.keys(value)) {
@@ -3113,8 +3121,9 @@ function checkJsonSchema(value, schema, path, errors) {
 }
 
 t('закоммиченные JSON Schema совпадают с выводом экспортёра побайтово', () => {
-  for (const { spec, title, out } of SCHEMA_FILES) {
-    const fresh = schemaText(spec, title);
+  for (const entry of SCHEMA_FILES) {
+    const { out } = entry;
+    const fresh = schemaTextFor(entry);
     const committed = readFileSync(out, 'utf8').replace(/\r\n/g, '\n');
     assert(committed === fresh,
       `${out.split(/[\\/]/).pop()}: расходится с DSL на ${committed.length - fresh.length} символов — перезапустите node tools/export-schema.mjs`);
@@ -3124,20 +3133,23 @@ t('закоммиченные JSON Schema совпадают с выводом �
 t('экспортированная схема принимает каждый закоммиченный бриф', () => {
   for (const file of BRIEFS) {
     const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
-    const { spec, title } = raw.kind === 'json2' ? SCHEMA_FILES[1] : SCHEMA_FILES[0];
+    const entry = raw.kind === 'json2' ? SCHEMA_FILES[1] : SCHEMA_FILES[0];
     const errors = [];
-    checkJsonSchema(raw, renderFor(spec, title), '', errors);
+    checkJsonSchema(raw, renderFor(entry), '', errors);
     assert(errors.length === 0, `${file}: rejected — ${errors.slice(0, 4).join(' | ')}`);
   }
 });
 
-/** Корень exported-схемы ровно в том виде, в каком он лежит в файле. */
-function renderFor(spec, title) {
-  return JSON.parse(schemaText(spec, title));
+/** Корень exported-схемы с подгруженными общими определениями v3. */
+function renderFor(entry) {
+  const root = JSON.parse(schemaTextFor(entry));
+  const common = SCHEMA_FILES.find(e => e.definitions);
+  if (common) root.__defs = JSON.parse(schemaTextFor(common)).definitions;
+  return root;
 }
 
 t('схема отбраковывает ключ, которого в ней нет, и число вне предела', () => {
-  const v1 = renderFor(SCHEMA_FILES[0].spec, SCHEMA_FILES[0].title);
+  const v1 = renderFor(SCHEMA_FILES[0]);
   const stray = structuredClone(JSON.parse(readFileSync(resolve(ROOT, 'probe/v1-brief.json'), 'utf8')));
   stray.tunnel = 1;
   const errors = [];
@@ -3149,6 +3161,63 @@ t('схема отбраковывает ключ, которого в ней н
   const e2 = [];
   checkJsonSchema(out, v1, '', e2);
   hasError(e2, 'ground.size', 'minimum');
+});
+
+t('v3 принимает минимальный CityForge-бриф и не оставляет неразрешённых $ref', () => {
+  const brief = {
+    kind: 'cityforge',
+    metadata: { levelName: 'level-99', name: 'Test', hint: 'Reach B', units: 'meters' },
+    ground: { size: 256 },
+    gameplay: { goal: 'exit', spawn: { x: 0, z: 0 }, exit: { x: 10, z: 10 } },
+    cityforge: {
+      format: 'cityforge',
+      version: '0.1',
+      world: {
+        units: 'meters',
+        coordinateSystem: { type: 'local', handedness: 'right', up: 'Z' },
+        bounds: { min: [0, 0, 0], max: [256, 0, 256] },
+      },
+    },
+  };
+  const errors = [];
+  checkJsonSchema(brief, renderFor(SCHEMA_FILES[2]), '', errors);
+  eq(errors.length, 0, `CityForge-бриф отвергнут: ${errors.slice(0, 4).join(' | ')}`);
+
+  // некорректный CityForge-бриф обязан быть отвергнут exported-схемой именно в
+  // месте порчи: обязательность (exit, position), pattern layer и форма caves
+  const broken = mutate => {
+    const bad = structuredClone(brief);
+    mutate(bad);
+    const errs = [];
+    checkJsonSchema(bad, renderFor(SCHEMA_FILES[2]), '', errs);
+    return errs;
+  };
+  hasError(broken(b => { delete b.gameplay.exit; }), 'gameplay.exit', 'обязательное поле отсутствует');
+  hasError(broken(b => {
+    b.cityforge.networks = { roads: { nodes: [{ id: 'n1' }] } };
+  }), 'networks.roads.nodes[0].position', 'обязательное поле отсутствует');
+  hasError(broken(b => {
+    b.cityforge.networks = { roads: { nodes: [{ id: 'n1', position: [0, 0, 0], layer: 'bogus' }] } };
+  }), 'networks.roads.nodes[0].layer', 'pattern');
+  hasError(broken(b => {
+    b.cityforge.instances = [{ id: 'i1', template: 't', transform: { rotation: [0, 0, 0, 1] } }];
+  }), 'instances[0].transform.position', 'обязательное поле отсутствует');
+  hasError(broken(b => {
+    b.cityforge.caves = [{ id: 'c1' }];
+  }), 'cityforge.caves', 'ожидался объект');
+
+  const common = JSON.parse(schemaTextFor(SCHEMA_FILES.find(e => e.definitions)));
+  const refs = [];
+  const walk = node => {
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (!node || typeof node !== 'object') return;
+    if (typeof node.$ref === 'string') refs.push(node.$ref);
+    Object.values(node).forEach(walk);
+  };
+  walk(JSON.parse(schemaTextFor(SCHEMA_FILES[2])));
+  walk(common);
+  const missing = refs.filter(r => !common.definitions[r.split('/definitions/')[1]]);
+  eq(missing.length, 0, `неразрешённые $ref: ${missing.slice(0, 4).join(', ')}`);
 });
 
 t('у каждого адресуемого поля обеих схем есть описание', () => {

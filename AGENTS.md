@@ -236,10 +236,13 @@
   как остальные типы едят свою map-секцию.
 - Схема брифа живёт **в одном DSL** (`tools/level-schema.mjs`) и печатает из себя
   JSON Schema draft-07 (`node tools/export-schema.mjs` →
-  `src/levels/level.schema.json`, `src/levels/level-v2.schema.json` и
-  `src/levels/level-v3.schema.json`); рукописного
+  `src/levels/level.schema.json`, `src/levels/level-v2.schema.json`,
+  `src/levels/level-v3.schema.json` и его общие определения
+  `src/levels/level-common.schema.json`); рукописного
   `.schema.json` в репозитории нет и не будет — третий файл с теми же числами
-  разошёлся бы с валидатором при первой правке. Каждый бриф обязан начинаться с
+  разошёлся бы с валидатором при первой правке. v3 ссылается на общий файл
+  через `$ref`, поэтому корень остаётся тонким, а определения не дублируются.
+  Каждый бриф обязан начинаться с
   `$schema` на файл **своей версии** (`./level.schema.json` для v1,
   `./level-v2.schema.json` для `json2`, `./level-v3.schema.json` для `kind: 'cityforge'`),
   потому что три схемы, а не две с `allOf`: `additionalProperties: false` внутри
@@ -250,6 +253,9 @@
 - У каждого узла DSL, который автор адресует по имени (поле и object-элемент
   массива), обязан быть `doc` — смысл, единица и источник предела; примитивный
   элемент массива описывает сам массив (`«[min, max] этажности башни»`).
+  Исключение — v3: здесь `doc` несут только неочевидные поля, и **все описания
+  на английском**; название, из которого смысл ясен без пояснения, остаётся без
+  `description`, чтобы схема не росла.
   `default` в DSL обязано приходить **из того же объекта, который его
   подставляет** (`CONFIG.jsonMap`, `CONFIG.fog/sun/hemi/night`,
   `DISTRICT_DEFAULTS`/`TRACK_DEFAULTS` из `tools/city.js`), иначе схема станет

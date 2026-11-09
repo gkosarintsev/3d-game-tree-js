@@ -45,12 +45,14 @@ const bool = (opts = {}) => ({ kind: 'boolean', ...opts });
 const color = (opts = {}) => ({ kind: 'color', ...opts });
 const obj = (fields, opts = {}) => ({ kind: 'object', fields, ...opts });
 const arr = (items, opts = {}) => ({ kind: 'array', items, ...opts });
+const ref = (name, opts = {}) => ({ kind: 'ref', name, ...opts });
 const V2XZ = obj({ x: num({ req: true, doc: 'м: мировая координата X' }), z: num({ req: true, doc: 'м: мировая координата Z' }) }, { doc: 'точка в плане (метры)' });
 const V3XYZ = obj({ x: num({ req: true, doc: 'м: мировая координата X' }), y: num({ req: true, doc: 'м: мировая отметка' }), z: num({ req: true, doc: 'м: мировая координата Z' }) }, { doc: 'точка в мире (метры)' });
 /**
- * Описание полей брифа. Каждый лист несёт `doc` — смысл, единицу и источник
- * предела или дефолта, — и `default`, только если код действительно подставляет
- * значение при отсутствии поля. Ни `doc`, ни `default` не участвуют в проверке:
+ * Описание полей брифа. У v1/v2 каждый лист несёт `doc` — смысл, единицу и
+ * источник предела или дефолта; у v3 (`level-common.schema.json`) `doc` есть
+ * только у неочевидных полей и только на английском. `default` ставится, лишь
+ * если код действительно подставляет значение при отсутствии поля. Ни `doc`, ни `default` не участвуют в проверке:
  * `checkValue` читает `kind/min/max/enum/req/items/fields` и больше ничего. Они
  * нужны `tools/export-schema.mjs`, который печатает JSON Schema draft-07 —
  * единственный артефакт, который автор (или ИИ) может прочитать ДО запуска
@@ -543,363 +545,470 @@ export const LEVEL_SPEC_V2 = {
 
 // ------------------------------------------------------------- CityForge v3 (`kind: 'cityforge'`)
 
-// Схема v3 — CityForge source data (`docs/world-format.md`): уровень-источник
-// описывается иерархией City (World · Generation · Assets · Districts · Blocks ·
-// Parcels · Terrain · Hydrology · Caves · Networks · Structures · Instances ·
-// Chunks) вместо плоского списка улиц и домов брифа v2. Поля v2 наследуются без
-// изменений — у v3 они опциональны и лишь расширяют корень: источник несёт и
-// смысловые коллекции города, и игровые данные (цель A→B, спавн, противники).
+// v3 is a new source format: the city is described by CityForge entities from
+// docs/world-format.md, not by the flat v2 lists (roads / buildings / relief /
+// city). All reusable definitions live in `level-common.schema.json`; the root
+// file only wires them together. Descriptions are English and kept only where
+// the field name alone does not explain the meaning or the constraint.
 
-/** Мир CityForge: единицы, система координат, происхождение и границы. */
+// --- shared primitives -----------------------------------------------------
+
+const CF_COLOR = color({});
+const V3_XZ = obj({ x: num({ req: true }), z: num({ req: true }) });
+const CF_POINT2 = arr(num({}), { minItems: 2, maxItems: 2 });
+const CF_POINT3 = arr(num({}), { minItems: 3, maxItems: 3 });
+const CF_POINT4 = arr(num({}), { minItems: 4, maxItems: 4 });
+const CF_RING = arr(ref('point2'), { minItems: 3 });
+const CF_AREA = obj({
+  type: str({ enum: ['polygon'], req: true }),
+  rings: arr(ref('ring'), { minItems: 1, req: true }),
+});
+const CF_PARAMETERS = obj({}, {
+  open: true,
+  doc: 'Descriptors keyed by parameter name: type, min, max, values, default.',
+});
+const CF_OPEN = obj({}, { open: true });
+// суффикс _N — многоярусный стек (§4.1 world-format: bridge_01, bridge_02)
+const CF_LAYER_PATTERN = '^(ground|embankment|bridge|skybridge|underground)(_[0-9]+)?$';
+
+const CF_SOCKET = obj({
+  id: str({ req: true }),
+  position: ref('point3'),
+  rotation: ref('point4'),
+});
+
+// --- chapter envelope ------------------------------------------------------
+
+const V3_METADATA = obj({
+  levelName: str({ req: true, doc: 'Pipeline name; selects the generated module name.' }),
+  name: str({ req: true }),
+  hint: str({ req: true }),
+  engine: str({}),
+  units: str({ enum: ['meters'], req: true, doc: 'All lengths are meters and angles are degrees.' }),
+  notes: str({ doc: 'Free-form rationale; the engine does not read it.' }),
+}, { doc: 'Chapter header; only name and hint reach the engine.' });
+
+const V3_GROUND = obj({
+  y: num({ default: 0 }),
+  size: num({ min: 20, req: true, doc: 'Ground plate side in meters; outside the plate the world is blocked.' }),
+  color: ref('color'),
+}, { doc: 'Flat ground plate; CityForge terrain modifiers sit on top of it.' });
+
+const V3_GAMEPLAY = obj({
+  goal: str({ enum: ['exit'], req: true, doc: 'CityForge briefs use A-to-B (exit) goals.' }),
+  spawn: ref('vec2', { req: true }),
+  exit: ref('vec2', { req: true }),
+  exitRadius: num({ min: 1, max: 40, default: 3.5 }),
+  enemies: obj({ count: num({ min: 0, max: 30 }) }),
+  alienEnemies: obj({ count: num({ min: 0, max: 30 }) }),
+  cars: obj({
+    count: num({ min: 0, max: 8, req: true, doc: 'Must equal spots length.' }),
+    spots: arr(obj({
+      x: num({ req: true }),
+      z: num({ req: true }),
+      yaw: num({ min: -360, max: 360, default: 0 }),
+    }), { maxItems: 8 }),
+  }),
+}, { doc: 'Objective, spawn, enemies and parked cars for the chapter.' });
+
+const V3_STREAM = obj({
+  chunk: num({ min: CHUNK_MIN, max: CHUNK_MAX, req: true, doc: 'Cell side in meters; must divide ground.size.' }),
+  keep: num({ min: 0, max: 4, req: true, doc: 'Loaded cells around the player: window (2*keep + 1)^2.' }),
+  aheadMin: num({ min: 0, max: 1200, req: true, doc: 'Look-ahead radius on foot, in meters.' }),
+  aheadMax: num({ min: 0, max: 1200, req: true, doc: 'Look-ahead radius for vehicles; must be >= aheadMin.' }),
+  budgetMs: num({ min: 1, max: 100, req: true, doc: 'Per-frame build budget in milliseconds.' }),
+}, { doc: 'Open-world streaming window; omit for a single-cell world.' });
+
+// --- CityForge entities ----------------------------------------------------
+
 const CF_WORLD = obj({
-  units: str({ enum: ['meters'], req: true, doc: 'единицы измерения мира CityForge' }),
+  units: str({ enum: ['meters'], req: true }),
   coordinateSystem: obj({
-    type: str({ enum: ['local'], req: true, doc: 'тип системы координат' }),
-    handedness: str({ enum: ['right'], req: true, doc: 'правосторонность' }),
-    up: str({ enum: ['Z'], req: true, doc: 'ось вверх' }),
-  }, { req: true, doc: 'координатная система мира' }),
-  origin: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] локального начала координат' }),
-  bounds: obj({
-    min: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] минимум границ' }),
-    max: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] максимум границ' }),
-  }, { req: true, doc: 'AABB границ мира' }),
-}, { req: true, doc: 'мир CityForge: единицы, система координат, происхождение и границы' });
+    type: str({ enum: ['local'], req: true }),
+    handedness: str({ enum: ['right'], req: true }),
+    up: str({ enum: ['Z'], req: true }),
+  }, { req: true }),
+  origin: ref('point3'),
+  bounds: obj({ min: ref('point3'), max: ref('point3') }, { req: true }),
+}, { req: true, doc: 'Local right-handed meter space, Z up.' });
 
-/** Процедурная генерация: режимы procedural / prefab / hybrid на уровне генератора. */
 const CF_GENERATION = obj({
-  seed: num({ req: true, doc: 'целое: сид ГПСЧ; локальный сид = citySeed + districtId + … + generatorVersion' }),
-  generatorVersion: str({ req: true, doc: 'версия генератора: фиксирует результат ГПСЧ и детерминизм' }),
-  deterministic: bool({ default: true, doc: 'один сид и версия генератора должны давать одинаковый результат' }),
-}, { doc: 'процедурная генерация CityForge' });
+  seed: num({ req: true, doc: 'Deterministic seed; local seeds derive from it and entity ids.' }),
+  generatorVersion: str({ req: true, doc: 'Part of the seed: bumping it resets the generated layout.' }),
+  deterministic: bool({ default: true }),
+});
 
-/** Шаблон из Asset Library: procedural / prefab / composite. */
 const CF_ASSET = obj({
-  id: str({ req: true, doc: 'уникальный id шаблона из Asset Library' }),
-  kind: str({ enum: ['procedural', 'prefab', 'composite'], req: true, doc: 'проcedural — генератором; prefab — готовая 3D-модель; composite — сборка из ресурсов' }),
-  generator: str({ doc: 'имя процедурного генератора (у prefab — источник модели)' }),
+  id: str({ req: true }),
+  kind: str({
+    enum: ['procedural', 'prefab', 'composite'],
+    req: true,
+    doc: 'procedural builds geometry, prefab references a GLB, composite assembles children.',
+  }),
+  generator: str({}),
   geometry: obj({
-    source: str({ req: true, doc: 'идентификатор источника геометрии (GLB)' }),
-  }, { doc: 'исходная геометрия шаблона' }),
-  parameters: obj({
-    floors: num({ min: 1, max: 4, default: 2, doc: 'эт: число этажей шаблона' }),
-    roof: str({ enum: ['flat', 'gable', 'hip'], default: 'gable', doc: 'эт: форма крыши шаблона' }),
-    facade: str({ enum: ['brick', 'plaster', 'concrete'], default: 'plaster', doc: 'эт: материал фасада шаблона' }),
-  }, { doc: 'параметры шаблона: типы и значения по умолчанию' }),
-  bounds: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] размеры шаблона' }),
-}, { doc: 'шаблон ресурса Asset Library' });
+    source: str({ req: true, doc: 'GLB path or procedural source id.' }),
+  }, {}),
+  parameters: ref('parameters'),
+  bounds: ref('point3'),
+  children: arr(str({}), { minItems: 1 }),
+  sockets: arr(ref('socket'), { minItems: 0 }),
+}, { doc: 'Asset Library template.' });
 
-const CF_ASSETS = arr(CF_ASSET, { minItems: 1, doc: 'Asset Library: каталог шаблонов городских объектов' });
+const CF_PALETTE_ENTRY = obj({
+  template: str({ req: true }),
+  weight: num({ min: 0 }),
+  parameterRanges: CF_OPEN,
+});
 
-/** Район CityForge: тип, границы, стиль и правила генерации. */
 const CF_DISTRICT = obj({
-  id: str({ req: true, doc: 'id района' }),
-  type: str({ enum: ['residential', 'industrial', 'commercial', 'park', 'downtown'], req: true, doc: 'тип района' }),
-  area: obj({
-    type: str({ enum: ['polygon'] }),
-    rings: arr(arr(num({ min: 0 }), { minItems: 3 }), { minItems: 1, doc: 'кольца полигона' }),
-  }, { req: true, doc: 'географические границы района' }),
-  style: str({ enum: ['suburban', 'industrial', 'commercial', 'historic', 'modern', 'park'], doc: 'архитектурный стиль' }),
+  id: str({ req: true }),
+  type: str({ enum: ['residential', 'industrial', 'commercial', 'park', 'downtown'], req: true }),
+  area: ref('area', { req: true }),
+  style: str({}),
   rules: obj({
-    buildingDensity: num({ min: 0, max: 1, doc: 'доля территории под застройку' }),
-    heightRange: arr(num({ min: 1 }), { minItems: 2, maxItems: 2, doc: '[min, max] этажности' }),
-    maxFootprintRatio: num({ min: 0, max: 1, doc: 'максимальная доля территории под застройку' }),
-    setback: num({ min: 0, doc: 'отступ зданий от границ района' }),
-    buildingPalette: arr(obj({
-      template: str({ enum: ARCHETYPE_NAMES }),
-      weight: num({ min: 0, max: 1, doc: 'относительная вероятность выбора шаблона' }),
-      parameterRanges: obj({ floors: arr(num({ min: 1 }), { minItems: 2, maxItems: 2, doc: '[min, max] этажности шаблона' }) }),
-    }), { minItems: 1, doc: 'палитра шаблонов района' }),
+    buildingDensity: num({ min: 0, max: 1 }),
+    heightRange: arr(num({ min: 1 }), { minItems: 2, maxItems: 2 }),
+    maxFootprintRatio: num({ min: 0, max: 1 }),
+    setback: num({ min: 0 }),
+    buildingPalette: arr(CF_PALETTE_ENTRY, { minItems: 1 }),
     vegetation: obj({
-      density: num({ min: 0, max: 1, doc: 'плотность растительности' }),
-      palette: arr(str({}), { minItems: 1, doc: 'id растений района' }),
-    }, { doc: 'правила размещения растений' }),
+      density: num({ min: 0, max: 1 }),
+      palette: arr(str({}), { minItems: 1 }),
+    }),
     roadStyle: obj({
-      type: str({ enum: ['local', 'collector', 'arterial', 'highway'], doc: 'тип дорожной сети района' }),
-      speedLimit: num({ min: 0, doc: 'м/с: предел скорости' }),
-    }, { doc: 'характеристики дорожной сети района' }),
-  }, { doc: 'правила генерации района' }),
-}, { doc: 'район CityForge' });
+      type: str({ enum: ['local', 'collector', 'arterial', 'highway'] }),
+      speedLimit: num({ min: 0 }),
+    }),
+  }),
+}, { doc: 'District extent plus generation rules and style.' });
 
 const CF_BLOCK = obj({
-  id: str({ req: true, doc: 'id квартала' }),
-  districtRef: str({ req: true, doc: 'id района-владельца' }),
-  area: obj({
-    type: str({ enum: ['polygon'] }),
-    rings: arr(arr(num({ min: 0 }), { minItems: 3 }), { minItems: 1, doc: 'кольца полигона' }),
-  }, { req: true, doc: 'полигон квартала' }),
-  parcels: arr(str({}), { minItems: 0, doc: 'id участков квартала' }),
-}, { doc: 'квартал CityForge' });
+  id: str({ req: true }),
+  districtRef: str({ req: true }),
+  area: ref('area', { req: true }),
+  parcels: arr(str({}), { minItems: 0 }),
+});
 
 const CF_PARCEL = obj({
-  id: str({ req: true, doc: 'id участка' }),
-  blockRef: str({ req: true, doc: 'id квартала-владельца' }),
-  area: obj({
-    type: str({ enum: ['polygon'] }),
-    rings: arr(arr(num({ min: 0 }), { minItems: 3 }), { minItems: 1, doc: 'кольца полигона' }),
-  }, { req: true, doc: 'полигон участка' }),
-  buildable: bool({ default: true, doc: 'строит ли участок' }),
-  buildingRules: obj({
-    maxFloors: num({ min: 1, doc: 'эт: верхний предел этажности участка' }),
-  }, { doc: 'правила застройки участка' }),
-}, { doc: 'участок CityForge' });
+  id: str({ req: true }),
+  blockRef: str({ req: true }),
+  area: ref('area', { req: true }),
+  buildable: bool({ default: true }),
+  buildingRules: obj({ maxFloors: num({ min: 1 }) }),
+});
 
-// Рельеф CityForge: базовый heightfield + последовательно применяемые модификаторы
-// (гора, долина, произвольное terrain-изменение).
 const CF_TERRAIN_MODIFIER = obj({
-  id: str({ req: true, doc: 'id модификатора' }),
-  type: str({ enum: ['mountain', 'valley', 'terrain_modifier'], req: true, doc: 'тип модификатора: гора / долина / произвольное изменение поля' }),
-  center: arr(num({ min: 0 }), { minItems: 2, maxItems: 2, doc: '[x, z] центр модификатора' }),
-  radius: num({ min: 2, doc: 'м: радиус (для горы); для долины — ширина долины' }),
-  height: num({ min: -60, max: 60, doc: 'м: подъём над полем; отрицательное — провал (долина)' }),
-  falloff: num({ min: 0, max: 1, doc: 'м: мягкость перехода к нулю' }),
-  path: arr(arr(num({ min: 0 }), { minItems: 2 }), { minItems: 2, doc: 'ось [x, z] профиля (для долины)' }),
-  width: num({ min: 2, doc: 'м: ширина долины' }),
-  depth: num({ min: 0, doc: 'м: глубина долины' }),
-}, { doc: 'один модификатор поля рельефа' });
+  id: str({ req: true }),
+  type: str({ enum: ['mountain', 'valley', 'terrain_modifier'], req: true }),
+  center: ref('point2'),
+  radius: num({ min: 2 }),
+  height: num({ min: -60, max: 60 }),
+  falloff: str({ enum: ['smooth', 'linear', 'step'] }),
+  path: arr(ref('point2'), { minItems: 2 }),
+  width: num({ min: 2 }),
+  depth: num({ min: 0 }),
+  operation: str({ enum: ['add', 'subtract', 'replace'] }),
+  sourceRef: str({}),
+  parameters: CF_OPEN,
+}, { doc: 'Applied in array order after the base heightfield.' });
 
 const CF_TERRAIN = obj({
   base: obj({
     type: str({ enum: ['heightfield'] }),
-    source: str({ req: true, doc: 'источник базового поля' }),
-    resolution: num({ min: 1, doc: 'разрешение базового поля' }),
-  }, { req: true, doc: 'базовый рельеф: heightfield' }),
-  modifiers: arr(CF_TERRAIN_MODIFIER, { minItems: 1, doc: 'модификаторы, применяемые последовательно' }),
-}, { req: true, doc: 'ландшафт: базовый heightfield и модификаторы' });
+    source: str({ req: true }),
+    resolution: num({ min: 1 }),
+  }, { req: true }),
+  modifiers: arr(ref('terrainModifier'), { minItems: 1 }),
+}, { doc: 'Base heightfield plus sequential modifiers.' });
 
-/** Гидрология: реки и озёра. */
 const CF_WATERWAY = obj({
-  id: str({ req: true, doc: 'id русла' }),
-  path: arr(arr(num({ min: 0 }), { minItems: 3, maxItems: 3 }), { minItems: 2, doc: 'ось [x, y, z] русла' }),
-  width: num({ min: 2, max: 120, doc: 'м: ширина русла' }),
-  depth: num({ min: 0, doc: 'м: глубина русла' }),
-  flow: str({ enum: ['start_to_end', 'end_to_start', 'cyclic'], doc: 'направление течения' }),
-  carveTerrain: bool({ default: false, doc: 'carveTerrain: русло должно изменять рельеф' }),
-}, { doc: 'река' });
+  id: str({ req: true }),
+  path: arr(ref('point3'), { minItems: 2, req: true }),
+  width: num({ min: 2, max: 120, req: true }),
+  widthProfile: arr(arr(num({}), { minItems: 2, maxItems: 2 }), { minItems: 2, doc: '[t, width]: riverbed width at normalized distance t along path.' }),
+  depth: num({ min: 0, req: true }),
+  flow: str({ enum: ['start_to_end', 'end_to_start', 'cyclic'] }),
+  carveTerrain: bool({ default: false, doc: 'Carve the riverbed into the terrain.' }),
+});
+
 const CF_LAKE = obj({
-  id: str({ req: true, doc: 'id озера' }),
-  area: obj({
-    type: str({ enum: ['polygon'] }),
-    rings: arr(arr(num({ min: 0 }), { minItems: 3 }), { minItems: 1, doc: 'кольца полигона' }),
-  }, { req: true, doc: 'полигон озера' }),
-  waterLevel: num({ min: 0, doc: 'м: отметка воды' }),
-}, { doc: 'озеро' });
+  id: str({ req: true }),
+  area: ref('area', { req: true }),
+  waterLevel: num({}),
+});
+
 const CF_HYDROLOGY = obj({
-  rivers: arr(CF_WATERWAY, { minItems: 0, doc: 'реки' }),
-  lakes: arr(CF_LAKE, { minItems: 0, doc: 'озёра' }),
-}, { doc: 'гидрология: реки и озёра' });
+  rivers: arr(ref('waterway'), { minItems: 0 }),
+  lakes: arr(ref('lake'), { minItems: 0 }),
+});
 
-/** Пещеры: системы с камерами, проходами и входами. */
 const CF_CAVE = obj({
-  id: str({ req: true, doc: 'id системы пещер' }),
+  id: str({ req: true }),
   chambers: arr(obj({
-    id: str({ req: true, doc: 'id камеры' }),
-    center: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] камеры' }),
-    radius: arr(num({ min: 0 }), { minItems: 2, maxItems: 2, doc: '[radiusMin, radiusMax] камеры' }),
-  }, { doc: 'камера' }), { minItems: 1, doc: 'камеры системы' }),
+    id: str({ req: true }),
+    center: ref('point3'),
+    radius: ref('point3'),
+  }), { minItems: 1 }),
   passages: arr(obj({
-    id: str({ req: true, doc: 'id прохода' }),
-    from: str({ req: true, doc: 'id камеры-источника' }),
-    to: str({ req: true, doc: 'id камеры-назначения' }),
-    path: arr(arr(num({ min: 0 }), { minItems: 2 }), { minItems: 2, doc: 'ось прохода [x, z]' }),
-    radius: num({ min: 0, doc: 'м: радиус прохода' }),
-  }, { doc: 'тоннель между камерами' }), { minItems: 0, doc: 'проходы системы' }),
+    id: str({ req: true }),
+    from: str({ req: true }),
+    to: str({ req: true }),
+    path: arr(ref('point3'), { minItems: 2 }),
+    radius: num({ min: 0 }),
+  }), { minItems: 0 }),
   entrances: arr(obj({
-    id: str({ req: true, doc: 'id входа' }),
-    chamberRef: str({ req: true, doc: 'id камеры-входа' }),
-    surfacePosition: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] точки входа на поверхность' }),
-    openingRadius: num({ min: 0, doc: 'м: радиус проёма' }),
-  }, { doc: 'вход на поверхность' }), { minItems: 0, doc: 'входы системы' }),
-}, { doc: 'система пещер' });
+    id: str({ req: true }),
+    chamberRef: str({ req: true }),
+    surfacePosition: ref('point3'),
+    openingRadius: num({ min: 0 }),
+  }), { minItems: 0 }),
+}, { doc: 'Chambers, passages and surface entrances of one cave system.' });
 
-/** Узлы и сегменты дорожной сети; перекрёстки с соединениями полос. */
+const CF_CAVES = obj({
+  systems: arr(ref('cave'), { minItems: 1 }),
+}, { doc: 'Collection of cave systems.' });
+
 const CF_NODE = obj({
-  id: str({ req: true, doc: 'id узла' }),
-  position: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, req: true, doc: '[x, y, z] узла' }),
-  layer: str({ enum: ['ground', 'embankment', 'bridge', 'skybridge', 'underground'], doc: 'уровень дорожной сети' }),
-}, { doc: 'узел дорожной сети' });
+  id: str({ req: true }),
+  position: ref('point3', { req: true }),
+  layer: str({
+    pattern: CF_LAYER_PATTERN,
+    doc: 'Logical topology label; physical height comes from position.z. Multi-tier stacks append _N (bridge_01).',
+  }),
+});
+
 const CF_LANE = obj({
-  id: str({ req: true, doc: 'id полосы' }),
-  direction: str({ enum: ['forward', 'backward'], req: true, doc: 'направление полосы' }),
-  width: num({ min: 0, doc: 'м: ширина полосы' }),
-  type: str({ enum: ['vehicle', 'pedestrian', 'rail'], doc: 'тип полосы' }),
-}, { doc: 'полоса дорожной сети' });
+  id: str({ req: true }),
+  direction: str({ enum: ['forward', 'backward'], req: true }),
+  width: num({ min: 0 }),
+  type: str({ enum: ['vehicle', 'bus', 'tram', 'bike', 'pedestrian', 'rail'] }),
+});
+
 const CF_SEGMENT = obj({
-  id: str({ req: true, doc: 'id сегмента' }),
-  from: str({ req: true, doc: 'id узла-источника' }),
-  to: str({ req: true, doc: 'id узла-назначения' }),
-  type: str({ enum: ['local', 'collector', 'arterial', 'highway', 'ramps'], doc: 'тип сегмента' }),
-  layer: str({ enum: ['ground', 'embankment', 'bridge', 'skybridge', 'underground'], doc: 'уровень сегмента' }),
-  path: arr(arr(num({ min: 0 }), { minItems: 3, maxItems: 3 }), { minItems: 2, doc: 'ось сегмента [x, y, z]' }),
-  lanes: arr(CF_LANE, { minItems: 0, doc: 'полосы сегмента' }),
-  shoulderWidth: num({ min: 0, doc: 'м: ширина обочины' }),
-  sidewalk: bool({ default: false, doc: 'есть тротуар' }),
-  surface: str({ enum: ['asphalt', 'gravel', 'earth'], doc: 'покрытие' }),
-  speedLimit: num({ min: 0, doc: 'м/с: предел скорости' }),
-}, { doc: 'дорожный сегмент' });
+  id: str({ req: true }),
+  from: str({ req: true }),
+  to: str({ req: true }),
+  type: str({ enum: ['local', 'collector', 'arterial', 'highway', 'ramp', 'merge', 'split', 'connector'] }),
+  layer: str({ pattern: CF_LAYER_PATTERN, doc: 'Logical topology label; the _N suffix marks a stacked tier.' }),
+  path: arr(ref('point3'), { minItems: 2 }),
+  lanes: arr(ref('lane'), { minItems: 0 }),
+  shoulderWidth: num({ min: 0 }),
+  sidewalk: bool({ default: false }),
+  surface: str({ enum: ['asphalt', 'gravel', 'earth'] }),
+  speedLimit: num({ min: 0 }),
+});
+
 const CF_JUNCTION = obj({
-  id: str({ req: true, doc: 'id перекрёстка' }),
+  id: str({ req: true }),
   connections: arr(obj({
     from: obj({
-      segment: str({ req: true, doc: 'id сегмента' }),
-      lane: str({ req: true, doc: 'id полосы' }),
-      end: str({ enum: ['to', 'from'], req: true, doc: 'конец сегмента' }),
-    }, { doc: 'куда из сегмента' }),
+      segment: str({ req: true }),
+      lane: str({ req: true }),
+      end: str({ enum: ['to', 'from'], req: true }),
+    }),
     to: obj({
-      segment: str({ req: true, doc: 'id сегмента' }),
-      lane: str({ req: true, doc: 'id полосы' }),
-      end: str({ enum: ['to', 'from'], req: true, doc: 'конец сегмента' }),
-    }, { doc: 'куда в сегмент' }),
-    movement: str({ enum: ['straight', 'left', 'right', 'uturn'], req: true, doc: 'движение' }),
-  }, { doc: 'одна связь перекрёстка' }), { minItems: 1, doc: 'соединения перекрёстка' }),
-  type: str({ enum: ['signalized', 'roundabout', 'uncontrolled'], doc: 'тип перекрёстка' }),
-}, { doc: 'перекрёсток дорожной сети' });
+      segment: str({ req: true }),
+      lane: str({ req: true }),
+      end: str({ enum: ['to', 'from'], req: true }),
+    }),
+    movement: str({ enum: ['straight', 'left', 'right', 'uturn'], req: true }),
+  }), { minItems: 1 }),
+  type: str({ enum: ['signalized', 'roundabout', 'uncontrolled'] }),
+}, { doc: 'Allowed lane-to-lane movements through a junction.' });
+
+const CF_NETWORK = obj({
+  nodes: arr(ref('node'), { minItems: 0 }),
+  segments: arr(ref('segment'), { minItems: 0 }),
+  junctions: arr(ref('junction'), { minItems: 0 }),
+});
 
 const CF_NETWORKS = obj({
-  roads: obj({
-    nodes: arr(CF_NODE, { minItems: 0, doc: 'узлы дорожной сети' }),
-    segments: arr(CF_SEGMENT, { minItems: 0, doc: 'дорожные сегменты' }),
-    junctions: arr(CF_JUNCTION, { minItems: 0, doc: 'перекрёстки' }),
-  }, { doc: 'дорожная сеть: граф узлов, сегментов и перекрёстков' }),
-}, { doc: 'сети города: дороги и их топология' });
+  roads: ref('network'),
+  railways: ref('network'),
+  paths: ref('network'),
+});
 
-/** Мост: настилы и параметры; дорога остаётся частью сети. */
 const CF_DECK = obj({
-  id: str({ req: true, doc: 'id настила' }),
-  roadRefs: arr(str({}), { minItems: 1, doc: 'id дорожных сегментов, несущих настил' }),
-  clearance: num({ min: 0, doc: 'м: зазор полотна над корытом' }),
-}, { doc: 'настил моста' });
+  id: str({ req: true }),
+  roadRefs: arr(str({}), { minItems: 1 }),
+  clearance: num({ min: 0 }),
+});
+
 const CF_BRIDGE = obj({
-  id: str({ req: true, doc: 'id моста' }),
-  type: str({ enum: ['bridge', 'embankment', 'skybridge'], req: true, doc: 'тип сооружения: мост / эстакада / не-наземный настил' }),
-  template: str({ req: true, doc: 'id шаблона из Asset Library' }),
-  decks: arr(CF_DECK, { minItems: 1, doc: 'настилы моста' }),
+  id: str({ req: true }),
+  type: str({ enum: ['bridge', 'embankment', 'skybridge'], req: true }),
+  template: str({ req: true }),
+  decks: arr(ref('deck'), { minItems: 1 }),
+  supportPoints: arr(ref('point3'), { minItems: 1 }),
   parameters: obj({
-    pierSpacing: num({ min: 0, doc: 'м: расстояние между опорами' }),
-    railings: bool({ default: false, doc: 'есть перила' }),
-    supports: str({ enum: ['auto', 'manual'], doc: 'способ установки опор' }),
-  }, { doc: 'параметры моста' }),
-}, { doc: 'мост CityForge' });
+    pierSpacing: num({ min: 0 }),
+    railings: bool({ default: false }),
+    supports: str({ enum: ['auto', 'manual'] }),
+  }),
+}, { doc: 'Deck geometry and supports; the road itself stays in networks.' });
 
 const CF_TUNNEL = obj({
-  id: str({ req: true, doc: 'id тоннеля' }),
+  id: str({ req: true }),
   type: str({ enum: ['tunnel'] }),
-  template: str({ req: true, doc: 'id шаблона из Asset Library' }),
-  roadRefs: arr(str({}), { minItems: 1, doc: 'id дорожных сегментов, несущих тоннель' }),
+  template: str({ req: true }),
+  roadRefs: arr(str({}), { minItems: 1 }),
   portals: arr(obj({
-    id: str({ req: true, doc: 'id портала' }),
-    position: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, req: true, doc: '[x, y, z] портала' }),
-    networkRef: str({ req: true, doc: 'id сети' }),
-    roadRef: str({ req: true, doc: 'id дороги' }),
-    layer: str({ enum: ['ground', 'embankment', 'bridge', 'skybridge', 'underground'], doc: 'уровень' }),
-    tangent: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] направления продолжения' }),
-  }, { doc: 'портал тоннеля' }), { minItems: 2, doc: 'порты входа и выхода' }),
+    id: str({ req: true }),
+    position: ref('point3'),
+    networkRef: str({}),
+    roadRef: str({}),
+    layer: str({ pattern: CF_LAYER_PATTERN, doc: 'Logical topology label; the _N suffix marks a stacked tier.' }),
+    tangent: ref('point3'),
+  }), { minItems: 2 }),
   parameters: obj({
-    lining: str({ enum: ['concrete', 'rock', 'plastic'], doc: 'облицовка' }),
-    lighting: bool({ default: false, doc: 'свет в тоннеле' }),
-  }, { doc: 'параметры тоннеля' }),
-}, { doc: 'тоннель CityForge' });
+    lining: str({ enum: ['concrete', 'rock', 'plastic'] }),
+    lighting: bool({ default: false }),
+  }),
+}, { doc: 'Portals and lining; the road itself stays in networks.' });
 
 const CF_STRUCTURES = obj({
-  bridges: arr(CF_BRIDGE, { minItems: 0, doc: 'мосты' }),
-  tunnels: arr(CF_TUNNEL, { minItems: 0, doc: 'тоннели' }),
-}, { doc: 'сооружения: мосты и тоннели' });
+  bridges: arr(ref('bridge'), { minItems: 0 }),
+  tunnels: arr(ref('tunnel'), { minItems: 0 }),
+});
 
-/** Экземпляры объектов: дом, дерево, фонарь, памятник — с шаблоном, трансформацией и переопределениями. */
 const CF_INSTANCE = obj({
-  id: str({ req: true, doc: 'id экземпляра' }),
-  template: str({ req: true, doc: 'id шаблона из Asset Library' }),
+  id: str({ req: true }),
+  template: str({ req: true }),
   transform: obj({
-    position: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, req: true, doc: '[x, y, z] позиции' }),
-    rotation: arr(num({ min: 0 }), { minItems: 4, maxItems: 4, doc: '[x, y, z, w] поворота' }),
-    scale: arr(num({ min: 0.05 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] масштаба' }),
-  }, { req: true, doc: 'трансформация экземпляра' }),
-  overrides: obj({
-    floors: arr(num({ min: 1 }), { minItems: 2, maxItems: 2, doc: '[min, max] этажности' }),
-  }, { doc: 'переопределения параметров экземпляра' }),
-  districtRef: str({ doc: 'id района-владельца' }),
-  parcelRef: str({ doc: 'id участка-владельца' }),
-  bounds: obj({
-    min: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] минимум' }),
-    max: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] максимум' }),
-  }, { doc: 'AABB экземпляра' }),
-}, { doc: 'экземпляр городского объекта' });
+    position: ref('point3', { req: true }),
+    rotation: ref('point4'),
+    scale: ref('point3'),
+  }, { req: true }),
+  overrides: CF_OPEN,
+  districtRef: str({}),
+  parcelRef: str({}),
+  homeChunk: str({ doc: 'The chunk that owns this instance; only it stores the full record.' }),
+  coverageChunks: arr(str({}), { minItems: 1, doc: 'Chunks whose area the instance overlaps; loading any of them keeps the instance alive.' }),
+  generation: obj({
+    source: str({ enum: ['procedural', 'prefab', 'hybrid'] }),
+    seed: num({}),
+    generator: str({}),
+    generatorVersion: str({}),
+  }, { doc: 'Provenance of a generated instance.' }),
+  locked: bool({ default: false, doc: 'Keep this instance as-is on regeneration.' }),
+  gameplay: obj({
+    interactable: bool({ default: false }),
+    collision: bool({ default: true }),
+  }, { doc: 'Separates appearance from interaction and collision.' }),
+  properties: CF_OPEN,
+  bounds: obj({ min: ref('point3'), max: ref('point3') }),
+}, { doc: 'Placed template with transform and per-instance overrides.' });
 
-const CF_INSTANCES = arr(CF_INSTANCE, { minItems: 0, doc: 'экземпляры городских объектов' });
-
-/** Пространственная единица хранения и её индекс. */
 const CF_CHUNK = obj({
-  id: str({ req: true, doc: 'id чанка' }),
-  bounds: obj({
-    min: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] минимум' }),
-    max: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] максимум' }),
-  }, { req: true, doc: 'габарит чанка' }),
-  file: str({ req: true, doc: 'файл чанка' }),
-}, { doc: 'чанк CityForge' });
+  id: str({ req: true }),
+  bounds: obj({ min: ref('point3'), max: ref('point3') }, { req: true }),
+  file: str({ req: true }),
+}, { doc: 'Spatial storage unit of the city.' });
 
 const CF_CHUNK_ENTRY = obj({
-  id: str({ req: true, doc: 'id чанка' }),
-  bounds: obj({
-    min: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] минимум' }),
-    max: arr(num({ min: 0 }), { minItems: 3, maxItems: 3, doc: '[x, y, z] максимум' }),
-  }, { req: true, doc: 'габарит чанка' }),
-  neighbors: arr(str({}), { minItems: 0, doc: 'смежные чанки' }),
+  id: str({ req: true }),
+  bounds: obj({ min: ref('point3'), max: ref('point3') }, { req: true }),
+  neighbors: arr(str({}), { minItems: 0 }),
   files: obj({
-    terrain: str({ doc: 'файл terrain' }),
-    roads: str({ doc: 'файл roads' }),
-    water: str({ doc: 'файл water' }),
-    instances: str({ doc: 'файл instances' }),
-  }, { doc: 'файлы данных чанка' }),
-  entities: arr(str({}), { minItems: 0, doc: 'логические сущности чанка' }),
-  fragments: arr(str({}), { minItems: 0, doc: 'геометрические фрагменты чанка' }),
-  portals: arr(str({}), { minItems: 0, doc: 'порты соединения чанков' }),
-  dependencies: arr(str({}), { minItems: 0, doc: 'зависимости чанка' }),
-}, { doc: 'запись индекса чанков' });
+    terrain: str({}),
+    roads: str({}),
+    water: str({}),
+    instances: str({}),
+    collision: str({}),
+  }),
+  entities: arr(str({}), { minItems: 0 }),
+  fragments: arr(str({}), { minItems: 0 }),
+  portals: arr(str({}), { minItems: 0 }),
+  dependencies: arr(str({}), { minItems: 0 }),
+});
 
 const CF_CHUNK_INDEX = obj({
-  version: str({ req: true, doc: 'версия индекса чанков' }),
-  chunks: arr(CF_CHUNK_ENTRY, { minItems: 1, doc: 'записи чанков' }),
-}, { doc: 'индекс чанков CityForge' });
+  version: str({ req: true }),
+  chunks: arr(ref('chunkEntry'), { minItems: 1 }),
+}, { doc: 'Manifest of chunk files for partial loading; the runtime streaming window lives in stream.' });
 
-const CITYFORGE = obj({
-  format: str({ enum: ['cityforge'], req: true, doc: 'формат источника: CityForge' }),
-  version: str({ req: true, doc: 'версия CityForge, например 0.1' }),
+const CF_CITYFORGE = obj({
+  format: str({ enum: ['cityforge'], req: true }),
+  version: str({ req: true }),
+  world: ref('world', { req: true }),
+  generation: ref('generation'),
+  assets: arr(ref('asset'), { minItems: 1 }),
+  districts: arr(ref('district'), { minItems: 0 }),
+  blocks: arr(ref('block'), { minItems: 0 }),
+  parcels: arr(ref('parcel'), { minItems: 0 }),
+  terrain: ref('terrain'),
+  hydrology: ref('hydrology'),
+  caves: ref('caves'),
+  networks: ref('networks'),
+  structures: ref('structures'),
+  instances: arr(ref('instance'), { minItems: 0 }),
+  chunks: arr(ref('chunk'), { minItems: 0 }),
+  chunkIndex: ref('chunkIndex'),
+  extensions: CF_OPEN,
+}, { doc: 'CityForge source city from docs/world-format.md.' });
+
+const COMMON_V3_DEFS = {
+  color: CF_COLOR,
+  vec2: V3_XZ,
+  point2: CF_POINT2,
+  point3: CF_POINT3,
+  point4: CF_POINT4,
+  ring: CF_RING,
+  area: CF_AREA,
+  parameters: CF_PARAMETERS,
+  socket: CF_SOCKET,
+  metadata: V3_METADATA,
+  ground: V3_GROUND,
+  gameplay: V3_GAMEPLAY,
+  stream: V3_STREAM,
   world: CF_WORLD,
   generation: CF_GENERATION,
-  assets: CF_ASSETS,
-  districts: arr(CF_DISTRICT, { minItems: 0, doc: 'районы' }),
-  blocks: arr(CF_BLOCK, { minItems: 0, doc: 'кварталы' }),
-  parcels: arr(CF_PARCEL, { minItems: 0, doc: 'участки' }),
+  asset: CF_ASSET,
+  district: CF_DISTRICT,
+  block: CF_BLOCK,
+  parcel: CF_PARCEL,
+  terrainModifier: CF_TERRAIN_MODIFIER,
   terrain: CF_TERRAIN,
+  waterway: CF_WATERWAY,
+  lake: CF_LAKE,
   hydrology: CF_HYDROLOGY,
-  caves: arr(CF_CAVE, { minItems: 0, doc: 'системы пещер' }),
+  cave: CF_CAVE,
+  caves: CF_CAVES,
+  node: CF_NODE,
+  lane: CF_LANE,
+  segment: CF_SEGMENT,
+  junction: CF_JUNCTION,
+  network: CF_NETWORK,
   networks: CF_NETWORKS,
+  deck: CF_DECK,
+  bridge: CF_BRIDGE,
+  tunnel: CF_TUNNEL,
   structures: CF_STRUCTURES,
-  instances: CF_INSTANCES,
-  chunks: arr(CF_CHUNK, { minItems: 1, doc: 'чанки' }),
+  instance: CF_INSTANCE,
+  chunk: CF_CHUNK,
+  chunkEntry: CF_CHUNK_ENTRY,
   chunkIndex: CF_CHUNK_INDEX,
-}, { doc: 'город-источник CityForge: World, Terrain, Hydrology, Caves, Networks, Structures, Instances, Chunks' });
-
-/**
- * Схема v3 — бриф главы в формате CityForge (`kind: 'cityforge'`). Схема v2
- * (`json2` / `open`) наследует поля брифа-уровня, v3 добавляет корневую секцию
- * `cityforge`, в которую собраны сущности источника из `docs/world-format.md`.
- * Игровые поля v2 (roads, waterways, buildings, gameplay, relief, stream) у v3
- * остаются — они описывают уровень внутри источника, а не сам город.
- */
-export const LEVEL_SPEC_V3 = {
-  ...LEVEL_SPEC_V2,
-  doc: 'бриф главы v3 (`kind: \'cityforge\'`): CityForge source data из docs/world-format.md — World, Generation, Assets, Districts, Blocks, Parcels, Terrain, Hydrology, Caves, Networks, Structures, Instances, Chunks — поверх полей брифа v2',
-  fields: {
-    ...LEVEL_SPEC_V2.fields,
-    $schema: str({ doc: 'путь к JSON Schema этого брифа; v1 — ./level.schema.json, v2 — ./level-v2.schema.json, v3 — ./level-v3.schema.json' }),
-    kind: str({
-      enum: ['cityforge'],
-      req: true,
-      doc: 'версия брифа: v3 — CityForge source data (docs/world-format.md): World, Terrain, Hydrology, Caves, Networks, Structures, Instances, Chunks; v2 — `json2`/`open`, v1 — `json`',
-    }),
-    cityforge: CITYFORGE,
-  },
+  cityforge: CF_CITYFORGE,
 };
+
+/** Reusable definitions for `level-common.schema.json`. */
+export const LEVEL_COMMON_V3 = { definitions: COMMON_V3_DEFS };
+
+/** Root of `level-v3.schema.json`; every section is a `$ref` into the common file. */
+export const LEVEL_SPEC_V3 = obj({
+  $schema: str({ doc: 'Path to this brief schema: ./level-v3.schema.json.' }),
+  kind: str({
+    enum: ['cityforge'],
+    req: true,
+    doc: 'CityForge source brief; entities are compiled into the level module.',
+  }),
+  metadata: ref('metadata', { req: true }),
+  ground: ref('ground', { req: true }),
+  gameplay: ref('gameplay', { req: true }),
+  stream: ref('stream'),
+  cityforge: ref('cityforge', { req: true }),
+}, { doc: 'CityForge source level from docs/world-format.md.' });
 
 // ------------------------------------------------------------- обход схемы
 
@@ -924,6 +1033,9 @@ function checkValue(value, spec, path, errors) {
       if (spec.enum && !spec.enum.includes(value)) {
         errors.push(`${path}: '${value}' вне перечисления ${spec.enum.join('|')}`);
       }
+      if (spec.pattern && !new RegExp(spec.pattern).test(value)) {
+        errors.push(`${path}: '${value}' не соответствует шаблону ${spec.pattern}`);
+      }
       return;
     case 'boolean':
       if (typeof value !== 'boolean') errors.push(`${path}: ожидалось true|false`);
@@ -945,6 +1057,12 @@ function checkValue(value, spec, path, errors) {
       value.forEach((v, i) => checkValue(v, spec.items, `${path}[${i}]`, errors));
       return;
     }
+    case 'ref': {
+      const target = COMMON_V3_DEFS[spec.name];
+      if (!target) { errors.push(`${path}: $ref '${spec.name}' не найден`); return; }
+      checkValue(value, target, path, errors);
+      return;
+    }
     case 'object': {
       if (typeOf(value) !== 'object') { errors.push(`${path}: ожидался объект`); return; }
       for (const [key, sub] of Object.entries(spec.fields)) {
@@ -954,8 +1072,10 @@ function checkValue(value, spec, path, errors) {
         }
         checkValue(value[key], sub, `${path}.${key}`, errors);
       }
-      for (const key of Object.keys(value)) {
-        if (!(key in spec.fields)) errors.push(`${path}.${key}: поле не описано в схеме`);
+      if (!spec.open) {
+        for (const key of Object.keys(value)) {
+          if (!(key in spec.fields)) errors.push(`${path}.${key}: поле не описано в схеме`);
+        }
       }
       return;
     }

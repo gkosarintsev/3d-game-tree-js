@@ -1,0 +1,1736 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Level brief v3 shared definitions",
+  "definitions": {
+    "color": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      ]
+    },
+    "vec2": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "z"
+      ],
+      "additionalProperties": false
+    },
+    "point2": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "number"
+      }
+    },
+    "point3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "point4": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "number"
+      }
+    },
+    "ring": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "$ref": "#/definitions/point2"
+      }
+    },
+    "area": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "polygon"
+          ]
+        },
+        "rings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/ring"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "rings"
+      ],
+      "additionalProperties": false
+    },
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "description": "Descriptors keyed by parameter name: type, min, max, values, default."
+    },
+    "socket": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/definitions/point3"
+        },
+        "rotation": {
+          "$ref": "#/definitions/point4"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "levelName": {
+          "type": "string",
+          "description": "Pipeline name; selects the generated module name."
+        },
+        "name": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "units": {
+          "type": "string",
+          "enum": [
+            "meters"
+          ],
+          "description": "All lengths are meters and angles are degrees."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-form rationale; the engine does not read it."
+        }
+      },
+      "required": [
+        "levelName",
+        "name",
+        "hint",
+        "units"
+      ],
+      "additionalProperties": false,
+      "description": "Chapter header; only name and hint reach the engine."
+    },
+    "ground": {
+      "type": "object",
+      "properties": {
+        "y": {
+          "type": "number",
+          "default": 0
+        },
+        "size": {
+          "type": "number",
+          "minimum": 20,
+          "description": "Ground plate side in meters; outside the plate the world is blocked."
+        },
+        "color": {
+          "$ref": "#/definitions/color"
+        }
+      },
+      "required": [
+        "size"
+      ],
+      "additionalProperties": false,
+      "description": "Flat ground plate; CityForge terrain modifiers sit on top of it."
+    },
+    "gameplay": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "enum": [
+            "exit"
+          ],
+          "description": "CityForge briefs use A-to-B (exit) goals."
+        },
+        "spawn": {
+          "$ref": "#/definitions/vec2"
+        },
+        "exit": {
+          "$ref": "#/definitions/vec2"
+        },
+        "exitRadius": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 40,
+          "default": 3.5
+        },
+        "enemies": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30
+            }
+          },
+          "additionalProperties": false
+        },
+        "alienEnemies": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30
+            }
+          },
+          "additionalProperties": false
+        },
+        "cars": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 8,
+              "description": "Must equal spots length."
+            },
+            "spots": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "minimum": -360,
+                    "maximum": 360,
+                    "default": 0
+                  }
+                },
+                "required": [
+                  "x",
+                  "z"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "goal",
+        "spawn",
+        "exit"
+      ],
+      "additionalProperties": false,
+      "description": "Objective, spawn, enemies and parked cars for the chapter."
+    },
+    "stream": {
+      "type": "object",
+      "properties": {
+        "chunk": {
+          "type": "number",
+          "minimum": 40,
+          "maximum": 600,
+          "description": "Cell side in meters; must divide ground.size."
+        },
+        "keep": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "Loaded cells around the player: window (2*keep + 1)^2."
+        },
+        "aheadMin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1200,
+          "description": "Look-ahead radius on foot, in meters."
+        },
+        "aheadMax": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1200,
+          "description": "Look-ahead radius for vehicles; must be >= aheadMin."
+        },
+        "budgetMs": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Per-frame build budget in milliseconds."
+        }
+      },
+      "required": [
+        "chunk",
+        "keep",
+        "aheadMin",
+        "aheadMax",
+        "budgetMs"
+      ],
+      "additionalProperties": false,
+      "description": "Open-world streaming window; omit for a single-cell world."
+    },
+    "world": {
+      "type": "object",
+      "properties": {
+        "units": {
+          "type": "string",
+          "enum": [
+            "meters"
+          ]
+        },
+        "coordinateSystem": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "local"
+              ]
+            },
+            "handedness": {
+              "type": "string",
+              "enum": [
+                "right"
+              ]
+            },
+            "up": {
+              "type": "string",
+              "enum": [
+                "Z"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "handedness",
+            "up"
+          ],
+          "additionalProperties": false
+        },
+        "origin": {
+          "$ref": "#/definitions/point3"
+        },
+        "bounds": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "$ref": "#/definitions/point3"
+            },
+            "max": {
+              "$ref": "#/definitions/point3"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "units",
+        "coordinateSystem",
+        "bounds"
+      ],
+      "additionalProperties": false,
+      "description": "Local right-handed meter space, Z up."
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "seed": {
+          "type": "number",
+          "description": "Deterministic seed; local seeds derive from it and entity ids."
+        },
+        "generatorVersion": {
+          "type": "string",
+          "description": "Part of the seed: bumping it resets the generated layout."
+        },
+        "deterministic": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "seed",
+        "generatorVersion"
+      ],
+      "additionalProperties": false
+    },
+    "asset": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "procedural",
+            "prefab",
+            "composite"
+          ],
+          "description": "procedural builds geometry, prefab references a GLB, composite assembles children."
+        },
+        "generator": {
+          "type": "string"
+        },
+        "geometry": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "description": "GLB path or procedural source id."
+            }
+          },
+          "required": [
+            "source"
+          ],
+          "additionalProperties": false
+        },
+        "parameters": {
+          "$ref": "#/definitions/parameters"
+        },
+        "bounds": {
+          "$ref": "#/definitions/point3"
+        },
+        "children": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "sockets": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/socket"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "additionalProperties": false,
+      "description": "Asset Library template."
+    },
+    "district": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "residential",
+            "industrial",
+            "commercial",
+            "park",
+            "downtown"
+          ]
+        },
+        "area": {
+          "$ref": "#/definitions/area"
+        },
+        "style": {
+          "type": "string"
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "buildingDensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "heightRange": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number",
+                "minimum": 1
+              }
+            },
+            "maxFootprintRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "setback": {
+              "type": "number",
+              "minimum": 0
+            },
+            "buildingPalette": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "template": {
+                    "type": "string"
+                  },
+                  "weight": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "parameterRanges": {
+                    "type": "object",
+                    "properties": {}
+                  }
+                },
+                "required": [
+                  "template"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "vegetation": {
+              "type": "object",
+              "properties": {
+                "density": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "palette": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "roadStyle": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "local",
+                    "collector",
+                    "arterial",
+                    "highway"
+                  ]
+                },
+                "speedLimit": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "area"
+      ],
+      "additionalProperties": false,
+      "description": "District extent plus generation rules and style."
+    },
+    "block": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "districtRef": {
+          "type": "string"
+        },
+        "area": {
+          "$ref": "#/definitions/area"
+        },
+        "parcels": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "districtRef",
+        "area"
+      ],
+      "additionalProperties": false
+    },
+    "parcel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "blockRef": {
+          "type": "string"
+        },
+        "area": {
+          "$ref": "#/definitions/area"
+        },
+        "buildable": {
+          "type": "boolean",
+          "default": true
+        },
+        "buildingRules": {
+          "type": "object",
+          "properties": {
+            "maxFloors": {
+              "type": "number",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "blockRef",
+        "area"
+      ],
+      "additionalProperties": false
+    },
+    "terrainModifier": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "mountain",
+            "valley",
+            "terrain_modifier"
+          ]
+        },
+        "center": {
+          "$ref": "#/definitions/point2"
+        },
+        "radius": {
+          "type": "number",
+          "minimum": 2
+        },
+        "height": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 60
+        },
+        "falloff": {
+          "type": "string",
+          "enum": [
+            "smooth",
+            "linear",
+            "step"
+          ]
+        },
+        "path": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/definitions/point2"
+          }
+        },
+        "width": {
+          "type": "number",
+          "minimum": 2
+        },
+        "depth": {
+          "type": "number",
+          "minimum": 0
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "add",
+            "subtract",
+            "replace"
+          ]
+        },
+        "sourceRef": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "Applied in array order after the base heightfield."
+    },
+    "terrain": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "heightfield"
+              ]
+            },
+            "source": {
+              "type": "string"
+            },
+            "resolution": {
+              "type": "number",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "source"
+          ],
+          "additionalProperties": false
+        },
+        "modifiers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/terrainModifier"
+          }
+        }
+      },
+      "required": [
+        "base"
+      ],
+      "additionalProperties": false,
+      "description": "Base heightfield plus sequential modifiers."
+    },
+    "waterway": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/definitions/point3"
+          }
+        },
+        "width": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 120
+        },
+        "widthProfile": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number"
+            }
+          },
+          "description": "[t, width]: riverbed width at normalized distance t along path."
+        },
+        "depth": {
+          "type": "number",
+          "minimum": 0
+        },
+        "flow": {
+          "type": "string",
+          "enum": [
+            "start_to_end",
+            "end_to_start",
+            "cyclic"
+          ]
+        },
+        "carveTerrain": {
+          "type": "boolean",
+          "description": "Carve the riverbed into the terrain.",
+          "default": false
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "width",
+        "depth"
+      ],
+      "additionalProperties": false
+    },
+    "lake": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "area": {
+          "$ref": "#/definitions/area"
+        },
+        "waterLevel": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "area"
+      ],
+      "additionalProperties": false
+    },
+    "hydrology": {
+      "type": "object",
+      "properties": {
+        "rivers": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/waterway"
+          }
+        },
+        "lakes": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/lake"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "cave": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "chambers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "center": {
+                "$ref": "#/definitions/point3"
+              },
+              "radius": {
+                "$ref": "#/definitions/point3"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "passages": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "path": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "$ref": "#/definitions/point3"
+                }
+              },
+              "radius": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "id",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "entrances": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "chamberRef": {
+                "type": "string"
+              },
+              "surfacePosition": {
+                "$ref": "#/definitions/point3"
+              },
+              "openingRadius": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "id",
+              "chamberRef"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Chambers, passages and surface entrances of one cave system."
+    },
+    "caves": {
+      "type": "object",
+      "properties": {
+        "systems": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/cave"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "Collection of cave systems."
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/definitions/point3"
+        },
+        "layer": {
+          "type": "string",
+          "pattern": "^(ground|embankment|bridge|skybridge|underground)(_[0-9]+)?$",
+          "description": "Logical topology label; physical height comes from position.z. Multi-tier stacks append _N (bridge_01)."
+        }
+      },
+      "required": [
+        "id",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "lane": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "forward",
+            "backward"
+          ]
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "vehicle",
+            "bus",
+            "tram",
+            "bike",
+            "pedestrian",
+            "rail"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "direction"
+      ],
+      "additionalProperties": false
+    },
+    "segment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "local",
+            "collector",
+            "arterial",
+            "highway",
+            "ramp",
+            "merge",
+            "split",
+            "connector"
+          ]
+        },
+        "layer": {
+          "type": "string",
+          "pattern": "^(ground|embankment|bridge|skybridge|underground)(_[0-9]+)?$",
+          "description": "Logical topology label; the _N suffix marks a stacked tier."
+        },
+        "path": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/definitions/point3"
+          }
+        },
+        "lanes": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/lane"
+          }
+        },
+        "shoulderWidth": {
+          "type": "number",
+          "minimum": 0
+        },
+        "sidewalk": {
+          "type": "boolean",
+          "default": false
+        },
+        "surface": {
+          "type": "string",
+          "enum": [
+            "asphalt",
+            "gravel",
+            "earth"
+          ]
+        },
+        "speedLimit": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "junction": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "connections": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "object",
+                "properties": {
+                  "segment": {
+                    "type": "string"
+                  },
+                  "lane": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string",
+                    "enum": [
+                      "to",
+                      "from"
+                    ]
+                  }
+                },
+                "required": [
+                  "segment",
+                  "lane",
+                  "end"
+                ],
+                "additionalProperties": false
+              },
+              "to": {
+                "type": "object",
+                "properties": {
+                  "segment": {
+                    "type": "string"
+                  },
+                  "lane": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string",
+                    "enum": [
+                      "to",
+                      "from"
+                    ]
+                  }
+                },
+                "required": [
+                  "segment",
+                  "lane",
+                  "end"
+                ],
+                "additionalProperties": false
+              },
+              "movement": {
+                "type": "string",
+                "enum": [
+                  "straight",
+                  "left",
+                  "right",
+                  "uturn"
+                ]
+              }
+            },
+            "required": [
+              "movement"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "signalized",
+            "roundabout",
+            "uncontrolled"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Allowed lane-to-lane movements through a junction."
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/node"
+          }
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/segment"
+          }
+        },
+        "junctions": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/junction"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "networks": {
+      "type": "object",
+      "properties": {
+        "roads": {
+          "$ref": "#/definitions/network"
+        },
+        "railways": {
+          "$ref": "#/definitions/network"
+        },
+        "paths": {
+          "$ref": "#/definitions/network"
+        }
+      },
+      "additionalProperties": false
+    },
+    "deck": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "roadRefs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "clearance": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "bridge": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "bridge",
+            "embankment",
+            "skybridge"
+          ]
+        },
+        "template": {
+          "type": "string"
+        },
+        "decks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/deck"
+          }
+        },
+        "supportPoints": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/point3"
+          }
+        },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pierSpacing": {
+              "type": "number",
+              "minimum": 0
+            },
+            "railings": {
+              "type": "boolean",
+              "default": false
+            },
+            "supports": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "manual"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "template"
+      ],
+      "additionalProperties": false,
+      "description": "Deck geometry and supports; the road itself stays in networks."
+    },
+    "tunnel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "tunnel"
+          ]
+        },
+        "template": {
+          "type": "string"
+        },
+        "roadRefs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "portals": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "position": {
+                "$ref": "#/definitions/point3"
+              },
+              "networkRef": {
+                "type": "string"
+              },
+              "roadRef": {
+                "type": "string"
+              },
+              "layer": {
+                "type": "string",
+                "pattern": "^(ground|embankment|bridge|skybridge|underground)(_[0-9]+)?$",
+                "description": "Logical topology label; the _N suffix marks a stacked tier."
+              },
+              "tangent": {
+                "$ref": "#/definitions/point3"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "lining": {
+              "type": "string",
+              "enum": [
+                "concrete",
+                "rock",
+                "plastic"
+              ]
+            },
+            "lighting": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "template"
+      ],
+      "additionalProperties": false,
+      "description": "Portals and lining; the road itself stays in networks."
+    },
+    "structures": {
+      "type": "object",
+      "properties": {
+        "bridges": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/bridge"
+          }
+        },
+        "tunnels": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/tunnel"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "instance": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        },
+        "transform": {
+          "type": "object",
+          "properties": {
+            "position": {
+              "$ref": "#/definitions/point3"
+            },
+            "rotation": {
+              "$ref": "#/definitions/point4"
+            },
+            "scale": {
+              "$ref": "#/definitions/point3"
+            }
+          },
+          "required": [
+            "position"
+          ],
+          "additionalProperties": false
+        },
+        "overrides": {
+          "type": "object",
+          "properties": {}
+        },
+        "districtRef": {
+          "type": "string"
+        },
+        "parcelRef": {
+          "type": "string"
+        },
+        "homeChunk": {
+          "type": "string",
+          "description": "The chunk that owns this instance; only it stores the full record."
+        },
+        "coverageChunks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Chunks whose area the instance overlaps; loading any of them keeps the instance alive."
+        },
+        "generation": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "enum": [
+                "procedural",
+                "prefab",
+                "hybrid"
+              ]
+            },
+            "seed": {
+              "type": "number"
+            },
+            "generator": {
+              "type": "string"
+            },
+            "generatorVersion": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Provenance of a generated instance."
+        },
+        "locked": {
+          "type": "boolean",
+          "description": "Keep this instance as-is on regeneration.",
+          "default": false
+        },
+        "gameplay": {
+          "type": "object",
+          "properties": {
+            "interactable": {
+              "type": "boolean",
+              "default": false
+            },
+            "collision": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "description": "Separates appearance from interaction and collision."
+        },
+        "properties": {
+          "type": "object",
+          "properties": {}
+        },
+        "bounds": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "$ref": "#/definitions/point3"
+            },
+            "max": {
+              "$ref": "#/definitions/point3"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "template",
+        "transform"
+      ],
+      "additionalProperties": false,
+      "description": "Placed template with transform and per-instance overrides."
+    },
+    "chunk": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "bounds": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "$ref": "#/definitions/point3"
+            },
+            "max": {
+              "$ref": "#/definitions/point3"
+            }
+          },
+          "additionalProperties": false
+        },
+        "file": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "bounds",
+        "file"
+      ],
+      "additionalProperties": false,
+      "description": "Spatial storage unit of the city."
+    },
+    "chunkEntry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "bounds": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "$ref": "#/definitions/point3"
+            },
+            "max": {
+              "$ref": "#/definitions/point3"
+            }
+          },
+          "additionalProperties": false
+        },
+        "neighbors": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "object",
+          "properties": {
+            "terrain": {
+              "type": "string"
+            },
+            "roads": {
+              "type": "string"
+            },
+            "water": {
+              "type": "string"
+            },
+            "instances": {
+              "type": "string"
+            },
+            "collision": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "entities": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "string"
+          }
+        },
+        "fragments": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "string"
+          }
+        },
+        "portals": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "string"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "bounds"
+      ],
+      "additionalProperties": false
+    },
+    "chunkIndex": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "chunks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/chunkEntry"
+          }
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Manifest of chunk files for partial loading; the runtime streaming window lives in stream."
+    },
+    "cityforge": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": [
+            "cityforge"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "world": {
+          "$ref": "#/definitions/world"
+        },
+        "generation": {
+          "$ref": "#/definitions/generation"
+        },
+        "assets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/asset"
+          }
+        },
+        "districts": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/district"
+          }
+        },
+        "blocks": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/block"
+          }
+        },
+        "parcels": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/parcel"
+          }
+        },
+        "terrain": {
+          "$ref": "#/definitions/terrain"
+        },
+        "hydrology": {
+          "$ref": "#/definitions/hydrology"
+        },
+        "caves": {
+          "$ref": "#/definitions/caves"
+        },
+        "networks": {
+          "$ref": "#/definitions/networks"
+        },
+        "structures": {
+          "$ref": "#/definitions/structures"
+        },
+        "instances": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/instance"
+          }
+        },
+        "chunks": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/definitions/chunk"
+          }
+        },
+        "chunkIndex": {
+          "$ref": "#/definitions/chunkIndex"
+        },
+        "extensions": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "required": [
+        "format",
+        "version",
+        "world"
+      ],
+      "additionalProperties": false,
+      "description": "CityForge source city from docs/world-format.md."
+    }
+  }
+}
