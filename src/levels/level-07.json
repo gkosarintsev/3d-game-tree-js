@@ -19,7 +19,13 @@
     "exit": { "x": 520, "z": 540 },
     "exitRadius": 4,
     "enemies": { "count": 4 },
-    "alienEnemies": { "count": 0 }
+    "alienEnemies": { "count": 0 },
+    "cars": {
+      "count": 1,
+      "spots": [
+        { "x": 2.5, "z": -435, "yaw": 90 }
+      ]
+    }
   },
   "stream": {
     "chunk": 256,

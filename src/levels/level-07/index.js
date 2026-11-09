@@ -36,6 +36,17 @@ export const LEVEL_07 = {
     "alienEnemies": {
       "count": 0
     },
+    "cars": {
+      "count": 1,
+      "spots": [
+        {
+          "x": 2.5,
+          "y": 32,
+          "yaw": 90,
+          "z": -435
+        }
+      ]
+    },
     "enemies": {
       "count": 4
     },
