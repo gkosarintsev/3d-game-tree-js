@@ -54,6 +54,7 @@ import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
 import { CONFIG } from '../src/config.js';
 import { frameAt, rotatePoint, unrotatePoint } from '../src/geo2d.js';
+import { parseLevelFilter, SKIPPED, filteredOut } from './level-filter.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -978,7 +979,9 @@ function testFrozenChapters() {
 
 // --------------------------------------------------------------------- запуск
 
-export async function runTrackCityTests() {
+export async function runTrackCityTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filteredOut(filter, [13])) return SKIPPED;
   const tests = [
     testBriefPipeline,
     testRingIsOneSealedRibbon,

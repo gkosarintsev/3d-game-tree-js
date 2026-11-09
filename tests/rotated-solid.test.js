@@ -35,6 +35,7 @@ import {
   SolidField, circleHitsBox, pointHitsBox,
 } from '../src/solids.js';
 import { CONFIG } from '../src/config.js';
+import { parseLevelFilter, SKIPPED } from './level-filter.js';
 
 const DEG = Math.PI / 180;
 const YAW = 30 * DEG;
@@ -387,7 +388,9 @@ function testBodyClearLineAgainstWall() {
  * Прогон сюиты: все проверки синхронные — чистая геометрия, без сцены и кадров.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
-export function runRotatedSolidTests() {
+export function runRotatedSolidTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filter) return SKIPPED;
   const tests = [
     testYawZeroEqualsAabb, testRayHitsRotatedWall, testNormalIsWallAxis,
     testPushOutAlongWallNormal, testPushOutInsideNearestFace, testSphereNeverInside,

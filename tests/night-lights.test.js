@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import { NightLights } from '../src/night-lights.js';
 import { CONFIG } from '../src/config.js';
+import { parseLevelFilter, SKIPPED } from './level-filter.js';
 
 /** Опорная сетка улиц: узлы через `step` метров на плоскости y = 0. */
 function gridAnchors(step, n, y = 0) {
@@ -166,7 +167,9 @@ function testDefaultsComeFromConfig() {
  * Прогоняет все тесты ночного света и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
-export function runNightLightsTests() {
+export function runNightLightsTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filter) return SKIPPED;
   const tests = [
     testPlacedOnSupports, testSpacing, testFollowsPlayer, testFewAnchors,
     testDispose, testEmptyAnchors, testDefaultsComeFromConfig,

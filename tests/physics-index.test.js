@@ -9,6 +9,7 @@ import { JsonMap } from '../src/json-map.js';
 import * as PhysicsIndex from '../src/physics-index.js';
 import { CONFIG } from '../src/config.js';
 import { LEVEL_12 } from '../src/levels/level-12.js';
+import { parseLevelFilter, SKIPPED, filteredOut } from './level-filter.js';
 
 const RADIUS = CONFIG.radius;
 const HEIGHT = CONFIG.eyeHeight;
@@ -88,7 +89,9 @@ function collectEdges(nav) {
   return edges;
 }
 
-export async function runPhysicsIndexTests() {
+export async function runPhysicsIndexTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filteredOut(filter, [12])) return SKIPPED;
   const results = [];
   const t0 = performance.now();
 

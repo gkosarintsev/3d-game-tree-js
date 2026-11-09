@@ -55,6 +55,7 @@ import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
 import { CONFIG } from '../src/config.js';
 import { frameAt, unrotatePoint } from '../src/geo2d.js';
+import { parseLevelFilter, SKIPPED, filteredOut } from './level-filter.js';
 
 const J = CONFIG.jsonMap;
 const STEP = CONFIG.building.stepUp;
@@ -976,7 +977,9 @@ function baseRawNoRelief() {
 
 // --------------------------------------------------------------------- запуск
 
-export async function runReliefCityTests() {
+export async function runReliefCityTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filteredOut(filter, [11, 12])) return SKIPPED;
   const tests = [
     testBrief,
     testTerraceHoldsTheQuarter,

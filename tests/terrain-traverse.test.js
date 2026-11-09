@@ -41,6 +41,7 @@
 import { TerrainMap } from '../src/terrain-map.js';
 import { LEVEL_01 } from '../src/levels/level-01.js';
 import { CONFIG } from '../src/config.js';
+import { parseLevelFilter, SKIPPED, filteredOut } from './level-filter.js';
 
 const STEP = CONFIG.building.stepUp;
 const PLAYER_H = CONFIG.eyeHeight + 0.35;
@@ -522,7 +523,9 @@ function testDeterminism() {
  * Прогоняет тесты рельефа и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
-export async function runTerrainTests() {
+export async function runTerrainTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filteredOut(filter, [1])) return SKIPPED;
   const tests = [
     testBasics,
     testPathAtoB,

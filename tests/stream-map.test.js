@@ -21,6 +21,7 @@ import { StreamedModelMap } from '../src/stream-map.js';
 import { ModelMap } from '../src/model-map.js';
 import { preloadMapAsset, getGltfScene, trianglesFromScene, tileBuckets } from '../src/glb.js';
 import { CONFIG } from '../src/config.js';
+import { parseLevelFilter, SKIPPED } from './level-filter.js';
 
 const STEP = CONFIG.building.stepUp;
 const PLAYER_H = CONFIG.eyeHeight + 0.35;
@@ -363,7 +364,9 @@ function testMeshRecycles() {
  * Прогоняет автотесты стриминга и печатает отчёт в консоль.
  * @returns {Promise<{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}>}
  */
-export async function runStreamTests() {
+export async function runStreamTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filter) return SKIPPED;
   const t0 = performance.now();
   map = await makeMap();
   const buildMs = performance.now() - t0;

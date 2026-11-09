@@ -45,6 +45,7 @@ import { LEVEL_11 } from '../src/levels/level-11.js';
 import { normalizeLevel } from '../tools/normalize-level.mjs';
 import { validateLevel, LEVEL_SPEC_V2 } from '../tools/level-schema.mjs';
 import { CONFIG } from '../src/config.js';
+import { parseLevelFilter, SKIPPED, filteredOut } from './level-filter.js';
 
 const J = CONFIG.jsonMap;
 const STEP = CONFIG.building.stepUp;
@@ -667,7 +668,9 @@ function testRotatedChapter() {
   };
 }
 
-export async function runRotatedHouseTests() {
+export async function runRotatedHouseTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filteredOut(filter, [11])) return SKIPPED;
   const tests = [
     testBrief,
     testFrameEmitted,

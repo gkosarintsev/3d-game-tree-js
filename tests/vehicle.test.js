@@ -66,6 +66,7 @@ import { CONFIG } from '../src/config.js';
 import { Player } from '../src/player.js';
 import { Alien } from '../src/alien.js';
 import { Car, Cars } from '../src/vehicle.js';
+import { parseLevelFilter, SKIPPED, filteredOut } from './level-filter.js';
 
 const DT = 1 / 60;              // фиксированный шаг — сюита детерминирована
 const C = CONFIG.car;
@@ -621,7 +622,9 @@ function testSameInputsSameTrajectory() {
 
 // --------------------------------------------------------------------- запуск
 
-export async function runVehicleTests() {
+export async function runVehicleTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filteredOut(filter, [11, 12, 13])) return SKIPPED;
   const tests = [
     testCarsComeFromTheBrief,
     testSpotTakesItsOwnSupport,

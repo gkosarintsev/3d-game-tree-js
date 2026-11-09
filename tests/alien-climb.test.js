@@ -862,7 +862,9 @@ function testMantleKeepsHeading() {
  * Прогоняет все тесты лазания и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
-export function runAlienClimbTests() {
+export function runAlienClimbTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filter) return SKIPPED;
   const tests = [
     testClimbWall, testClimbRoof, testMantleKeepsRoof, testMantleKeepsHeading,
     testRoofToWall, testWallToGround,

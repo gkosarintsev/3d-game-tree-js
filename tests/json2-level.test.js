@@ -48,6 +48,7 @@ import { createJsonMap } from '../src/json-map.js';
 import { LEVEL_11 } from '../src/levels/level-11.js';
 import { LEVELS } from '../src/levels/index.js';
 import { CONFIG } from '../src/config.js';
+import { parseLevelFilter, SKIPPED, filteredOut } from './level-filter.js';
 
 const J = CONFIG.jsonMap;
 const STEP = CONFIG.building.stepUp;
@@ -1090,7 +1091,9 @@ function testDeterminismAndBudget() {
   };
 }
 
-export async function runJson2Tests() {
+export async function runJson2Tests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filteredOut(filter, [11])) return SKIPPED;
   const tests = [
     testBrief,
     testContract,

@@ -29,6 +29,7 @@ import { Alien } from '../src/alien.js';
 import { TownMap } from '../src/map.js';
 import { generateBuilding } from '../src/building.js';
 import { CONFIG } from '../src/config.js';
+import { parseLevelFilter, SKIPPED } from './level-filter.js';
 
 const DT = 1 / 60;                    // фиксированный шаг физики — тесты детерминированы
 const RADIUS = CONFIG.alien.radius;   // 0.5
@@ -261,7 +262,9 @@ function testPlayerLeapHurtsAlienEnemy() {
  * Прогоняет все тесты врагов-Чужих и печатает отчёт в консоль.
  * @returns {{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}}
  */
-export function runAlienEnemyTests() {
+export function runAlienEnemyTests(arg) {
+  const filter = parseLevelFilter(arg);
+  if (filter) return SKIPPED;
   const tests = [
     testAlienEnemiesInManager,
     testAlienEnemyClimbsWall,
