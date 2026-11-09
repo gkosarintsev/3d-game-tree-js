@@ -320,19 +320,19 @@
       "facadeMaterial": "concrete",
       "footprint": [
         {
-          "x": -505,
+          "x": 75,
           "z": 75
         },
         {
-          "x": -495,
+          "x": 85,
           "z": 75
         },
         {
-          "x": -495,
+          "x": 85,
           "z": 85
         },
         {
-          "x": -505,
+          "x": 75,
           "z": 85
         }
       ],
@@ -519,7 +519,7 @@
             -350,
             -350
           ],
-          "radius": 220,
+          "radius": 422,
           "height": 45,
           "falloff": "smooth",
           "operation": "add",
@@ -533,7 +533,7 @@
             0,
             -380
           ],
-          "radius": 200,
+          "radius": 357,
           "height": 38,
           "falloff": "smooth",
           "operation": "add",
@@ -547,7 +547,7 @@
             380,
             -320
           ],
-          "radius": 230,
+          "radius": 469,
           "height": 50,
           "falloff": "smooth",
           "operation": "add",
@@ -561,7 +561,7 @@
             -420,
             0
           ],
-          "radius": 210,
+          "radius": 329,
           "height": 35,
           "falloff": "smooth",
           "operation": "add",
@@ -575,7 +575,7 @@
             -50,
             50
           ],
-          "radius": 240,
+          "radius": 394,
           "height": 42,
           "falloff": "smooth",
           "operation": "add",
@@ -589,7 +589,7 @@
             400,
             40
           ],
-          "radius": 200,
+          "radius": 282,
           "height": 30,
           "falloff": "smooth",
           "operation": "add",
@@ -603,7 +603,7 @@
             -320,
             360
           ],
-          "radius": 220,
+          "radius": 450,
           "height": 48,
           "falloff": "smooth",
           "operation": "add",
@@ -617,7 +617,7 @@
             50,
             400
           ],
-          "radius": 210,
+          "radius": 310,
           "height": 33,
           "falloff": "smooth",
           "operation": "add",
@@ -631,7 +631,7 @@
             360,
             380
           ],
-          "radius": 230,
+          "radius": 432,
           "height": 46,
           "falloff": "smooth",
           "operation": "add",
@@ -645,7 +645,7 @@
             180,
             -120
           ],
-          "radius": 180,
+          "radius": 235,
           "height": 25,
           "falloff": "smooth",
           "operation": "add",
@@ -659,8 +659,50 @@
             -180,
             180
           ],
-          "radius": 190,
+          "radius": 263,
           "height": 28,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h12",
+          "type": "mountain",
+          "center": [
+            -550,
+            300
+          ],
+          "radius": 320,
+          "height": 30,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h13",
+          "type": "mountain",
+          "center": [
+            550,
+            -450
+          ],
+          "radius": 340,
+          "height": 35,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h14",
+          "type": "mountain",
+          "center": [
+            0,
+            -150
+          ],
+          "radius": 300,
+          "height": 22,
           "falloff": "smooth",
           "operation": "add",
           "sourceRef": "terrain.base",

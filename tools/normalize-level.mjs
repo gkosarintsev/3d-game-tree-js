@@ -696,50 +696,82 @@ function normalizeRoad(road, ground, tunnels) {
     const land = ground.land ? ground.land(p.x, p.z) : ground.y;
     return { ...p, y: Math.max(p.y, r3(land + J.streetRise)) };
   };
-  // наземная дорога обязана идти не ниже ландшафта (рельефа): прямой пролёт
-  // между концами может рассечь склон/гору. Адаптивно дробим там, где линейный
-  // верх (max от поднятых концов — сохраняем авторский уклон рампы) ниже
-  // land+streetRise, и вставляем точку на max(линейный, land+streetRise).
-  // Рекурсия с пределом глубины гарантирует, что и между вставленными точками
-  // полотно не уходит в рельеф (грубая равномерная выборка пропускала гребень
-  // холма между сэмплами). Мост/эстакада и участок в туннеле не трогаем.
+  // Наземная дорога на рельефе: ни закопана, ни висит.
+  // (1) Без намеренного подъёма (автор не поднимал точки над рельефом и нет
+  //     перепада по концам) — чистое следование поверхности: y = land+streetRise,
+  //     с адаптивным дроблением, пока хорда между точками отклоняется от поверхности
+  //     больше ε (иначе прямой клин deck уходит в бугор или висит над ложбиной).
+  // (2) Намеренная рампа (подъезд к мосту, авторский подъём) — профиль
+  //     max(линейный подъём, land+streetRise): подъём сохранён (не уронить ниже
+  //     цели моста), склон пробит не будет; дробим, пока хорда уходит ниже
+  //     поверхности. Мост/эстакада и участок в прорубленном туннеле не трогаем.
   const drape = (pts) => {
     if (road.type !== 'ground' || !ground.land) return pts.map(lift);
     const rise = J.streetRise;
-    const src = (pts ?? []).map(lift);
-    const out = [];
+    const orig = road.points ?? [];
+    const intentionalRamp = orig.some(p => {
+      const land = ground.land(p.x, p.z);
+      return p.y > land + rise + 0.5; // автор поднял точку заметно над рельефом
+    }) || (orig.length >= 2 && Math.abs((orig[0].y ?? 0) - (orig[orig.length - 1].y ?? 0)) > 0.8);
     const same = (a, b) => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.z - b.z) < 1e-6;
-    const bury = (x, z, linY) => {
-      if (inTunnel(x, z, linY, tunnels)) return -Infinity;
-      const land = ground.land(x, z);
-      return linY < land + rise - 0.03 ? land : -Infinity;
+    const surf = (x, z, fallbackY) => inTunnel(x, z, fallbackY, tunnels)
+      ? fallbackY : r3(ground.land(x, z) + rise);
+    const dedup = (arr) => {
+      const out = [];
+      for (const p of arr) if (!out.length || !same(out[out.length - 1], p)) out.push(p);
+      return out;
     };
+    const EPS = 0.04; // допуск отклонения хорды от поверхности, м
+    if (!intentionalRamp) {
+      // каждая точка ровно на поверхности; дробим, пока хорда не повторяет её
+      const onSurf = (x, z, fy) => ({ x: r3(x), z: r3(z), y: surf(x, z, fy) });
+      const dev = (a, b) => {
+        const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz);
+        if (len < 1.5) return null;
+        let worst = null, worstD = EPS;
+        // середина + четверти ловят и бугор, и ложбину
+        for (const t of [0.5, 0.25, 0.75]) {
+          const x = a.x + dx * t, z = a.z + dz * t;
+          const chord = a.y + (b.y - a.y) * t;
+          const s = surf(x, z, chord);
+          const d = Math.abs(chord - s);
+          if (d > worstD) { worstD = d; worst = { x, z, y: s }; }
+        }
+        return worst;
+      };
+      const out = [];
+      const refine = (a, b, depth) => {
+        const m = depth < 8 ? dev(a, b) : null;
+        if (m) { refine(a, m, depth + 1); refine(m, b, depth + 1); return; }
+        if (!out.length || !same(out[out.length - 1], a)) out.push(a);
+        out.push(b);
+      };
+      for (let i = 0; i + 1 < orig.length; i++) {
+        refine(onSurf(orig[i].x, orig[i].z, orig[i].y), onSurf(orig[i + 1].x, orig[i + 1].z, orig[i + 1].y), 0);
+      }
+      return dedup(out);
+    }
+    // рампа: профиль = max(линейный подъём между поднятыми концами, поверхность)
+    const src = orig.map(lift);
+    const out = [];
     const refine = (a, b, depth) => {
-      const dx = b.x - a.x, dz = b.z - a.z;
-      const len = Math.hypot(dx, dz);
-      // проверяем середину и четверти — ловим гребень между точками
-      if (depth < 7 && len > 2) {
+      const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz);
+      if (depth < 8 && len > 1.5) {
+        let worst = null, worstD = 0.03;
         for (const t of [0.5, 0.25, 0.75]) {
           const x = a.x + dx * t, z = a.z + dz * t;
           const lin = a.y + (b.y - a.y) * t;
-          const land = bury(x, z, lin);
-          if (land > -Infinity) {
-            const M = { x: r3(x), z: r3(z), y: r3(Math.max(lin, land + rise)) };
-            refine(a, M, depth + 1);
-            refine(M, b, depth + 1);
-            return;
-          }
+          if (inTunnel(x, z, lin, tunnels)) continue;
+          const s = ground.land(x, z) + rise;
+          if (lin < s - worstD) { worstD = s - lin; worst = { x: r3(x), z: r3(z), y: r3(s) }; }
         }
+        if (worst) { refine(a, worst, depth + 1); refine(worst, b, depth + 1); return; }
       }
       if (!out.length || !same(out[out.length - 1], a)) out.push(a);
       out.push(b);
     };
     for (let i = 0; i + 1 < src.length; i++) refine(src[i], src[i + 1], 0);
-    const dedup = [];
-    for (const p of out) {
-      if (!dedup.length || !same(dedup[dedup.length - 1], p)) dedup.push(p);
-    }
-    return dedup;
+    return dedup(out);
   };
   const pts = drape(road.points ?? []);
   const decks = [];

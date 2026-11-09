@@ -41,7 +41,7 @@ export const LEVEL_08 = {
       "spots": [
         {
           "x": -474,
-          "y": 6.978,
+          "y": 27.586,
           "yaw": 0,
           "z": -480
         }
@@ -97,7 +97,6 @@ export const LEVEL_08 = {
         "file": "chunk-0-2.l14b",
         "id": "0_2",
         "objects": {
-          "buildings": 1,
           "roads": 1
         },
         "rect": {
@@ -233,7 +232,7 @@ export const LEVEL_08 = {
         "file": "chunk-2-2.l14b",
         "id": "2_2",
         "objects": {
-          "buildings": 1
+          "buildings": 2
         },
         "rect": {
           "maxX": 128,
@@ -422,7 +421,7 @@ export const LEVEL_08 = {
           "bz": -350,
           "height": 45,
           "id": "h1",
-          "radius": 220,
+          "radius": 422,
           "x": -350,
           "z": -350
         },
@@ -431,7 +430,7 @@ export const LEVEL_08 = {
           "bz": -380,
           "height": 38,
           "id": "h2",
-          "radius": 200,
+          "radius": 357,
           "x": 0,
           "z": -380
         },
@@ -440,7 +439,7 @@ export const LEVEL_08 = {
           "bz": -320,
           "height": 50,
           "id": "h3",
-          "radius": 230,
+          "radius": 469,
           "x": 380,
           "z": -320
         },
@@ -449,7 +448,7 @@ export const LEVEL_08 = {
           "bz": 0,
           "height": 35,
           "id": "h4",
-          "radius": 210,
+          "radius": 329,
           "x": -420,
           "z": 0
         },
@@ -458,7 +457,7 @@ export const LEVEL_08 = {
           "bz": 50,
           "height": 42,
           "id": "h5",
-          "radius": 240,
+          "radius": 394,
           "x": -50,
           "z": 50
         },
@@ -467,7 +466,7 @@ export const LEVEL_08 = {
           "bz": 40,
           "height": 30,
           "id": "h6",
-          "radius": 200,
+          "radius": 282,
           "x": 400,
           "z": 40
         },
@@ -476,7 +475,7 @@ export const LEVEL_08 = {
           "bz": 360,
           "height": 48,
           "id": "h7",
-          "radius": 220,
+          "radius": 450,
           "x": -320,
           "z": 360
         },
@@ -485,7 +484,7 @@ export const LEVEL_08 = {
           "bz": 400,
           "height": 33,
           "id": "h8",
-          "radius": 210,
+          "radius": 310,
           "x": 50,
           "z": 400
         },
@@ -494,7 +493,7 @@ export const LEVEL_08 = {
           "bz": 380,
           "height": 46,
           "id": "h9",
-          "radius": 230,
+          "radius": 432,
           "x": 360,
           "z": 380
         },
@@ -503,7 +502,7 @@ export const LEVEL_08 = {
           "bz": -120,
           "height": 25,
           "id": "h10",
-          "radius": 180,
+          "radius": 235,
           "x": 180,
           "z": -120
         },
@@ -512,138 +511,165 @@ export const LEVEL_08 = {
           "bz": 180,
           "height": 28,
           "id": "h11",
-          "radius": 190,
+          "radius": 263,
           "x": -180,
           "z": 180
+        },
+        {
+          "bx": -550,
+          "bz": 300,
+          "height": 30,
+          "id": "h12",
+          "radius": 320,
+          "x": -550,
+          "z": 300
+        },
+        {
+          "bx": 550,
+          "bz": -450,
+          "height": 35,
+          "id": "h13",
+          "radius": 340,
+          "x": 550,
+          "z": -450
+        },
+        {
+          "bx": 0,
+          "bz": -150,
+          "height": 22,
+          "id": "h14",
+          "radius": 300,
+          "x": 0,
+          "z": -150
         }
       ],
-      "maxSlope": 0.42,
+      "maxSlope": 0.32,
       "pads": [
         {
-          "blend": 120,
+          "blend": 14,
           "id": "h8_0:площадка",
           "maxX": -194,
           "maxZ": -335,
           "minX": -206,
           "minZ": -345,
-          "y": 12.376
+          "y": 47.553
         },
         {
-          "blend": 40.802,
+          "blend": 14,
           "id": "h8_1:площадка",
           "maxX": -315,
           "maxZ": -75,
           "minX": -325,
           "minZ": -85,
-          "y": 13.522
+          "y": 42.634
         },
         {
-          "blend": 103.343,
+          "blend": 14,
           "id": "h8_2:площадка",
           "maxX": -313,
           "maxZ": 245,
           "minX": -327,
           "minZ": 235,
-          "y": 25.79
+          "y": 62.941
         },
         {
-          "blend": 81.647,
+          "blend": 14,
           "id": "h8_3:площадка",
           "maxX": -75,
           "maxZ": -314,
           "minX": -85,
           "minZ": -326,
-          "y": 21.157
+          "y": 51.469
         },
         {
-          "blend": 94.757,
+          "blend": 14,
           "id": "h8_4:площадка",
           "maxX": -34,
           "maxZ": -54,
           "minX": -46,
           "minZ": -66,
-          "y": 25.155
+          "y": 51.932
         },
         {
-          "blend": 120,
+          "blend": 61.058,
           "id": "h8_5:площадка",
           "maxX": -75,
           "maxZ": 265,
           "minX": -85,
           "minZ": 255,
-          "y": 10.739
+          "y": 63.562
         },
         {
-          "blend": 120,
+          "blend": 14,
           "id": "h8_6:площадка",
           "maxX": 246,
           "maxZ": -335,
           "minX": 234,
           "minZ": -345,
-          "y": 18.596
+          "y": 48.494
         },
         {
-          "blend": 14,
+          "blend": 32.779,
           "id": "h8_7:площадка",
           "maxX": 265,
           "maxZ": -53,
           "minX": 255,
           "minZ": -67,
-          "y": 12.941
+          "y": 46.864
         },
         {
-          "blend": 21.534,
+          "blend": 14,
           "id": "h8_8:площадка",
           "maxX": 246,
           "maxZ": 246,
           "minX": 234,
           "minZ": 234,
-          "y": 6.431
+          "y": 34.491
         },
         {
-          "blend": 56.872,
+          "blend": 33.469,
           "id": "h8_9:площадка",
-          "maxX": -495,
+          "maxX": 85,
           "maxZ": 85,
-          "minX": -505,
+          "minX": 75,
           "minZ": 75,
-          "y": 17.234
+          "y": 34.538
         },
         {
-          "blend": 14,
+          "blend": 120,
           "id": "h8_10:площадка",
           "maxX": 526,
           "maxZ": -95,
           "minX": 514,
           "minZ": -105,
-          "y": 1.127
+          "y": 30.28
         },
         {
-          "blend": 120,
+          "blend": 39.72,
           "id": "h8_11:площадка",
           "maxX": 505,
           "maxZ": 326,
           "minX": 495,
           "minZ": 314,
-          "y": 14.093
+          "y": 33.875
         },
         {
-          "blend": 114.532,
+          "blend": 78.671,
           "id": "h8_12:площадка",
           "maxX": 7,
           "maxZ": -515,
           "minX": -7,
           "minZ": -525,
-          "y": 9.387
+          "y": 27.847
         },
         {
-          "blend": 36.178,
+          "blend": 120,
           "id": "h8_13:площадка",
           "maxX": 6,
           "maxZ": 525,
           "minX": -6,
           "minZ": 515,
-          "y": 12.269
+          "y": 28.326
         }
       ]
     },
