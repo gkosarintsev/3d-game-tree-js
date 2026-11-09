@@ -174,13 +174,13 @@ export function reliefOf(spec = {}) {
       const L = Math.hypot(dx, dz) || 1;
       return { ax: s.ax, az: s.az, tx: dx / L, tz: dz / L, L, halfW: rv.halfW ?? 0 };
     });
-    return { bankY: rv.bankY ?? baseY, bedY: rv.bedY ?? (rv.bankY ?? baseY) - 2, ramp: rv.ramp ?? 40, segs };
+    return { bankY: rv.bankY ?? baseY, bedY: rv.bedY ?? (rv.bankY ?? baseY) - 2, surfaceY: rv.surfaceY ?? (rv.bankY ?? baseY) - 0.2, ramp: rv.ramp ?? 40, segs };
   });
   // индекс сегментов рек по клеткам (с раздутием на ramp+halfW)
   let riverAtCell = null;
   if (rivers.length) {
-    const buckets = new Map(), pad = 60;
-    rivers.forEach((rv, ri) => rv.segs.forEach((s, si) => {
+    const buckets = new Map();
+    rivers.forEach((rv) => rv.segs.forEach((s) => {
       const ref = { rv, s };
       const minX = Math.min(s.ax, s.ax+s.tx*s.L)-s.halfW-rv.ramp, maxX = Math.max(s.ax, s.ax+s.tx*s.L)+s.halfW+rv.ramp;
       const minZ = Math.min(s.az, s.az+s.tz*s.L)-s.halfW-rv.ramp, maxZ = Math.max(s.az, s.az+s.tz*s.L)+s.halfW+rv.ramp;
@@ -189,18 +189,20 @@ export function reliefOf(spec = {}) {
     }));
     riverAtCell = (x,z) => buckets.get((Math.floor(x/cell)+4096)*8192+(Math.floor(z/cell)+4096)) ?? EMPTY;
   }
-  const distRiver = riverAtCell ? (x, z) => {
+  const riverAt = riverAtCell ? (x, z) => {
     let best = Infinity, rv = rivers[0];
     const list = riverAtCell(x, z);
-    if (!list.length) return { d: Infinity, rv };
+    if (!list.length) return null;
     for (let k = 0; k < list.length; k++) {
       const { rv: r, s } = list[k];
       const u = Math.max(0, Math.min(s.L, (x - s.ax) * s.tx + (z - s.az) * s.tz));
       const d = Math.hypot(x - (s.ax + s.tx * u), z - (s.az + s.tz * u));
       if (d < best) { best = d; rv = r; }
     }
-    return { d: best - rv.halfW, rv };
+    const d = best - rv.halfW;
+    return d < rv.ramp ? { d, rv } : null;
   } : null;
+  const distRiver = riverAt;
 
   /**
    * Отметка «природы» — земля без площадок: холмы и долины над `baseY`, с
@@ -208,16 +210,14 @@ export function reliefOf(spec = {}) {
    */
   const reliefHeightAt = (x, z) => {
     let y = baseY;
-    const list = hillsAtCell(x, z);
-    for (let k = 0; k < list.length; k++) y += hillAt(list[k], x, z);
+    const hl = hillsAtCell(x, z);
+    for (let k = 0; k < hl.length; k++) y += hillAt(hl[k], x, z);
     if (distRiver) {
-      const { d, rv } = distRiver(x, z);
-      if (d <= 0) return rv.bedY; // в русле — дно
-      if (d < rv.ramp) {
-        const t = ease(d / rv.ramp); // 0 на берегу, 1 на конце перехода
-        y = rv.bankY + (Math.max(y, rv.bankY) - rv.bankY) * t;
-      } else {
-        y = Math.max(y, rv.bankY);
+      const dr = distRiver(x, z);
+      if (dr) {
+        if (dr.d <= 0) return dr.rv.bedY; // в русле — дно
+        const t = ease(dr.d / dr.rv.ramp); // 0 на берегу, 1 на конце перехода
+        y = dr.rv.bankY + (Math.max(y, dr.rv.bankY) - dr.rv.bankY) * t;
       }
     }
     return y;
@@ -252,15 +252,12 @@ export function reliefOf(spec = {}) {
     let y = baseY;
     const hl = hillsAtCell(x, z);
     for (let k = 0; k < hl.length; k++) y += hillAt(hl[k], x, z);
-    let inRiver = false;
     if (distRiver) {
       const dr = distRiver(x, z);
-      if (dr.d <= 0) return dr.rv.bedY;
-      if (dr.d < dr.rv.ramp) {
+      if (dr) {
+        if (dr.d <= 0) return dr.rv.bedY;
         const t = ease(dr.d / dr.rv.ramp);
         y = dr.rv.bankY + (Math.max(y, dr.rv.bankY) - dr.rv.bankY) * t;
-      } else {
-        y = Math.max(y, dr.rv.bankY);
       }
     }
     const list = padsAtCell(x, z);
@@ -296,5 +293,6 @@ export function reliefOf(spec = {}) {
     baseY, hills, pads, blend,
     present: hills.length > 0 || pads.length > 0,
     reliefHeightAt, padsAt, heightAt, slopeAt, normalAt,
+    rivers, riverAt,
   };
 }

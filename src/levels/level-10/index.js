@@ -1233,7 +1233,8 @@ export const LEVEL_10 = {
               "bx": 640,
               "bz": 70.05
             }
-          ]
+          ],
+          "surfaceY": -0.2
         }
       ]
     },

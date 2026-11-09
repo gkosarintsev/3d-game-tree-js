@@ -1432,6 +1432,7 @@ export class JsonMap extends SurfaceField {
     }
     const cell = J.relief.meshCell;
     const hasCurved = this.channelSegs?.length > 0;
+    const riverAt = this.relief.riverAt;
     const geo = mergeGeometries(rects.map(r => {
       const g = new THREE.PlaneGeometry(
         r.maxX - r.minX, r.maxZ - r.minZ,
@@ -1444,7 +1445,11 @@ export class JsonMap extends SurfaceField {
         const x = pos.getX(k), z = -pos.getY(k);
         // позиция задаётся относительно `ground.position.y = groundY`
         let h = this.relief.heightAt(x, z);
-        if (hasCurved && this._inChannel(x, z)) h = this._channelBedY(x, z);
+        // Русло: вершину меша опускаем чуть ниже зеркала воды (не до дна bedY),
+        // иначе треугольники сетки 8 м, пересекая кромку 18 м русла, лезут сквозь
+        // воду (мерцание/z-fight) и дают провалы. Коллизия дна — призма bed, не меш.
+        const rv = riverAt ? riverAt(x, z) : (hasCurved && this._inChannel(x, z) ? { d: -1, rv: { surfaceY: this.groundY - 0.2 } } : null);
+        if (rv && rv.d <= 0) h = (rv.rv.surfaceY ?? (this.groundY - 0.2)) - 0.05;
         pos.setZ(k, h - this.groundY);
         const n = this.relief.normalAt(x, z);
         nrm.setXYZ(k, n.x, -n.z, n.y);

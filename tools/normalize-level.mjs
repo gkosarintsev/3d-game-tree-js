@@ -1968,6 +1968,7 @@ function normalizeRelief(raw, ground, warnings) {
       plain.rivers = channels.map(ch => ({
         bankY: r3(ch.bank === 'quay' ? (ground?.y ?? plain.baseY) : (ground?.y ?? plain.baseY)),
         bedY: r3(ch.bedY),
+        surfaceY: r3(ch.surfaceY ?? (ground?.y ?? plain.baseY) - 0.2),
         halfW: r3(ch.width / 2),
         ramp: r3(Math.max(30, (ground?.y ?? plain.baseY) - ch.bedY + 10)),
         segments: (ch.segments ?? []).map(s => s.axis
