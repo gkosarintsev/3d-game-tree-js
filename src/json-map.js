@@ -719,6 +719,7 @@ export class JsonMap extends SurfaceField {
     this._navRoofs(nav);
     this._navStairs(nav, rstep);
     this._navDecks(nav);
+    this._navTunnels(nav);
     this._navWater(nav);
     this._navDoors(nav, rstep);
     return this._pruneToSpawn(nav);
@@ -1212,6 +1213,45 @@ export class JsonMap extends SurfaceField {
   }
 
   /**
+   * Навигация по прямому коридору тоннеля: цепочка узлов по оси пола между
+   * порталами. `_collectTunnels` даёт твёрдость (пол, стены, потолок) и подавление
+   * рельефа, но не строит узлов графа — без этой цепочки коридор оставался бы
+   * «дырой» в сети: у портала стоят узлы дорожных площадок, а внутри тоннеля
+   * ничего, и `navFit`/маршрут A→B обрывались на входе (симптом уровня 7:
+   * годных узлов 6, только подход). Узлы ключуются `t:<id>:<k>`, поэтому проход
+   * идемпотентен и у открытого мира безопасен при пересборке окна. Концы
+   * связываются с ближайшей сетью (решётка/площадки порталов), как концы настила.
+   */
+  _navTunnels(nav) {
+    const step = J.navStep;
+    for (const t of (this.tunnels ?? [])) {
+      const pts = t.points ?? [];
+      const from = pts[0], to = pts[pts.length - 1];
+      if (!from || !to) continue;
+      const dx = to.x - from.x, dz = to.z - from.z;
+      const len = Math.hypot(dx, dz);
+      if (len < 1e-6) continue;
+      const count = Math.max(1, Math.ceil(len / step));
+      let first, prev;
+      for (let k = 0; k <= count; k++) {
+        const p = k / count;
+        const x = from.x + dx * p;
+        const z = from.z + dz * p;
+        // опора — пол тоннеля по контракту шага (коридорный диапазон groundHeightAt),
+        // а не произвольная проба: это даёт floorY внутри и связывается с порталами
+        const y = (from.y + (to.y - from.y) * p);
+        const id = nav.add(x, y, z, `t:${t.id}:${k}`);
+        if (first === undefined) first = id;
+        else this._link(nav, prev, id);
+        prev = id;
+      }
+      for (const id of [first, prev]) {
+        if (id !== undefined) this._linkClosest(nav, id, step * 2.4, 4);
+      }
+    }
+  }
+
+  /**
    * Сход в русло и берег-склон: цепочка узлов вдоль уклона (`SurfaceField
    * .descentChain` — тот же подбор шага, что у наклонных настилов дорог).
    * Решётка земли их не связывает: шаг решётки 6 м при предельном уклоне 0,3
@@ -1284,8 +1324,10 @@ export class JsonMap extends SurfaceField {
       if (i === id) continue;
       const p = nav.pos[i];
       const d = Math.hypot(p.x - from.x, p.z - from.z);
-      if (d > radius || d < 0.01) continue;
+      if (d > radius) continue;
       if (filter && !filter(p)) continue;
+      // совпадающие по плану узлы (стык тоннеля/настила в одной точке, разные ключи)
+      // обязаны связаться: d<0.01 раньше отбрасывал их и рвал маршрут на портале
       near.push({ i, d });
     }
     // порядок с прежним полным перебором: при равных расстояниях раньше шел
@@ -1296,9 +1338,10 @@ export class JsonMap extends SurfaceField {
     for (const cand of near) {
       if (linked >= count) break;
       if (nav.adj[id].includes(cand.i)) continue;
-      if (Math.abs(nav.pos[cand.i].y - from.y) > this.stepUp) continue;
-      if (!this.bodyClearLine(from, nav.pos[cand.i])) continue;
-      if (!this._edgeSupported(from, nav.pos[cand.i])) continue;
+      const to = nav.pos[cand.i];
+      if (Math.abs(to.y - from.y) > this.stepUp) continue;
+      // нулевой ход — та же точка сети под другим ключом: проходимость тривиальна
+      if (cand.d >= 0.01 && (!this.bodyClearLine(from, to) || !this._edgeSupported(from, to))) continue;
       nav.link(id, cand.i);
       linked++;
     }

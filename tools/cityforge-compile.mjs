@@ -70,65 +70,34 @@ function compileHills(cf, errors) {
 }
 
 /**
- * Цепочки сегментов сети дорог CityForge → оси полотен v2. Сегменты сети
- * соединяются в цепочки по узлам (`from`/`to`), каждая цепочка — одна ось: полотно
- * с подъёмом превращается в последовательность осей, каждая пара точек — одна
- * наклонная пластина (правило проекта: одна пластина на отрезок).
+ * Сегменты сети дорог CityForge → оси полотен v2. Каждый сегмент сети — отдельная
+ * дорога: классификация (bridge/ground) и валидация зазоров тогда считаются по
+ * реальному профилю сегмента, а не по объединённой цепочке (иначе наземный участок
+ * маршрута, присоединённый к высокому подъёму, наследовал бы тип «мост» и давал
+ * предупреждение о зазоре «под ним не пройти» у самого земли). Навигация и опоры
+ * соединяются по общей геометрии/решётке, поэтому разрыв на объекты не создаёт
+ * разрыва проходимости.
  */
 function compileRoads(cf, groundY) {
   const roads = [];
-  const net = cf?.networks?.roads;
-  const segments = net?.segments ?? [];
-  if (!net) return roads;
-  const byFrom = new Map();
+  const segments = cf?.networks?.roads?.segments ?? [];
   for (const s of segments) {
-    const arr = byFrom.get(s.from) ?? [];
-    arr.push(s);
-    byFrom.set(s.from, arr);
-  }
-  const targeted = new Set(segments.map(s => s.to));
-  const starts = (net.nodes ?? []).filter(n => !targeted.has(n.id)).map(n => n.id);
-  const used = new Set();
-  const chains = [];
-  for (const st of starts) {
-    const chain = [];
-    let cur = st;
-    for (let guard = 0; cur && guard < 4096; guard++) {
-      const next = (byFrom.get(cur) ?? []).find(s => !used.has(s));
-      if (!next) break;
-      used.add(next);
-      chain.push(next);
-      cur = next.to;
-    }
-    if (chain.length) chains.push(chain);
-  }
-  for (const s of segments) {
-    if (used.has(s)) continue;
-    used.add(s);
-    chains.push([s]);
-  }
-  chains.forEach((chain, ci) => {
     const points = [];
-    for (const s of chain) {
-      for (const p of s.path ?? []) {
-        const last = points[points.length - 1];
-        if (!last || Math.abs(last.x - p[0]) > 1e-9 || Math.abs(last.y - p[1]) > 1e-9 || Math.abs(last.z - p[2]) > 1e-9) {
-          points.push({ x: p[0], y: p[1], z: p[2] });
-        }
+    for (const p of s.path ?? []) {
+      const last = points[points.length - 1];
+      if (!last || Math.abs(last.x - p[0]) > 1e-9 || Math.abs(last.y - p[1]) > 1e-9 || Math.abs(last.z - p[2]) > 1e-9) {
+        points.push({ x: p[0], y: p[1], z: p[2] });
       }
     }
-    if (points.length < 2) {
-      throw Object.assign(new Error(`cityforge.networks.roads: цепочка ${ci} не имеет геометрии`), { name: 'CityforgeCompileError', errors: [`cityforge.networks.roads: цепочка ${ci} без точек пути`] });
-    }
+    if (points.length < 2) continue;
     const top = Math.max(...points.map(p => p.y));
-    const first = chain[0];
     roads.push({
-      id: first.id,
+      id: s.id,
       type: top - groundY > J.bridgeMinHeight ? 'bridge' : 'ground',
-      width: first.lanes?.[0]?.width ?? 8,
+      width: s.lanes?.[0]?.width ?? 8,
       points,
     });
-  });
+  }
   return roads;
 }
 
@@ -206,7 +175,18 @@ export function compileCityforge(raw) {
 
   const sx = gp.spawn?.x ?? 0, sz = gp.spawn?.z ?? 0;
   const ex = gp.exit?.x ?? 0, ez = gp.exit?.z ?? 0;
-  const pad = (id, x, z, y = ground.y ?? 0) => ({
+  const gy = ground.y ?? 0;
+  // отметка площадки: если рядом есть портал/точка дороги (спавн в тоннеле/на
+  // настиле), берём её y, иначе площадка оказалась бы на ground.y и оторвалась
+  // от сети по высоте (ломает скелет/навигацию)
+  const padY = (x, z, fallback) => {
+    for (const t of (tunnels ?? [])) for (const p of (t.points ?? []))
+      if (Math.hypot(p.x - x, p.z - z) < 12) return p.y;
+    for (const r of roads) for (const p of (r.points ?? []))
+      if (Math.hypot(p.x - x, p.z - z) < 12) return p.y;
+    return fallback;
+  };
+  const pad = (id, x, z, y = gy) => ({
     id, type: 'ground', width: 6,
     points: [{ x: x - 3, z, y }, { x: x + 3, z, y }],
   });
@@ -246,7 +226,7 @@ export function compileCityforge(raw) {
       budgetMs: stream.budgetMs,
     },
     buildings: [],
-    roads: [pad('spawn_pad', sx, sz), pad('exit_pad', ex, ez), ...tunnelPads, ...roads],
+    roads: [pad('spawn_pad', sx, sz, padY(sx, sz, gy)), pad('exit_pad', ex, ez, padY(ex, ez, gy)), ...tunnelPads, ...roads],
     tunnels,
     lights: [],
     gameplay: {

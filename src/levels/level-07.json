@@ -1,0 +1,231 @@
+{
+  "$schema": "./level-v3.schema.json",
+  "kind": "cityforge",
+  "metadata": {
+    "levelName": "level-07",
+    "name": "Глава 7. Горный туннель (CityForge v3)",
+    "hint": "Вы стартуете в начале туннеля: пройдите сквозь высокую гору и доберитесь до маяка B.",
+    "engine": "open",
+    "units": "meters",
+    "notes": "Глава 7: те же размеры, что у главы 3 (плита 1280×1280 м, 5×5 чанков по 256 м), открытый мир со стримингом, цель A→B. Одна высокая гора (гряда вдоль X), прямой тоннель идёт сквозь неё поперёк (вдоль Z) и выходит на южный склон; спавн — в начале тоннеля. Stream — играбельный (окно)."
+  },
+  "ground": {
+    "y": 0,
+    "size": 1280
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": { "x": 0, "z": -420 },
+    "exit": { "x": 520, "z": 540 },
+    "exitRadius": 4,
+    "enemies": { "count": 4 },
+    "alienEnemies": { "count": 0 }
+  },
+  "stream": {
+    "chunk": 256,
+    "keep": 2,
+    "aheadMin": 200,
+    "aheadMax": 700,
+    "budgetMs": 60
+  },
+  "cityforge": {
+    "format": "cityforge",
+    "version": "0.1",
+    "world": {
+      "units": "meters",
+      "coordinateSystem": { "type": "local", "handedness": "right", "up": "Z" },
+      "origin": [0, 0, 0],
+      "bounds": { "min": [-640, -640, -50], "max": [640, 640, 100] }
+    },
+    "generation": {
+      "seed": 7,
+      "generatorVersion": "0.1",
+      "deterministic": true
+    },
+    "assets": [
+      {
+        "id": "ground.placeholder",
+        "kind": "procedural",
+        "generator": "placeholder.flat",
+        "bounds": [1280, 1280, 1]
+      }
+    ],
+    "districts": [],
+    "blocks": [],
+    "parcels": [],
+    "instances": [],
+    "terrain": {
+      "base": { "type": "heightfield", "source": "procedural", "resolution": 4 },
+      "modifiers": [
+        {
+          "id": "hill_high_mountain",
+          "type": "mountain",
+          "center": [0, 0],
+          "radius": 520,
+          "height": 140,
+          "falloff": "smooth",
+          "path": [[-220, 0], [220, 0]],
+          "width": 2,
+          "depth": 0,
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        }
+      ]
+    },
+    "hydrology": { "rivers": [], "lakes": [] },
+    "networks": {
+      "roads": {
+        "nodes": [
+          { "id": "n_spawn", "position": [0, 32, -450], "layer": "ground" },
+          { "id": "n_tunnel_n", "position": [0, 32, -420], "layer": "ground" },
+          { "id": "n_tunnel_s", "position": [0, 32, 420], "layer": "ground" },
+          { "id": "n_slope_base", "position": [0, 0, 540], "layer": "ground" },
+          { "id": "n_exit", "position": [520, 0, 540], "layer": "ground" }
+        ],
+        "segments": [
+          {
+            "id": "road_spawn_tunnel",
+            "from": "n_spawn",
+            "to": "n_tunnel_n",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [0, 32, -450],
+              [0, 32, -420]
+            ],
+            "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
+            "shoulderWidth": 2,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_tunnel_exit",
+            "from": "n_tunnel_s",
+            "to": "n_slope_base",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [0, 32, 420],
+              [0, 16, 480],
+              [0, 0, 540]
+            ],
+            "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
+            "shoulderWidth": 2,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_to_exit",
+            "from": "n_slope_base",
+            "to": "n_exit",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [0, 0, 540],
+              [520, 0, 540]
+            ],
+            "lanes": [ { "id": "lane_1", "direction": "forward", "width": 8, "type": "vehicle" } ],
+            "shoulderWidth": 2,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          }
+        ],
+        "junctions": []
+      },
+      "railways": { "nodes": [], "segments": [], "junctions": [] },
+      "paths": { "nodes": [], "segments": [], "junctions": [] }
+    },
+    "structures": {
+      "bridges": [],
+      "tunnels": [
+        {
+          "id": "tunnel_mountain",
+          "type": "tunnel",
+          "template": "tunnel.rock",
+          "roadRefs": [ "road_spawn_tunnel" ],
+          "portals": [
+            {
+              "id": "portal_north",
+              "position": [ 0, 32, -420 ],
+              "networkRef": "n_spawn",
+              "roadRef": "road_spawn_tunnel",
+              "layer": "ground",
+              "tangent": [ 0, 0, 1 ]
+            },
+            {
+              "id": "portal_south",
+              "position": [ 0, 32, 420 ],
+              "networkRef": "n_exit",
+              "roadRef": "road_spawn_tunnel",
+              "layer": "ground",
+              "tangent": [ 0, 0, 1 ]
+            }
+          ],
+          "parameters": { "lining": "concrete", "lighting": false }
+        }
+      ]
+    },
+    "instances": [],
+    "chunks": [
+      { "id": "chunk_0_0", "bounds": { "min": [-640, -640, -50], "max": [-384, -384, 100] }, "file": "chunks/0_0/chunk.json" },
+      { "id": "chunk_0_1", "bounds": { "min": [-640, -384, -50], "max": [-384, -128, 100] }, "file": "chunks/0_1/chunk.json" },
+      { "id": "chunk_0_2", "bounds": { "min": [-640, -128, -50], "max": [-384, 128, 100] }, "file": "chunks/0_2/chunk.json" },
+      { "id": "chunk_0_3", "bounds": { "min": [-640, 128, -50], "max": [-384, 384, 100] }, "file": "chunks/0_3/chunk.json" },
+      { "id": "chunk_0_4", "bounds": { "min": [-640, 384, -50], "max": [-384, 640, 100] }, "file": "chunks/0_4/chunk.json" },
+      { "id": "chunk_1_0", "bounds": { "min": [-384, -640, -50], "max": [-128, -384, 100] }, "file": "chunks/1_0/chunk.json" },
+      { "id": "chunk_1_1", "bounds": { "min": [-384, -384, -50], "max": [-128, -128, 100] }, "file": "chunks/1_1/chunk.json" },
+      { "id": "chunk_1_2", "bounds": { "min": [-384, -128, -50], "max": [-128, 128, 100] }, "file": "chunks/1_2/chunk.json" },
+      { "id": "chunk_1_3", "bounds": { "min": [-384, 128, -50], "max": [-128, 384, 100] }, "file": "chunks/1_3/chunk.json" },
+      { "id": "chunk_1_4", "bounds": { "min": [-384, 384, -50], "max": [-128, 640, 100] }, "file": "chunks/1_4/chunk.json" },
+      { "id": "chunk_2_0", "bounds": { "min": [-128, -640, -50], "max": [128, -384, 100] }, "file": "chunks/2_0/chunk.json" },
+      { "id": "chunk_2_1", "bounds": { "min": [-128, -384, -50], "max": [128, -128, 100] }, "file": "chunks/2_1/chunk.json" },
+      { "id": "chunk_2_2", "bounds": { "min": [-128, -128, -50], "max": [128, 128, 100] }, "file": "chunks/2_2/chunk.json" },
+      { "id": "chunk_2_3", "bounds": { "min": [-128, 128, -50], "max": [128, 384, 100] }, "file": "chunks/2_3/chunk.json" },
+      { "id": "chunk_2_4", "bounds": { "min": [-128, 384, -50], "max": [128, 640, 100] }, "file": "chunks/2_4/chunk.json" },
+      { "id": "chunk_3_0", "bounds": { "min": [128, -640, -50], "max": [384, -384, 100] }, "file": "chunks/3_0/chunk.json" },
+      { "id": "chunk_3_1", "bounds": { "min": [128, -384, -50], "max": [384, -128, 100] }, "file": "chunks/3_1/chunk.json" },
+      { "id": "chunk_3_2", "bounds": { "min": [128, -128, -50], "max": [384, 128, 100] }, "file": "chunks/3_2/chunk.json" },
+      { "id": "chunk_3_3", "bounds": { "min": [128, 128, -50], "max": [384, 384, 100] }, "file": "chunks/3_3/chunk.json" },
+      { "id": "chunk_3_4", "bounds": { "min": [128, 384, -50], "max": [384, 640, 100] }, "file": "chunks/3_4/chunk.json" },
+      { "id": "chunk_4_0", "bounds": { "min": [384, -640, -50], "max": [640, -384, 100] }, "file": "chunks/4_0/chunk.json" },
+      { "id": "chunk_4_1", "bounds": { "min": [384, -384, -50], "max": [640, -128, 100] }, "file": "chunks/4_1/chunk.json" },
+      { "id": "chunk_4_2", "bounds": { "min": [384, -128, -50], "max": [640, 128, 100] }, "file": "chunks/4_2/chunk.json" },
+      { "id": "chunk_4_3", "bounds": { "min": [384, 128, -50], "max": [640, 384, 100] }, "file": "chunks/4_3/chunk.json" },
+      { "id": "chunk_4_4", "bounds": { "min": [384, 384, -50], "max": [640, 640, 100] }, "file": "chunks/4_4/chunk.json" }
+    ],
+    "chunkIndex": {
+      "version": "0.1",
+      "chunks": [
+        { "id": "chunk_0_0", "bounds": { "min": [-640, -640, -50], "max": [-384, -384, 100] }, "neighbors": ["chunk_0_1", "chunk_1_0"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_0_1", "bounds": { "min": [-640, -384, -50], "max": [-384, -128, 100] }, "neighbors": ["chunk_0_0", "chunk_0_2", "chunk_1_1"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_0_2", "bounds": { "min": [-640, -128, -50], "max": [-384, 128, 100] }, "neighbors": ["chunk_0_1", "chunk_0_3", "chunk_1_2"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_0_3", "bounds": { "min": [-640, 128, -50], "max": [-384, 384, 100] }, "neighbors": ["chunk_0_2", "chunk_0_4", "chunk_1_3"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_0_4", "bounds": { "min": [-640, 384, -50], "max": [-384, 640, 100] }, "neighbors": ["chunk_0_3", "chunk_1_4"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_1_0", "bounds": { "min": [-384, -640, -50], "max": [-128, -384, 100] }, "neighbors": ["chunk_0_0", "chunk_1_1", "chunk_2_0"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_1_1", "bounds": { "min": [-384, -384, -50], "max": [-128, -128, 100] }, "neighbors": ["chunk_0_1", "chunk_1_0", "chunk_1_2", "chunk_2_1"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_1_2", "bounds": { "min": [-384, -128, -50], "max": [-128, 128, 100] }, "neighbors": ["chunk_0_2", "chunk_1_1", "chunk_1_3", "chunk_2_2"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_1_3", "bounds": { "min": [-384, 128, -50], "max": [-128, 384, 100] }, "neighbors": ["chunk_0_3", "chunk_1_2", "chunk_1_4", "chunk_2_3"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_1_4", "bounds": { "min": [-384, 384, -50], "max": [-128, 640, 100] }, "neighbors": ["chunk_0_4", "chunk_1_3", "chunk_2_4"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_2_0", "bounds": { "min": [-128, -640, -50], "max": [128, -384, 100] }, "neighbors": ["chunk_1_0", "chunk_2_1", "chunk_3_0"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_2_1", "bounds": { "min": [-128, -384, -50], "max": [128, -128, 100] }, "neighbors": ["chunk_1_1", "chunk_2_0", "chunk_2_2", "chunk_3_1"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_2_2", "bounds": { "min": [-128, -128, -50], "max": [128, 128, 100] }, "neighbors": ["chunk_1_2", "chunk_2_1", "chunk_2_3", "chunk_3_2"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_2_3", "bounds": { "min": [-128, 128, -50], "max": [128, 384, 100] }, "neighbors": ["chunk_1_3", "chunk_2_2", "chunk_2_4", "chunk_3_3"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_2_4", "bounds": { "min": [-128, 384, -50], "max": [128, 640, 100] }, "neighbors": ["chunk_1_4", "chunk_2_3", "chunk_3_4"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_3_0", "bounds": { "min": [128, -640, -50], "max": [384, -384, 100] }, "neighbors": ["chunk_2_0", "chunk_3_1", "chunk_4_0"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_3_1", "bounds": { "min": [128, -384, -50], "max": [384, -128, 100] }, "neighbors": ["chunk_2_1", "chunk_3_0", "chunk_3_2", "chunk_4_1"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_3_2", "bounds": { "min": [128, -128, -50], "max": [384, 128, 100] }, "neighbors": ["chunk_2_2", "chunk_3_1", "chunk_3_3", "chunk_4_2"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_3_3", "bounds": { "min": [128, 128, -50], "max": [384, 384, 100] }, "neighbors": ["chunk_2_3", "chunk_3_2", "chunk_3_4", "chunk_4_3"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_3_4", "bounds": { "min": [128, 384, -50], "max": [384, 640, 100] }, "neighbors": ["chunk_2_4", "chunk_3_3", "chunk_4_4"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_4_0", "bounds": { "min": [384, -640, -50], "max": [640, -384, 100] }, "neighbors": ["chunk_3_0", "chunk_4_1"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_4_1", "bounds": { "min": [384, -384, -50], "max": [640, -128, 100] }, "neighbors": ["chunk_3_1", "chunk_4_0", "chunk_4_2"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_4_2", "bounds": { "min": [384, -128, -50], "max": [640, 128, 100] }, "neighbors": ["chunk_3_2", "chunk_4_1", "chunk_4_3"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_4_3", "bounds": { "min": [384, 128, -50], "max": [640, 384, 100] }, "neighbors": ["chunk_3_3", "chunk_4_2", "chunk_4_4"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] },
+        { "id": "chunk_4_4", "bounds": { "min": [384, 384, -50], "max": [640, 640, 100] }, "neighbors": ["chunk_3_4", "chunk_4_3"], "files": {}, "entities": [], "fragments": [], "portals": [], "dependencies": [] }
+      ]
+    }
+  }
+}

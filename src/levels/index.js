@@ -14,6 +14,10 @@
  * 25 чанков 256 м, цель A→B. Источник — CityForge v3 (`src/levels/level-03.json`),
  * компилируется в движковый каталог `level-03/`:
  * `node tools/build-level.mjs src/levels/level-03.json`.
+ * Глава 7 — **открытый мир** (`kind: 'open'`), как глава 3 по размерам: плита 1280 × 1280 м,
+ * 5×5 чанков по 256 м, цель A→B. Одна высокая гора, туннель сквозь неё; спавн в начале
+ * туннеля. Источник — CityForge v3 (`src/levels/level-07.json`), компилируется в `level-07/`:
+ * `node tools/build-level.mjs src/levels/level-07.json`.
  * Глава 4 — весь ночной макет GLB активным окном со стримингом (`StreamedModelMap`).
  * Глава 6 — уличный уровень `TownMap` со сбором монет.
  * Главы 11–13 — переходы A→B из JSON-брифа (`kind: 'json2'`): 11 — v2 с
@@ -33,6 +37,7 @@ import { LEVEL_02 } from './level-02/index.js';
 import { LEVEL_03 } from './level-03/index.js';
 import { LEVEL_04 } from './level-04.js';
 import { LEVEL_06 } from './level-06.js';
+import { LEVEL_07 } from './level-07/index.js';
 import { LEVEL_11 } from './level-11.js';
 import { LEVEL_12 } from './level-12.js';
 import { LEVEL_13 } from './level-13.js';
@@ -40,8 +45,9 @@ import { LEVEL_14 } from './level-14/index.js';
 
 export const LEVELS = [
   LEVEL_01, LEVEL_02, LEVEL_03, LEVEL_04, LEVEL_06,
+  LEVEL_07,
   LEVEL_11, LEVEL_12, LEVEL_13, LEVEL_14,
 ];
 
 /** Номер главы для каждой позиции `LEVELS` (файлы `level-NN`). */
-export const LEVEL_NUMBERS = [1, 2, 3, 4, 6, 11, 12, 13, 14];
+export const LEVEL_NUMBERS = [1, 2, 3, 4, 6, 7, 11, 12, 13, 14];

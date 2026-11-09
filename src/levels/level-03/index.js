@@ -389,7 +389,7 @@ export const LEVEL_03 = {
     "stream": {
       "aheadMax": 1200,
       "aheadMin": 1200,
-      "budgetMs": 16,
+      "budgetMs": 40,
       "chunk": 256,
       "keep": 4,
       "overlap": 1.175

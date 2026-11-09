@@ -37,3 +37,15 @@ export function filterLabel(filter) {
   if (!filter) return '';
   return ` [главы ${[...filter].sort((a, b) => a - b).join(', ')}]`;
 }
+
+/**
+ * Результат «сюита пропущена фильтром главы»: главы не выбраны или ни одна из
+ * привязанных к сюите глав не попала в фильтр. total 0 + skipped, чтобы
+ * ci-browser не счёл это провалом.
+ */
+export const SKIPPED = Object.freeze({ passed: 0, total: 0, skipped: true, results: [] });
+
+/** `true`, если активен фильтр и ни один номер из `nums` в него не попал. */
+export function filteredOut(filter, nums) {
+  return !!filter && !nums.some((n) => filter.has(n));
+}

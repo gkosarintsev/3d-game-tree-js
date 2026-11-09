@@ -26,7 +26,7 @@
     "keep": 4,
     "aheadMin": 1200,
     "aheadMax": 1200,
-    "budgetMs": 16
+    "budgetMs": 40
   },
   "cityforge": {
     "format": "cityforge",

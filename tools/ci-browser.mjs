@@ -99,7 +99,7 @@ function serve() {
   return new Promise(done => server.listen(0, '127.0.0.1', () => done({ server, port: server.address().port })));
 }
 
-async function runSuite(context, baseUrl, file, fast = false) {
+async function runSuite(context, baseUrl, file, fast = false, level = null) {
   const started = Date.now();
   const page = await context.newPage();
   const consoleErrors = [];
@@ -109,14 +109,19 @@ async function runSuite(context, baseUrl, file, fast = false) {
   await page.goto(url, { waitUntil: 'load', timeout: 120_000 });
   await page.waitForFunction(() => window.game && typeof window.game.createMap === 'function', null, { timeout: 120_000 });
   const outcome = await Promise.race([
-    page.evaluate(async (file) => {
+    page.evaluate(async ({ file, level }) => {
+      // Фильтр глав (AGENTS.md / tests/level-filter.js): `--level 3` → только глава 3.
+      // Сюиты реестра читают TEST_LEVEL, если аргумент run*Tests() не передан.
+      // Некоторые сюиты не привязаны к главам — они обязаны принять флаг и пропустить
+      // себя, вернув { passed, total, skipped: true } при активном фильтре.
+      if (level != null) globalThis.TEST_LEVEL = level;
       const mod = await import(file);
       const key = Object.keys(mod).find(k => typeof mod[k] === 'function' && /^run/.test(k));
       if (!key) return { error: 'в модуле нет экспорта run*Tests()' };
       const r = await mod[key]();
       if (!r || typeof r.total !== 'number') return { error: `сюита вернула ${JSON.stringify(r)} вместо { passed, total }` };
-      return { passed: r.passed, total: r.total, results: (r.results ?? []).map(x => [x.passed, x.name, x.info]) };
-    }, `/tests/${file}`),
+      return { passed: r.passed, total: r.total, skipped: !!r.skipped, results: (r.results ?? []).map(x => [x.passed, x.name, x.info]) };
+    }, { file: `/tests/${file}`, level }),
     new Promise((_, rej) => setTimeout(() => rej(new Error(`таймаут сюиты ${SUITE_TIMEOUT_MS / 1000} с`)), SUITE_TIMEOUT_MS)),
   ]).catch(e => ({ error: String(e?.message ?? e) }));
   if (fast && !outcome.error && Array.isArray(outcome.results)) {
@@ -146,6 +151,7 @@ function argAll(name) {
 
 const only = (arg('suites', '') || '').split(',').filter(Boolean);
 const fast = process.argv.includes('--fast');
+const levelArg = arg('level', null);
 const flakes = argAll('flake').map(spec => {
   const at = spec.indexOf('::');
   return { file: at < 0 ? spec : spec.slice(0, at), name: at < 0 ? '' : spec.slice(at + 2) };
@@ -158,7 +164,7 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const files = only.length ? only.map(f => f.endsWith('.test.js') ? f : `${f}.test.js`)
   : (await readdir(resolve(ROOT, 'tests'))).filter(f => f.endsWith('.test.js')).sort();
 
-console.log(`прогон ${files.length} браузерных сюит на ${baseUrl}${flakes.length ? `, стохастических проверок — ${flakes.length}` : ''}${fast ? ' (fast: perf-проверки пропущены)' : ''}`);
+console.log(`прогон ${files.length} браузерных сюит на ${baseUrl}${levelArg != null ? `, только глава ${levelArg}` : ''}${flakes.length ? `, стохастических проверок — ${flakes.length}` : ''}${fast ? ' (fast: perf-проверки пропущены)' : ''}`);
 const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
 // Один контекст на весь прогон (R0): браузеры и HTTP-кэш общие, а страницы
 // свежие — свежесть JS-мира и рендерера сохраняется, потому что каждая сюита
@@ -169,7 +175,8 @@ let checks = 0;
 let checksPassed = 0;
 let flakesRed = 0;
 for (const file of files) {
-  const r = await runSuite(context, baseUrl, file, fast);
+  console.log(`START ${file}${levelArg != null ? ` [глава ${levelArg}]` : ''}`);
+  const r = await runSuite(context, baseUrl, file, fast, levelArg);
   if (r.error) {
     failedSuites++;
     console.log(`FAIL ${file}: ${r.error}`);
@@ -180,12 +187,15 @@ for (const file of files) {
   const red = (r.results ?? []).filter(([passed]) => !passed);
   const blocking = red.filter(([, name]) => !isFlaky(file, name));
   flakesRed += red.length - blocking.length;
-  const ok = blocking.length === 0 && (r.total ?? 0) > 0;
+  // Пропущенная по фильтру главы сюита (total 0, skipped) — не провал.
+  const ok = blocking.length === 0 && ((r.total ?? 0) > 0 || r.skipped);
   if (!ok) failedSuites++;
   const flakeNote = red.length - blocking.length ? ` (флейк ${red.length - blocking.length})` : '';
-  console.log(`${ok ? 'PASS' : 'FAIL'} ${file}: ${r.passed}/${r.total}${flakeNote} (${((r.durationMs ?? 0) / 1000).toFixed(1)}s)`);
+  const skipNote = r.skipped ? ' (пропуск по фильтру главы)' : '';
+  const tag = !ok ? 'FAIL' : (r.skipped ? 'SKIP' : 'PASS');
+  console.log(`${tag} ${file}: ${r.passed}/${r.total}${flakeNote}${skipNote} (${((r.durationMs ?? 0) / 1000).toFixed(1)}s)`);
   for (const [, name, info] of red) {
-    console.log(`       ${isFlaky(file, name) ? 'FLAKE (не блокирует)' : '✖'} ${name}: ${String(info).slice(0, 300)}`);
+    console.log(`       ${isFlaky(file, name) ? 'FLAKE (не блокирует)' : '✖'} ${name}: ${String(info).slice(0, 2000)}`);
   }
   if (r.consoleErrors?.length) {
     console.log(`       errors: ${r.consoleErrors.slice(0, 3).join(' | ').slice(0, 300)}`);
@@ -193,8 +203,15 @@ for (const file of files) {
 }
 await context.close();
 await browser.close();
-server.close();
+// `close()` не рвёт keep-alive соединения — браузер мог их оставить, и процесс
+// висит после итога; явно закрываем idle/живые соединения (Node 18.2+/24).
+server.closeIdleConnections?.();
+server.closeAllConnections?.();
+await new Promise(done => server.close(done));
 
 console.log(`\nбраузер: ${checksPassed}/${checks} проверок зелёные по ${files.length - failedSuites}/${files.length} сюжеткам` +
   (flakesRed ? ` (красных флейков вне вердикта: ${flakesRed})` : ''));
 if (failedSuites) process.exitCode = 1;
+// Страховка от висящих дескрипторов (keep-alive/stdio браузера): итог уже напечатан,
+// ждать дольше смысла нет. unref, чтобы не держать цикл, если выход штатный.
+setTimeout(() => process.exit(process.exitCode ?? 0), 4000).unref();

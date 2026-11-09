@@ -18,7 +18,7 @@ const DEG = Math.PI / 180;
  */
 export const DATA_SINKS = Object.freeze([
   'solids', 'surfaces', 'blockers', 'stairCells', 'floorPlates', 'roofPlates',
-  'deckPlates', 'sweeps', 'prisms', 'railWedges', 'rails', 'holes', 'tunnelHoles', 'descents',
+  'deckPlates', 'sweeps', 'prisms', 'railWedges', 'rails', 'holes', 'tunnelHoles', 'tunnelZones', 'descents',
   'waterRects',
 ]);
 
@@ -102,6 +102,8 @@ export class SurfaceField extends SolidField {
     this.holes = [];
     /** планы туннелей: вырез в меше земли (чтобы рельеф не перекрывал коридор), но НЕ русло для _inChannel */
     this.tunnelHoles = [];
+    /** зоны тоннелей для подавления рельефа-опоры (полный план+потолок). */
+    this.tunnelZones = [];
     /** сходы в русло и берега-склоны: узлы графа вдоль уклона */
     this.descents = [];
     /** зеркала воды: план на отметке surfaceY (меш без коллизий рисует карта) */
@@ -440,26 +442,81 @@ export class SurfaceField extends SolidField {
         topY: floorY, bottomY: floorY - J.deckThickness,
         topAtMin: floorY, topAtMax: floorY, ramp: false, arc: false,
       });
-      // стены: две поперечные коробки, от пола до потолка
+      // стены: две боковые стенки вдоль коридора, с проёмами у порталов. Полная
+      // длина стены (до торцов min/max по оси) перекрывала бы вход/выход — тело и
+      // навигация не могли пересечь плоскость портала (bodyClearLine/edgeOk рвало
+      // цепочку настила на границе). Отступаем от каждого портала на зазор прохода:
+      // геометрия и коллизия режутся одинаково, твёрдость совпадает с картинкой.
       const wallT = J.wallThickness;
-      const wallRects = axisX
+      const portalGap = Math.max(CONFIG.radius * 2, 1.2);
+      const u0 = axisX ? Math.min(plan.minX, plan.maxX) : Math.min(plan.minZ, plan.maxZ);
+      const u1 = axisX ? Math.max(plan.minX, plan.maxX) : Math.max(plan.minZ, plan.maxZ);
+      const s0 = u0 + portalGap, s1 = u1 - portalGap;
+      const sideSpecs = axisX
         ? [
-          { minX: plan.minX, maxX: plan.maxX, minZ: from.z - halfW, maxZ: from.z - halfW + wallT, y0: floorY, y1: ceilY },
-          { minX: plan.minX, maxX: plan.maxX, minZ: from.z + halfW - wallT, maxZ: from.z + halfW, y0: floorY, y1: ceilY },
+          { minZ: from.z - halfW, maxZ: from.z - halfW + wallT },
+          { minZ: from.z + halfW - wallT, maxZ: from.z + halfW },
         ]
         : [
-          { minX: from.x - halfW, maxX: from.x - halfW + wallT, minZ: plan.minZ, maxZ: plan.maxZ, y0: floorY, y1: ceilY },
-          { minX: from.x + halfW - wallT, maxX: from.x + halfW, minZ: plan.minZ, maxZ: plan.maxZ, y0: floorY, y1: ceilY },
+          { minX: from.x - halfW, maxX: from.x - halfW + wallT },
+          { minX: from.x + halfW - wallT, maxX: from.x + halfW },
         ];
-      for (const w of wallRects) this._box(w, w.y0, w.y1, 'walls', { collide: true });
+      for (const side of sideSpecs) {
+        if (s1 > s0 + 1e-6) {
+          const w = axisX
+            ? { minX: s0, maxX: s1, ...side, y0: floorY, y1: ceilY }
+            : { ...side, minZ: s0, maxZ: s1, y0: floorY, y1: ceilY };
+          this._box(w, w.y0, w.y1, 'walls', { collide: true });
+        }
+      }
       // потолок: твёрдость тела, картинка в своей группе
       const ceilingPlan = axisX
         ? { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ }
         : { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ };
       this._box(ceilingPlan, ceilY - J.deckThickness, ceilY, 'ceilings', { collide: true });
-      // вырез в меше рельефа, чтобы склон не перекрывал тоннель (как holes для русла, но без логики _inChannel)
-      this.tunnelHoles.push({ minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ });
+      const zone = { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ, floorY, ceilY };
+      // Зона подавления опоры — всегда (иначе на уровне тоннеля рельеф-«гора»
+      // возвращается как пол). Вырез меша рельефа — только если тоннель не погребён
+      // целиком: у глубоко зарытого коридора рельеф выше потолка на всём плане, и
+      // полный вырез дал бы сквозную прозрачную «шахту» в горе; гору сверху оставляем.
+      this.tunnelZones.push(zone);
+      for (const h of this._tunnelCarveRects(zone)) this.tunnelHoles.push({ ...h, floorY, ceilY });
     }
+  }
+
+  /**
+   * Сегменты выреза меша рельефа над тоннелем: режем только там, где рельеф
+   * пересекает/близок к потолку (портал, неглубокий участок). Глубоко погребённый
+   * отрезок не трогаем — иначе получилась бы сквозная прозрачная «шахта» в горе.
+   * Без рельефа вырезаем весь план (плоский мир).
+   */
+  _tunnelCarveRects(zone) {
+    const { minX, maxX, minZ, maxZ, ceilY } = zone;
+    if (!this.relief) return [{ minX, maxX, minZ, maxZ }];
+    const m = 1.5;
+    const axisX = (maxX - minX) >= (maxZ - minZ);
+    const a0 = axisX ? minX : minZ, a1 = axisX ? maxX : maxZ;
+    const b0 = axisX ? minZ : minX, b1 = axisX ? maxZ : maxX;
+    const step = 4;
+    const near = (a) => {
+      const x = axisX ? a : (b0 + b1) / 2, z = axisX ? (b0 + b1) / 2 : a;
+      return this.relief.heightAt(x, z) <= ceilY + m
+        || this.relief.heightAt(axisX ? a : b0, axisX ? b0 : a) <= ceilY + m
+        || this.relief.heightAt(axisX ? a : b1, axisX ? b1 : a) <= ceilY + m;
+    };
+    const rects = [];
+    let run = null;
+    for (let a = a0; a <= a1 + 1e-6; a += step) {
+      const aa = Math.min(a, a1);
+      if (near(aa)) { if (!run) run = { a0: aa, a1: aa }; else run.a1 = aa; }
+      else if (run) { rects.push(run); run = null; }
+      if (aa >= a1 - 1e-6) break;
+    }
+    if (run) rects.push(run);
+    return rects.map(r => axisX
+      ? { minX: Math.max(minX, r.a0 - step / 2), maxX: Math.min(maxX, r.a1 + step / 2), minZ, maxZ }
+      : { minX, maxX, minZ: Math.max(minZ, r.a0 - step / 2), maxZ: Math.min(maxZ, r.a1 + step / 2) }
+    );
   }
 
   /**
@@ -683,15 +740,33 @@ export class SurfaceField extends SolidField {
    */
   groundHeightAt(x, z, fromY = 0) {
     const plate = this.plateHeightAt(x, z, fromY);
-    const floor = this.relief ? this.relief.heightAt(x, z) : 0;
-    const base = plate === null ? floor : Math.max(plate, floor);
+    const relief = this.relief ? this.relief.heightAt(x, z) : 0;
+    const lim = fromY + this.stepUp;
     // берётся высшая опора в пределах шага ноги, а не просто высшая: на развязке
     // полотно дуги висит над улицей, и её 8 м не должны прятать асфальт под ногой
-    const lim = fromY + this.stepUp;
     let top = null;
     for (const t of [this._prismTopAt(x, z), this._sweepTopAt(x, z)]) {
       if (t !== null && t <= lim && (top === null || t > top)) top = t;
     }
+    // Тоннель: подавляем аналитический рельеф только в «коридоре» (диапазон ног
+    // у пола и до потолка), чтобы (а) внутри/на полу получать опору пола тоннеля,
+    // (б) над потолком (проба с горы) — реальный рельеф/гору, (в) под поднятым
+    // полом на выходе портала — рельеф/грунт, а не пол; иначе решётка навигации
+    // и опора ломаются (ложные узлы/залипание).
+    const th = this._tunnelHoleAt(x, z, fromY);
+    if (th && th.ceilY != null) {
+      const { floorY, ceilY } = th;
+      const inBand = lim <= ceilY + 1e-6 && fromY >= floorY - this.stepUp - 0.05;
+      if (inBand) {
+        const tf = floorY <= lim ? floorY : -Infinity;
+        const hold = plate !== null ? plate : null;
+        const cand = [tf, hold, top].filter(v => v !== null && v > -Infinity);
+        return cand.length ? Math.max(...cand) : floorY;
+      }
+      // над потолком — горный рельеф как есть (не подавляем)
+    }
+    const floor = relief;
+    const base = plate === null ? floor : Math.max(plate, floor);
     if (top === null) return base;
     // в русле «пол мира» (ноль без рельефа, отметка поля с ним) ноги не держит:
     // грунт там срезан руслом, и опора ровно та, что отдаёт призма дна или схода.
@@ -899,6 +974,27 @@ export class SurfaceField extends SolidField {
    * прямоугольника: иначе отмена «пола мира — ноль» распространялась бы на сушу
    * в десятках метров от воды.
    */
+  _tunnelHoleAt(x, z, fromY = Infinity) {
+    // зоны подавления опоры: полный план тоннеля (даже погребённого, без выреза
+    // меша), с малым допуском на границе портала — иначе шаг на x=maxX+eps при
+    // fromY на уровне пола даёт рельеф-«гору» и выбрасывает тело на поверхность.
+    const list = this.tunnelZones?.length ? this.tunnelZones : this.tunnelHoles;
+    if (!list?.length) return null;
+    const lim = fromY + (this.stepUp ?? CONFIG.building.stepUp ?? 0.6);
+    const eps = 1.2;
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i];
+      if (x < r.minX - eps || x > r.maxX + eps || z < r.minZ - eps || z > r.maxZ + eps) continue;
+      if (r.ceilY != null) { if (lim <= r.ceilY + 1e-6) return r; }
+      else return r;
+    }
+    return null;
+  }
+
+  _inTunnelHole(x, z, fromY = Infinity) {
+    return !!this._tunnelHoleAt(x, z, fromY);
+  }
+
   _inChannel(x, z) {
     if (!this.holes.length) return false;
     const out = this._tmpIdx;

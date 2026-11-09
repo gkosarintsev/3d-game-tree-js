@@ -39,6 +39,7 @@ import { Enemies, AlienEnemy } from '../src/enemies.js';
 import { Cars } from '../src/vehicle.js';
 import { ExitGoal } from '../src/exit.js';
 import { LEVELS } from '../src/levels/index.js';
+import { parseLevelFilter, selectedIndices } from './level-filter.js';
 import { OPEN_600 } from '../probe/open-600/index.js';
 
 /** Путь к файлам клеток берётся из данных главы (`catalog`, § 10.13 плана). */
@@ -1263,8 +1264,14 @@ async function testEngineChapter() {
   if (!game) throw new Error('сюита гоняет главу движком: откройте 3d-game.html, где main.js создал window.game');
   // глава ищется по форме данных, а не по номеру: номер 14 — не свойство
   // открытого мира, и следующая такая глава должна попадать в гейт сама
-  const index = LEVELS.findIndex((l) => l.map?.cells?.length && l.map?.catalog);
-  if (index < 0) throw new Error("в реестре нет главы с каталогом клеток (kind: 'open')");
+  const filter = parseLevelFilter();
+  const indices = selectedIndices(filter);
+  const candidates = indices ?? LEVELS.map((_, i) => i);
+  const index = candidates.find((i) => LEVELS[i].map?.cells?.length && LEVELS[i].map?.catalog);
+  if (index == null) {
+    if (filter) return { name: "глава из реестра грузится движком: спавн, цель, тела и ряды по данным, окно за интертитром в бюджете", passed: true, info: 'пропуск: в фильтре нет открытой главы (kind open/catalog)' };
+    throw new Error("в реестре нет главы с каталогом клеток (kind: 'open')");
+  }
   const level = LEVELS[index];
   const gp = level.gameplay ?? {};
   const engineAsk = CONFIG.jsonMap.pump.frameBudgetMs;
@@ -1375,6 +1382,10 @@ async function testEngineChapter() {
     } finally {
       delete map._runSlice;
     }
+    // маяк в открытом мире обновляет видимость/«застроен» в update(); после
+    // pump-цикла до съёма rest его состояние ещё не синхронизировано с новыми клетками
+    if (game.exit?.update) game.exit.update(performance.now() / 1000);
+    if (game.cars?.update) game.cars.update(); // кузова тоже следят за застроенностью
     const want = map._windowCells(map.spawn.x, map.spawn.z, map.pump.radius).map((w) => w.cell.id).sort();
     const to = { x: gp.exit.x, y: map.groundHeightAt(gp.exit.x, gp.exit.z, 500), z: gp.exit.z };
     const path = map.findPath(map.spawn, to) ?? [];
@@ -1500,8 +1511,9 @@ async function testStreamedTunnel() {
   };
 }
 
-export async function runOpenWorldTests() {
-  const tests = [
+export async function runOpenWorldTests(arg) {
+  const filter = parseLevelFilter(arg);
+  const probeTests = [
     testCatalogShape,
     testOneChunkFromTwoFiles,
     testUnloadedIsBlocked,
@@ -1517,9 +1529,10 @@ export async function runOpenWorldTests() {
     testMinimapPlanFrame,
     testPumpFrameBudget,
     testStreamedTunnel,
-    // последней: заглушка `_tick` обрывает цепочку кадров страницы (см. выше)
-    testEngineChapter,
   ];
+  // OPEN_600 — probe-фикстура, не пронумерованная глава реестра. При фильтре по
+  // главе гоняем только движковый тест той открытой главы, что попала в фильтр.
+  const tests = filter ? [testEngineChapter] : [...probeTests, testEngineChapter];
   const results = [];
   for (const fn of tests) {
     const t = performance.now();

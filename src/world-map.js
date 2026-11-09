@@ -271,6 +271,15 @@ export class WorldMap extends JsonMap {
     if (!data) return;
     const { slices } = this._buildSlices(cell.id, data);
     this._runTask(cell.id, 'start', slices);
+    // Спавн: после сборки стартовой клетки опора точна. Если спавн попал в зону
+    // тоннеля — ставим на пол тоннеля (groundHeightAt от fromY=0 даёт рельеф под
+    // приподнятым тоннелем по контракту шага ноги, но старт в тоннеле — явный).
+    let sy = this.groundHeightAt(this.spawn.x, this.spawn.z, 0);
+    for (const z of (this.tunnelZones ?? [])) {
+      if (this.spawn.x >= z.minX - 1.2 && this.spawn.x <= z.maxX + 1.2 && this.spawn.z >= z.minZ - 1.2 && this.spawn.z <= z.maxZ + 1.2)
+        sy = z.floorY ?? sy;
+    }
+    this.spawn.y = sy;
   }
 
   /** Снимает всё, что поставили клетки; сцена главы при этом пересоздаётся. */
@@ -492,6 +501,20 @@ export class WorldMap extends JsonMap {
       this.loaded.set(id, entry);
       this._rebuildWorld();
     } });
+    // Спавн в тоннеле: зоны тоннелей известны после commit. reach (последний срез)
+    // ищет стартовый узел графа от spawn — если оставить spawn.y=0 из данных при
+    // старте в тоннеле (пол на y=32), nearestNode выберет узел грунта, а не
+    // коридор, и достижимость окажется помечена на чужой компоненте (симптом:
+    // «годных» узлов тысячи, но ни одного у спавна). Разрешаем до reach и идемпотентно.
+    slices.push({ label: 'spawn', run: () => {
+      const sx = this.spawn.x, sz = this.spawn.z;
+      for (const z of (this.tunnelZones ?? [])) {
+        if (sx >= z.minX - 1.2 && sx <= z.maxX + 1.2 && sz >= z.minZ - 1.2 && sz <= z.maxZ + 1.2) {
+          if (z.floorY != null) this.spawn.y = z.floorY;
+          break;
+        }
+      }
+    } });
 
     // 3. решётка этой клетки полосами: цена ∝ площадь, и только она делает
     //    клетку дороже кадра — полосы покрывают её ровно теми же индексами
@@ -576,6 +599,7 @@ export class WorldMap extends JsonMap {
       { label: 'roofs', run: () => this._navRoofs(nav) },
       { label: 'stairs', run: () => this._navStairs(nav, rstep) },
       { label: 'decks', run: () => this._navDecks(nav) },
+      { label: 'tunnels', run: () => this._navTunnels(nav) },
       { label: 'water', run: () => this._navWater(nav) },
       { label: 'doors', run: () => this._navDoors(nav, rstep) },
       { label: 'seal', run: () => nav.seal() },
@@ -1014,7 +1038,10 @@ export class WorldMap extends JsonMap {
       }
       return out;
     };
-    const inputs = { buildings: take('buildings'), roads: take('roads'), channels: take('channels') };
+    const inputs = {
+      buildings: take('buildings'), roads: take('roads'), channels: take('channels'),
+      tunnels: take('tunnels'),
+    };
     this._setInputs(inputs);
     // Кеш кадров настила ключуется записью клетки: после `loaded.delete` он
     // остался бы единственным держателем её пластин и удерживал бы данные

@@ -111,10 +111,12 @@ async function assemble(level) {
       const from = map.spawn;
       const to = level.gameplay.exit;
       const step = map.stream?.chunk ?? 400;
+      // коридор шириной окна стрима: прямая A→B не обязана совпадать с маршрутом
+      // (тоннель/объезд дают изгиб), и узкий пояс пропускает клетки реального пути
       const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / (step / 2)));
       for (let i = 0; i <= steps; i++) {
         const t = i / steps;
-        addNear(from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t, step);
+        addNear(from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t, radius);
       }
     }
     for (const id of windowCells) {
