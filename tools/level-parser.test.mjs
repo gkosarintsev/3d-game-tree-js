@@ -9,7 +9,7 @@
  * Браузерные автотесты карты (tests/*.test.js) стоят отдельно: здесь Three.js не
  * нужен и не запускается.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { normalizeLevel, waterwayFoot, stairRun } from './normalize-level.mjs';
@@ -3061,7 +3061,10 @@ t('gameplay.cars: стоянка в русле вне настила — пре�
 // брифов самим подмножеством draft-07, который мы печатаем (иначе экспортёр
 // выдавал бы файл, отвергающий законную главу — как это сделал бы пропущенный
 // `kind: 'json'` в v1).
-const BRIEFS = ['11', '12', '13'].map(n => `src/levels/level-${n}.json`);
+const BRIEFS = readdirSync(resolve(ROOT, 'src/levels'))
+  .filter(f => /^level-.*\.json$/.test(f) && !/schema\.json$/.test(f))
+  .sort()
+  .map(f => `src/levels/${f}`);
 
 /** Subset-валидатор draft-07: ровно теKeywords, которые печатает экспортёр. */
 function checkJsonSchema(value, schema, path, errors, defs) {
@@ -3133,7 +3136,9 @@ t('закоммиченные JSON Schema совпадают с выводом �
 t('экспортированная схема принимает каждый закоммиченный бриф', () => {
   for (const file of BRIEFS) {
     const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
-    const entry = raw.kind === 'json2' ? SCHEMA_FILES[1] : SCHEMA_FILES[0];
+    const entry = raw.kind === 'cityforge' ? SCHEMA_FILES[2]
+      : (raw.kind === 'json2' || raw.kind === 'open') ? SCHEMA_FILES[1]
+      : SCHEMA_FILES[0];
     const errors = [];
     checkJsonSchema(raw, renderFor(entry), '', errors);
     assert(errors.length === 0, `${file}: rejected — ${errors.slice(0, 4).join(' | ')}`);
@@ -3292,7 +3297,7 @@ t('ключи city в схеме равны гейтам генератора, �
 });
 
 t('$schema каждого брифа ведёт к существующему файлу своей версии', () => {
-  const want = v => v === 'json2' ? './level-v2.schema.json' : v === 'cityforge' ? './level-v3.schema.json' : './level.schema.json';
+  const want = v => (v === 'json2' || v === 'open') ? './level-v2.schema.json' : v === 'cityforge' ? './level-v3.schema.json' : './level.schema.json';
   for (const file of BRIEFS) {
     const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
     eq(raw.$schema, want(raw.kind), `${file}: $schema не соответствует kind '${raw.kind ?? 'json'}'`);

@@ -2,6 +2,7 @@
  * Жизненный цикл каждой главы — движком, а не собранной картой:
  * `await import('/tests/level-lifecycle.test.js')`
  * и `await runLevelLifecycleTests()` из консоли `http://localhost:8124/3d-game.html`.
+ * Отдельная глава: `await runLevelLifecycleTests(12)` или `TEST_LEVEL=12; await runLevelLifecycleTests()`.
  *
  * `tests/level-contract.test.js` мерит собранную карту, но не игру. Здесь же —
  * то, что может показать только `Game._loadLevel`: глава доходит до состояния
@@ -27,6 +28,7 @@
 import { LEVELS, LEVEL_NUMBERS } from '../src/levels/index.js';
 import { CONFIG } from '../src/config.js';
 import { AlienEnemy } from '../src/enemies.js';
+import { parseLevelFilter, selectedIndices, filterLabel } from './level-filter.js';
 
 /** Обязательные члены контракта — те же, что мерит `level-contract`. */
 const METHODS = ['groundHeightAt', 'isBlocked', 'openPositions', 'worldToNormalized',
@@ -57,6 +59,14 @@ const NODE_GAP = 0.02;
 
 const errors = [];
 let pass = null;
+let indices = null;
+let label = '';
+let probeIndex = 0;
+
+/** Индексы глав для прогона: все или отфильтрованные по номеру. */
+function chapters() {
+  return indices ?? LEVEL_NUMBERS.map((_, i) => i);
+}
 
 /** Кадр (точнее два) — чтобы `renderer.info` досчитал буферы свежей сцены. */
 const twoFrames = () => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
@@ -73,25 +83,26 @@ async function runPass() {
   const realError = console.error;
   console.error = (...a) => { errors.push(String(a.map(String).join(' '))); realError(...a); };
   const visits = [];
+  const list = chapters();
   try {
-    for (let index = 0; index < LEVELS.length; index++) {
+    for (const index of list) {
       const t0 = performance.now();
       await game._loadLevel(index);
       await twoFrames();
       visits.push(observe(index, game, Math.round(performance.now() - t0)));
     }
-    // два захода первой главы подряд: сравнение «до круга» и «после
+    // два захода пробной главы подряд: сравнение «до круга» и «после
     // круга» ловит не течь, а общий кэш — кэш `.glb` (`src/glb.js` по URL) и
     // модульные материалы/геометрии `src/props.js` переживают выгрузку главы по
     // правилу AGENTS.md, поэтому после круга глава 1 законно тяжелее самой себя
     // до него. Соседние заходы одной главы при прогретых кэшах обязаны совпасть.
-    const again = [];
+    // При фильтре: проба — глава 1, если она в выборке, иначе первая выбранная.
+    probeIndex = list.includes(0) ? 0 : list[0];
     for (let round = 0; round < 2; round++) {
-      await game._loadLevel(0);
+      await game._loadLevel(probeIndex);
       await twoFrames();
-      again.push(observe(0, game, null));
+      visits.push(observe(probeIndex, game, null));
     }
-    visits.push(...again);
   } finally {
     console.error = realError;
   }
@@ -196,7 +207,7 @@ async function testEveryChapterLoads() {
     name: 'every-chapter-loads',
     passed: bad.length === 0,
     info: bad.slice(0, 5).join(' | ')
-      || `${LEVELS.length} глав загружаются до 'chapter' без ошибок консоли; дороже всех ${slowest.name} — ${slowest.ms} мс`,
+      || `${chapters().length} глав${label} загружаются до 'chapter' без ошибок консоли${slowest ? `; дороже всех ${slowest.name} — ${slowest.ms} мс` : ''}`,
   };
 }
 
@@ -296,9 +307,10 @@ async function testReloadKeepsSceneBudget() {
   const first = v[v.length - 2];
   const again = v[v.length - 1];
   const bad = [];
-  if (first.index !== 0 || again.index !== 0) {
-    return { name: 'reload-scene-budget', passed: false, info: 'сюита ожидала двух подряд идущих заходов главы 1' };
+  if (!first || !again || first.index !== probeIndex || again.index !== probeIndex) {
+    return { name: 'reload-scene-budget', passed: false, info: `сюита ожидала двух подряд идущих заходов главы ${LEVEL_NUMBERS[probeIndex]}` };
   }
+  const probeName = LEVEL_NUMBERS[probeIndex];
   if (again.sceneChildren !== first.sceneChildren) {
     bad.push(`объектов в сцене ${again.sceneChildren} против ${first.sceneChildren} в предыдущем заходе`);
   }
@@ -312,7 +324,7 @@ async function testReloadKeepsSceneBudget() {
     name: 'reload-scene-budget',
     passed: bad.length === 0,
     info: bad.join(' | ')
-      || `глава 1 дважды после круга из ${v.length - 2} глав: ${again.sceneChildren} объектов, `
+      || `глава ${probeName} дважды после круга из ${v.length - 2} глав: ${again.sceneChildren} объектов, `
         + `${again.geometries} геометрий, ${again.textures} текстур — второй заход не тяжелее первого`,
   };
 }
@@ -338,7 +350,15 @@ const tests = [
 /**
  * @returns {Promise<{passed:number, total:number, results:Array<{name:string,passed:boolean,info:string}>}>}
  */
-export async function runLevelLifecycleTests() {
+export async function runLevelLifecycleTests(arg) {
+  errors.length = 0;
+  pass = null;
+  const filter = parseLevelFilter(arg);
+  indices = selectedIndices(filter);
+  label = filterLabel(filter);
+  if (filter && (!indices || !indices.length)) {
+    return { passed: 0, total: 1, results: [{ name: 'level-filter', passed: false, info: `нет глав с номерами ${[...filter].join(', ')} (есть ${LEVEL_NUMBERS.join(', ')})` }] };
+  }
   const results = [];
   for (const fn of tests) {
     try {
@@ -350,7 +370,7 @@ export async function runLevelLifecycleTests() {
   results.push(testNoConsoleErrors());
 
   const passed = results.filter(r => r.passed).length;
-  console.group('Жизненный цикл глав движком');
+  console.group(`Жизненный цикл глав движком${label}`);
   for (const r of results) console.log(`${r.passed ? 'PASS' : 'FAIL'} — ${r.name}: ${r.info}`);
   console.log(`Итого: ${passed}/${results.length}`);
   console.groupEnd();

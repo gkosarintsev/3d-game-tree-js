@@ -29,6 +29,7 @@ import { expandCity } from './city.js';
 import { splitLevel, stringifyStable } from './chunk-level.mjs';
 import { skeletonOf } from './skeleton.mjs';
 import { encodeChunk, encodeSkeleton, SKELETON_FILE } from '../src/level-bin.js';
+import { compileCityforge } from './cityforge-compile.mjs';
 
 /** Корень репозитория: от него печатается браузерный путь каталога (`catalog`). */
 const ROOT = resolve(import.meta.dirname, '..');
@@ -243,8 +244,31 @@ ${constName}.map.skeleton = decodeSkeleton(await loadSkel());
   };
 }
 
-/** Чем платить бриф: модулем — обычно, каталогом — открытая глава. */
+/**
+ * CityForge v3 — формат-источник (docs/world-format.md). Валидируется по
+ * V3-схеме, затем компилируется в движковый бриф и собирается обычным пайплайном
+ * (normalize → catalog/module), поэтому глава становится играбельной. Неподдержанное
+ * содержимое формата — явная ошибка компилятора.
+ */
+function generateCityforge(raw, sourceName, opts = {}) {
+  const { errors, warnings: v3w } = validateLevel(raw, LEVEL_SPEC_V3);
+  if (errors.length) throw new ValidationError(errors, v3w);
+  let compiled;
+  try {
+    compiled = compileCityforge(raw);
+  } catch (e) {
+    throw new ValidationError(e.errors ?? [String(e?.message ?? e)], v3w);
+  }
+  // Компилируем в открытый движковый мир → каталог с чанками, как у level-02/14.
+  const out = generateCatalog(compiled.engine, sourceName, opts);
+  out.warnings = [...v3w, ...compiled.warnings, ...out.warnings];
+  out.sourceFormat = 'cityforge-v3';
+  return out;
+}
+
+/** Чем платить бриф: модулем — обычно, каталогом — открытая глава, CityForge v3 — компиляция в движок. */
 export function generateOutput(raw, sourceName, opts = {}) {
+  if (raw?.kind === 'cityforge') return generateCityforge(raw, sourceName, opts);
   return raw?.kind === 'open' ? generateCatalog(raw, sourceName, opts) : generateModule(raw, sourceName);
 }
 
@@ -296,6 +320,15 @@ function main(argv) {
   }
 
   for (const msg of generated.warnings) console.log(`  ⚠ ${msg}`);
+
+  if (generated.kind === 'format-test') {
+    if (check) {
+      console.log(`${basename(jsonPath)}: CityForge v3 — бриф валиден (${generated.name}, предупреждений — ${generated.warnings.length}); движкового вывода нет (тест формата)`);
+      return 0;
+    }
+    console.log(`${basename(jsonPath)}: ${generated.name} — CityForge v3 валиден (${generated.warnings.length} предупреждений); движкового модуля не создаёт (компилятор формата ещё не подключён)`);
+    return 0;
+  }
 
   // Модуль — один файл рядом с JSON. Каталог — папка с тем же stem, и `--out`
   // для неё означает каталог, а не файл: чанков много и имя каждого даёт разрезка.

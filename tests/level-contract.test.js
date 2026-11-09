@@ -1,6 +1,7 @@
 /**
  * Сюита контракта карты по всему реестру глав: `await import('/tests/level-contract.test.js')`
  * и `await runLevelContractTests()` из консоли `http://localhost:8124/3d-game.html`.
+ * Отдельная глава: `await runLevelContractTests(12)` или `TEST_LEVEL=12; await runLevelContractTests()`.
  *
  * В отличие от `tests/json2-level.test.js` и `tests/track-city.test.js`, которые
  * знают одну главу и её числа, здесь проверяется свойство **любой** главы реестра:
@@ -19,6 +20,7 @@ import { LEVELS, LEVEL_NUMBERS } from '../src/levels/index.js';
 import { CONFIG } from '../src/config.js';
 import { preloadMapAsset } from '../src/glb.js';
 import { preloadWorldCells } from '../src/world-map.js';
+import { parseLevelFilter, selectedIndices, filterLabel } from './level-filter.js';
 
 /** Обязательные методы контракта (AGENTS.md, «Контракт карты»). */
 const METHODS = ['groundHeightAt', 'isBlocked', 'openPositions', 'worldToNormalized',
@@ -57,6 +59,13 @@ const exitRadiusOf = level => level.gameplay?.exitRadius ?? CONFIG.terrain.exitR
 
 const errors = [];
 const cache = new Map();
+let indices = null;
+let label = '';
+
+/** Индексы глав для прогона: все или отфильтрованные по номеру. */
+function chapters() {
+  return indices ?? LEVEL_NUMBERS.map((_, i) => i);
+}
 
 /**
  * Карта главы в свежей сцене, собранная **фабрикой движка** (тот же выбор
@@ -193,8 +202,8 @@ function exitNode(ctx) {
 }
 
 /** Главы-переходы A→B: у них есть `gameplay.exit`. */
-const exitChapters = () => LEVELS
-  .map((level, i) => ({ level, i }))
+const exitChapters = () => chapters()
+  .map(i => ({ level: LEVELS[i], i }))
   .filter(({ level }) => level.gameplay?.goal === 'exit' && level.gameplay?.exit);
 
 // --------------------------------------------------------------------- сюжетки
@@ -202,7 +211,7 @@ const exitChapters = () => LEVELS
 /** Члены контракта на месте и правильной формы — по каждой главе реестра. */
 async function testContractMembers() {
   const bad = [];
-  for (let i = 0; i < LEVELS.length; i++) {
+  for (const i of chapters()) {
     const { map } = await chapter(i);
     for (const m of METHODS) if (typeof map[m] !== 'function') bad.push(`${LEVEL_NUMBERS[i]}: метода ${m} нет`);
     for (const d of DATA) if (map[d] === undefined) bad.push(`${LEVEL_NUMBERS[i]}: члена данных ${d} нет`);
@@ -213,7 +222,7 @@ async function testContractMembers() {
       if (!Number.isFinite(map.bounds?.[b])) bad.push(`${LEVEL_NUMBERS[i]}: bounds.${b} не число`);
     }
   }
-  return { name: 'contract-members', passed: bad.length === 0, info: bad.slice(0, 6).join(' | ') || `${LEVELS.length} глав держат ${METHODS.length + DATA.length} членов контракта` };
+  return { name: 'contract-members', passed: bad.length === 0, info: bad.slice(0, 6).join(' | ') || `${chapters().length} глав${label} держат ${METHODS.length + DATA.length} членов контракта` };
 }
 
 /**
@@ -224,7 +233,7 @@ async function testContractMembers() {
  */
 async function testKindSelectsImplementation() {
   const bad = [];
-  for (let i = 0; i < LEVELS.length; i++) {
+  for (const i of chapters()) {
     const { map } = await chapter(i);
     const name = map.constructor.name;
     const kind = LEVELS[i].map?.kind;
@@ -256,7 +265,7 @@ async function testKindSelectsImplementation() {
 /** Спавн, точка B и точки объектов — в плите уровня и со своей опорой. */
 async function testPointsOnPlate() {
   const bad = [];
-  for (let i = 0; i < LEVELS.length; i++) {
+  for (const i of chapters()) {
     const { map, level } = await chapter(i);
     // для движка стримящий уровень = активное окно (`width`/`depth`), а габарит
     // макета открыт только в `cityBounds` (AGENTS.md, «Внешние ассеты уровня»),
@@ -364,7 +373,7 @@ async function testRouteAtoB() {
 async function testSingleConnectedNetwork() {
   const bad = [];
   const notes = [];
-  for (let i = 0; i < LEVELS.length; i++) {
+  for (const i of chapters()) {
     const { map } = await chapter(i);
     const fit = fitOf(map);
     if (!map.nav.pos.length) { bad.push(`${LEVEL_NUMBERS[i]}: графа навигации нет`); continue; }
@@ -387,7 +396,7 @@ async function testSingleConnectedNetwork() {
 /** Врагам хватает узлов для возрождения (число врагов — данные главы). */
 async function testRespawnRoom() {
   const bad = [];
-  for (let i = 0; i < LEVELS.length; i++) {
+  for (const i of chapters()) {
     const { map, level } = await chapter(i);
     const gp = level.gameplay ?? {};
     const fit = fitOf(map);
@@ -443,7 +452,7 @@ async function testRespawnRoom() {
  */
 async function testNoLeaks() {
   const bad = [];
-  for (let i = 0; i < LEVELS.length; i++) {
+  for (const i of chapters()) {
     const counts = [];
     for (let round = 0; round < 2; round++) {
       const { map, scene } = await assemble(LEVELS[i]);
@@ -486,7 +495,15 @@ const tests = [
  * Гоняет все сюжетки и возвращает `{ passed, total, results }` — тот же формат,
  * что у остальных файлов каталога `tests/`.
  */
-export async function runLevelContractTests() {
+export async function runLevelContractTests(arg) {
+  errors.length = 0;
+  cache.clear();
+  const filter = parseLevelFilter(arg);
+  indices = selectedIndices(filter);
+  label = filterLabel(filter);
+  if (filter && (!indices || !indices.length)) {
+    return { passed: 0, total: 1, results: [{ name: 'level-filter', passed: false, info: `нет глав с номерами ${[...filter].join(', ')} (есть ${LEVEL_NUMBERS.join(', ')})` }] };
+  }
   const results = [];
   for (const fn of tests) {
     try {
@@ -498,7 +515,7 @@ export async function runLevelContractTests() {
   results.push(testNoConsoleErrors());
 
   const passed = results.filter(r => r.passed).length;
-  console.group('Контракт карты по всем главам');
+  console.group(`Контракт карты${label}`);
   for (const r of results) console.log(`${r.passed ? 'PASS' : 'FAIL'} — ${r.name}: ${r.info}`);
   console.log(`Итого: ${passed}/${results.length}`);
   console.groupEnd();
