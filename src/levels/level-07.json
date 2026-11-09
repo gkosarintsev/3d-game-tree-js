@@ -13,6 +13,24 @@
     "y": 0,
     "size": 1280
   },
+  "buildings": [
+    {
+      "id": "spawn_house",
+      "name": "Дом у спавна",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        { "x": 25, "z": -449 },
+        { "x": 35, "z": -449 },
+        { "x": 35, "z": -441 },
+        { "x": 25, "z": -441 }
+      ],
+      "rooms": [],
+      "stairs": []
+    }
+  ],
   "gameplay": {
     "goal": "exit",
     "spawn": { "x": 0, "z": -420 },

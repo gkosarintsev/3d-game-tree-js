@@ -1032,6 +1032,9 @@ export const LEVEL_SPEC_V3 = obj({
   gameplay: ref('gameplay', { req: true }),
   stream: ref('stream'),
   cityforge: ref('cityforge', { req: true }),
+  // Движковые дома в формате v2, пропускаемые компилятором в engine.buildings
+  // (до полноценной компиляции instances). Валидация структуры — нормализатором.
+  buildings: LEVEL_SPEC_V2.fields.buildings,
 }, { doc: 'CityForge source level from docs/world-format.md.' });
 
 // ------------------------------------------------------------- обход схемы

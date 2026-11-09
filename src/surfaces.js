@@ -1243,6 +1243,15 @@ export class SurfaceField extends SolidField {
     for (const b of this.buildings) {
       if (!this._drawn(b)) continue;
       const frame = this._frame(b);
+      // Фундамент: прямоугольная опора от самой низкой точки земли под пятном
+      // до baseY (самая высокая точка касания) — дом на неровной поверхности не
+      // висит в воздухе и не зарывается. Только если есть перепад (иначе байты
+      // прежних глав не менялись и поля в данных нет).
+      if (b.foundationBottomY != null && b.baseY - b.foundationBottomY > 0.01) {
+        for (const rect of b.rects) {
+          this._box(rect, b.foundationBottomY, b.baseY, 'earth', { collide: true, frame });
+        }
+      }
       for (const w of b.walls) this._wall(w, b, frame);
       for (const r of b.rooms) this._floorPlate(b, r, frame);
       this._stair(b, frame);

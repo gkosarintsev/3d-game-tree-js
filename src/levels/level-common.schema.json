@@ -1039,6 +1039,143 @@
             "$ref": "#/definitions/point3"
           }
         },
+        "elements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "plate": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "description": "м: мировой центр пластины"
+                  },
+                  "z": {
+                    "type": "number",
+                    "description": "м: мировой центр пластины"
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "minimum": -360,
+                    "maximum": 360,
+                    "description": "град: поворот вокруг центра; `connect: tangent` переносит только угол, позицию автор задаёт сам",
+                    "default": 0
+                  },
+                  "length": {
+                    "type": "number",
+                    "minimum": 1,
+                    "description": "м: длина вдоль собственной оси (ось от −length/2 до +length/2)"
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 2,
+                    "maximum": 30,
+                    "description": "м: ширина полотна поперёк оси"
+                  },
+                  "y": {
+                    "type": "number",
+                    "description": "м: верх наса **на локальном начале** (u = −length/2), не в мировом minX; при yaw = −180 начало смотрит на восток"
+                  },
+                  "rise": {
+                    "type": "number",
+                    "description": "м: перепад верха от начала к концу; уклон = rise / length, предел J.maxSlope",
+                    "default": 0
+                  },
+                  "rails": {
+                    "type": "boolean",
+                    "description": "перила по обеим кромкам; `railSide` в v2 сознательно не вводится (закрытый вопрос § 10.7 плана главы 13)",
+                    "default": false
+                  }
+                },
+                "required": [
+                  "x",
+                  "z",
+                  "length",
+                  "width",
+                  "y"
+                ],
+                "additionalProperties": false,
+                "description": "прямая пластина настила v2"
+              },
+              "arc": {
+                "type": "object",
+                "properties": {
+                  "cx": {
+                    "type": "number",
+                    "description": "м: мировой центр окружности дуги"
+                  },
+                  "cz": {
+                    "type": "number",
+                    "description": "м: мировой центр окружности дуги"
+                  },
+                  "radius": {
+                    "type": "number",
+                    "minimum": 2,
+                    "description": "м: радиус осевой дуги; при ширине полотна 8 м радиус < 4 м даёт отрицательную внутреннюю кромку и бракуется схемой"
+                  },
+                  "from": {
+                    "type": "number",
+                    "minimum": -360,
+                    "maximum": 360,
+                    "description": "град: начало обхода"
+                  },
+                  "to": {
+                    "type": "number",
+                    "minimum": -360,
+                    "maximum": 360,
+                    "description": "град: конец обхода"
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 2,
+                    "maximum": 30,
+                    "description": "м: ширина полотна"
+                  },
+                  "y": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "number"
+                    },
+                    "description": "м: [верх на from, верх на to]; продольный уклон — перепад / длина дуги"
+                  },
+                  "bank": {
+                    "type": "number",
+                    "minimum": -30,
+                    "maximum": 30,
+                    "description": "град: крен в середине сектора, ноль на обоих срезах, переход — половиной косинуса; длина перехода считается из двух пределов (остаток J.maxSlope после продольного уклона и сам продольный уклон)",
+                    "default": 0
+                  },
+                  "rails": {
+                    "type": "boolean",
+                    "description": "перила по обеим кромкам",
+                    "default": false
+                  }
+                },
+                "required": [
+                  "cx",
+                  "cz",
+                  "radius",
+                  "from",
+                  "to",
+                  "width",
+                  "y"
+                ],
+                "additionalProperties": false,
+                "description": "дуга-настил v2: точная поверхность по углу, радиусу и крену"
+              },
+              "connect": {
+                "type": "string",
+                "enum": [
+                  "tangent"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
         "lanes": {
           "type": "array",
           "minItems": 0,

@@ -199,6 +199,68 @@ function landY(ground, x, z) {
   return ground.land ? ground.land(x, z) : ground.y;
 }
 
+/**
+ * Наивысшая точка земли, соприкасающаяся с прямоугольным фундаментом (габарит
+ * footprint в локальных осях дома, в мир — через `frame` поворота). Сэмпл по
+ * сетке + углы: дом ставится на эту отметку и не зарывается в склон. На ровной
+ * площадке/террасе совпадает с отметкой центра, сохраняя байтовую стабильность
+ * прежних глав.
+ */
+function maxLandUnderRect(ground, bounds, frame) {
+  const sample = (x, z) => (ground.land ? ground.land(x, z) : ground.y);
+  const pts = [
+    [bounds.minX, bounds.minZ], [bounds.maxX, bounds.minZ],
+    [bounds.maxX, bounds.maxZ], [bounds.minX, bounds.maxZ],
+  ];
+  let maxY = -Infinity;
+  for (const [lx, lz] of pts) {
+    const w = rotatePoint(frame, lx, lz);
+    const y = sample(w.x, w.z);
+    if (y > maxY) maxY = y;
+  }
+  const sx = Math.max(bounds.maxX - bounds.minX, 0.001);
+  const sz = Math.max(bounds.maxZ - bounds.minZ, 0.001);
+  const step = 1.5;
+  const nx = Math.max(1, Math.ceil(sx / step));
+  const nz = Math.max(1, Math.ceil(sz / step));
+  for (let i = 1; i < nx; i++) {
+    for (let j = 1; j < nz; j++) {
+      const w = rotatePoint(frame, bounds.minX + (sx * i) / nx, bounds.minZ + (sz * j) / nz);
+      const y = sample(w.x, w.z);
+      if (y > maxY) maxY = y;
+    }
+  }
+  return maxY === -Infinity ? ground.y : maxY;
+}
+
+/** Наинизшая точка земли под прямоугольным фундаментом — низ юбки фундамента. */
+function minLandUnderRect(ground, bounds, frame) {
+  const sample = (x, z) => (ground.land ? ground.land(x, z) : ground.y);
+  const pts = [
+    [bounds.minX, bounds.minZ], [bounds.maxX, bounds.minZ],
+    [bounds.maxX, bounds.maxZ], [bounds.minX, bounds.maxZ],
+  ];
+  let minY = Infinity;
+  for (const [lx, lz] of pts) {
+    const w = rotatePoint(frame, lx, lz);
+    const y = sample(w.x, w.z);
+    if (y < minY) minY = y;
+  }
+  const sx = Math.max(bounds.maxX - bounds.minX, 0.001);
+  const sz = Math.max(bounds.maxZ - bounds.minZ, 0.001);
+  const step = 1.5;
+  const nx = Math.max(1, Math.ceil(sx / step));
+  const nz = Math.max(1, Math.ceil(sz / step));
+  for (let i = 1; i < nx; i++) {
+    for (let j = 1; j < nz; j++) {
+      const w = rotatePoint(frame, bounds.minX + (sx * i) / nx, bounds.minZ + (sz * j) / nz);
+      const y = sample(w.x, w.z);
+      if (y < minY) minY = y;
+    }
+  }
+  return minY === Infinity ? ground.y : minY;
+}
+
 // ------------------------------------------------------------------- здания
 
 /**
@@ -214,12 +276,17 @@ function normalizeBuilding(b, ground, warnings) {
   const footprint = normalizePolygon(b.footprint, `${b.id}.footprint`, errors);
   if (errors.length) throw new Error(errors.join('\n'));
   const bb = polyBounds(footprint);
-  // Пол главы под домом — отметка местности в его центре, а не `ground.y`:
-  // корпус на склоне без авторской baseY утонул бы в холм на половину его высоты.
-  // Без рельефа `land` — та же константа, поэтому главы 9–10 не двигаются.
+  // Фундамент под домом — прямоугольник (габарит footprint) на самой высокой
+  // точке земли, с которой он соприкасается: корпус не зарывается в склон.
+  // Сэмплим рельеф по сетке габарита в мировых осях (повёрнутый дом — через
+  // его кадр); авторский baseY уважаем как нижнюю границу (дом не опускаем).
+  // На ровной/террасированной площадке максимум равен отметке центра, поэтому
+  // прежние главы не двигаются.
   const houseFrame = frameOf(bb, b.rotation ?? 0);
   const houseCenter = rotatePoint(houseFrame, (bb.minX + bb.maxX) / 2, (bb.minZ + bb.maxZ) / 2);
-  const baseY = r3(b.baseY ?? landY(ground, houseCenter.x, houseCenter.z));
+  const groundMax = maxLandUnderRect(ground, bb, houseFrame);
+  const groundMin = minLandUnderRect(ground, bb, houseFrame);
+  const baseY = r3(Math.max(b.baseY ?? landY(ground, houseCenter.x, houseCenter.z), groundMax));
   const floorHeight = r3(b.floorHeight);
 
   const walls = new Map();
@@ -297,6 +364,7 @@ function normalizeBuilding(b, ground, warnings) {
     name: b.name ?? b.id,
     isEnterable: b.isEnterable !== false,
     baseY,
+    ...(baseY - groundMin > 0.05 ? { foundationBottomY: r3(Math.min(groundMin, baseY - 0.01)) } : {}),
     floorHeight,
     floorsCount: b.floorsCount,
     roofY: r3(baseY + b.floorsCount * floorHeight),

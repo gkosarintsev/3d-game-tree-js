@@ -241,7 +241,9 @@ export function compileCityforge(raw) {
       aheadMax: stream.aheadMax,
       budgetMs: stream.budgetMs,
     },
-    buildings: [],
+    // Авторские дома в движковом формате (v2) пропускаются в движок; полноценная
+    // компиляция instances/building-шаблонов — отдельный шаг формата.
+    buildings: Array.isArray(raw.buildings) ? raw.buildings : [],
     roads: [pad('spawn_pad', sx, sz, padY(sx, sz, gy)), pad('exit_pad', ex, ez, padY(ex, ez, gy)), ...tunnelPads, ...roads],
     tunnels,
     lights: [],

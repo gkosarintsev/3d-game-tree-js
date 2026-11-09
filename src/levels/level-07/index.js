@@ -181,6 +181,7 @@ export const LEVEL_07 = {
         "file": "chunk-2-0.l14b",
         "id": "2_0",
         "objects": {
+          "buildings": 1,
           "props": 36,
           "roads": 4,
           "tunnels": 1
@@ -396,7 +397,17 @@ export const LEVEL_07 = {
         }
       ],
       "maxSlope": 0.41,
-      "pads": []
+      "pads": [
+        {
+          "blend": 16.8,
+          "id": "spawn_house:площадка",
+          "maxX": 35,
+          "maxZ": -441,
+          "minX": 25,
+          "minZ": -449,
+          "y": 8.712
+        }
+      ]
     },
     "spawn": {
       "x": 0,
