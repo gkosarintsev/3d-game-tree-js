@@ -1,0 +1,2128 @@
+{
+  "$schema": "./level-v3.schema.json",
+  "kind": "cityforge",
+  "metadata": {
+    "levelName": "level-08",
+    "name": "Глава 8. Холмистая равнина (CityForge v3)",
+    "hint": "Неровный ландшафт с холмами до 50 м, дома на фундаментах terrain и дороги по поверхности. Доберитесь до маяка на противоположной стороне карты.",
+    "engine": "open",
+    "units": "meters",
+    "notes": "Плита 1280×1280 м, 5×5 чанков по 256 м, открытый мир A→B. Холмы до 50 м по всей карте, сетка дорог по рельефу (драпировка движка), дома с foundation: terrain, машина у спавна."
+  },
+  "ground": {
+    "y": 0,
+    "size": 1280
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -480,
+      "z": -480
+    },
+    "exit": {
+      "x": 480,
+      "z": 480
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 4
+    },
+    "alienEnemies": {
+      "count": 0
+    },
+    "cars": {
+      "count": 1,
+      "spots": [
+        {
+          "x": -474,
+          "z": -480,
+          "yaw": 0
+        }
+      ]
+    }
+  },
+  "stream": {
+    "chunk": 256,
+    "keep": 2,
+    "aheadMin": 200,
+    "aheadMax": 700,
+    "budgetMs": 60
+  },
+  "buildings": [
+    {
+      "id": "h8_0",
+      "name": "Дом 1",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": -206,
+          "z": -345
+        },
+        {
+          "x": -194,
+          "z": -345
+        },
+        {
+          "x": -194,
+          "z": -335
+        },
+        {
+          "x": -206,
+          "z": -335
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_1",
+      "name": "Дом 2",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 3.6,
+      "foundation": "terrain",
+      "facadeMaterial": "concrete",
+      "footprint": [
+        {
+          "x": -325,
+          "z": -85
+        },
+        {
+          "x": -315,
+          "z": -85
+        },
+        {
+          "x": -315,
+          "z": -75
+        },
+        {
+          "x": -325,
+          "z": -75
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_2",
+      "name": "Дом 3",
+      "isEnterable": false,
+      "floorsCount": 2,
+      "floorHeight": 3.2,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": -327,
+          "z": 235
+        },
+        {
+          "x": -313,
+          "z": 235
+        },
+        {
+          "x": -313,
+          "z": 245
+        },
+        {
+          "x": -327,
+          "z": 245
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_3",
+      "name": "Дом 4",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "wood",
+      "footprint": [
+        {
+          "x": -85,
+          "z": -326
+        },
+        {
+          "x": -75,
+          "z": -326
+        },
+        {
+          "x": -75,
+          "z": -314
+        },
+        {
+          "x": -85,
+          "z": -314
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_4",
+      "name": "Дом 5",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 3.6,
+      "foundation": "terrain",
+      "facadeMaterial": "concrete",
+      "footprint": [
+        {
+          "x": -46,
+          "z": -66
+        },
+        {
+          "x": -34,
+          "z": -66
+        },
+        {
+          "x": -34,
+          "z": -54
+        },
+        {
+          "x": -46,
+          "z": -54
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_5",
+      "name": "Дом 6",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": -85,
+          "z": 255
+        },
+        {
+          "x": -75,
+          "z": 255
+        },
+        {
+          "x": -75,
+          "z": 265
+        },
+        {
+          "x": -85,
+          "z": 265
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_6",
+      "name": "Дом 7",
+      "isEnterable": false,
+      "floorsCount": 2,
+      "floorHeight": 3.2,
+      "foundation": "terrain",
+      "facadeMaterial": "concrete",
+      "footprint": [
+        {
+          "x": 234,
+          "z": -345
+        },
+        {
+          "x": 246,
+          "z": -345
+        },
+        {
+          "x": 246,
+          "z": -335
+        },
+        {
+          "x": 234,
+          "z": -335
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_7",
+      "name": "Дом 8",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": 255,
+          "z": -67
+        },
+        {
+          "x": 265,
+          "z": -67
+        },
+        {
+          "x": 265,
+          "z": -53
+        },
+        {
+          "x": 255,
+          "z": -53
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_8",
+      "name": "Дом 9",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 3.6,
+      "foundation": "terrain",
+      "facadeMaterial": "wood",
+      "footprint": [
+        {
+          "x": 234,
+          "z": 234
+        },
+        {
+          "x": 246,
+          "z": 234
+        },
+        {
+          "x": 246,
+          "z": 246
+        },
+        {
+          "x": 234,
+          "z": 246
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_9",
+      "name": "Дом 10",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "concrete",
+      "footprint": [
+        {
+          "x": -505,
+          "z": 75
+        },
+        {
+          "x": -495,
+          "z": 75
+        },
+        {
+          "x": -495,
+          "z": 85
+        },
+        {
+          "x": -505,
+          "z": 85
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_10",
+      "name": "Дом 11",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 3.6,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": 514,
+          "z": -105
+        },
+        {
+          "x": 526,
+          "z": -105
+        },
+        {
+          "x": 526,
+          "z": -95
+        },
+        {
+          "x": 514,
+          "z": -95
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_11",
+      "name": "Дом 12",
+      "isEnterable": false,
+      "floorsCount": 2,
+      "floorHeight": 3.2,
+      "foundation": "terrain",
+      "facadeMaterial": "concrete",
+      "footprint": [
+        {
+          "x": 495,
+          "z": 314
+        },
+        {
+          "x": 505,
+          "z": 314
+        },
+        {
+          "x": 505,
+          "z": 326
+        },
+        {
+          "x": 495,
+          "z": 326
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_12",
+      "name": "Дом 13",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 4,
+      "foundation": "terrain",
+      "facadeMaterial": "painted_brick",
+      "footprint": [
+        {
+          "x": -7,
+          "z": -525
+        },
+        {
+          "x": 7,
+          "z": -525
+        },
+        {
+          "x": 7,
+          "z": -515
+        },
+        {
+          "x": -7,
+          "z": -515
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    },
+    {
+      "id": "h8_13",
+      "name": "Дом 14",
+      "isEnterable": false,
+      "floorsCount": 1,
+      "floorHeight": 3.6,
+      "foundation": "terrain",
+      "facadeMaterial": "wood",
+      "footprint": [
+        {
+          "x": -6,
+          "z": 515
+        },
+        {
+          "x": 6,
+          "z": 515
+        },
+        {
+          "x": 6,
+          "z": 525
+        },
+        {
+          "x": -6,
+          "z": 525
+        }
+      ],
+      "rooms": [],
+      "stairs": []
+    }
+  ],
+  "cityforge": {
+    "format": "cityforge",
+    "version": "0.1",
+    "world": {
+      "units": "meters",
+      "coordinateSystem": {
+        "type": "local",
+        "handedness": "right",
+        "up": "Z"
+      },
+      "origin": [
+        0,
+        0,
+        0
+      ],
+      "bounds": {
+        "min": [
+          -640,
+          -640,
+          -50
+        ],
+        "max": [
+          640,
+          640,
+          120
+        ]
+      }
+    },
+    "generation": {
+      "seed": 8,
+      "generatorVersion": "0.1",
+      "deterministic": true
+    },
+    "assets": [
+      {
+        "id": "ground.placeholder",
+        "kind": "procedural",
+        "generator": "placeholder.flat",
+        "bounds": [
+          1280,
+          1280,
+          1
+        ]
+      }
+    ],
+    "districts": [],
+    "blocks": [],
+    "parcels": [],
+    "instances": [],
+    "terrain": {
+      "base": {
+        "type": "heightfield",
+        "source": "procedural",
+        "resolution": 4
+      },
+      "modifiers": [
+        {
+          "id": "h1",
+          "type": "mountain",
+          "center": [
+            -350,
+            -350
+          ],
+          "radius": 220,
+          "height": 45,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h2",
+          "type": "mountain",
+          "center": [
+            0,
+            -380
+          ],
+          "radius": 200,
+          "height": 38,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h3",
+          "type": "mountain",
+          "center": [
+            380,
+            -320
+          ],
+          "radius": 230,
+          "height": 50,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h4",
+          "type": "mountain",
+          "center": [
+            -420,
+            0
+          ],
+          "radius": 210,
+          "height": 35,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h5",
+          "type": "mountain",
+          "center": [
+            -50,
+            50
+          ],
+          "radius": 240,
+          "height": 42,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h6",
+          "type": "mountain",
+          "center": [
+            400,
+            40
+          ],
+          "radius": 200,
+          "height": 30,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h7",
+          "type": "mountain",
+          "center": [
+            -320,
+            360
+          ],
+          "radius": 220,
+          "height": 48,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h8",
+          "type": "mountain",
+          "center": [
+            50,
+            400
+          ],
+          "radius": 210,
+          "height": 33,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h9",
+          "type": "mountain",
+          "center": [
+            360,
+            380
+          ],
+          "radius": 230,
+          "height": 46,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h10",
+          "type": "mountain",
+          "center": [
+            180,
+            -120
+          ],
+          "radius": 180,
+          "height": 25,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "h11",
+          "type": "mountain",
+          "center": [
+            -180,
+            180
+          ],
+          "radius": 190,
+          "height": 28,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        }
+      ]
+    },
+    "hydrology": {
+      "rivers": [],
+      "lakes": []
+    },
+    "networks": {
+      "roads": {
+        "nodes": [
+          {
+            "id": "n_m580_m480",
+            "position": [
+              -580,
+              0,
+              -480
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_580_m480",
+            "position": [
+              580,
+              0,
+              -480
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_m580_m160",
+            "position": [
+              -580,
+              0,
+              -160
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_580_m160",
+            "position": [
+              580,
+              0,
+              -160
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_m580_160",
+            "position": [
+              -580,
+              0,
+              160
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_580_160",
+            "position": [
+              580,
+              0,
+              160
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_m580_480",
+            "position": [
+              -580,
+              0,
+              480
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_580_480",
+            "position": [
+              580,
+              0,
+              480
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_m480_m580",
+            "position": [
+              -480,
+              0,
+              -580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_m480_580",
+            "position": [
+              -480,
+              0,
+              580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_m160_m580",
+            "position": [
+              -160,
+              0,
+              -580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_m160_580",
+            "position": [
+              -160,
+              0,
+              580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_160_m580",
+            "position": [
+              160,
+              0,
+              -580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_160_580",
+            "position": [
+              160,
+              0,
+              580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_480_m580",
+            "position": [
+              480,
+              0,
+              -580
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "n_480_580",
+            "position": [
+              480,
+              0,
+              580
+            ],
+            "layer": "ground"
+          }
+        ],
+        "segments": [
+          {
+            "id": "road_h_m480",
+            "from": "n_m580_m480",
+            "to": "n_580_m480",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -580,
+                0,
+                -480
+              ],
+              [
+                580,
+                0,
+                -480
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_h_m160",
+            "from": "n_m580_m160",
+            "to": "n_580_m160",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -580,
+                0,
+                -160
+              ],
+              [
+                580,
+                0,
+                -160
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_h_160",
+            "from": "n_m580_160",
+            "to": "n_580_160",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -580,
+                0,
+                160
+              ],
+              [
+                580,
+                0,
+                160
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_h_480",
+            "from": "n_m580_480",
+            "to": "n_580_480",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -580,
+                0,
+                480
+              ],
+              [
+                580,
+                0,
+                480
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_v_m480",
+            "from": "n_m480_m580",
+            "to": "n_m480_580",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -480,
+                0,
+                -580
+              ],
+              [
+                -480,
+                0,
+                580
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_v_m160",
+            "from": "n_m160_m580",
+            "to": "n_m160_580",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -160,
+                0,
+                -580
+              ],
+              [
+                -160,
+                0,
+                580
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_v_160",
+            "from": "n_160_m580",
+            "to": "n_160_580",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                160,
+                0,
+                -580
+              ],
+              [
+                160,
+                0,
+                580
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          },
+          {
+            "id": "road_v_480",
+            "from": "n_480_m580",
+            "to": "n_480_580",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                480,
+                0,
+                -580
+              ],
+              [
+                480,
+                0,
+                580
+              ]
+            ],
+            "lanes": [
+              {
+                "id": "lane_1",
+                "direction": "forward",
+                "width": 8,
+                "type": "vehicle"
+              }
+            ],
+            "shoulderWidth": 1,
+            "sidewalk": false,
+            "surface": "asphalt",
+            "speedLimit": 30
+          }
+        ],
+        "junctions": []
+      },
+      "railways": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      },
+      "paths": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      }
+    },
+    "structures": {
+      "bridges": [],
+      "tunnels": []
+    },
+    "chunks": [
+      {
+        "id": "chunk_0_0",
+        "bounds": {
+          "min": [
+            -640,
+            -640,
+            -50
+          ],
+          "max": [
+            -384,
+            -384,
+            120
+          ]
+        },
+        "file": "chunks/0_0/chunk.json"
+      },
+      {
+        "id": "chunk_0_1",
+        "bounds": {
+          "min": [
+            -640,
+            -384,
+            -50
+          ],
+          "max": [
+            -384,
+            -128,
+            120
+          ]
+        },
+        "file": "chunks/0_1/chunk.json"
+      },
+      {
+        "id": "chunk_0_2",
+        "bounds": {
+          "min": [
+            -640,
+            -128,
+            -50
+          ],
+          "max": [
+            -384,
+            128,
+            120
+          ]
+        },
+        "file": "chunks/0_2/chunk.json"
+      },
+      {
+        "id": "chunk_0_3",
+        "bounds": {
+          "min": [
+            -640,
+            128,
+            -50
+          ],
+          "max": [
+            -384,
+            384,
+            120
+          ]
+        },
+        "file": "chunks/0_3/chunk.json"
+      },
+      {
+        "id": "chunk_0_4",
+        "bounds": {
+          "min": [
+            -640,
+            384,
+            -50
+          ],
+          "max": [
+            -384,
+            640,
+            120
+          ]
+        },
+        "file": "chunks/0_4/chunk.json"
+      },
+      {
+        "id": "chunk_1_0",
+        "bounds": {
+          "min": [
+            -384,
+            -640,
+            -50
+          ],
+          "max": [
+            -128,
+            -384,
+            120
+          ]
+        },
+        "file": "chunks/1_0/chunk.json"
+      },
+      {
+        "id": "chunk_1_1",
+        "bounds": {
+          "min": [
+            -384,
+            -384,
+            -50
+          ],
+          "max": [
+            -128,
+            -128,
+            120
+          ]
+        },
+        "file": "chunks/1_1/chunk.json"
+      },
+      {
+        "id": "chunk_1_2",
+        "bounds": {
+          "min": [
+            -384,
+            -128,
+            -50
+          ],
+          "max": [
+            -128,
+            128,
+            120
+          ]
+        },
+        "file": "chunks/1_2/chunk.json"
+      },
+      {
+        "id": "chunk_1_3",
+        "bounds": {
+          "min": [
+            -384,
+            128,
+            -50
+          ],
+          "max": [
+            -128,
+            384,
+            120
+          ]
+        },
+        "file": "chunks/1_3/chunk.json"
+      },
+      {
+        "id": "chunk_1_4",
+        "bounds": {
+          "min": [
+            -384,
+            384,
+            -50
+          ],
+          "max": [
+            -128,
+            640,
+            120
+          ]
+        },
+        "file": "chunks/1_4/chunk.json"
+      },
+      {
+        "id": "chunk_2_0",
+        "bounds": {
+          "min": [
+            -128,
+            -640,
+            -50
+          ],
+          "max": [
+            128,
+            -384,
+            120
+          ]
+        },
+        "file": "chunks/2_0/chunk.json"
+      },
+      {
+        "id": "chunk_2_1",
+        "bounds": {
+          "min": [
+            -128,
+            -384,
+            -50
+          ],
+          "max": [
+            128,
+            -128,
+            120
+          ]
+        },
+        "file": "chunks/2_1/chunk.json"
+      },
+      {
+        "id": "chunk_2_2",
+        "bounds": {
+          "min": [
+            -128,
+            -128,
+            -50
+          ],
+          "max": [
+            128,
+            128,
+            120
+          ]
+        },
+        "file": "chunks/2_2/chunk.json"
+      },
+      {
+        "id": "chunk_2_3",
+        "bounds": {
+          "min": [
+            -128,
+            128,
+            -50
+          ],
+          "max": [
+            128,
+            384,
+            120
+          ]
+        },
+        "file": "chunks/2_3/chunk.json"
+      },
+      {
+        "id": "chunk_2_4",
+        "bounds": {
+          "min": [
+            -128,
+            384,
+            -50
+          ],
+          "max": [
+            128,
+            640,
+            120
+          ]
+        },
+        "file": "chunks/2_4/chunk.json"
+      },
+      {
+        "id": "chunk_3_0",
+        "bounds": {
+          "min": [
+            128,
+            -640,
+            -50
+          ],
+          "max": [
+            384,
+            -384,
+            120
+          ]
+        },
+        "file": "chunks/3_0/chunk.json"
+      },
+      {
+        "id": "chunk_3_1",
+        "bounds": {
+          "min": [
+            128,
+            -384,
+            -50
+          ],
+          "max": [
+            384,
+            -128,
+            120
+          ]
+        },
+        "file": "chunks/3_1/chunk.json"
+      },
+      {
+        "id": "chunk_3_2",
+        "bounds": {
+          "min": [
+            128,
+            -128,
+            -50
+          ],
+          "max": [
+            384,
+            128,
+            120
+          ]
+        },
+        "file": "chunks/3_2/chunk.json"
+      },
+      {
+        "id": "chunk_3_3",
+        "bounds": {
+          "min": [
+            128,
+            128,
+            -50
+          ],
+          "max": [
+            384,
+            384,
+            120
+          ]
+        },
+        "file": "chunks/3_3/chunk.json"
+      },
+      {
+        "id": "chunk_3_4",
+        "bounds": {
+          "min": [
+            128,
+            384,
+            -50
+          ],
+          "max": [
+            384,
+            640,
+            120
+          ]
+        },
+        "file": "chunks/3_4/chunk.json"
+      },
+      {
+        "id": "chunk_4_0",
+        "bounds": {
+          "min": [
+            384,
+            -640,
+            -50
+          ],
+          "max": [
+            640,
+            -384,
+            120
+          ]
+        },
+        "file": "chunks/4_0/chunk.json"
+      },
+      {
+        "id": "chunk_4_1",
+        "bounds": {
+          "min": [
+            384,
+            -384,
+            -50
+          ],
+          "max": [
+            640,
+            -128,
+            120
+          ]
+        },
+        "file": "chunks/4_1/chunk.json"
+      },
+      {
+        "id": "chunk_4_2",
+        "bounds": {
+          "min": [
+            384,
+            -128,
+            -50
+          ],
+          "max": [
+            640,
+            128,
+            120
+          ]
+        },
+        "file": "chunks/4_2/chunk.json"
+      },
+      {
+        "id": "chunk_4_3",
+        "bounds": {
+          "min": [
+            384,
+            128,
+            -50
+          ],
+          "max": [
+            640,
+            384,
+            120
+          ]
+        },
+        "file": "chunks/4_3/chunk.json"
+      },
+      {
+        "id": "chunk_4_4",
+        "bounds": {
+          "min": [
+            384,
+            384,
+            -50
+          ],
+          "max": [
+            640,
+            640,
+            120
+          ]
+        },
+        "file": "chunks/4_4/chunk.json"
+      }
+    ],
+    "chunkIndex": {
+      "version": "0.1",
+      "chunks": [
+        {
+          "id": "chunk_0_0",
+          "bounds": {
+            "min": [
+              -640,
+              -640,
+              -50
+            ],
+            "max": [
+              -384,
+              -384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_0_1",
+            "chunk_1_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_0_1",
+          "bounds": {
+            "min": [
+              -640,
+              -384,
+              -50
+            ],
+            "max": [
+              -384,
+              -128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_0_0",
+            "chunk_0_2",
+            "chunk_1_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_0_2",
+          "bounds": {
+            "min": [
+              -640,
+              -128,
+              -50
+            ],
+            "max": [
+              -384,
+              128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_0_1",
+            "chunk_0_3",
+            "chunk_1_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_0_3",
+          "bounds": {
+            "min": [
+              -640,
+              128,
+              -50
+            ],
+            "max": [
+              -384,
+              384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_0_2",
+            "chunk_0_4",
+            "chunk_1_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_0_4",
+          "bounds": {
+            "min": [
+              -640,
+              384,
+              -50
+            ],
+            "max": [
+              -384,
+              640,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_0_3",
+            "chunk_1_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_0",
+          "bounds": {
+            "min": [
+              -384,
+              -640,
+              -50
+            ],
+            "max": [
+              -128,
+              -384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_1_1",
+            "chunk_0_0",
+            "chunk_2_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_1",
+          "bounds": {
+            "min": [
+              -384,
+              -384,
+              -50
+            ],
+            "max": [
+              -128,
+              -128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_1_0",
+            "chunk_1_2",
+            "chunk_0_1",
+            "chunk_2_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_2",
+          "bounds": {
+            "min": [
+              -384,
+              -128,
+              -50
+            ],
+            "max": [
+              -128,
+              128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_1_1",
+            "chunk_1_3",
+            "chunk_0_2",
+            "chunk_2_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_3",
+          "bounds": {
+            "min": [
+              -384,
+              128,
+              -50
+            ],
+            "max": [
+              -128,
+              384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_1_2",
+            "chunk_1_4",
+            "chunk_0_3",
+            "chunk_2_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_1_4",
+          "bounds": {
+            "min": [
+              -384,
+              384,
+              -50
+            ],
+            "max": [
+              -128,
+              640,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_1_3",
+            "chunk_0_4",
+            "chunk_2_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_0",
+          "bounds": {
+            "min": [
+              -128,
+              -640,
+              -50
+            ],
+            "max": [
+              128,
+              -384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_2_1",
+            "chunk_1_0",
+            "chunk_3_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_1",
+          "bounds": {
+            "min": [
+              -128,
+              -384,
+              -50
+            ],
+            "max": [
+              128,
+              -128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_2_0",
+            "chunk_2_2",
+            "chunk_1_1",
+            "chunk_3_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_2",
+          "bounds": {
+            "min": [
+              -128,
+              -128,
+              -50
+            ],
+            "max": [
+              128,
+              128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_2_1",
+            "chunk_2_3",
+            "chunk_1_2",
+            "chunk_3_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_3",
+          "bounds": {
+            "min": [
+              -128,
+              128,
+              -50
+            ],
+            "max": [
+              128,
+              384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_2_2",
+            "chunk_2_4",
+            "chunk_1_3",
+            "chunk_3_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_2_4",
+          "bounds": {
+            "min": [
+              -128,
+              384,
+              -50
+            ],
+            "max": [
+              128,
+              640,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_2_3",
+            "chunk_1_4",
+            "chunk_3_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_0",
+          "bounds": {
+            "min": [
+              128,
+              -640,
+              -50
+            ],
+            "max": [
+              384,
+              -384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_3_1",
+            "chunk_2_0",
+            "chunk_4_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_1",
+          "bounds": {
+            "min": [
+              128,
+              -384,
+              -50
+            ],
+            "max": [
+              384,
+              -128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_3_0",
+            "chunk_3_2",
+            "chunk_2_1",
+            "chunk_4_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_2",
+          "bounds": {
+            "min": [
+              128,
+              -128,
+              -50
+            ],
+            "max": [
+              384,
+              128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_3_1",
+            "chunk_3_3",
+            "chunk_2_2",
+            "chunk_4_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_3",
+          "bounds": {
+            "min": [
+              128,
+              128,
+              -50
+            ],
+            "max": [
+              384,
+              384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_3_2",
+            "chunk_3_4",
+            "chunk_2_3",
+            "chunk_4_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_3_4",
+          "bounds": {
+            "min": [
+              128,
+              384,
+              -50
+            ],
+            "max": [
+              384,
+              640,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_3_3",
+            "chunk_2_4",
+            "chunk_4_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_0",
+          "bounds": {
+            "min": [
+              384,
+              -640,
+              -50
+            ],
+            "max": [
+              640,
+              -384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_4_1",
+            "chunk_3_0"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_1",
+          "bounds": {
+            "min": [
+              384,
+              -384,
+              -50
+            ],
+            "max": [
+              640,
+              -128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_4_0",
+            "chunk_4_2",
+            "chunk_3_1"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_2",
+          "bounds": {
+            "min": [
+              384,
+              -128,
+              -50
+            ],
+            "max": [
+              640,
+              128,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_4_1",
+            "chunk_4_3",
+            "chunk_3_2"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_3",
+          "bounds": {
+            "min": [
+              384,
+              128,
+              -50
+            ],
+            "max": [
+              640,
+              384,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_4_2",
+            "chunk_4_4",
+            "chunk_3_3"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        },
+        {
+          "id": "chunk_4_4",
+          "bounds": {
+            "min": [
+              384,
+              384,
+              -50
+            ],
+            "max": [
+              640,
+              640,
+              120
+            ]
+          },
+          "neighbors": [
+            "chunk_4_3",
+            "chunk_3_4"
+          ],
+          "files": {},
+          "entities": [],
+          "fragments": [],
+          "portals": [],
+          "dependencies": []
+        }
+      ]
+    }
+  }
+}
