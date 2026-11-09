@@ -1243,11 +1243,30 @@ export class SurfaceField extends SolidField {
     for (const b of this.buildings) {
       if (!this._drawn(b)) continue;
       const frame = this._frame(b);
-      // Фундамент: прямоугольная опора от самой низкой точки земли под пятном
-      // до baseY (самая высокая точка касания) — дом на неровной поверхности не
-      // висит в воздухе и не зарывается. Только если есть перепад (иначе байты
-      // прежних глав не менялись и поля в данных нет).
-      if (b.foundationBottomY != null && b.baseY - b.foundationBottomY > 0.01) {
+      // Фундамент дома на неровной поверхности (baseY поднят до наивысшей точки
+      // контакта, дом не зарывается). podium — плоский прямоугольный блок от
+      // нижней точки земли до baseY (уходит в склон); terrain — низ следует
+      // форме ландшафта (картинка/твёрдость ячейками по рельефу).
+      if (b.foundation === 'terrain') {
+        const step = 2;
+        for (const rect of b.rects) {
+          const sx = rect.maxX - rect.minX, sz = rect.maxZ - rect.minZ;
+          const nx = Math.max(1, Math.ceil(sx / step));
+          const nz = Math.max(1, Math.ceil(sz / step));
+          for (let i = 0; i < nx; i++) {
+            for (let j = 0; j < nz; j++) {
+              const x0 = rect.minX + (sx * i) / nx, x1 = rect.minX + (sx * (i + 1)) / nx;
+              const z0 = rect.minZ + (sz * j) / nz, z1 = rect.minZ + (sz * (j + 1)) / nz;
+              const wc = rotatePoint(frame, (x0 + x1) / 2, (z0 + z1) / 2);
+              const th = this.relief ? this.relief.heightAt(wc.x, wc.z) : this.groundY;
+              const y0 = Math.min(th, b.baseY - 0.01);
+              if (b.baseY - y0 > 0.01) {
+                this._box({ minX: x0, maxX: x1, minZ: z0, maxZ: z1 }, y0, b.baseY, 'earth', { collide: true, frame });
+              }
+            }
+          }
+        }
+      } else if (b.foundationBottomY != null && b.baseY - b.foundationBottomY > 0.01) {
         for (const rect of b.rects) {
           this._box(rect, b.foundationBottomY, b.baseY, 'earth', { collide: true, frame });
         }

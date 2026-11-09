@@ -1726,6 +1726,7 @@ export const LEVEL_11 = {
         "name": "Башня на подиуме",
         "isEnterable": false,
         "baseY": 9,
+        "foundationBottomY": 0,
         "floorHeight": 3,
         "floorsCount": 8,
         "roofY": 33,

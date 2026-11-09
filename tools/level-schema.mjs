@@ -222,6 +222,10 @@ export const LEVEL_SPEC = obj({
     floorsCount: num({ min: 1, max: J.shellFloorsMax, req: true, doc: 'эт: число этажей; вводимый дом ограничен J.enterableFloors (проверяется геометрией, а не этим максимумом)' }),
     floorHeight: num({ min: 2.4, max: 8, req: true, doc: 'м: высота этажа; все отметки перекрытий и маршей считаются от baseY + floorsCount · floorHeight' }),
     baseY: num({ doc: 'м: пол первого этажа; по умолчанию — опора грунта под центром дома' }),
+    foundation: str({
+      enum: ['podium', 'terrain'],
+      doc: 'вариант фундамента на неровной поверхности: podium — прямоугольный блок до нижней точки земли (уходит в склон); terrain — низ следует форме ландшафта. baseY в обоих случаях поднимается до наивысшей точки контакта (дом не зарывается)',
+    }),
     facadeMaterial: str({ default: 'concrete', doc: 'имя материала фасада; по нему ряды окон и вывесок берут надстройку из byMaterial' }),
     roof: obj({
       walkable: bool({ default: false, doc: 'true — кровля становится опорой (парапет J.parapetHeight по краю, маяк точки B может встать на неё); false — плита только картинка' }),

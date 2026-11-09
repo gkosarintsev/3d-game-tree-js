@@ -20,6 +20,7 @@
       "isEnterable": false,
       "floorsCount": 1,
       "floorHeight": 4,
+      "foundation": "terrain",
       "facadeMaterial": "painted_brick",
       "footprint": [
         { "x": 25, "z": -449 },
