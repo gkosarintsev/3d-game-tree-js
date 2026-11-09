@@ -60,7 +60,7 @@ export function normalizeLevel(raw) {
   ground.land = relief ? ((x, z) => relief.fieldAt(x, z)) : (() => ground.y);
 
   const buildings = (raw.buildings ?? []).map(b => normalizeBuilding(b, ground, warnings));
-  const roads = (raw.roads ?? []).map(r => normalizeRoad(r, ground));
+  const roads = (raw.roads ?? []).map(r => normalizeRoad(r, ground, raw.tunnels ?? []));
   const channels = (raw.waterways ?? []).map(w => normalizeWaterway(w, ground));
   if (relief) {
     // авторский дом без района стоит на своей площадке: под ним плоский пол, а не
@@ -583,6 +583,27 @@ function toWorld(rect, rotation, cx, cz, L, W) {
 
 // ------------------------------------------------------------------- дороги
 
+/** true, если точка (x,z,y) находится внутри коридора прямого туннеля (прорубленный рельеф). */
+function inTunnel(x, z, y, tunnels) {
+  for (const t of (tunnels ?? [])) {
+    const pts = t.points ?? [];
+    const a = pts[0], b = pts[pts.length - 1];
+    if (!a || !b) continue;
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) continue;
+    const px = x - a.x, pz = z - a.z;
+    const t0 = (px * dx + pz * dz) / (len * len);
+    if (t0 < -0.05 || t0 > 1.05) continue;
+    const cx = a.x + dx * Math.max(0, Math.min(1, t0));
+    const cz = a.z + dz * Math.max(0, Math.min(1, t0));
+    if (Math.hypot(x - cx, z - cz) > (t.width ?? 8) / 2 + 1) continue;
+    const fy = a.y + (b.y - a.y) * Math.max(0, Math.min(1, t0));
+    if (y >= fy - 0.5 && y <= fy + (t.height ?? 4.2) + 0.5) return true;
+  }
+  return false;
+}
+
 /**
  * Дорога → пластины настила. Плоский пролёт — одна пластина с верхом `topY`.
  * Пролёт с подъёмом — ОДНА наклонная пластина (`ramp: true`, верх идёт от
@@ -592,12 +613,70 @@ function toWorld(rect, rotation, cx, cz, L, W) {
  * Крутизну ограничивает схема: `|rise| / run ≤ J.maxSlope`, иначе ни ноги, ни
  * сфера Чужого такой подъём не перешагнут.
  */
-function normalizeRoad(road, ground) {
+function normalizeRoad(road, ground, tunnels) {
   if (road.elements) return normalizeRoadElements(road);
   const halfW = road.width / 2;
+  // наземная дорога не может быть ниже ландшафта: поднимаем каждую точку до
+  // рельефа + streetRise (как профиль квартальных улиц), иначе полотно зарывается
+  // в склон (параллельно туннелю — в гору) или мерцает вровень с плоскостью земли.
+  // Мост/эстакада держит авторскую отметку — намеренно поднятый пролёт. Участок
+  // внутри прорубленного туннеля не поднимаем к природному рельефу (над ним гора).
+  const lift = (p) => {
+    if (road.type !== 'ground') return p;
+    if (inTunnel(p.x, p.z, p.y, tunnels)) return p;
+    const land = ground.land ? ground.land(p.x, p.z) : ground.y;
+    return { ...p, y: Math.max(p.y, r3(land + J.streetRise)) };
+  };
+  // наземная дорога обязана идти не ниже ландшафта (рельефа): прямой пролёт
+  // между концами может рассечь склон/гору посередине. Драпируем равномерной
+  // выборкой: в каждой точке берём max(линейный профиль поднятых концов,
+  // land+streetRise) — сохраняем авторский уклон (рампа к мосту) там, где он над
+  // рельефом, и поднимаем только там, где рельеф его пробивает («внутрь горы» →
+  // дорога следует поверхности рельефа поверх бугра). Так не создаём провалов к
+  // земле посреди намеренной рампы (от них nav-узел теряет опору). Шаг ограничен
+  // (перф), мост/эстакада и участок в туннеле не трогаем.
+  const drape = (pts) => {
+    if (road.type !== 'ground' || !ground.land) return pts.map(lift);
+    const rise = J.streetRise;
+    const src = (pts ?? []).map(lift);
+    const out = [];
+    const same = (a, b) => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.z - b.z) < 1e-6;
+    for (let i = 0; i + 1 < src.length; i++) {
+      const A = src[i], B = src[i + 1];
+      const segLen = Math.hypot(B.x - A.x, B.z - A.z);
+      // проверяем, есть ли вообще захоронение на сегменте, прежде чем дробить
+      let buried = false;
+      const steps = Math.min(24, Math.max(1, Math.ceil(segLen / 12)));
+      for (let k = 1; k < steps && !buried; k++) {
+        const t = k / steps;
+        const x = A.x + (B.x - A.x) * t, z = A.z + (B.z - A.z) * t;
+        const lin = A.y + (B.y - A.y) * t;
+        if (inTunnel(x, z, lin, tunnels)) continue;
+        if (lin < ground.land(x, z) + rise - 0.03) buried = true;
+      }
+      if (!out.length || !same(out[out.length - 1], A)) out.push(A);
+      if (buried) {
+        for (let k = 1; k < steps; k++) {
+          const t = k / steps;
+          const x = A.x + (B.x - A.x) * t, z = A.z + (B.z - A.z) * t;
+          const lin = A.y + (B.y - A.y) * t;
+          const land = inTunnel(x, z, lin, tunnels) ? -Infinity : ground.land(x, z);
+          out.push({ x: r3(x), z: r3(z), y: r3(Math.max(lin, land + rise)) });
+        }
+      }
+      out.push(B);
+    }
+    // склейка стыков
+    const dedup = [];
+    for (const p of out) {
+      if (!dedup.length || !same(dedup[dedup.length - 1], p)) dedup.push(p);
+    }
+    return dedup;
+  };
+  const pts = drape(road.points ?? []);
   const decks = [];
-  for (let i = 0; i + 1 < road.points.length; i++) {
-    const a = road.points[i], b = road.points[i + 1];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1];
     const axis = Math.abs(a.x - b.x) >= Math.abs(a.z - b.z) ? 'x' : 'z';
     const aAlong = axis === 'x' ? a.x : a.z;
     const bAlong = axis === 'x' ? b.x : b.z;
