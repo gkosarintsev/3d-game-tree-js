@@ -37,7 +37,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LEVEL_SPEC, LEVEL_SPEC_V2, LEVEL_SPEC_V3, LEVEL_COMMON_V3 } from './level-schema.mjs';
+import { LEVEL_SPEC_V3, LEVEL_COMMON_V3 } from './level-schema.mjs';
 
 const DRAFT = 'http://json-schema.org/draft-07/schema#';
 const COLOR_PATTERN = '^#[0-9a-fA-F]{6}$';
@@ -127,10 +127,8 @@ export function schemaTextFor(entry) {
 }
 
 const ROOT = resolve(import.meta.dirname, '..');
-/** Куда кладём вывод — рядом с брифами, чтобы `./level.schema.json` из брифа резолвился. */
+/** Куда кладём вывод — рядом с брифами, чтобы `./level-v3.schema.json` из брифа резолвился. */
 export const SCHEMA_FILES = [
-  { spec: LEVEL_SPEC, title: 'Level brief v1 (kind: json)', out: resolve(ROOT, 'src/levels/level.schema.json') },
-  { spec: LEVEL_SPEC_V2, title: 'Level brief v2 (kind: json2 | open)', out: resolve(ROOT, 'src/levels/level-v2.schema.json') },
   {
     spec: LEVEL_SPEC_V3,
     title: 'Level brief v3 (kind: cityforge)',

@@ -16,7 +16,7 @@
  * обеих сторон сравнения — мира против одного чанка, — поэтому расхождение
  * видно и его нельзя купить разной мерой.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CONFIG } from '../src/config.js';
 import { circleHitsRect } from '../src/solids.js';
@@ -636,17 +636,18 @@ t('index.js держит мировые секции ровно один раз,
     + ` секции вывода ${outBytes} Б (18 + 73 + 53 Б на фикстуре этапа 1 их теряла)`);
 });
 
-// § 7.1 п. 6.
+// § 7.1 п. 6 (scope v3/v4): legacy json2 single-module chapters removed; v3 open chapters
+// are produced by the chunking pipeline and verified by check-levels/build --check.
 t('модули глав из брифа побайтово прежние, и разрезка к ним не прикоснулась', () => {
-  for (const nn of ['11', '12', '13']) {
-    const file = `src/levels/level-${nn}.json`;
-    const raw = JSON.parse(readFileSync(resolve(ROOT, file), 'utf8'));
-    const committed = readFileSync(resolve(ROOT, `src/levels/level-${nn}.js`), 'utf8').replace(/\r\n/g, '\n');
-    const fresh = generateModule(structuredClone(raw), file);
-    eq(committed, fresh.code, `${file}: модуль разошёлся с парсером`);
-    assert(!fresh.code.includes('"stream"'), `${file}: секция stream не должна доезжать до обычной главы`);
-    assert(!fresh.code.includes('"owner"'), `${file}: флаг владения не должен доезжать до обычной главы`);
-  }
+  const single = readdirSync(resolve(ROOT, 'src/levels'))
+    .filter(f => /^level-.*\.json$/.test(f) && !/schema\.json$/.test(f))
+    .sort()
+    .filter(f => {
+      const raw = JSON.parse(readFileSync(resolve(ROOT, 'src/levels', f), 'utf8'));
+      return raw.kind === 'json' || raw.kind === 'json2';
+    });
+  // No legacy single-module json/json2 briefs remain in v3/v4 scope.
+  eq(single.length, 0, `ожидались только cityforge/open-источники, найдены: ${single.join(', ')}`);
 });
 
 // § 7.1 п. 7 — схема.

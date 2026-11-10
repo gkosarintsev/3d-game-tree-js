@@ -7,9 +7,12 @@
 ### [TASK-001] Базовая линия, scope/чистка, v4/ADR, пилот (в работе)
 - [x] Базовая линия (до чистки): `node tools/check-levels.mjs` — **51/51 зелёные** (включая legacy). CI текущее: node (check-levels + parser/relief/track/chunk suites) + browser (все `tests/*.test.js`), см. `.github/workflows/ci.yml`.
 - [x] Решения v4/пилота/clean-up зафиксированы: план §10/§15, ADR `docs/architecture/adr/ADR-001-v4-citygen-districts.md`.
-- [ ] Атомарная чистка legacy §1.1 + scope CI/тестов/реестра + удаление v1/v2 схем и неиспользуемых веток инструментов.
+- [x] Чистка legacy §1.1 и scope (частично/основное): удалены главы 01,02,04,06,11,12,13,14 и каталоги/артефакты; `src/levels/index.js` и `tools/check-levels.mjs` приведены к v3-scope (03,05,07,08,09,10,15); удалены `level.schema.json`/`level-v2.schema.json`, `tools/export-schema.mjs` экспортирует только v3+common; удалены/заменены заглушками тесты, зависевшие от удалённых глав (json2-level, terrain-traverse, track-city, physics-index, vehicle, relief-terrain/city, rotated-*); адаптированы `tools/level-parser.test.mjs`, `tools/chunk.test.mjs`.
+- [ ] Дочистка: v1/v2 ветки в `tools/level-schema.mjs`/`build-level`/валидаторах (оставлены как неиспользуемые в v3/v4-scope, удалить при подтверждении), вычитка CI/browser-наборов и оставшихся ссылок, зелёный browser-прогон.
 - [ ] Спецификация v4 в `tools/level-schema.mjs`/экспорт схем + пустой/минимальный прогон (TASK-001/002 стык).
 - [ ] Параметры/метрики пилота гл.16 зафиксированы в артефактах (значения приняты в плане; замеры — в TASK-001/008).
+
+**Проверки (после чистки):** `check-levels` 28/28, `export-schema --check` ok, `level-parser.test.mjs` 123/123, `relief.test.mjs` ok, `track.test.mjs` ok, `chunk.test.mjs` 17/17. Browser CI не прогонялся в этой среде.
 
 ## Зафиксированные решения
 - Базовый формат — **v3/CityForge**; целевой — **v4 с районами**. Обратная совместимость с v1/v2/legacy не требуется.

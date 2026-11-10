@@ -302,8 +302,9 @@ function budgetRows() {
     const level = registry.LEVELS[i];
     const map = level.map ?? {};
     // номер главы берётся из реестра, а не из позиции: после удаления части
-    // глав `i + 1` указывал бы на чужой файл
-    const stem = `src/levels/level-${String(registry.LEVEL_NUMBERS[i]).padStart(2, '0')}`;
+    // глав позиция массива указывает на чужой файл
+    const chapter = registry.LEVEL_NUMBERS[i];
+    const stem = `src/levels/level-${String(chapter).padStart(2, '0')}`;
     // открытая глава не имеет одного «модуля»: её вывод — каталог, и для бюджета
     // интересен наибольший чанк, потому что его и читает движок по ходу пути
     const chunks = existsSync(resolve(ROOT, `${stem}.js`)) ? []
@@ -315,7 +316,7 @@ function budgetRows() {
     const pillars = Array.isArray(map.roads) ? map.roads.reduce((s, r) => s + (r.pillars?.length ?? 0), 0) : 0;
     const lamps = Array.isArray(map.roads) ? map.roads.reduce((s, r) => s + (r.lamps?.length ?? 0), 0) : 0;
     rows.push({
-      глава: i + 1,
+      глава: chapter,
       kind: map.kind ?? 'town',
       'модуль/чанк, КБ': Math.round(bytes / 1024),
       чанков: chunks.length || '',
