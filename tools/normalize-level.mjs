@@ -1925,6 +1925,14 @@ function normalizeRelief(raw, ground, warnings) {
   if ((spec.hillMaxSlope ?? J.relief.hillMaxSlope) * 1.5 > maxSlope + 1e-9) {
     // умышленно без warnings.push — автор отвечает за крутизну холмов
   }
+  const roadCorridors = (spec.roadCorridors ?? spec.corridors ?? []).map(c => ({
+    id: c.id,
+    width: r3(c.width ?? 8),
+    shoulder: r3(c.shoulder ?? J.relief.roadShoulder ?? 2),
+    blend: r3(c.blend ?? J.relief.roadBlend ?? 10),
+    ...(c.crossLevel ? { crossLevel: true } : {}),
+    points: (c.points ?? []).map(p => ({ x: r3(p.x), y: r3(p.y ?? 0), z: r3(p.z) })),
+  }));
   const plain = {
     baseY: r3(spec.baseY ?? ground.y),
     maxSlope,
@@ -1941,6 +1949,7 @@ function normalizeRelief(raw, ground, warnings) {
       y: r3(p.y), blend: r3(p.blend ?? spec.blend ?? J.relief.blend), yaw: p.yaw,
     })),
     ...(spec.rivers?.length ? { rivers: spec.rivers } : {}),
+    ...(roadCorridors.length ? { roadCorridors } : {}),
   };
   // Пробное поле каждой площадки строится заново на каждом шаге подгонки:
   // итоговый градиент — это не только кольцо, но и склон под ним, а формула

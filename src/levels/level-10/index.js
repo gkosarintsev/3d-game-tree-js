@@ -41,7 +41,7 @@ export const LEVEL_10 = {
       "spots": [
         {
           "x": 16,
-          "y": 17.346,
+          "y": 2.478,
           "yaw": 90,
           "z": 26
         }
@@ -166,6 +166,7 @@ export const LEVEL_10 = {
         "id": "1_2",
         "objects": {
           "channels": 1,
+          "props": 8,
           "roads": 3
         },
         "rect": {
@@ -232,8 +233,7 @@ export const LEVEL_10 = {
         "file": "chunk-2-2.l14b",
         "id": "2_2",
         "objects": {
-          "channels": 1,
-          "roads": 1
+          "channels": 1
         },
         "rect": {
           "maxX": 128,
@@ -301,6 +301,7 @@ export const LEVEL_10 = {
         "id": "3_2",
         "objects": {
           "channels": 1,
+          "props": 8,
           "roads": 3
         },
         "rect": {
@@ -1235,6 +1236,236 @@ export const LEVEL_10 = {
             }
           ],
           "surfaceY": -0.2
+        }
+      ],
+      "roadCorridors": [
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rv_m480_0_g",
+          "points": [
+            {
+              "x": -480,
+              "y": 0,
+              "z": -580
+            },
+            {
+              "x": -480,
+              "y": 0,
+              "z": -39.08
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rv_m480_2_g",
+          "points": [
+            {
+              "x": -480,
+              "y": 0,
+              "z": 70.92
+            },
+            {
+              "x": -480,
+              "y": 0,
+              "z": 580
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rv_m160_0_g",
+          "points": [
+            {
+              "x": -160,
+              "y": 0,
+              "z": -580
+            },
+            {
+              "x": -160,
+              "y": 0,
+              "z": -100.75
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rv_m160_2_g",
+          "points": [
+            {
+              "x": -160,
+              "y": 0,
+              "z": 9.25
+            },
+            {
+              "x": -160,
+              "y": 0,
+              "z": 580
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rv_160_0_g",
+          "points": [
+            {
+              "x": 160,
+              "y": 0,
+              "z": -580
+            },
+            {
+              "x": 160,
+              "y": 0,
+              "z": -8.11
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rv_160_2_g",
+          "points": [
+            {
+              "x": 160,
+              "y": 0,
+              "z": 101.89
+            },
+            {
+              "x": 160,
+              "y": 0,
+              "z": 580
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rv_480_0_g",
+          "points": [
+            {
+              "x": 480,
+              "y": 0,
+              "z": -580
+            },
+            {
+              "x": 480,
+              "y": 0,
+              "z": -64.26
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rv_480_2_g",
+          "points": [
+            {
+              "x": 480,
+              "y": 0,
+              "z": 45.74
+            },
+            {
+              "x": 480,
+              "y": 0,
+              "z": 580
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rh_m480_0_g",
+          "points": [
+            {
+              "x": -580,
+              "y": 0,
+              "z": -480
+            },
+            {
+              "x": 580,
+              "y": 0,
+              "z": -480
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rh_m160_0_g",
+          "points": [
+            {
+              "x": -580,
+              "y": 0,
+              "z": -160
+            },
+            {
+              "x": 580,
+              "y": 0,
+              "z": -160
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rh_160_0_g",
+          "points": [
+            {
+              "x": -580,
+              "y": 0,
+              "z": 160
+            },
+            {
+              "x": 580,
+              "y": 0,
+              "z": 160
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "rh_480_0_g",
+          "points": [
+            {
+              "x": -580,
+              "y": 0,
+              "z": 480
+            },
+            {
+              "x": 580,
+              "y": 0,
+              "z": 480
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
         }
       ]
     },

@@ -10169,6 +10169,160 @@ export const LEVEL_09 = {
           "minZ": 496,
           "y": 30.753
         }
+      ],
+      "roadCorridors": [
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_h_m480",
+          "points": [
+            {
+              "x": -580,
+              "y": 0,
+              "z": -480
+            },
+            {
+              "x": 580,
+              "y": 0,
+              "z": -480
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_h_m160",
+          "points": [
+            {
+              "x": -580,
+              "y": 0,
+              "z": -160
+            },
+            {
+              "x": 580,
+              "y": 0,
+              "z": -160
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_h_160",
+          "points": [
+            {
+              "x": -580,
+              "y": 0,
+              "z": 160
+            },
+            {
+              "x": 580,
+              "y": 0,
+              "z": 160
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_h_480",
+          "points": [
+            {
+              "x": -580,
+              "y": 0,
+              "z": 480
+            },
+            {
+              "x": 580,
+              "y": 0,
+              "z": 480
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_v_m480",
+          "points": [
+            {
+              "x": -480,
+              "y": 0,
+              "z": -580
+            },
+            {
+              "x": -480,
+              "y": 0,
+              "z": 580
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_v_m160",
+          "points": [
+            {
+              "x": -160,
+              "y": 0,
+              "z": -580
+            },
+            {
+              "x": -160,
+              "y": 0,
+              "z": 580
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_v_160",
+          "points": [
+            {
+              "x": 160,
+              "y": 0,
+              "z": -580
+            },
+            {
+              "x": 160,
+              "y": 0,
+              "z": 580
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_v_480",
+          "points": [
+            {
+              "x": 480,
+              "y": 0,
+              "z": -580
+            },
+            {
+              "x": 480,
+              "y": 0,
+              "z": 580
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        }
       ]
     },
     "spawn": {

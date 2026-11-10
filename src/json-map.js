@@ -1430,80 +1430,349 @@ export class JsonMap extends SurfaceField {
       geo?.computeBoundingSphere();
       return geo;
     }
+    // Кривое русло и дорожные коридоры: сетку у кромки воды и в зоне
+    // pre-leveling мельчим (см. `_riverGroundGeo`). Клетка 8 м прятала и берег,
+    // и поперечный срез/подсыпку под дорогой (полоса коридора уже клетки);
+    // сплошное мельчение всей плиты дорого. Русла без реки и без коридоров
+    // идут прежней сеткой, поэтому главы без них собираются как раньше.
     const cell = J.relief.meshCell;
     const hasCurved = this.channelSegs?.length > 0;
     const riverAt = this.relief.riverAt;
-    const geo = mergeGeometries(rects.map(r => {
-      const g = new THREE.PlaneGeometry(
-        r.maxX - r.minX, r.maxZ - r.minZ,
-        Math.max(1, Math.round((r.maxX - r.minX) / cell)),
-        Math.max(1, Math.round((r.maxZ - r.minZ) / cell)),
-      ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0);
-      const pos = g.attributes.position;
-      const nrm = g.attributes.normal;
-      for (let k = 0; k < pos.count; k++) {
-        const x = pos.getX(k), z = -pos.getY(k);
-        // позиция задаётся относительно `ground.position.y = groundY`
-        let h = this.relief.heightAt(x, z);
-        // Русло: вершину меша опускаем чуть ниже зеркала воды (не до дна bedY),
-        // иначе треугольники сетки 8 м, пересекая кромку 18 м русла, лезут сквозь
-        // воду (мерцание/z-fight) и дают провалы. Коллизия дна — призма bed, не меш.
-        const rv = riverAt ? riverAt(x, z) : (hasCurved && this._inChannel(x, z) ? { d: -1, rv: { surfaceY: this.groundY - 0.2 } } : null);
-        if (rv && rv.d <= 0) h = (rv.rv.surfaceY ?? (this.groundY - 0.2)) - 0.05;
-        pos.setZ(k, h - this.groundY);
-        const n = this.relief.normalAt(x, z);
-        nrm.setXYZ(k, n.x, -n.z, n.y);
-      }
-      pos.needsUpdate = true;
-      nrm.needsUpdate = true;
-      return g;
-    }), false);
+    const roadAt = this.relief.roadAt;
+    const geo = mergeGeometries(rects.map(r => (riverAt || roadAt)
+      ? this._riverGroundGeo(r, cell, riverAt, roadAt)
+      : this._plainGroundGeo(r, cell, hasCurved)), false);
     geo?.computeBoundingSphere();
     return geo;
   }
 
+  /** Обычная сетка грунта главы с рельефом (русла без кривых — rect-дыры). */
+  _plainGroundGeo(r, cell, hasCurved) {
+    const g = new THREE.PlaneGeometry(
+      r.maxX - r.minX, r.maxZ - r.minZ,
+      Math.max(1, Math.round((r.maxX - r.minX) / cell)),
+      Math.max(1, Math.round((r.maxZ - r.minZ) / cell)),
+    ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0);
+    const pos = g.attributes.position;
+    const nrm = g.attributes.normal;
+    for (let k = 0; k < pos.count; k++) {
+      const x = pos.getX(k), z = -pos.getY(k);
+      // позиция задаётся относительно `ground.position.y = groundY`
+      let h = this.relief.heightAt(x, z);
+      if (hasCurved && this._inChannel(x, z)) h = this._channelBedY(x, z);
+      pos.setZ(k, h - this.groundY);
+      const n = this.relief.normalAt(x, z);
+      nrm.setXYZ(k, n.x, -n.z, n.y);
+    }
+    pos.needsUpdate = true;
+    nrm.needsUpdate = true;
+    return g;
+  }
+
   /**
-   * Вода: один меш полупрозрачных пластин на отметках `surfaceY`. Коллизий у него
-   * нет ни для луча, ни для тела — решение о том, где русло проходимо вброд,
-   * принимает геометрия дна и блокер, а не картинка.
+   * Сетка грунта у кривого русла и/или дорожных коридоров: обычная клетка
+   * `meshCell` режется на подклетки `riverMeshCell` там, где вода подходит ближе
+   * клетки или проходит зона pre-leveling дороги, и подклетки целиком в русле
+   * выбрасываются — вода остаётся открытой, а не уходит под треугольник
+   * «берег → русло».
+   *
+   * У дорожного коридора измельчение нужно по другой причине: поперечный
+   * срез/подсыпка занимает полосу уже 8-м клетки, и на грубой сетке правка
+   * рельефа (которая в поле уже есть) теряется между вершинами. Дорога «сухая»,
+   * поэтому wet-клетки выкидываются только там, где реально русло.
+   *
+   * Швы между мелкой и крупной сеткой не трескаются: на ребре, где сосед не
+   * мельчён, подклетки берут высоту и нормаль линейной интерполяцией между
+   * углами крупной клетки — ровно ту же прямую, что даёт сосед. Где мельчены
+   * оба, значения аналитические и совпадают побитово (одна функция поля).
+   * Признак мельчения считается по мировым координатам клетки, поэтому соседние
+   * чанки принимают по общему ребру одно и то же решение.
+   */
+  _riverGroundGeo(rect, cell, riverAt, roadAt = null) {
+    const gY = this.groundY;
+    const surfaceY = gY - 0.2;
+    const fine = J.relief.riverMeshCell ?? 1;
+    const nx = Math.max(1, Math.round((rect.maxX - rect.minX) / cell));
+    const nz = Math.max(1, Math.round((rect.maxZ - rect.minZ) / cell));
+    const dx = (rect.maxX - rect.minX) / nx;
+    const dz = (rect.maxZ - rect.minZ) / nz;
+    const x0 = rect.minX, z0 = rect.minZ;
+    const gw = nx + 1;
+
+    // Высоты и нормали крупной сетки — их же берут линейные рёбра на швах.
+    const gwz = (nz + 1) * gw;
+    const H = new Float32Array(gwz);
+    const NX = new Float32Array(gwz);
+    const NY = new Float32Array(gwz);
+    const NZ = new Float32Array(gwz);
+    const coarse = (x, z) => {
+      const dr = riverAt && riverAt(x, z);
+      // в русле вершину держим у зеркала: дно рисует призма, опору даёт она же
+      return dr && dr.d <= 0 ? (dr.rv.surfaceY ?? surfaceY) - 0.05 : this.relief.heightAt(x, z);
+    };
+    for (let j = 0; j <= nz; j++) {
+      for (let i = 0; i <= nx; i++) {
+        const x = x0 + i * dx, z = z0 + j * dz, k = j * gw + i;
+        H[k] = coarse(x, z);
+        const n = this.relief.normalAt(x, z);
+        NX[k] = n.x; NY[k] = n.y; NZ[k] = n.z;
+      }
+    }
+
+    // Признак мельчения клетки: любой из её углов или центр ближе клетки к
+    // воде либо внутри зоны влияния дорожного коридора. Поле 1-липшицево,
+    // поэтому немельчённая клетка отстоит от кромки не меньше чем на клетку
+    // минус половина диагонали — ребро на шве воду не пересекает, и линейная
+    // интерполяция там ничего не закапывает.
+    const flagW = nx + 2, flagH = nz + 2;
+    const refined = new Uint8Array(flagW * flagH);
+    const flagAt = (ci, cj) => refined[(cj + 1) * flagW + (ci + 1)];
+    for (let cj = -1; cj <= nz; cj++) {
+      for (let ci = -1; ci <= nx; ci++) {
+        const cx = x0 + (ci + 0.5) * dx, cz = z0 + (cj + 0.5) * dz;
+        const hx = dx / 2, hz = dz / 2;
+        let on = 0;
+        for (const [px, pz] of [[cx, cz], [cx - hx, cz - hz], [cx + hx, cz - hz],
+          [cx - hx, cz + hz], [cx + hx, cz + hz]]) {
+          const dr = riverAt && riverAt(px, pz);
+          if (dr && dr.d <= cell) { on = 1; break; }
+          if (!on && roadAt) {
+            const rr = roadAt(px, pz);
+            if (rr && rr.d <= rr.reach + fine) { on = 1; break; }
+          }
+        }
+        refined[(cj + 1) * flagW + (ci + 1)] = on;
+      }
+    }
+
+    const kx = Math.max(1, Math.ceil(dx / fine));
+    const kz = Math.max(1, Math.ceil(dz / fine));
+    const pos = [], nrm = [];
+    const push = (x, z, h, ax, ay, az) => {
+      // локальный кадр меша: (x, −z, h − groundY), нормаль (nx, −nz, ny)
+      pos.push(x, -z, h - gY);
+      nrm.push(ax, -az, ay);
+    };
+    const triCoarse = (i0, j0, i1, j1, i2, j2) => {
+      const a = j0 * gw + i0, b = j1 * gw + i1, c = j2 * gw + i2;
+      push(x0 + i0 * dx, z0 + j0 * dz, H[a], NX[a], NY[a], NZ[a]);
+      push(x0 + i1 * dx, z0 + j1 * dz, H[b], NX[b], NY[b], NZ[b]);
+      push(x0 + i2 * dx, z0 + j2 * dz, H[c], NX[c], NY[c], NZ[c]);
+    };
+
+    for (let cj = 0; cj < nz; cj++) {
+      for (let ci = 0; ci < nx; ci++) {
+        if (!flagAt(ci, cj)) {
+          // порядок вершин даёт нормаль +Z локального кадра = +Y мира
+          triCoarse(ci, cj, ci, cj + 1, ci + 1, cj + 1);
+          triCoarse(ci, cj, ci + 1, cj + 1, ci + 1, cj);
+          continue;
+        }
+        const i0 = ci, j0 = cj, i1 = ci + 1, j1 = cj + 1;
+        const a00 = j0 * gw + i0, a10 = j0 * gw + i1;
+        const a01 = j1 * gw + i0, a11 = j1 * gw + i1;
+        const left = !flagAt(ci - 1, cj), right = !flagAt(ci + 1, cj);
+        const bottom = !flagAt(ci, cj - 1), top = !flagAt(ci, cj + 1);
+        // подклетки: высота, нормаль и «в воде» в каждом узле
+        const lw = kx + 1;
+        const hv = new Float32Array(lw * (kz + 1));
+        const nvx = new Float32Array(lw * (kz + 1));
+        const nvy = new Float32Array(lw * (kz + 1));
+        const nvz = new Float32Array(lw * (kz + 1));
+        const wet = new Uint8Array(lw * (kz + 1));
+        for (let b = 0; b <= kz; b++) {
+          for (let a = 0; a <= kx; a++) {
+            const tx = a / kx, tz = b / kz;
+            const x = x0 + (ci + tx) * dx, z = z0 + (cj + tz) * dz;
+            const l = b * lw + a;
+            const dr = riverAt && riverAt(x, z);
+            wet[l] = dr && dr.d <= 0 ? 1 : 0;
+            // шов с крупным соседом — та же прямая, что у соседа
+            let h, nxv, nyv, nzv;
+            if (left && a === 0) {
+              h = H[a00] + (H[a01] - H[a00]) * tz;
+              nxv = NX[a00] + (NX[a01] - NX[a00]) * tz;
+              nyv = NY[a00] + (NY[a01] - NY[a00]) * tz;
+              nzv = NZ[a00] + (NZ[a01] - NZ[a00]) * tz;
+            } else if (right && a === kx) {
+              h = H[a10] + (H[a11] - H[a10]) * tz;
+              nxv = NX[a10] + (NX[a11] - NX[a10]) * tz;
+              nyv = NY[a10] + (NY[a11] - NY[a10]) * tz;
+              nzv = NZ[a10] + (NZ[a11] - NZ[a10]) * tz;
+            } else if (bottom && b === 0) {
+              h = H[a00] + (H[a10] - H[a00]) * tx;
+              nxv = NX[a00] + (NX[a10] - NX[a00]) * tx;
+              nyv = NY[a00] + (NY[a10] - NY[a00]) * tx;
+              nzv = NZ[a00] + (NZ[a10] - NZ[a00]) * tx;
+            } else if (top && b === kz) {
+              h = H[a01] + (H[a11] - H[a01]) * tx;
+              nxv = NX[a01] + (NX[a11] - NX[a01]) * tx;
+              nyv = NY[a01] + (NY[a11] - NY[a01]) * tx;
+              nzv = NZ[a01] + (NZ[a11] - NZ[a01]) * tx;
+            } else {
+              h = dr && dr.d <= 0 ? (dr.rv.surfaceY ?? surfaceY) - 0.05 : this.relief.heightAt(x, z);
+              const n = this.relief.normalAt(x, z);
+              nxv = n.x; nyv = n.y; nzv = n.z;
+            }
+            hv[l] = h; nvx[l] = nxv; nvy[l] = nyv; nvz[l] = nzv;
+          }
+        }
+        // подклетка целиком в воде — дыра: зеркало воды покажет призму дна
+        const put = (l, x, z) => push(x, z, hv[l], nvx[l], nvy[l], nvz[l]);
+        for (let b = 0; b < kz; b++) {
+          for (let a = 0; a < kx; a++) {
+            const l00 = b * lw + a, l10 = l00 + 1;
+            const l01 = (b + 1) * lw + a, l11 = l01 + 1;
+            if (wet[l00] && wet[l10] && wet[l01] && wet[l11]) continue;
+            const xa = x0 + (ci + a / kx) * dx, xb = x0 + (ci + (a + 1) / kx) * dx;
+            const za = z0 + (cj + b / kz) * dz, zb = z0 + (cj + (b + 1) / kz) * dz;
+            put(l00, xa, za); put(l01, xa, zb); put(l11, xb, zb);
+            put(l00, xa, za); put(l11, xb, zb); put(l10, xb, za);
+          }
+        }
+      }
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    return g;
+  }
+
+  /**
+   * Вода и ложе кривого русла. Коллизий у картинки нет ни для луча, ни для
+   * тела — решение о том, где русло проходимо вброд, принимает геометрия дна и
+   * блокер, а не меш.
    *
    * `rects` — зеркала одной области: у клетки их отдаёт проход картинки, потому
    * что мировое поле содержит и чужие копии русел, а пластина воды на шве
-   * обязана быть одна. Кривое русло (`strip`) отдаёт ленту-квад по каждому
-   * сегменту оси — та же отметка, только повёрнутая в план.
+   * обязана быть одна.
+   *
+   * Прямое русло (осевое) отдаёт по пластине на сегмент — их не трогаем, главы
+   * 02/11/12/13/14 обязаны собираться как раньше. Кривое (`strip`) собирается в
+   * **одну ленту по цепочке** сегментов с усом на стыке: квад на каждый сегмент
+   * (прошлая версия) продлевался на полширины и на повороте ложился на соседний
+   * — полупрозрачная вода складывалась дважды, и на реке читались тёмные
+   * веера/ромбы. Та же лента, опущенная на `bedY`, рисует ложе: со-плоскостные
+   * верхние грани призм дна мигали друг сквозь друга на каждом повороте.
    */
   _buildWater(scene, rects, objs) {
     if (!rects.length) return;
-    const geos = rects.map(r => {
-      if (r.strip && r.seg) {
-        const s = r.seg;
-        // 4 угла полосы в мире (XZ), Y = r.y; геометрия в мировых координатах
-        // (меш воды без поворота родителя в этом вызове кладётся в сцену так же,
-        // как rect-путь? rect-путь делает PlaneGeometry в XY, translate z=r.y,
-        // и меш поворачивается на -90°X — значит вершина (X,-Zloc,r.y) в локале
-        // после поворота даёт (X,r.y,Zloc) в мире. Проще построить в мире и не
-        // вращать: но меш один на все rects. Поэтому для strip строим в той же
-        // локальной системе: (wx, -wz, wy).
-        const P = (u, v) => [s.ax + s.tx * u + s.nx * v, -(s.az + s.tz * u + s.nz * v), r.y];
-        const a = P(s.lo, -s.halfW), b = P(s.hi, -s.halfW), c = P(s.hi, s.halfW), d = P(s.lo, s.halfW);
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...d], 3));
-        g.setAttribute('normal', new THREE.Float32BufferAttribute([0,0,1, 0,0,1, 0,0,1, 0,0,1], 3));
-        g.setIndex([0,1,2, 0,2,3]);
-        return g;
+    const isStrip = r => !!(r.strip && r.seg);
+    const flats = rects.filter(r => !isStrip(r));
+    const waterChains = this._waterChains(rects.filter(r => isStrip(r) && !r.bed));
+    const bedChains = this._waterChains(rects.filter(r => isStrip(r) && r.bed));
+
+    const geos = flats.map(r => new THREE.PlaneGeometry(
+      r.maxX - r.minX, r.maxZ - r.minZ,
+    ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, r.y));
+    for (const ch of waterChains) geos.push(this._ribbonGeo(ch));
+    if (geos.length) {
+      const water = new THREE.Mesh(mergeGeometries(geos, false), new THREE.MeshStandardMaterial({
+        color: J.waterColor, roughness: 0.3, metalness: 0.1,
+        transparent: true, opacity: J.waterOpacity,
+      }));
+      water.rotation.x = -Math.PI / 2;
+      scene.add(water);
+      objs.push(water);
+    }
+
+    if (bedChains.length) {
+      const bed = new THREE.Mesh(
+        mergeGeometries(bedChains.map(ch => this._ribbonGeo(ch)), false),
+        new THREE.MeshStandardMaterial({ color: J.earth, roughness: 1, metalness: 0 }),
+      );
+      bed.rotation.x = -Math.PI / 2;
+      bed.receiveShadow = true;
+      scene.add(bed);
+      objs.push(bed);
+    }
+  }
+
+  /**
+   * Режет список полос на цепочки по общему концу: порядок сегментов русла —
+   * порядок точек брифа, поэтому сосед ищется в предыдущем, а не перебором.
+   * Разрыв (клетка выгружена или сегменты пришли не по порядку) начинает новую
+   * цепочку, и та получает торцевые крышки — двойного наложения на шве не
+   * будет, потому что у каждой цепочки своя лента.
+   */
+  _waterChains(list) {
+    const chains = [];
+    let cur = null;
+    for (const r of list) {
+      if (cur) {
+        const p = cur[cur.length - 1];
+        const ex = p.seg.ax + p.seg.tx * p.seg.L;
+        const ez = p.seg.az + p.seg.tz * p.seg.L;
+        // конец сходится с началом следующего в пределах округления модуля
+        // (r3): 1e-4 м было меньше ошибки произведения tx·L (замер 10,6 мм)
+        if (r.y === p.y && Math.abs(r.seg.ax - ex) < 0.05 && Math.abs(r.seg.az - ez) < 0.05) {
+          cur.push(r);
+          continue;
+        }
       }
-      return new THREE.PlaneGeometry(
-        r.maxX - r.minX, r.maxZ - r.minZ,
-      ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, r.y);
-    });
-    const geo = mergeGeometries(geos, false);
-    const water = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-      color: J.waterColor, roughness: 0.3, metalness: 0.1,
-      transparent: true, opacity: J.waterOpacity,
-    }));
-    water.rotation.x = -Math.PI / 2;
-    scene.add(water);
-    objs.push(water);
+      cur = [r];
+      chains.push(cur);
+    }
+    return chains;
+  }
+
+  /**
+   * Лента по цепочке сегментов: кромка на стыке — ус (биссектриса нормалей,
+   * растянутая до пересечения кромок), торцы — квадратные крышки на полширины,
+   * как и продолжение `lo`/`hi` у сегментов русла. Обход против часовой в
+   * локальном XY (после поворота меша на −90° это +Y мира), иначе вода смотрит
+   * вниз и сверху её не видно.
+   *
+   * Ус ограничен тремя полуширинами: на развороте почти на 180° биссектриса
+   * почти нулевая, и без предела кромка отрастала бы на десятки метров.
+   */
+  _ribbonGeo(chain) {
+    const segs = chain.map(r => r.seg);
+    const y = chain[0].y;
+    const rings = [];
+    const ring = (x, z, ox, oz) => rings.push({ x, z, ox, oz });
+    const s0 = segs[0], sN = segs[segs.length - 1];
+    // торец начала: продолжение оси на полширины с той же нормалью
+    ring(s0.ax - s0.tx * s0.halfW, s0.az - s0.tz * s0.halfW, s0.nx * s0.halfW, s0.nz * s0.halfW);
+    ring(s0.ax, s0.az, s0.nx * s0.halfW, s0.nz * s0.halfW);
+    for (let i = 1; i < segs.length; i++) {
+      const a = segs[i - 1], b = segs[i];
+      let mx = a.nx + b.nx, mz = a.nz + b.nz;
+      const len = Math.hypot(mx, mz);
+      const dot = len > 1e-9 ? (mx * a.nx + mz * a.nz) / len : 0;
+      if (dot > 0.2) {
+        const k = Math.min(b.halfW / dot, b.halfW * 3);
+        ring(b.ax, b.az, (mx / len) * k, (mz / len) * k);
+      } else {
+        ring(b.ax, b.az, b.nx * b.halfW, b.nz * b.halfW);
+      }
+    }
+    // торец конца
+    ring(sN.ax + sN.tx * sN.L, sN.az + sN.tz * sN.L, sN.nx * sN.halfW, sN.nz * sN.halfW);
+    ring(
+      sN.ax + sN.tx * (sN.L + sN.halfW), sN.az + sN.tz * (sN.L + sN.halfW),
+      sN.nx * sN.halfW, sN.nz * sN.halfW,
+    );
+
+    const pos = [], nor = [], uv = [], idx = [];
+    for (const r of rings) {
+      // два угла кольца: слева и справа от оси (в локальном кадре меша Y = −z)
+      pos.push(r.x + r.ox, -(r.z + r.oz), y);
+      pos.push(r.x - r.ox, -(r.z - r.oz), y);
+      nor.push(0, 0, 1, 0, 0, 1);
+      uv.push(0, 0, 1, 0);
+    }
+    for (let j = 0; j + 1 < rings.length; j++) {
+      const l0 = j * 2, r0 = l0 + 1, l1 = l0 + 2, r1 = l0 + 3;
+      idx.push(l0, l1, r1, l0, r1, r0);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    return g;
   }
 
   /**

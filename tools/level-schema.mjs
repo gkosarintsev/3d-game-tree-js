@@ -436,6 +436,19 @@ const V2_PAD = obj({
   yaw: num({ min: -360, max: 360, default: 0, doc: 'град: поворот вокруг центра прямоугольника' }),
 }, { doc: 'площадка поля высот (терраса района, площадь, насыпь)' });
 
+const V2_ROAD_CORRIDOR = obj({
+  id: str({ doc: 'имя коридора для отладки' }),
+  width: num({ min: 2, max: 60, default: 8, doc: 'м: ширина полотна дороги' }),
+  shoulder: num({ min: 0, max: 20, default: 2, doc: 'м: ширина обочины с мягким уклоном' }),
+  blend: num({ min: 0.5, max: 120, default: 10, doc: 'м: ширина плавного перехода от обочины к природному полю' }),
+  crossLevel: bool({ default: false, doc: 'выравнивать поперёк полотна по отметке оси, сохраняя продольный профиль по рельефу' }),
+  points: arr(obj({
+    x: num({ req: true, doc: 'м: ось дороги' }),
+    y: num({ default: 0, doc: 'м: отметка профиля дороги в точке (при crossLevel берётся отметка рельефа на оси)' }),
+    z: num({ req: true, doc: 'м: ось дороги' }),
+  }, { doc: 'точка оси коридора' }), { minItems: 2, req: true, doc: 'ломаная оси коридора' }),
+}, { doc: 'коридор предварительного выравнивания ландшафта под дорогой (cut-and-fill)' });
+
 const V2_RELIEF = obj({
   baseY: num({ doc: 'м: нулевая отметка поля; по умолчанию ground.y' }),
   maxSlope: num({ min: 0.01, max: 1.5, default: J.relief.maxSlope, doc: 'м/м: предел крутизны **поля** (уклон грунта). Не путать с `J.maxSlope` — пределом настила, и с `city.districts[].street.grade` — подъёмом проезжей части' }),
@@ -444,6 +457,7 @@ const V2_RELIEF = obj({
   cell: num({ min: 2, max: 60, default: J.planGrid, doc: 'м: сторона клетки индекса рельефа (цена пробы, не геометрия)' }),
   hills: arr(V2_HILL, { minItems: 1, maxItems: J.relief.maxHills, doc: 'холмы поля; лимит J.relief.maxHills' }),
   pads: arr(V2_PAD, { minItems: 1, doc: 'площадки поля' }),
+  roadCorridors: arr(V2_ROAD_CORRIDOR, { minItems: 1, doc: 'коридоры выравнивания ландшафта под дорогами' }),
 }, { doc: 'аналитическое поле высот: при наличии секции гасится groundPlane («пол мира — ноль» больше не опора)' });
 
 export const LEVEL_SPEC_V2 = {

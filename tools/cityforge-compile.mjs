@@ -235,12 +235,46 @@ export function compileCityforge(raw) {
   // отметка площадки: если рядом есть портал/точка дороги (спавн в тоннеле/на
   // настиле), берём её y, иначе площадка оказалась бы на ground.y и оторвалась
   // от сети по высоте (ломает скелет/навигацию)
-  const padY = (x, z, fallback) => {
+  const anchored = (x, z) => {
     for (const t of (tunnels ?? [])) for (const p of (t.points ?? []))
       if (Math.hypot(p.x - x, p.z - z) < 12) return p.y;
     for (const r of roads) for (const p of (r.points ?? []))
       if (Math.hypot(p.x - x, p.z - z) < 12) return p.y;
-    return fallback;
+    return null;
+  };
+  const padY = (x, z, fallback) => anchored(x, z) ?? fallback;
+  /**
+   * Площадка не ставится на берегу реки.
+   *
+   * Настил площадки — плоскость, поперёк своей оси он не наклоняется, а берег
+   * реки поднимается от русла с уклоном порядка 0,2 м/м. Плита 6 × 6 м на таком
+   * склоне расходится с грунтом на ±0,6 м: один её край уходит в землю, другой
+   * висит над ней. Замер главы 10 до правки: 1,9 м грунта над асфальтом с
+   * нагорной стороны; после разворота площадки вдоль нормали берега — 0,25 м
+   * утопания и 0,5 м висящей кромки. Ни одно из чисел не читается площадкой,
+   * поэтому у воды её просто нет: спавн и точка B стоят на собственном поле,
+   * которое там гладкое и не режется настилом.
+   *
+   * У площадки, привязанной к дороге или порталу, ось остаётся авторской:
+   * отметку она берёт у полотна (`padY`), и связь с сетью важнее берега.
+   */
+  const padFits = (x, z) => {
+    if (anchored(x, z) !== null) return true;
+    let best = Infinity;
+    for (const w of waterways) {
+      const pts = w.points ?? [];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const a = pts[i], b = pts[i + 1];
+        const dx = b.x - a.x, dz = b.z - a.z;
+        const L = Math.hypot(dx, dz);
+        if (L < 1e-9) continue;
+        const tx = dx / L, tz = dz / L;
+        const u = Math.max(0, Math.min(L, (x - a.x) * tx + (z - a.z) * tz));
+        const d = Math.hypot(x - (a.x + tx * u), z - (a.z + tz * u));
+        if (d < best) best = d;
+      }
+    }
+    return best > 40;
   };
   const pad = (id, x, z, y = gy) => ({
     id, type: 'ground', width: 6,
@@ -284,7 +318,11 @@ export function compileCityforge(raw) {
     // Авторские дома в движковом формате (v2) пропускаются в движок; полноценная
     // компиляция instances/building-шаблонов — отдельный шаг формата.
     buildings: Array.isArray(raw.buildings) ? raw.buildings : [],
-    roads: [pad('spawn_pad', sx, sz, padY(sx, sz, gy)), pad('exit_pad', ex, ez, padY(ex, ez, gy)), ...tunnelPads, ...roads],
+    roads: [
+      ...(padFits(sx, sz) ? [pad('spawn_pad', sx, sz, padY(sx, sz, gy))] : []),
+      ...(padFits(ex, ez) ? [pad('exit_pad', ex, ez, padY(ex, ez, gy))] : []),
+      ...tunnelPads, ...roads,
+    ],
     ...(waterways.length ? { waterways } : {}),
     tunnels,
     lights: [],
@@ -306,11 +344,27 @@ export function compileCityforge(raw) {
     // крутизной суммарного поля: «большая гора» может быть круче дефолтов.
     const hillMaxSlope = Math.max(J.relief.hillMaxSlope, Math.ceil((1.5 * maxH / Math.max(minR, 1)) * 100) / 100);
     const maxSlope = Math.max(J.relief.maxSlope, hillMaxSlope);
+    // Небольшое поперечное выравнивание под наземными дорогами: продольно полотно
+    // следует рельефу (отметка берётся с оси природного поля), поперёк под
+    // полотном склон выровнен, чтобы поперечное сечение дороги было горизонтальным.
+    // Переход к склону узкий — ландшафт вокруг дороги меняется минимально.
+    // Берём все наземные точечные дороги движка (включая площадки), кроме мостов.
+    const roadCorridors = (roads ?? [])
+      .filter(r => r.type === 'ground' && Array.isArray(r.points) && r.points.length >= 2)
+      .map(r => ({
+        id: r.id,
+        width: r.width ?? 8,
+        shoulder: 1,
+        blend: 5,
+        crossLevel: true,
+        points: r.points.map(p => ({ x: p.x, y: p.y ?? 0, z: p.z })),
+      }));
     engine.relief = {
       baseY: ground.y ?? 0,
       hillMaxSlope,
       maxSlope,
       hills,
+      ...(roadCorridors.length ? { roadCorridors } : {}),
     };
   }
   return { engine, warnings };

@@ -407,6 +407,80 @@ export const LEVEL_07 = {
           "minZ": -449,
           "y": 8.712
         }
+      ],
+      "roadCorridors": [
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "ramp_south_exit",
+          "points": [
+            {
+              "x": 520,
+              "y": 1,
+              "z": 540
+            },
+            {
+              "x": 524,
+              "y": 0,
+              "z": 540
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "road_east_ring",
+          "points": [
+            {
+              "x": 524,
+              "y": 0,
+              "z": 540
+            },
+            {
+              "x": 520,
+              "y": 0,
+              "z": 540
+            },
+            {
+              "x": 600,
+              "y": 0,
+              "z": 540
+            },
+            {
+              "x": 600,
+              "y": 0,
+              "z": -540
+            },
+            {
+              "x": 200,
+              "y": 0,
+              "z": -540
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "ramp_north_up",
+          "points": [
+            {
+              "x": 200,
+              "y": 0,
+              "z": -540
+            },
+            {
+              "x": 200,
+              "y": 1,
+              "z": -535
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        }
       ]
     },
     "spawn": {

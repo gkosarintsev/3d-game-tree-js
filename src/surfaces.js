@@ -644,10 +644,14 @@ export class SurfaceField extends SolidField {
             [s.hi, r3(ch.bedY - J.bedThickness)], [s.lo, r3(ch.bedY - J.bedThickness)],
           ], frame);
           this.prisms.push(bed);
-          this._addGeo('earth', { kind: 'prism', w: bed });
           // strip-дыра: broadphase-габарит для индекса; точность — inWaterwaySeg
           this.holes.push({ ...s.bed, strip: true, seg: s.bed.seg ?? s });
           this.waterRects.push({ ...s.bed, y: ch.surfaceY, strip: true, seg: s.bed.seg ?? s });
+          // Картинка ложа — лента на `bedY`, а не призма каждого сегмента:
+          // соседние призмы продлены на полширины, и на повороте их со-плоскостные
+          // верхние грани мигали друг сквозь друга. Твёрдость по-прежнему держит
+          // призма выше (`prisms`), картинка её только повторяет.
+          this.waterRects.push({ ...s.bed, y: ch.bedY, strip: true, bed: true, seg: s.bed.seg ?? s });
           // непроходимое кривое русло: блока rect-габаритом не ставим (он режет за
           // пределами полосы); физику держит дно-призма (−4 м) + _inChannel для нав.
         }

@@ -2147,6 +2147,80 @@
             "description": "площадка поля высот (терраса района, площадь, насыпь)"
           },
           "description": "площадки поля"
+        },
+        "roadCorridors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "имя коридора для отладки"
+              },
+              "width": {
+                "type": "number",
+                "minimum": 2,
+                "maximum": 60,
+                "description": "м: ширина полотна дороги",
+                "default": 8
+              },
+              "shoulder": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 20,
+                "description": "м: ширина обочины с мягким уклоном",
+                "default": 2
+              },
+              "blend": {
+                "type": "number",
+                "minimum": 0.5,
+                "maximum": 120,
+                "description": "м: ширина плавного перехода от обочины к природному полю",
+                "default": 10
+              },
+              "crossLevel": {
+                "type": "boolean",
+                "description": "выравнивать поперёк полотна по отметке оси, сохраняя продольный профиль по рельефу",
+                "default": false
+              },
+              "points": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "description": "м: ось дороги"
+                    },
+                    "y": {
+                      "type": "number",
+                      "description": "м: отметка профиля дороги в точке (при crossLevel берётся отметка рельефа на оси)",
+                      "default": 0
+                    },
+                    "z": {
+                      "type": "number",
+                      "description": "м: ось дороги"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "z"
+                  ],
+                  "additionalProperties": false,
+                  "description": "точка оси коридора"
+                },
+                "description": "ломаная оси коридора"
+              }
+            },
+            "required": [
+              "points"
+            ],
+            "additionalProperties": false,
+            "description": "коридор предварительного выравнивания ландшафта под дорогой (cut-and-fill)"
+          },
+          "description": "коридоры выравнивания ландшафта под дорогами"
         }
       },
       "additionalProperties": false,

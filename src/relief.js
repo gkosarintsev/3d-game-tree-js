@@ -22,6 +22,95 @@ const J = CONFIG.jsonMap;
 const ease = t => t * t * (3 - 2 * t);
 
 /**
+ * Предварительное выравнивание ландшафта под дорогой и запрос близости к
+ * коридору. Ближайшая проекция на ломаную оси даёт поперечное расстояние.
+ * Режимы: обычный — отметка цели берётся из профиля коридора (интерполяция
+ * `y` точек); поперечное выравнивание (`crossLevel`) — цель это отметка
+ * природного поля в проекции на ось, поэтому дорога продольно следует рельефу,
+ * а поперёк под полотном становится горизонтальной. Под полотном отметка
+ * плоская, на обочине — мягкий уклон, дальше — плавный переход к природному
+ * полю точки.
+ */
+function buildRoadTool(corridors, naturalAt) {
+  if (!corridors?.length) return null;
+  const segs = [];
+  for (const c of corridors) {
+    const pts = c.points ?? [];
+    const hw = (c.width ?? 8) / 2;
+    const shoulder = c.shoulder ?? J.relief.roadShoulder ?? 2;
+    const blend = c.blend ?? J.relief.roadBlend ?? 10;
+    const reach = hw + shoulder + blend;
+    const crossLevel = !!c.crossLevel;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const L = Math.hypot(dx, dz);
+      if (L < 1e-6) continue;
+      const tx = dx / L, tz = dz / L;
+      segs.push({
+        ax: a.x, az: a.z, ay: a.y ?? 0, by: b.y ?? 0,
+        tx, tz, L, hw, shoulder, blend, reach, crossLevel,
+        minX: Math.min(a.x, b.x) - reach, maxX: Math.max(a.x, b.x) + reach,
+        minZ: Math.min(a.z, b.z) - reach, maxZ: Math.max(a.z, b.z) + reach,
+      });
+    }
+  }
+  if (!segs.length) return null;
+  const cell = J.planGrid || 24;
+  const buckets = new Map();
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    const i0 = Math.floor(s.minX / cell), i1 = Math.floor((s.maxX - 1e-9) / cell);
+    const j0 = Math.floor(s.minZ / cell), j1 = Math.floor((s.maxZ - 1e-9) / cell);
+    for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) {
+      const k = (ii + 4096) * 8192 + (j + 4096);
+      const bkt = buckets.get(k);
+      if (bkt) bkt.push(i); else buckets.set(k, [i]);
+    }
+  }
+  const atCell = (x, z) => buckets.get((Math.floor(x / cell) + 4096) * 8192 + (Math.floor(z / cell) + 4096));
+  const nearest = (x, z) => {
+    const list = atCell(x, z);
+    if (!list) return null;
+    let bestD2 = Infinity, best = null, bestRoadY = 0;
+    for (let k = 0; k < list.length; k++) {
+      const s = segs[list[k]];
+      const u = Math.max(0, Math.min(1, ((x - s.ax) * s.tx + (z - s.az) * s.tz) / s.L));
+      const px = s.ax + s.tx * s.L * u;
+      const pz = s.az + s.tz * s.L * u;
+      const d2 = (x - px) * (x - px) + (z - pz) * (z - pz);
+      if (d2 < bestD2) {
+        bestD2 = d2; best = s;
+        bestRoadY = s.crossLevel ? naturalAt(px, pz) : (s.ay + (s.by - s.ay) * u);
+      }
+    }
+    return best ? { s: best, d: Math.sqrt(bestD2), roadY: bestRoadY } : null;
+  };
+  const grade = (x, z, natural) => {
+    const n = nearest(x, z);
+    if (!n) return natural;
+    const { s, d } = n;
+    if (d >= s.reach) return natural;
+    const bestRoadY = n.roadY;
+    if (d <= s.hw) return bestRoadY;
+    if (d <= s.hw + s.shoulder) {
+      const t = (d - s.hw) / s.shoulder;
+      return bestRoadY - t * 0.05;
+    }
+    const edge = bestRoadY - 0.05;
+    const t = (d - (s.hw + s.shoulder)) / s.blend;
+    const w = t * t * (3 - 2 * t);
+    return edge * (1 - w) + natural * w;
+  };
+  /** Ближайшее расстояние до оси коридора и его зона влияния (для измельчения меша). */
+  const roadAt = (x, z) => {
+    const n = nearest(x, z);
+    return n ? { d: n.d, reach: n.s.reach } : null;
+  };
+  return { grade, roadAt };
+}
+
+/**
  * Вклад холма: `height · ease(1 − d/radius)`. `ease` даёт ноль производной на
  * вершине (плоское плато, на котором дом стоит ровно) и на краю (нет излома
  * там, где холм кончается), поэтому поле C¹, а нога не встречает уступ.
@@ -174,7 +263,14 @@ export function reliefOf(spec = {}) {
       const L = Math.hypot(dx, dz) || 1;
       return { ax: s.ax, az: s.az, tx: dx / L, tz: dz / L, L, halfW: rv.halfW ?? 0 };
     });
-    return { bankY: rv.bankY ?? baseY, bedY: rv.bedY ?? (rv.bankY ?? baseY) - 2, surfaceY: rv.surfaceY ?? (rv.bankY ?? baseY) - 0.2, ramp: rv.ramp ?? 40, segs };
+    return {
+      bankY: rv.bankY ?? baseY,
+      bedY: rv.bedY ?? (rv.bankY ?? baseY) - 2,
+      surfaceY: rv.surfaceY ?? (rv.bankY ?? baseY) - 0.2,
+      halfW: rv.halfW ?? 0,
+      ramp: rv.ramp ?? 40,
+      segs,
+    };
   });
   // индекс сегментов рек по клеткам (с раздутием на ramp+halfW)
   let riverAtCell = null;
@@ -190,25 +286,24 @@ export function reliefOf(spec = {}) {
     riverAtCell = (x,z) => buckets.get((Math.floor(x/cell)+4096)*8192+(Math.floor(z/cell)+4096)) ?? EMPTY;
   }
   const riverAt = riverAtCell ? (x, z) => {
-    let best = Infinity, rv = rivers[0];
+    let best = Infinity, rv = null, hw = 0;
     const list = riverAtCell(x, z);
     if (!list.length) return null;
     for (let k = 0; k < list.length; k++) {
       const { rv: r, s } = list[k];
       const u = Math.max(0, Math.min(s.L, (x - s.ax) * s.tx + (z - s.az) * s.tz));
       const d = Math.hypot(x - (s.ax + s.tx * u), z - (s.az + s.tz * u));
-      if (d < best) { best = d; rv = r; }
+      if (d < best) { best = d; rv = r; hw = s.halfW; }
     }
-    const d = best - rv.halfW;
+    // полуширина у сегмента, а не у реки: у будущих русел с переменной шириной
+    // берег обязан считаться от того сегмента, который ближе
+    const d = best - hw;
     return d < rv.ramp ? { d, rv } : null;
   } : null;
   const distRiver = riverAt;
 
-  /**
-   * Отметка «природы» — земля без площадок: холмы и долины над `baseY`, с
-   * речным вырезом (на берегу = bankY, от берега только вверх).
-   */
-  const reliefHeightAt = (x, z) => {
+  /** Природное поле без площадок и без дорожных коридоров: холмы и речной вырез. */
+  const naturalBaseAt = (x, z) => {
     let y = baseY;
     const hl = hillsAtCell(x, z);
     for (let k = 0; k < hl.length; k++) y += hillAt(hl[k], x, z);
@@ -220,6 +315,29 @@ export function reliefOf(spec = {}) {
         y = dr.rv.bankY + (Math.max(y, dr.rv.bankY) - dr.rv.bankY) * t;
       }
     }
+    return y;
+  };
+
+  const roadTool = buildRoadTool(spec.roadCorridors ?? spec.corridors, naturalBaseAt);
+  const roadGradeRaw = roadTool?.grade ?? null;
+  const roadAt = roadTool?.roadAt ?? null;
+  // Дорожное выравнивание меняет только природный склон: внутри площадки/её
+  // перехода отметку задаёт сама площадка, и срез/подсыпка коридора здесь не
+  // должна ломать валидированный уклон кольца (иначе дорога рядом с террасой
+  // порождает предупреждение «не хватает переходной зоны»).
+  const roadGrade = roadGradeRaw ? (x, z, natural) => {
+    for (const p of padsAtCell(x, z)) if (padWeight(p, x, z) > 0) return natural;
+    return roadGradeRaw(x, z, natural);
+  } : null;
+
+  /**
+   * Отметка «природы» — земля без площадок: холмы и долины над `baseY`, речной
+   * вырез и предварительное выравнивание под дорогами. Дно русла остаётся дном:
+   * коридор не поднимает его.
+   */
+  const reliefHeightAt = (x, z) => {
+    let y = naturalBaseAt(x, z);
+    if (roadGrade && !(distRiver && (distRiver(x, z)?.d ?? 1) <= 0)) y = roadGrade(x, z, y);
     return y;
   };
 
@@ -249,17 +367,8 @@ export function reliefOf(spec = {}) {
    * брак по валидатору (этап 2), а не поле, которое нужно сглаживать.
    */
   const heightAt = (x, z) => {
-    let y = baseY;
-    const hl = hillsAtCell(x, z);
-    for (let k = 0; k < hl.length; k++) y += hillAt(hl[k], x, z);
-    if (distRiver) {
-      const dr = distRiver(x, z);
-      if (dr) {
-        if (dr.d <= 0) return dr.rv.bedY;
-        const t = ease(dr.d / dr.rv.ramp);
-        y = dr.rv.bankY + (Math.max(y, dr.rv.bankY) - dr.rv.bankY) * t;
-      }
-    }
+    let y = naturalBaseAt(x, z);
+    if (roadGrade && !(distRiver && (distRiver(x, z)?.d ?? 1) <= 0)) y = roadGrade(x, z, y);
     const list = padsAtCell(x, z);
     for (let k = 0; k < list.length; k++) {
       const pad = list[k];
@@ -289,10 +398,11 @@ export function reliefOf(spec = {}) {
     return { x: -s.dx / len, y: 1 / len, z: -s.dz / len };
   };
 
+  const corridors = spec.roadCorridors ?? spec.corridors ?? [];
   return {
-    baseY, hills, pads, blend,
-    present: hills.length > 0 || pads.length > 0,
+    baseY, hills, pads, blend, corridors,
+    present: hills.length > 0 || pads.length > 0 || !!roadGrade,
     reliefHeightAt, padsAt, heightAt, slopeAt, normalAt,
-    rivers, riverAt,
+    rivers, riverAt, roadAt,
   };
 }
