@@ -394,7 +394,8 @@ export const LEVEL_03 = {
       "keep": 4,
       "overlap": 1.175
     },
-    "units": "meters"
+    "units": "meters",
+    "windows": {}
   },
   "name": "Глава 3. Горы и серпантинная дорога (CityForge v3)",
   "sky": {

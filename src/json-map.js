@@ -2246,17 +2246,14 @@ export class JsonMap extends SurfaceField {
 
   /**
    * Меши квадов: по одному `InstancedMesh` на цвет палитры, а не на окно, и общая
-   * геометрия. Материал — `MeshBasicMaterial`: кваду не нужен свет сцены, он и
-   * есть свет, поэтому горящее окно и неон читаются ровно своим цветом независимо
-   * от пула огней и остаются видимыми сквозь туман района.
+   * геометрия. Окна рисуются процедурным шейдером (рама, переплёты, стекло),
+   * вывески — сплошным цветом. Материал без освещения сцены: горящее окно и неон
+   * читаются своим цветом независимо от пула огней и видны сквозь туман.
    *
-   * Матрица экземпляра пишется в буфер руками: окна задают поворот косинусом с
-   * синусом напрямую, и на 32 тыс. окон `Matrix4.compose` с кватернионом стоил
-   * больше, чем вся выводимая позиция. Запись годится и для косого дома (v2) —
-   * угол в ней любой, а не только кратный 90°.
+   * Матрица экземпляра пишется в буфер руками: поворот и масштаб задаются
+   * напрямую, без `Matrix4.compose` на каждый экземпляр.
    *
-   * @param {'windows'|'signage'} kind — чтобы `dispose()` и тесты отличали один
-   *   выводимый ряд от другого: материалы у них одинаковые по классу.
+   * @param {'windows'|'signage'} kind — чтобы `dispose()` и тесты отличали ряды.
    * @returns {number} число экземпляров
    */
   _buildQuads(scene, groups, kind, objs) {
@@ -2264,7 +2261,33 @@ export class JsonMap extends SurfaceField {
     const geo = new THREE.PlaneGeometry(1, 1);
     let count = 0;
     for (const [color, items] of groups) {
-      const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color }), items.length);
+      const mat = new THREE.MeshBasicMaterial({ color });
+      if (kind === 'windows') {
+        mat.defines = { ...(mat.defines || {}), USE_UV: '' };
+        mat.onBeforeCompile = (shader) => {
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <map_fragment>',
+            `#include <map_fragment>
+            #ifdef USE_UV
+            {
+              vec2 uv = vUv;
+              // рама и переплёты: процедурное «окно» по UV квада
+              float fx = min(uv.x, 1.0 - uv.x);
+              float fy = min(uv.y, 1.0 - uv.y);
+              float frame = 1.0 - smoothstep(0.0, 0.055, min(fx, fy));
+              float mx = 1.0 - smoothstep(0.0, 0.018, abs(uv.x - 0.5));
+              float my = 1.0 - smoothstep(0.0, 0.018, abs(uv.y - 0.45));
+              float mull = max(mx, my) * step(0.04, min(fx, fy));
+              float paneShade = 0.82 + 0.18 * smoothstep(0.0, 0.5, uv.y) * (0.7 + 0.3 * (1.0 - abs(uv.x - 0.5) * 1.2));
+              float win = mix(paneShade, 0.18, max(frame, mull));
+              diffuseColor.rgb *= win;
+            }
+            #endif`
+          );
+        };
+        mat.customProgramCacheKey = () => 'window-proc';
+      }
+      const mesh = new THREE.InstancedMesh(geo, mat, items.length);
       const a = mesh.instanceMatrix.array;
       items.forEach((it, i) => {
         const o = i * 16;

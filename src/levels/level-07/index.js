@@ -397,17 +397,7 @@ export const LEVEL_07 = {
         }
       ],
       "maxSlope": 0.41,
-      "pads": [
-        {
-          "blend": 16.8,
-          "id": "spawn_house:площадка",
-          "maxX": 35,
-          "maxZ": -441,
-          "minX": 25,
-          "minZ": -449,
-          "y": 8.712
-        }
-      ],
+      "pads": [],
       "roadCorridors": [
         {
           "blend": 5,
@@ -495,7 +485,8 @@ export const LEVEL_07 = {
       "keep": 2,
       "overlap": 1.175
     },
-    "units": "meters"
+    "units": "meters",
+    "windows": {}
   },
   "name": "Глава 7. Горный туннель (CityForge v3)",
   "sky": {

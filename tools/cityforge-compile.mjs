@@ -296,6 +296,8 @@ export function compileCityforge(raw) {
   const engine = {
     $schema: './level-v2.schema.json',
     kind: 'open',
+    // v3: окна фасадов включены по умолчанию (программная текстура/ритм из движка)
+    windows: raw.windows ?? {},
     metadata: {
       levelName: raw.metadata?.levelName,
       name: raw.metadata?.name,

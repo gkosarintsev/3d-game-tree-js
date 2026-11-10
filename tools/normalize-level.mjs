@@ -68,9 +68,10 @@ export function normalizeLevel(raw) {
   const roads = (raw.roads ?? []).map(r => normalizeRoad(r, ground, raw.tunnels ?? []));
   if (relief) {
     // авторский дом без района стоит на своей площадке: под ним плоский пол, а не
-    // склон, и терраса района его не касается
+    // склон, и терраса района его не касается. Дом на terrain-фундаменте следует
+    // форме рельефа и отдельной террасы не требует.
     const terraced = new Set((raw.buildings ?? []).filter(b => b.district).map(b => b.id));
-    addHousePads(relief, buildings.filter(b => !terraced.has(b.id)));
+    addHousePads(relief, buildings.filter(b => !terraced.has(b.id) && b.foundation !== 'terrain'));
     relief.finish();
     // улицы — ПОСЛЕ финальной подгонки колец: держать они обязаны то же собранное
     // поле, что и карта, а террасу района нормализатор ставит позже, чем
@@ -275,9 +276,26 @@ function minLandUnderRect(ground, bounds, frame) {
  * вплотную к фасаду, дают один и тот же прямоугольник, поэтому дубль отпадает
  * ключом, а не сравнением с допуском.
  */
+/** Квантует осевой прямоугольный footprint по шагу окон (ширина/длина кратны spacing). */
+function quantizeFootprint(fp, spacing) {
+  if (!fp || fp.length !== 4 || !(spacing > 0)) return fp;
+  const xs = fp.map(p => p.x), zs = fp.map(p => p.z);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  // только осевой прямоугольник (4 угла)
+  const axisAligned = fp.every(p => (Math.abs(p.x - minX) < 1e-6 || Math.abs(p.x - maxX) < 1e-6)
+    && (Math.abs(p.z - minZ) < 1e-6 || Math.abs(p.z - maxZ) < 1e-6));
+  if (!axisAligned) return fp;
+  const w = Math.max(spacing, Math.round((maxX - minX) / spacing) * spacing);
+  const d = Math.max(spacing, Math.round((maxZ - minZ) / spacing) * spacing);
+  const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+  const x0 = r3(cx - w / 2), x1 = r3(cx + w / 2), z0 = r3(cz - d / 2), z1 = r3(cz + d / 2);
+  return [{ x: x0, z: z0 }, { x: x1, z: z0 }, { x: x1, z: z1 }, { x: x0, z: z1 }];
+}
+
 function normalizeBuilding(b, ground, warnings) {
   const errors = [];
-  const footprint = normalizePolygon(b.footprint, `${b.id}.footprint`, errors);
+  const rawFootprint = b.buildingType ? quantizeFootprint(b.footprint, J.windows.spacing) : b.footprint;
+  const footprint = normalizePolygon(rawFootprint, `${b.id}.footprint`, errors);
   if (errors.length) throw new Error(errors.join('\n'));
   const bb = polyBounds(footprint);
   // Фундамент под домом — прямоугольник (габарит footprint) на самой высокой
@@ -366,6 +384,7 @@ function normalizeBuilding(b, ground, warnings) {
   return {
     id: b.id,
     name: b.name ?? b.id,
+    ...(b.buildingType ? { buildingType: b.buildingType } : {}),
     isEnterable: b.isEnterable !== false,
     baseY,
     ...(b.foundation === 'terrain' && baseY - groundMin > 0.05 ? { foundation: 'terrain' } : {}),
