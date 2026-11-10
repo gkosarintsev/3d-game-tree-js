@@ -34,3 +34,10 @@
 
 - Упрощение пайплайна/схем вокруг v3/v4, но требуется правка реестра, скриптов, CI и тестов, завязанных на legacy-главы (удалить/адаптировать тесты, специфичные для удалённых глав, в рамках scope).
 - Детерминизм и побайтовый `--check` остаются обязательными для v3/v4-артефактов.
+
+## Детализация схемы v4 (TASK-001, начальная)
+
+- `src/levels/level-v4.schema.json` — корневая схема v4 (draft-07, экспорт из DSL), переиспользует `level-common.schema.json#/definitions/*` для `metadata/ground/gameplay/stream/cityforge`.
+- Обязательные поля корня: `kind:"cityforge"`, `schemaVersion:4`, `metadata`, `ground`, `gameplay`, `cityforge`, `generator`. Опциональные: `$schema`, `stream`, `buildings` (v2-структура, как в v3), `properties` (открытый объект-хук).
+- `generator` (open): `generatorVersion`(str, req), `seed`(number, req), `deterministic`(bool, default true), `stages`/`layers` (0–7), `budgets`, `districts[]` (`id` req, `type/profileId`, `geometry|mask|cells`, `priority`, `overrides`, `fallbackChain`, open), `profiles/catalogs/refs/policies` (open). Точные каталоги/enum-ы типов районов и политик уточняются в TASK-002+.
+- `tools/build-level.mjs`: v4-источник валидируется `LEVEL_SPEC_V4` и компилируется в open-каталог через существующий `compileCityforge → generateCatalog` (минимальный прогон подтверждён на фикстуре; полноценный `tools/citygen/` — TASK-002).

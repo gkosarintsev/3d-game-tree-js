@@ -7,12 +7,13 @@
 ### [TASK-001] Базовая линия, scope/чистка, v4/ADR, пилот (в работе)
 - [x] Базовая линия (до чистки): `node tools/check-levels.mjs` — **51/51 зелёные** (включая legacy). CI текущее: node (check-levels + parser/relief/track/chunk suites) + browser (все `tests/*.test.js`), см. `.github/workflows/ci.yml`.
 - [x] Решения v4/пилота/clean-up зафиксированы: план §10/§15, ADR `docs/architecture/adr/ADR-001-v4-citygen-districts.md`.
-- [x] Чистка legacy §1.1 и scope (частично/основное): удалены главы 01,02,04,06,11,12,13,14 и каталоги/артефакты; `src/levels/index.js` и `tools/check-levels.mjs` приведены к v3-scope (03,05,07,08,09,10,15); удалены `level.schema.json`/`level-v2.schema.json`, `tools/export-schema.mjs` экспортирует только v3+common; удалены/заменены заглушками тесты, зависевшие от удалённых глав (json2-level, terrain-traverse, track-city, physics-index, vehicle, relief-terrain/city, rotated-*); адаптированы `tools/level-parser.test.mjs`, `tools/chunk.test.mjs`.
-- [ ] Дочистка: v1/v2 ветки в `tools/level-schema.mjs`/`build-level`/валидаторах (оставлены как неиспользуемые в v3/v4-scope, удалить при подтверждении), вычитка CI/browser-наборов и оставшихся ссылок, зелёный browser-прогон.
-- [ ] Спецификация v4 в `tools/level-schema.mjs`/экспорт схем + пустой/минимальный прогон (TASK-001/002 стык).
-- [ ] Параметры/метрики пилота гл.16 зафиксированы в артефактах (значения приняты в плане; замеры — в TASK-001/008).
+- [x] Чистка legacy §1.1 и scope (основное): удалены главы 01,02,04,06,11,12,13,14 и каталоги/артефакты; `src/levels/index.js` и `tools/check-levels.mjs` приведены к v3-scope (03,05,07,08,09,10,15); удалены `level.schema.json`/`level-v2.schema.json`, `tools/export-schema.mjs` экспортирует v3+common+v4; удалены/заменены заглушками тесты, зависевшие от удалённых глав (json2-level, terrain-traverse, track-city, physics-index, vehicle, relief-terrain/city, rotated-*); адаптированы `tools/level-parser.test.mjs`, `tools/chunk.test.mjs`.
+- [x] Спецификация v4: `tools/level-schema.mjs` (`LEVEL_SPEC_V4`, манифест `generator`, опц. `properties`, `schemaVersion:4`), `tools/export-schema.mjs`/`src/levels/level-v4.schema.json`, `tools/build-level.mjs` — валидация/компиляция v4 (`cityforge-v4`) через общий пайплайн в open-каталог.
+- [x] Минимальный v4-прогон: фикстура v4 (на базе гл.03 + `generator`) → `generateOutput`/catalog, `--check` совпадает (проверено на `.tmp/v4-minimal.json` → `.tmp/v4-minimal-out`, 25 чанков, 0 предупреждений).
+- [ ] Дочистка: v1/v2 ветки/тесты в `tools/level-schema.mjs`/`build-level`/`level-parser.test.mjs` оставлены для совместимости существующих node-тестов (не используются закоммиченными v3/v4 главами; удалить/сузить отдельным решением), вычитка CI/browser-наборов и оставшихся ссылок на legacy, зелёный browser-прогон.
+- [ ] Параметры/метрики пилота гл.16 зафиксированы в артефактах (значения приняты в плане: 1280×1280, stream 256/2/200/1200/80; замеры — в TASK-001/008).
 
-**Проверки (после чистки):** `check-levels` 28/28, `export-schema --check` ok, `level-parser.test.mjs` 123/123, `relief.test.mjs` ok, `track.test.mjs` ok, `chunk.test.mjs` 17/17. Browser CI не прогонялся в этой среде.
+**Проверки:** `check-levels` 28/28, `export-schema --check` ok (v3/common/v4), `level-parser.test.mjs` 123/123, `relief.test.mjs` ok, `track.test.mjs` ok, `chunk.test.mjs` 17/17. Browser CI не прогонялся в этой среде.
 
 ## Зафиксированные решения
 - Базовый формат — **v3/CityForge**; целевой — **v4 с районами**. Обратная совместимость с v1/v2/legacy не требуется.

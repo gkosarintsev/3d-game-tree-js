@@ -37,7 +37,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LEVEL_SPEC_V3, LEVEL_COMMON_V3 } from './level-schema.mjs';
+import { LEVEL_SPEC_V3, LEVEL_SPEC_V4, LEVEL_COMMON_V3 } from './level-schema.mjs';
 
 const DRAFT = 'http://json-schema.org/draft-07/schema#';
 const COLOR_PATTERN = '^#[0-9a-fA-F]{6}$';
@@ -140,6 +140,12 @@ export const SCHEMA_FILES = [
     title: 'Level brief v3 shared definitions',
     out: resolve(ROOT, 'src/levels/level-common.schema.json'),
     definitions: true,
+  },
+  {
+    spec: LEVEL_SPEC_V4,
+    title: 'Level brief v4 (kind: cityforge, schemaVersion: 4)',
+    out: resolve(ROOT, 'src/levels/level-v4.schema.json'),
+    refBase: './level-common.schema.json#/definitions/',
   },
 ];
 

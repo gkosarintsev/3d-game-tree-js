@@ -23,7 +23,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2, LEVEL_SPEC_V3 } from './level-schema.mjs';
+import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2, LEVEL_SPEC_V3, LEVEL_SPEC_V4 } from './level-schema.mjs';
 import { normalizeLevel, isV2Kind } from './normalize-level.mjs';
 import { expandCity } from './city.js';
 import { splitLevel, stringifyStable } from './chunk-level.mjs';
@@ -54,8 +54,11 @@ function prepare(raw, sourceName) {
   }
   // переключатель версии — в самом брифе: v1 (`kind: 'json'` или без него) не
   // принимает ни `rotation`, ни дуги, поэтому схема обязана выбираться до
-  // геометрического прохода, а не после
-  const spec = expanded.kind === 'cityforge' ? LEVEL_SPEC_V3 : isV2Kind(expanded.kind) ? LEVEL_SPEC_V2 : LEVEL_SPEC;
+  // геометрического прохода, а не после. v4 — CityForge с манифестом генератора
+  // (`schemaVersion: 4`), валидируется отдельной схемой.
+  const spec = expanded.kind === 'cityforge' && expanded.schemaVersion === 4 ? LEVEL_SPEC_V4
+    : expanded.kind === 'cityforge' ? LEVEL_SPEC_V3
+    : isV2Kind(expanded.kind) ? LEVEL_SPEC_V2 : LEVEL_SPEC;
   const { errors, warnings: geoWarnings } = validateLevel(expanded, spec);
   if (errors.length) throw new ValidationError(errors, geoWarnings);
   let level;
@@ -251,7 +254,8 @@ ${constName}.map.skeleton = decodeSkeleton(await loadSkel());
  * содержимое формата — явная ошибка компилятора.
  */
 function generateCityforge(raw, sourceName, opts = {}) {
-  const { errors, warnings: v3w } = validateLevel(raw, LEVEL_SPEC_V3);
+  const isV4 = raw?.schemaVersion === 4;
+  const { errors, warnings: v3w } = validateLevel(raw, isV4 ? LEVEL_SPEC_V4 : LEVEL_SPEC_V3);
   if (errors.length) throw new ValidationError(errors, v3w);
   let compiled;
   try {
@@ -262,7 +266,7 @@ function generateCityforge(raw, sourceName, opts = {}) {
   // Компилируем в открытый движковый мир → каталог с чанками, как у level-02/14.
   const out = generateCatalog(compiled.engine, sourceName, opts);
   out.warnings = [...v3w, ...compiled.warnings, ...out.warnings];
-  out.sourceFormat = 'cityforge-v3';
+  out.sourceFormat = isV4 ? 'cityforge-v4' : 'cityforge-v3';
   return out;
 }
 

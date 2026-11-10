@@ -1056,6 +1056,56 @@ export const LEVEL_SPEC_V3 = obj({
   buildings: LEVEL_SPEC_V2.fields.buildings,
 }, { doc: 'CityForge source level from docs/world-format.md.' });
 
+// ------------------------------------------------------------- CityForge v4 (district generator manifest, ADR-001)
+
+const V4_OPEN = obj({}, { open: true });
+
+const V4_DISTRICT = obj({
+  id: str({ req: true }),
+  type: str({}),
+  profileId: str({}),
+  geometry: V4_OPEN,
+  mask: V4_OPEN,
+  cells: arr(V4_OPEN, { minItems: 0 }),
+  priority: num({}),
+  overrides: V4_OPEN,
+  fallbackChain: arr(str({}), { minItems: 0 }),
+}, { open: true, doc: 'District declaration for generator stages/layer 3 (geometry|mask|cells as applicable).' });
+
+const V4_GENERATOR = obj({
+  generatorVersion: str({ req: true }),
+  seed: num({ req: true }),
+  deterministic: bool({ default: true }),
+  stages: arr(obj({ id: str({}), enabled: bool({}) }, { open: true }), { minItems: 0, maxItems: 7 }),
+  layers: arr(V4_OPEN, { minItems: 0, maxItems: 7 }),
+  budgets: V4_OPEN,
+  districts: arr(V4_DISTRICT, { minItems: 0 }),
+  profiles: V4_OPEN,
+  catalogs: V4_OPEN,
+  refs: V4_OPEN,
+  policies: V4_OPEN,
+}, { open: true, doc: 'v4 city generator manifest (IR/stages/districts/policies). Details refined in TASK-002+; open for forward-compatible fields.' });
+
+/** Root of `level-v4.schema.json`; reuses v3 common definitions plus v4 generator manifest. */
+export const LEVEL_SPEC_V4 = obj({
+  $schema: str({ doc: 'Path to this brief schema: ./level-v4.schema.json.' }),
+  kind: str({
+    enum: ['cityforge'],
+    req: true,
+    doc: 'CityForge v4 source brief with district generator manifest.',
+  }),
+  schemaVersion: num({ enum: [4], req: true, doc: 'Format version: v4 (district-aware generator).' }),
+  metadata: ref('metadata', { req: true }),
+  ground: ref('ground', { req: true }),
+  gameplay: ref('gameplay', { req: true }),
+  stream: ref('stream'),
+  // Optional hooks for future behavior/assets; static in MVP (ADR-001).
+  properties: V4_OPEN,
+  buildings: LEVEL_SPEC_V2.fields.buildings,
+  cityforge: ref('cityforge', { req: true }),
+  generator: V4_GENERATOR,
+}, { open: false, doc: 'CityForge v4 source level with district generator manifest (ADR-001).' });
+
 // ------------------------------------------------------------- обход схемы
 
 function typeOf(v) {
