@@ -51,6 +51,7 @@ import { LEVEL_01 } from './level-01.js';
 import { LEVEL_02 } from './level-02/index.js';
 import { LEVEL_03 } from './level-03/index.js';
 import { LEVEL_04 } from './level-04.js';
+import { LEVEL_05 } from './level-05/index.js';
 import { LEVEL_06 } from './level-06.js';
 import { LEVEL_07 } from './level-07/index.js';
 import { LEVEL_08 } from './level-08/index.js';
@@ -62,10 +63,10 @@ import { LEVEL_13 } from './level-13.js';
 import { LEVEL_14 } from './level-14/index.js';
 
 export const LEVELS = [
-  LEVEL_01, LEVEL_02, LEVEL_03, LEVEL_04, LEVEL_06,
+  LEVEL_01, LEVEL_02, LEVEL_03, LEVEL_04, LEVEL_05, LEVEL_06,
   LEVEL_07, LEVEL_08, LEVEL_09, LEVEL_10,
   LEVEL_11, LEVEL_12, LEVEL_13, LEVEL_14,
 ];
 
 /** Номер главы для каждой позиции `LEVELS` (файлы `level-NN`). */
-export const LEVEL_NUMBERS = [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+export const LEVEL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
