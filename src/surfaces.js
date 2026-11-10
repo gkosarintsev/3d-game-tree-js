@@ -422,7 +422,6 @@ export class SurfaceField extends SolidField {
    */
   _collectTunnels() {
     for (const t of this.tunnels ?? []) {
-      if (!this._drawn(t)) continue;
       const pts = t.points ?? [];
       const from = pts[0], to = pts[pts.length - 1];
       if (!from || !to) continue;
@@ -436,6 +435,18 @@ export class SurfaceField extends SolidField {
       const plan = axisX
         ? { minX: from.x, maxX: to.x, minZ: from.z - halfW, maxZ: from.z + halfW }
         : { minX: from.x - halfW, maxX: from.x + halfW, minZ: from.z, maxZ: to.z };
+      const drawn = this._drawn(t);
+      // Туннель может участвовать в нескольких чанках, но рисуется владельцем один раз.
+      // Зону подавления рельефа и вырез меша регистрируем у всех участников, иначе
+      // в не-владельце остаётся неразрезанный склон и портал «закрыт» горой.
+      const zone = { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ, floorY, ceilY };
+      // Зона подавления опоры — всегда (иначе на уровне тоннеля рельеф-«гора»
+      // возвращается как пол). Вырез меша рельефа — только если тоннель не погребён
+      // целиком: у глубоко зарытого коридора рельеф выше потолка на всём плане, и
+      // полный вырез дал бы сквозную прозрачную «шахту» в горе; гору сверху оставляем.
+      this.tunnelZones.push(zone);
+      for (const h of this._tunnelCarveRects(zone)) this.tunnelHoles.push({ ...h, floorY, ceilY });
+      if (!drawn) continue;
       // пол коридора: опора для ног и твёрдость для луча (deck), collide не ставим —
       // тело держит опора, как у любого настилом
       this._box(plan, floorY - J.deckThickness, floorY, 'decks', { surface: true });
@@ -476,13 +487,6 @@ export class SurfaceField extends SolidField {
         ? { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ }
         : { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ };
       this._box(ceilingPlan, ceilY - J.deckThickness, ceilY, 'ceilings', { collide: true });
-      const zone = { minX: plan.minX, maxX: plan.maxX, minZ: plan.minZ, maxZ: plan.maxZ, floorY, ceilY };
-      // Зона подавления опоры — всегда (иначе на уровне тоннеля рельеф-«гора»
-      // возвращается как пол). Вырез меша рельефа — только если тоннель не погребён
-      // целиком: у глубоко зарытого коридора рельеф выше потолка на всём плане, и
-      // полный вырез дал бы сквозную прозрачную «шахту» в горе; гору сверху оставляем.
-      this.tunnelZones.push(zone);
-      for (const h of this._tunnelCarveRects(zone)) this.tunnelHoles.push({ ...h, floorY, ceilY });
     }
   }
 
