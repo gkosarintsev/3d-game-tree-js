@@ -298,15 +298,35 @@ export function makeStage1() {
       ctx.hydrology.rivers = uniqIds(rivers, 'river', ctx, stageId);
       ctx.hydrology.lakes = uniqIds(ctx.hydrology.lakes, 'lake', ctx, stageId);
 
-      // terrain slope sanity (basic): very steep hill height/radius ratio
+      // terrain slope sanity/repair (basic): very steep hill height/radius ratio
+      const repairedMods = [];
       for (const m of ctx.terrain.modifiers) {
-        if (Number.isFinite(m.height) && Number.isFinite(m.radius) && m.radius > EPS) {
-          const ratio = Math.abs(m.height) / m.radius;
+        let mm = { ...m };
+        if (Number.isFinite(mm.height) && Number.isFinite(mm.radius) && mm.radius > EPS) {
+          let ratio = Math.abs(mm.height) / mm.radius;
           if (ratio > 0.8) {
-            ctx.report.diagnostics.push(warn('terrain_steep_modifier', stageId, `modifier '${m.id ?? '?'}' steep (|h|/r=${ratio.toFixed(2)})`, { id: m.id ?? null, ratio }));
+            // Prefer increasing radius (gentler) up to bound, else reduce height.
+            const needR = Math.abs(mm.height) / 0.8;
+            const maxR = (ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256) * 2;
+            if (needR <= maxR) {
+              mm.radius = Math.round(needR * 1000) / 1000;
+              ctx.report.repairs.push({ stage: stageId, id: mm.id, code: 'repair_steep_modifier_radius', to: mm.radius });
+              ctx.report.diagnostics.push(warn('terrain_steep_modifier_repaired', stageId, `modifier '${mm.id ?? '?'}' radius increased for slope (ratio ${ratio.toFixed(2)})`, { id: mm.id ?? null, ratio }));
+            } else {
+              const newH = Math.sign(mm.height || 1) * (mm.radius * 0.8);
+              mm.height = Math.round(newH * 1000) / 1000;
+              ctx.report.repairs.push({ stage: stageId, id: mm.id, code: 'repair_steep_modifier_height', to: mm.height });
+              ctx.report.diagnostics.push(warn('terrain_steep_modifier_repaired', stageId, `modifier '${mm.id ?? '?'}' height reduced for slope (ratio ${ratio.toFixed(2)})`, { id: mm.id ?? null, ratio }));
+            }
+            ratio = Math.abs(mm.height) / Math.max(mm.radius, EPS);
+          }
+          if (ratio > 0.8) {
+            ctx.report.diagnostics.push(warn('terrain_steep_modifier', stageId, `modifier '${mm.id ?? '?'}' steep (|h|/r=${ratio.toFixed(2)})`, { id: mm.id ?? null, ratio }));
           }
         }
+        repairedMods.push(mm);
       }
+      ctx.terrain.modifiers = repairedMods;
     },
     repair(_ctx) {
       // Repairs applied during validate for locality/determinism in this skeleton.

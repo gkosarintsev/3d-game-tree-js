@@ -529,6 +529,20 @@ export function makeStage2() {
         if (pts && polylineSelfIntersectsXZ(pts)) {
           ctx.report.diagnostics.push(warn('segment_self_intersection', stageId, `segment '${s.id}' has self-intersecting path`, { id: s.id }));
         }
+        // river easement conflict: path points inside river corridor at low relative elevation
+        const rivers = ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? [];
+        if (pts && rivers.length) {
+          let conflicts = 0;
+          for (const p of pts) {
+            const near = riverMinDistXZAt(p[0], p[2], rivers);
+            if (near.river) {
+              const margin = (near.river.width ?? 10) * 0.5 + 1;
+              const bed = (ctx.meta.worldBounds?.y ?? ctx.input?.ground?.y ?? 0) - (Number.isFinite(near.river.depth) ? near.river.depth : 2);
+              if (near.d < margin && p[1] < bed + 1.2) conflicts++;
+            }
+          }
+          if (conflicts) ctx.report.diagnostics.push(warn('road_river_conflict', stageId, `segment '${s.id}' has ${conflicts} point(s) inside river corridor`, { id: s.id, count: conflicts }));
+        }
         // road easement mask (approx by path bbox/width)
         if (pts) {
           let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
@@ -568,7 +582,73 @@ export function makeStage2() {
       if (components > 1) ctx.report.diagnostics.push(warn('road_graph_disconnected', stageId, `road graph has ${components} connected components`, { components }));
       ctx.report.diagnostics.push(info('road_graph', stageId, 'road graph summary', { nodes: nodes.length, segments: segments.length, components }));
     },
-    repair(_ctx) {},
+    repair(ctx) {
+      const stageId = '2_transport';
+      const gp = ctx.input?.gameplay ?? {};
+      const spawnPos = { x: gp.spawn?.x ?? 0, z: gp.spawn?.z ?? 0 };
+      const exitPos = { x: gp.exit?.x ?? 0, z: gp.exit?.z ?? 0 };
+      const nodes = ctx.networks?.roads?.nodes ?? [];
+      const segments = ctx.networks?.roads?.segments ?? [];
+      if (!nodes.length || !segments.length) return;
+
+      // Build adjacency and components for declared from/to graph.
+      const adj = new Map();
+      for (const n of nodes) adj.set(n.id, new Set());
+      for (const s of segments) {
+        if (s.from && s.to && adj.has(s.from) && adj.has(s.to)) {
+          adj.get(s.from).add(s.to); adj.get(s.to).add(s.from);
+        }
+      }
+      const compOf = new Map();
+      let cid = 0;
+      for (const id of adj.keys()) {
+        if (compOf.has(id)) continue;
+        cid++; const q=[id]; compOf.set(id, cid);
+        while (q.length) { const cur=q.shift(); for (const nb of (adj.get(cur)||[])) if(!compOf.has(nb)){compOf.set(nb,cid); q.push(nb);} }
+      }
+      const nearestNode = (pos) => {
+        let best = null, bestD = Infinity;
+        for (const n of nodes) {
+          const p = Array.isArray(n.position) ? n.position : [0,0,0];
+          const d = Math.hypot((p[0]??0)-pos.x, (p[2]??0)-pos.z);
+          if (d < bestD) { bestD = d; best = n; }
+        }
+        return best ? { node: best, d: bestD } : null;
+      };
+      const ensureAnchorNode = (label, pos) => {
+        let n = nodes.find(x => x.id === `tr_n_${label}`);
+        if (n) return n;
+        // find closest existing node near anchor, else create
+        const near = nearestNode(pos);
+        if (near && near.d <= 40) return near.node;
+        const sampler = makeTerrainSampler(ctx);
+        n = { id: `tr_n_${label}`, position: [Math.round(pos.x*100)/100, Math.round(sampler.heightAt(pos.x,pos.z)*100)/100, Math.round(pos.z*100)/100], layer: 'ground' };
+        nodes.push(n); adj.set(n.id, new Set()); compOf.set(n.id, ++cid);
+        ctx.report.repairs.push({ stage: stageId, code: 'add_anchor_node', id: n.id });
+        return n;
+      };
+      const spawnNode = ensureAnchorNode('spawn', spawnPos);
+      const exitNode = ensureAnchorNode('exit', exitPos);
+      const cSpawn = compOf.get(spawnNode.id);
+      const cExit = compOf.get(exitNode.id);
+      if (cSpawn && cExit && cSpawn !== cExit) {
+        const width = 8;
+        const path = buildProfiledSegment(ctx, 'tr_repair_connect', { x: spawnNode.position[0], z: spawnNode.position[2] }, { x: exitNode.position[0], z: exitNode.position[2] }, width, null);
+        if (path) {
+          const seg = makeRoadSegment('tr_repair_connect', spawnNode.id, exitNode.id, path, width, 'local');
+          segments.push(seg);
+          adj.get(spawnNode.id)?.add(exitNode.id); adj.get(exitNode.id)?.add(spawnNode.id);
+          const merged = compOf.get(exitNode.id);
+          for (const [nid, c] of compOf.entries()) if (c === merged) compOf.set(nid, compOf.get(spawnNode.id));
+          ctx.report.repairs.push({ stage: stageId, code: 'connect_spawn_exit_components', id: seg.id });
+          ctx.report.diagnostics.push(info('transport_repaired_connectivity', stageId, 'added connector segment to join spawn/exit components', { id: seg.id }));
+        } else {
+          ctx.report.diagnostics.push(warn('transport_repair_failed', stageId, 'could not create connector segment for spawn/exit connectivity'));
+        }
+      }
+      ctx.networks.roads.nodes = nodes;
+      ctx.networks.roads.segments = segments;
+    },
     emit(ctx) {
       if (ctx.input?.cityforge) {
         if (!ctx.input.cityforge.networks) ctx.input.cityforge.networks = {};
