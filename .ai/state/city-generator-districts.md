@@ -41,7 +41,7 @@
 
 ## Задачи
 - [~] [TASK-001] Базовая линия (v3-scope), атомарная чистка legacy (§1.1 + v1/v2 схемы/ветки) и scope CI, спецификация v4/ADR, параметры/метрики пилота (гл.16)
-- [ ] [TASK-002] Каркас `tools/citygen/`, IR/WorldState, RNG/ids, контракт этапа, diagnostics/report, repair, хуки поведения/GLB, пустой v4-прогон
+- [~] [TASK-002] Каркас `tools/citygen/`, IR/WorldState, RNG/ids, контракт этапа, diagnostics/report, repair, хуки поведения/GLB, пустой v4-прогон
 - [ ] [TASK-003] Слой 1 — ландшафт и гидрология (рельеф, реки, easement, валидация/repair, emit, тесты)
 - [ ] [TASK-004] Слой 2 — транспортный граф, мосты, развязки (связность, шаблоны, клиренсы/уклоны, repair)
 - [ ] [TASK-005] Слой 3 — районы и парцелляция (профили всех типов, соседство/fallback, нарезка, доли)
@@ -49,6 +49,12 @@
 - [ ] [TASK-007] Слой 5 — инфраструктура и props (только существующие примитивы; новые объекты после MVP, 1-й — труба над дорогой)
 - [ ] [TASK-008] Слой 6 — финализация, чанки/скелет, связность, детерминированный `generation-report.json`, пилотная глава 16 (v4)
 - [ ] [TASK-009] Тесты, документация, CI (v3/v4-scope: детерминизм/инварианты, browser-гейты, docs/ADR)
+
+### [TASK-002] Каркас citygen (в работе)
+- [x] `tools/citygen/`: `rng.mjs` (mulberry32/mix/hash), `ids.mjs` (stable id/subseed), `diagnostics.mjs` (Diagnostic/детерминированный report+сортировка), `repair.mjs` (retry/degrade/drop), `context.mjs` (WorldState/IR, хуки behavior/glb), `pipeline/stage.mjs` (контракт prepare→generate→validate→repair), `index.mjs` (оркестратор стадий 0–6).
+- [x] Интеграция в `tools/build-level.mjs`: v4 проходит через `runCitygen`, пишет детерминированный `generation-report.json` в каталог (учтён в `--check`), компиляция в open-каталог сохранена.
+- [x] Пустой v4-прогон: скелет стадий выполняется, отчёт детерминирован (проверено на `.tmp/v4-minimal.json`, 2 прогона → идентичный report, `--check` ok).
+- [ ] Расширение IR/масок/spatial index, реальные стадии 0–6, emit v4→engine (TASK-003..008), node-тесты детерминизма/repair/report.
 
 ## Остаётся уточнить
 - (нет — решения зафиксированы в плане §10, §15; при реализации допустимы уточнения в ADR без изменения принятых решений)

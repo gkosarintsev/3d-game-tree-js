@@ -30,6 +30,7 @@ import { splitLevel, stringifyStable } from './chunk-level.mjs';
 import { skeletonOf } from './skeleton.mjs';
 import { encodeChunk, encodeSkeleton, SKELETON_FILE } from '../src/level-bin.js';
 import { compileCityforge } from './cityforge-compile.mjs';
+import { runCitygen } from './citygen/index.mjs';
 
 /** Корень репозитория: от него печатается браузерный путь каталога (`catalog`). */
 const ROOT = resolve(import.meta.dirname, '..');
@@ -257,9 +258,20 @@ function generateCityforge(raw, sourceName, opts = {}) {
   const isV4 = raw?.schemaVersion === 4;
   const { errors, warnings: v3w } = validateLevel(raw, isV4 ? LEVEL_SPEC_V4 : LEVEL_SPEC_V3);
   if (errors.length) throw new ValidationError(errors, v3w);
+  let source = raw;
+  let report = null;
+  if (isV4) {
+    try {
+      const cg = runCitygen(raw);
+      source = cg.engine ?? raw;
+      report = cg.reportJson ?? null;
+    } catch (e) {
+      throw new ValidationError([String(e?.message ?? e)], v3w);
+    }
+  }
   let compiled;
   try {
-    compiled = compileCityforge(raw);
+    compiled = compileCityforge(source);
   } catch (e) {
     throw new ValidationError(e.errors ?? [String(e?.message ?? e)], v3w);
   }
@@ -267,6 +279,7 @@ function generateCityforge(raw, sourceName, opts = {}) {
   const out = generateCatalog(compiled.engine, sourceName, opts);
   out.warnings = [...v3w, ...compiled.warnings, ...out.warnings];
   out.sourceFormat = isV4 ? 'cityforge-v4' : 'cityforge-v3';
+  if (report) out.generationReport = report;
   return out;
 }
 
@@ -337,12 +350,18 @@ function main(argv) {
   // Модуль — один файл рядом с JSON. Каталог — папка с тем же stem, и `--out`
   // для неё означает каталог, а не файл: чанков много и имя каждого даёт разрезка.
   // Файл каталога несёт либо текст (`code`), либо байты (`bytes`) — чанки и скелет бинарные.
+  const catalogDir = generated.kind === 'catalog'
+    ? (outArg ?? resolve(dirname(jsonPath), basename(jsonPath, extname(jsonPath))))
+    : null;
   const targets = generated.kind === 'catalog'
     ? generated.files.map(f => ({
-      path: join(outArg ?? resolve(dirname(jsonPath), basename(jsonPath, extname(jsonPath))), f.path),
+      path: join(catalogDir, f.path),
       code: f.code, bytes: f.bytes,
     }))
     : [{ path: outArg ?? defaultOut(jsonPath), code: generated.code }];
+  if (generated.kind === 'catalog' && generated.generationReport) {
+    targets.push({ path: join(catalogDir, 'generation-report.json'), code: generated.generationReport });
+  }
 
   if (check) {
     const stale = [];
@@ -361,8 +380,9 @@ function main(argv) {
       console.error(`${stale.join(', ')}: расходится с тем, что даёт парсер (${generated.warnings.length} предупреждений)`);
       return 2;
     }
+    const extra = generated.generationReport ? 2 : 1; // index.js + optional report
     console.log(generated.kind === 'catalog'
-      ? `каталог ${generated.name}: index.js и ${targets.length - 1} файлов данных совпадают с парсером`
+      ? `каталог ${generated.name}: index.js и ${targets.length - extra} файлов данных совпадают с парсером`
       : `${basename(targets[0].path)}: совпадает с парсером, ${generated.name}`);
     return 0;
   }
