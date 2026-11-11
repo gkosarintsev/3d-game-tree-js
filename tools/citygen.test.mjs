@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runCitygen } from './citygen/index.mjs';
+import { generateOutput } from './build-level.mjs';
 
 function v4Base(over = {}) {
   return {
@@ -166,4 +167,61 @@ test('citygen stage 2: reports disconnected road graph and anchor distance warni
   assert.ok(a.report.diagnostics.some(d => d.code === 'road_graph_disconnected'));
   assert.ok(a.report.diagnostics.some(d => d.code === 'anchor_far_from_roads'));
   assert.equal(a.ctx.masks.easement.roads.length, 2);
+});
+
+test('citygen stage 2: procedural transport generation is deterministic and connects spawn↔exit', () => {
+  const base = () => {
+    const raw = v4Base();
+    raw.gameplay.spawn = { x: -100, z: -80 };
+    raw.gameplay.exit = { x: 100, z: 90 };
+    raw.generator.seed = 77;
+    raw.generator.transport = { generate: true, width: 8 };
+    return raw;
+  };
+  const a = runCitygen(base());
+  const b = runCitygen(base());
+  assert.equal(a.reportJson, b.reportJson);
+  const segs = a.engine.cityforge.networks.roads.segments;
+  const nodes = a.engine.cityforge.networks.roads.nodes;
+  assert.equal(segs.length, 1);
+  assert.equal(nodes.length, 2);
+  assert.equal(segs[0].from, 'tr_n_spawn');
+  assert.equal(segs[0].to, 'tr_n_exit');
+  assert.ok(segs[0].path.length >= 2);
+  assert.deepEqual(segs, b.engine.cityforge.networks.roads.segments);
+  assert.ok(a.report.diagnostics.some(d => d.code === 'transport_generated'));
+  assert.ok(!a.report.diagnostics.some(d => d.code === 'anchor_far_from_roads'));
+  assert.ok(!a.report.diagnostics.some(d => d.code === 'road_graph_disconnected'));
+});
+
+test('citygen v4 end-to-end: generated landscape+transport compiles to open catalog', () => {
+  const raw = {
+    $schema: './level-v4.schema.json', kind: 'cityforge', schemaVersion: 4,
+    metadata: { levelName: 'v4-gen', name: 'V4 gen test', hint: 'reach B', units: 'meters' },
+    ground: { y: 0, size: 256, color: 0x6f8f4e },
+    gameplay: { goal: 'exit', spawn: { x: -100, z: -100 }, exit: { x: 100, z: 100 }, exitRadius: 4, enemies: { count: 0 }, alienEnemies: { count: 0 } },
+    stream: { chunk: 256, keep: 1, aheadMin: 80, aheadMax: 200, budgetMs: 40 },
+    cityforge: {
+      format: 'cityforge', version: '0.1',
+      world: { units: 'meters', coordinateSystem: { type: 'local', handedness: 'right', up: 'Z' }, origin:[0,0,0], bounds: { min: [-128,-128,-50], max: [128,128,100] } },
+      assets: [{ id: 'ground.placeholder', kind: 'procedural', generator: 'placeholder.flat', bounds: [256,256,1] }],
+      hydrology: { rivers: [], lakes: [] },
+      networks: { roads: { nodes: [], segments: [], junctions: [] }, railways: { nodes: [], segments: [], junctions: [] }, paths: { nodes: [], segments: [], junctions: [] } },
+      structures: { bridges: [], tunnels: [] },
+      instances: [], chunks: []
+    },
+    generator: {
+      generatorVersion: '0.1.0', seed: 16, deterministic: true, stages: [], layers: [], budgets: {}, districts: [], profiles: {}, catalogs: {}, refs: {}, policies: {},
+      landscape: { generate: true, hills: { count: 3, minHeight: 8, maxHeight: 20, minRadius: 50, maxRadius: 90 }, river: { enabled: true, width: 16, depth: 3, points: 5, axis: 'z' } },
+      transport: { generate: true, width: 8 }
+    }
+  };
+  const out = generateOutput(structuredClone(raw), 'src/levels/v4-gen.json');
+  assert.equal(out.kind, 'catalog');
+  assert.equal(out.sourceFormat, 'cityforge-v4');
+  assert.ok(out.generationReport && out.generationReport.includes('"generatorVersion"'));
+  assert.ok(Array.isArray(out.files) && out.files.length >= 2);
+  const out2 = generateOutput(structuredClone(raw), 'src/levels/v4-gen.json');
+  assert.equal(out.generationReport, out2.generationReport);
+  assert.deepEqual(out.files.map(f => f.path), out2.files.map(f => f.path));
 });

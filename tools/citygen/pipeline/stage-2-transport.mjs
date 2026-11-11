@@ -4,8 +4,10 @@
  * records road easements, and emits sanitized networks. Deterministic.
  */
 import { warn, info } from '../diagnostics.mjs';
+import { makeRng, mix } from '../rng.mjs';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp = (a, b, t) => a + (b - a) * t;
 const EPS = 1e-9;
 
 function pathPoints(seg) {
@@ -67,6 +69,107 @@ function segmentNearPoint(seg, x, z, radius) {
   return false;
 }
 
+function shouldGenerateTransport(ctx) {
+  const tc = ctx.input?.generator?.transport;
+  if (!tc || typeof tc !== 'object') return false;
+  if (tc.generate === true) return true;
+  if (tc.generate === false) return false;
+  const has = (ctx.networks.roads.segments?.length ?? 0) > 0;
+  return !has;
+}
+
+function segCrossesRiver(ax, az, bx, bz, river) {
+  const path = river.path ?? [];
+  const margin = (river.width ?? 10) * 0.5 + 4;
+  for (let i = 0; i + 1 < path.length; i++) {
+    const r1 = path[i], r2 = path[i + 1];
+    // approximate: sample along road segment and check distance to river centerline
+    const len = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(2, Math.ceil(len / 5));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const px = ax + (bx - ax) * t, pz = az + (bz - az) * t;
+      if (pointSegDistXZ(px, pz, r1[0], r1[2], r2[0], r2[2]) < margin) return true;
+    }
+  }
+  return false;
+}
+
+function buildRoutePath(points2d, yFn, rivers) {
+  // points2d: [{x,z}, ...] in order. Expand crossings with bridge profiles.
+  const out = [];
+  const pushPt = (x, y, z) => {
+    const p = [Math.round(x * 100) / 100, Math.round(y * 100) / 100, Math.round(z * 100) / 100];
+    const last = out[out.length - 1];
+    if (!last || Math.hypot(last[0]-p[0], last[1]-p[1], last[2]-p[2]) > EPS) out.push(p);
+  };
+  for (let i = 0; i + 1 < points2d.length; i++) {
+    const a = points2d[i], b = points2d[i + 1];
+    const crosses = (rivers ?? []).some(rv => segCrossesRiver(a.x, a.z, b.x, b.z, rv));
+    const ya = yFn(a.x, a.z), yb = yFn(b.x, b.z);
+    if (!crosses) {
+      if (i === 0) pushPt(a.x, ya, a.z);
+      pushPt(b.x, yb, b.z);
+      continue;
+    }
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const ux = dx / len, uz = dz / len;
+    const ramp = Math.min(18, len * 0.25);
+    const deckH = Math.max(ya, yb, 0) + 7;
+    const a1x = a.x + ux * ramp, a1z = a.z + uz * ramp;
+    const b1x = b.x - ux * ramp, b1z = b.z - uz * ramp;
+    if (i === 0) pushPt(a.x, ya, a.z);
+    pushPt(a1x, ya + (deckH - ya) * 0.7, a1z);
+    pushPt((a1x + b1x) / 2, deckH, (a1z + b1z) / 2);
+    pushPt(b1x, yb + (deckH - yb) * 0.7, b1z);
+    pushPt(b.x, yb, b.z);
+  }
+  return out;
+}
+
+function generateTransport(ctx) {
+  const stageId = '2_transport';
+  const tc = ctx.input.generator.transport || {};
+  const gp = ctx.input?.gameplay ?? {};
+  const spawn = { x: gp.spawn?.x ?? 0, z: gp.spawn?.z ?? 0 };
+  const exit = { x: gp.exit?.x ?? 0, z: gp.exit?.z ?? 0 };
+  const seed = mix(ctx.meta.seed ?? 0, stageId, tc.seedOffset ?? 0);
+  const rng = makeRng(seed);
+  const groundY = ctx.input?.ground?.y ?? 0;
+  // simple base elevation (stage 1 terrain not analytically sampled here; keep near ground, bridges handled by profile)
+  const yFn = () => groundY;
+  const rivers = (ctx.masks.easement?.rivers ?? ctx.hydrology?.rivers ?? []);
+  // L-shaped route with deterministic bend choice
+  const bend = rng() < 0.5
+    ? { x: exit.x, z: spawn.z }
+    : { x: spawn.x, z: exit.z };
+  const pts2d = [spawn, bend, exit].filter((p, i, arr) => i === 0 || Math.hypot(p.x - arr[i-1].x, p.z - arr[i-1].z) > 1);
+  const path = buildRoutePath(pts2d, yFn, rivers);
+  if (path.length < 2) return;
+  const width = clamp(Number.isFinite(tc.width) ? tc.width : 8, 4, 20);
+  const nodes = [
+    { id: 'tr_n_spawn', position: path[0], layer: 'ground' },
+    { id: 'tr_n_exit', position: path[path.length - 1], layer: 'ground' },
+  ];
+  const segments = [{
+    id: 'tr_main',
+    from: 'tr_n_spawn',
+    to: 'tr_n_exit',
+    type: 'local',
+    layer: 'ground',
+    path,
+    lanes: [{ id: 'lane_1', direction: 'forward', width, type: 'vehicle' }],
+    shoulderWidth: 1,
+    sidewalk: false,
+    surface: 'asphalt',
+  }];
+  ctx.networks.roads.nodes = nodes;
+  ctx.networks.roads.segments = segments;
+  ctx.networks.roads.junctions = [];
+  ctx.report.diagnostics.push(info('transport_generated', stageId, 'stage 2 generated base route spawn↔exit', { nodes: nodes.length, segments: segments.length, seed, points: path.length }));
+}
+
 export function makeStage2() {
   return {
     id: '2_transport',
@@ -83,7 +186,12 @@ export function makeStage2() {
       ctx.masks.easement.roads = [];
     },
     generate(ctx) {
-      ctx.report.diagnostics.push(info('transport_passthrough', '2_transport', 'stage 2 using provided road network (procedural generation pending)', {
+      const stageId = '2_transport';
+      if (shouldGenerateTransport(ctx)) {
+        generateTransport(ctx);
+        return;
+      }
+      ctx.report.diagnostics.push(info('transport_passthrough', stageId, 'stage 2 using provided road network (procedural generation pending)', {
         nodes: ctx.networks.roads.nodes.length,
         segments: ctx.networks.roads.segments.length,
       }));
