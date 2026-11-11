@@ -51,7 +51,7 @@
     {
       "id": "6_finalize_emit",
       "status": "ok",
-      "diagnostics": 1,
+      "diagnostics": 2,
       "repairs": 0,
       "drops": 0
     }
@@ -622,6 +622,31 @@
       "count": 8,
       "budget": 8,
       "skipped": 0
+    },
+    {
+      "severity": "info",
+      "code": "finalize_counts",
+      "stage": "6_finalize_emit",
+      "message": "generation summary",
+      "roadNodes": 30,
+      "roadSegments": 41,
+      "districts": 16,
+      "districtTypes": [
+        "forest",
+        "industrial",
+        "luxury",
+        "office",
+        "park",
+        "parking",
+        "residential",
+        "slums",
+        "sports"
+      ],
+      "parcels": 1983,
+      "reservedParcels": 214,
+      "buildings": 400,
+      "lights": 8,
+      "props": 320
     },
     {
       "severity": "info",

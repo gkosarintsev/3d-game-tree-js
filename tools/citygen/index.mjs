@@ -11,6 +11,7 @@ import { makeStage2 } from './pipeline/stage-2-transport.mjs';
 import { makeStage3 } from './pipeline/stage-3-districts.mjs';
 import { makeStage4 } from './pipeline/stage-4-buildings.mjs';
 import { makeStage5 } from './pipeline/stage-5-props.mjs';
+import { makeStage6 } from './pipeline/stage-6-finalize.mjs';
 
 const STAGES = [
   stage('0_input_space', {}),
@@ -19,7 +20,7 @@ const STAGES = [
   makeStage3(),
   makeStage4(),
   makeStage5(),
-  stage('6_finalize_emit', {}),
+  makeStage6(),
 ];
 
 export function runCitygen(raw) {

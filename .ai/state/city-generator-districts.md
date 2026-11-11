@@ -94,11 +94,12 @@ Let us commit. Include index.js if actually changed (diff showed nothing but sta
 - [ ] Каталог типов/архетипов по правилам районов (вводимые здания/проходы, мегастроения с проездами, skybridge), точные бюджеты/валидация на чанк/доступ.
 
 ### [TASK-008] Слой 6 — финализация и пилот гл.16 (в работе)
-- [x] Пилотный источник `src/levels/level-16.json` (v4, на базе гл.15): плита 1280×1280 м, `stream {chunk:256, keep:2, aheadMin:200, aheadMax:1200, budgetMs:80}`, goal exit spawn↔exit, `generator` (landscape hills+river, transport, авто districts/buildings/props). Точка спавна авто скорректирована при изменении раскладки районов/застройки.
-- [x] Текущее состояние каталога `src/levels/level-16/` (детерминированно, `--check` совпадает, 0 предупреждений парсера): 25 чанков 5×5×256 м, 41 дорога (terrain-following, мост ground/bridge/ground, авто `roadCorridors`), скелет 1586/1585 (компоненты 132→1), 803 участника / 771 владелец, 400 зданий, 8 фонарей, 320 `landscapeObjects`, детерминированный `generation-report.json`.
+- [x] Пилотный источник `src/levels/level-16.json` (v4, на базе гл.15): плита 1280×1280 м, `stream {chunk:256, keep:2, aheadMin:200, aheadMax:1200, budgetMs:80}`, goal exit spawn↔exit, `generator` (landscape hills+river, transport, авто districts/buildings/props). Точки спавна авто корректировались при изменении раскладки.
+- [x] Текущее состояние каталога `src/levels/level-16/` (детерминированно, `--check` совпадает, 0 предупреждений парсера): 25 чанков 5×5×256 м, 41 дорога (terrain-following, мост ground/bridge/ground, авто `roadCorridors`), скелет 1586/1585 (компоненты 132→1), 809 участников / 770 владельцев, 400 зданий, 8 фонарей, 320 `landscapeObjects`, детерминированный `generation-report.json` (включает сводку stage 6).
+- [x] Stage 6 (`tools/citygen/pipeline/stage-6-finalize.mjs`): детерминированные кросс-стадийные проверки/сводка (счётчики дорог/районов/участков/зданий/огней/props, резервные parcel, удалённость якорей от сети) в отчёте; чанки/скелет — в общем build-пайплайне.
 - [x] Регистрация пилота: `src/levels/index.js`/`LEVEL_NUMBERS` (+16). Node-проверки: `node --test tools/citygen.test.mjs` 14/14, `build-level --check` OK, `check-levels` 32/32.
 - [ ] Замеры метрик пилота (старт/окно/p95 помпы, память/узлы, связность/достижимость spawn↔exit в рантайме) относительно гл.15 и `docs/open-world-plan.md`; итеративная настройка генератора/параметров под бюджеты.
-- [ ] Финализация слоя 6 в генераторе (полная связность/emit/кросс-стадийные проверки) и доведение состава районов/застройки до требований MVP-пилота. Runtime/browser в этой среде не выполнялись.
+- [ ] Полная финализация/emit и доведение состава районов/застройки до требований MVP-пилота. Runtime/browser в этой среде не выполнялись.
 
 ### [TASK-007] Слой 5 — инфраструктура и props (в работе, MVP)
 - [x] `tools/citygen/pipeline/stage-5-props.mjs`: детерминированная генерация уличных источников света (`lights`, point) вдоль эмитированных road-сегментов (выбор репрезентативных точек, оффсет к краю) с учётом жёсткого лимита реальных источников движка (`CONFIG.jsonMap.maxRealLights = 8`), дедупликация/валидация, emit в engine (через `raw.lights`).
