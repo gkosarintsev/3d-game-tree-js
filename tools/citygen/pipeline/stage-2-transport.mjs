@@ -36,6 +36,36 @@ function segSlopeWarn(seg, maxSlope) {
   return out;
 }
 
+function orient(ax, az, bx, bz, cx, cz) {
+  return (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+}
+function onSeg(ax, az, bx, bz, cx, cz) {
+  return Math.min(ax, bx) - EPS <= cx && cx <= Math.max(ax, bx) + EPS
+    && Math.min(az, bz) - EPS <= cz && cz <= Math.max(az, bz) + EPS;
+}
+function segsIntersect(a1, a2, b1, b2) {
+  const o1 = orient(a1[0], a1[2], a2[0], a2[2], b1[0], b1[2]);
+  const o2 = orient(a1[0], a1[2], a2[0], a2[2], b2[0], b2[2]);
+  const o3 = orient(b1[0], b1[2], b2[0], b2[2], a1[0], a1[2]);
+  const o4 = orient(b1[0], b1[2], b2[0], b2[2], a2[0], a2[2]);
+  if ((o1 > EPS && o2 < -EPS || o1 < -EPS && o2 > EPS) && (o3 > EPS && o4 < -EPS || o3 < -EPS && o4 > EPS)) return true;
+  if (Math.abs(o1) <= EPS && onSeg(a1[0], a1[2], a2[0], a2[2], b1[0], b1[2])) return true;
+  if (Math.abs(o2) <= EPS && onSeg(a1[0], a1[2], a2[0], a2[2], b2[0], b2[2])) return true;
+  if (Math.abs(o3) <= EPS && onSeg(b1[0], b1[2], b2[0], b2[2], a1[0], a1[2])) return true;
+  if (Math.abs(o4) <= EPS && onSeg(b1[0], b1[2], b2[0], b2[2], a2[0], a2[2])) return true;
+  return false;
+}
+function polylineSelfIntersectsXZ(pts) {
+  const n = pts.length;
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = i + 2; j < n - 1; j++) {
+      if (i === 0 && j === n - 2) continue; // ignore closed-ish touch of endpoints chain in degenerate cases
+      if (segsIntersect(pts[i], pts[i + 1], pts[j], pts[j + 1])) return true;
+    }
+  }
+  return false;
+}
+
 function uniqById(items, kind, ctx, stageId) {
   const seen = new Set();
   const out = [];
@@ -329,6 +359,29 @@ function pinEndpoints(path, start, end, maxSlope, stageId, segId, report) {
   return out;
 }
 
+function makeRoadSegment(id, from, to, path, width, type = 'local') {
+  return {
+    id, from, to, type, layer: 'ground', path,
+    lanes: [{ id: `${id}_lane_1`, direction: 'forward', width, type: 'vehicle' }],
+    shoulderWidth: 1, sidewalk: false, surface: 'asphalt',
+  };
+}
+
+function buildProfiledSegment(ctx, segId, a2, b2, width, viaPoints = null) {
+  const stageId = '2_transport';
+  const sampler = makeTerrainSampler(ctx); // cheap to rebuild; deterministic
+  const rivers = (ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? []);
+  const pts2d = viaPoints && viaPoints.length ? [a2, ...viaPoints, b2] : [a2, b2];
+  const filtered = pts2d.filter((p, i, arr) => i === 0 || Math.hypot(p.x - arr[i-1].x, p.z - arr[i-1].z) > 1);
+  let path = buildRoutePath(filtered, sampler, rivers, stageId, ctx.report);
+  if (path.length < 2) return null;
+  path = enforceSlope(path, MAX_ROAD_SLOPE, stageId, segId, ctx.report);
+  const start = [Math.round(a2.x * 100) / 100, Math.round(sampler.heightAt(a2.x, a2.z) * 100) / 100, Math.round(a2.z * 100) / 100];
+  const end = [Math.round(b2.x * 100) / 100, Math.round(sampler.heightAt(b2.x, b2.z) * 100) / 100, Math.round(b2.z * 100) / 100];
+  path = pinEndpoints(path, start, end, MAX_ROAD_SLOPE, stageId, segId, ctx.report);
+  return path && path.length >= 2 ? path : null;
+}
+
 function generateTransport(ctx) {
   const stageId = '2_transport';
   const tc = ctx.input.generator.transport || {};
@@ -337,43 +390,95 @@ function generateTransport(ctx) {
   const exit = { x: gp.exit?.x ?? 0, z: gp.exit?.z ?? 0 };
   const seed = mix(ctx.meta.seed ?? 0, stageId, tc.seedOffset ?? 0);
   const rng = makeRng(seed);
-  const groundY = ctx.input?.ground?.y ?? 0;
   const sampler = makeTerrainSampler(ctx);
-  const rivers = (ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? []);
-  // L-shaped route with deterministic bend choice; keep bend inside bounds-ish by anchors.
-  const bend = rng() < 0.5
-    ? { x: exit.x, z: spawn.z }
-    : { x: spawn.x, z: exit.z };
-  const pts2d = [spawn, bend, exit].filter((p, i, arr) => i === 0 || Math.hypot(p.x - arr[i-1].x, p.z - arr[i-1].z) > 1);
-  let path = buildRoutePath(pts2d, sampler, rivers, stageId, ctx.report);
-  if (path.length < 2) return;
-  path = enforceSlope(path, MAX_ROAD_SLOPE, stageId, 'tr_main', ctx.report);
-  // Pin endpoints to terrain/anchors and re-enforce slope while preserving them.
-  const start = [Math.round(spawn.x * 100) / 100, Math.round(sampler.heightAt(spawn.x, spawn.z) * 100) / 100, Math.round(spawn.z * 100) / 100];
-  const end = [Math.round(exit.x * 100) / 100, Math.round(sampler.heightAt(exit.x, exit.z) * 100) / 100, Math.round(exit.z * 100) / 100];
-  path = pinEndpoints(path, start, end, MAX_ROAD_SLOPE, stageId, 'tr_main', ctx.report);
-  if (path.length < 2) return;
   const width = clamp(Number.isFinite(tc.width) ? tc.width : 8, 4, 20);
+  const half = (ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256) / 2;
+  const margin = half * 0.85;
+
+  // Main arterial spawn↔exit (L-shaped, deterministic bend)
+  const bend = rng() < 0.5 ? { x: exit.x, z: spawn.z } : { x: spawn.x, z: exit.z };
+  const mainPath = buildProfiledSegment(ctx, 'tr_main', spawn, exit, width, Math.hypot(bend.x-spawn.x,bend.z-spawn.z)>1 && Math.hypot(bend.x-exit.x,bend.z-exit.z)>1 ? [bend] : null);
+  if (!mainPath) return;
+
   const nodes = [
-    { id: 'tr_n_spawn', position: path[0].slice(), layer: 'ground' },
-    { id: 'tr_n_exit', position: path[path.length - 1].slice(), layer: 'ground' },
+    { id: 'tr_n_spawn', position: mainPath[0].slice(), layer: 'ground' },
+    { id: 'tr_n_exit', position: mainPath[mainPath.length - 1].slice(), layer: 'ground' },
   ];
-  const segments = [{
-    id: 'tr_main',
-    from: 'tr_n_spawn',
-    to: 'tr_n_exit',
-    type: 'local',
-    layer: 'ground',
-    path,
-    lanes: [{ id: 'lane_1', direction: 'forward', width, type: 'vehicle' }],
-    shoulderWidth: 1,
-    sidewalk: false,
-    surface: 'asphalt',
-  }];
+  const segments = [makeRoadSegment('tr_main', 'tr_n_spawn', 'tr_n_exit', mainPath, width, 'arterial')];
+
+  // Optional small connected network: deterministic cross/branch segments through midpoints to improve coverage.
+  const extra = clamp(Number.isInteger(tc.branches) ? tc.branches : 1, 0, 4);
+  const mx = (spawn.x + exit.x) / 2, mz = (spawn.z + exit.z) / 2;
+  const candidates = [];
+  if (extra >= 1) {
+    // cross street near midpoint, perpendicular-ish in world axes
+    const dx = exit.x - spawn.x, dz = exit.z - spawn.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const px = -dz / len, pz = dx / len; // perpendicular
+    const span = clamp(len * 0.35, 60, half * 0.7);
+    candidates.push({ a: { x: clamp(mx - px * span, -margin, margin), z: clamp(mz - pz * span, -margin, margin) }, b: { x: clamp(mx + px * span, -margin, margin), z: clamp(mz + pz * span, -margin, margin) } });
+  }
+  if (extra >= 2) {
+    candidates.push({ a: { x: clamp(spawn.x, -margin, margin), z: clamp(mz, -margin, margin) }, b: { x: clamp(exit.x, -margin, margin), z: clamp(mz, -margin, margin) } });
+  }
+  if (extra >= 3) {
+    candidates.push({ a: { x: clamp(mx, -margin, margin), z: clamp(spawn.z, -margin, margin) }, b: { x: clamp(mx, -margin, margin), z: clamp(exit.z, -margin, margin) } });
+  }
+  if (extra >= 4) {
+    const ox = clamp(mx + (rng() - 0.5) * half * 0.4, -margin, margin);
+    const oz = clamp(mz + (rng() - 0.5) * half * 0.4, -margin, margin);
+    candidates.push({ a: { x: ox, z: clamp(-margin, -margin, margin) }, b: { x: ox, z: clamp(margin, -margin, margin) } });
+  }
+
+  let made = 0;
+  for (let i = 0; i < candidates.length && made < extra; i++) {
+    const c = candidates[i];
+    if (Math.hypot(c.a.x - c.b.x, c.a.z - c.b.z) < 20) continue;
+    const id = `tr_branch_${i + 1}`;
+    const na = `tr_n_${id}_a`, nb = `tr_n_${id}_b`;
+    const path = buildProfiledSegment(ctx, id, c.a, c.b, width, null);
+    if (!path) continue;
+    // Connect branch to main graph by adding a connector to nearest main-route anchor point in XZ (spawn/mid/exit) if far
+    nodes.push({ id: na, position: path[0].slice(), layer: 'ground' });
+    nodes.push({ id: nb, position: path[path.length - 1].slice(), layer: 'ground' });
+    segments.push(makeRoadSegment(id, na, nb, path, Math.max(6, width - 1), 'local'));
+    // connector to midpoint of main route (approx by bend/spawn/exit projection): ensures component connectivity
+    const midMainIdx = Math.floor(mainPath.length / 2);
+    const mid = { x: mainPath[midMainIdx][0], z: mainPath[midMainIdx][2] };
+    const endPick = (Math.hypot(c.a.x-mid.x,c.a.z-mid.z) <= Math.hypot(c.b.x-mid.x,c.b.z-mid.z)) ? { id: na, p: c.a } : { id: nb, p: c.b };
+    const connId = `tr_conn_${i + 1}`;
+    const nMid = `tr_n_main_mid`;
+    if (!nodes.find(n => n.id === nMid)) nodes.push({ id: nMid, position: mainPath[midMainIdx].slice(), layer: 'ground' });
+    const connPath = buildProfiledSegment(ctx, connId, endPick.p, { x: mid.x, z: mid.z }, Math.max(6, width - 1), null);
+    if (connPath) {
+      segments.push(makeRoadSegment(connId, endPick.id, nMid, connPath, Math.max(6, width - 1), 'local'));
+    } else {
+      // fallback: still keep branch segment; connectivity warning may be emitted by validation
+      ctx.report.diagnostics.push(warn('transport_connector_failed', stageId, `connector '${connId}' could not be profiled`, { id: connId }));
+    }
+    made++;
+  }
+
+  // split main segment at midpoint node for explicit graph connectivity if connectors attached
+  const hasMid = nodes.some(n => n.id === 'tr_n_main_mid');
+  if (hasMid && segments[0]?.id === 'tr_main') {
+    const midIdx = Math.floor(mainPath.length / 2);
+    if (midIdx > 0 && midIdx < mainPath.length - 1) {
+      const pA = mainPath.slice(0, midIdx + 1);
+      const pB = mainPath.slice(midIdx);
+      const nMid = nodes.find(n => n.id === 'tr_n_main_mid');
+      nMid.position = mainPath[midIdx].slice();
+      segments.splice(0, 1,
+        makeRoadSegment('tr_main_a', 'tr_n_spawn', 'tr_n_main_mid', pA, width, 'arterial'),
+        makeRoadSegment('tr_main_b', 'tr_n_main_mid', 'tr_n_exit', pB, width, 'arterial'),
+      );
+    }
+  }
+
   ctx.networks.roads.nodes = nodes;
   ctx.networks.roads.segments = segments;
   ctx.networks.roads.junctions = [];
-  ctx.report.diagnostics.push(info('transport_generated', stageId, 'stage 2 generated base route spawn↔exit', { nodes: nodes.length, segments: segments.length, seed, points: path.length, profiled: true }));
+  ctx.report.diagnostics.push(info('transport_generated', stageId, 'stage 2 generated road network', { nodes: nodes.length, segments: segments.length, seed, branches: made, profiled: true }));
 }
 
 export function makeStage2() {
@@ -421,6 +526,9 @@ export function makeStage2() {
         if (s.to && !nodeIds.has(s.to)) ctx.report.diagnostics.push(warn('segment_missing_node', stageId, `segment '${s.id}' references missing to node '${s.to}'`, { id: s.id, node: s.to }));
         const steep = segSlopeWarn(s, maxSlope);
         if (steep.length) ctx.report.diagnostics.push(warn('segment_steep', stageId, `segment '${s.id}' has ${steep.length} steep sub-segment(s) (max ${(Math.max(...steep.map(x=>x.slope))*100).toFixed(0)}%)`, { id: s.id }));
+        if (pts && polylineSelfIntersectsXZ(pts)) {
+          ctx.report.diagnostics.push(warn('segment_self_intersection', stageId, `segment '${s.id}' has self-intersecting path`, { id: s.id }));
+        }
         // road easement mask (approx by path bbox/width)
         if (pts) {
           let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;

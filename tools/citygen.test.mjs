@@ -183,12 +183,16 @@ test('citygen stage 2: procedural transport generation is deterministic and conn
   assert.equal(a.reportJson, b.reportJson);
   const segs = a.engine.cityforge.networks.roads.segments;
   const nodes = a.engine.cityforge.networks.roads.nodes;
-  assert.equal(segs.length, 1);
-  assert.equal(nodes.length, 2);
-  assert.equal(segs[0].from, 'tr_n_spawn');
-  assert.equal(segs[0].to, 'tr_n_exit');
-  assert.ok(segs[0].path.length >= 2);
+  assert.ok(segs.length >= 1);
+  assert.ok(nodes.length >= 2);
+  assert.ok(nodes.some(n => n.id === 'tr_n_spawn'));
+  assert.ok(nodes.some(n => n.id === 'tr_n_exit'));
+  assert.ok(segs.every(s => Array.isArray(s.path) && s.path.length >= 2));
+  // explicit spawn↔exit route exists in generated arterial graph
+  const segIds = segs.map(s => s.id);
+  assert.ok(segIds.includes('tr_main') || (segIds.includes('tr_main_a') && segIds.includes('tr_main_b')));
   assert.deepEqual(segs, b.engine.cityforge.networks.roads.segments);
+  assert.deepEqual(nodes, b.engine.cityforge.networks.roads.nodes);
   assert.ok(a.report.diagnostics.some(d => d.code === 'transport_generated'));
   assert.ok(!a.report.diagnostics.some(d => d.code === 'anchor_far_from_roads'));
   assert.ok(!a.report.diagnostics.some(d => d.code === 'road_graph_disconnected'));
