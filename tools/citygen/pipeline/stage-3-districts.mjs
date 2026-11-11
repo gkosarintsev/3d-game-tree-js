@@ -270,6 +270,26 @@ export function makeStage3() {
           rect = null;
         }
         if (!rect) continue;
+        const rivers = [
+          ...(ctx.hydrology?.rivers ?? []),
+          ...(ctx.input?.cityforge?.hydrology?.rivers ?? []),
+          ...(ctx.input?.waterways ?? []),
+        ];
+        const parcelNearRiver = (aabb) => {
+          const corners = [[aabb.minX,aabb.minZ],[aabb.maxX,aabb.minZ],[aabb.maxX,aabb.maxZ],[aabb.minX,aabb.maxZ],[(aabb.minX+aabb.maxX)/2,(aabb.minZ+aabb.maxZ)/2]];
+          for (const rv of rivers) {
+            const path = rv?.path ?? (Array.isArray(rv?.points) ? rv.points.map(p => [p.x, 0, p.z]) : []);
+            if (path.length < 2) continue;
+            const clearance = (Number(rv.width) || 10) * 0.5 + 12;
+            for (let pi = 0; pi + 1 < path.length; pi++) {
+              const a = path[pi], c = path[pi + 1];
+              for (const [px, pz] of corners) {
+                if (pointSegDistXZ(px, pz, a[0], a[2], c[0], c[2]) < clearance) return true;
+              }
+            }
+          }
+          return false;
+        };
         const w = rect.maxX - rect.minX, h = rect.maxZ - rect.minZ;
         if (w <= 0 || h <= 0) continue;
         const target = (pmin + pmax) / 2;
@@ -285,14 +305,17 @@ export function makeStage3() {
             // inset for access/spacing
             const inset = Math.min(1.5, pw * 0.1, ph * 0.1);
             const aabb = { minX: minX + inset, maxX: maxX - inset, minZ: minZ + inset, maxZ: maxZ - inset };
+            if (aabb.maxX <= aabb.minX || aabb.maxZ <= aabb.minZ) continue;
             const cx = (aabb.minX + aabb.maxX) / 2, cz = (aabb.minZ + aabb.maxZ) / 2;
             const rd = minRoadDist(cx, cz, roadSegments);
             const type = d.type || d.profileId;
             let reserved = false;
+            // Reserve parcels conflicting with river easement/corridor.
+            if (parcelNearRiver(aabb)) reserved = true;
             // Reserve only very remote parcels in some road-dependent districts to keep access buffers without wiping sparse-network areas
             const hardReserveTypes = new Set(['parking', 'sports', 'industrial']);
-            if (hardReserveTypes.has(type) && Number.isFinite(rd) && rd > 300) reserved = true;
-            if (type === 'slums' && Number.isFinite(rd) && rd > 360) reserved = true;
+            if (!reserved && hardReserveTypes.has(type) && Number.isFinite(rd) && rd > 300) reserved = true;
+            if (!reserved && type === 'slums' && Number.isFinite(rd) && rd > 360) reserved = true;
             parcels.push({
               id: `${d.id}_p${seq}`,
               districtId: d.id,

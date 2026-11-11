@@ -591,7 +591,7 @@
       "message": "generated buildings from parcels",
       "count": 400,
       "budget": 400,
-      "skippedConflict": 789
+      "skippedConflict": 696
     },
     {
       "severity": "info",
@@ -606,7 +606,7 @@
       "message": "generated district props",
       "count": 320,
       "budget": 320,
-      "attempts": 787
+      "attempts": 791
     },
     {
       "severity": "info",
@@ -637,9 +637,9 @@
       "count": 7,
       "ids": [
         "b_district_1_1_292",
-        "b_district_1_2_271",
-        "b_district_2_0_276",
-        "b_district_2_0_291",
+        "b_district_1_2_275",
+        "b_district_2_0_290",
+        "b_district_2_0_294",
         "b_district_2_0_295",
         "b_district_2_0_296",
         "b_district_2_0_297"
@@ -654,17 +654,17 @@
     },
     {
       "stage": "build",
-      "id": "b_district_1_2_271",
+      "id": "b_district_1_2_275",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_276",
+      "id": "b_district_2_0_290",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_291",
+      "id": "b_district_2_0_294",
       "code": "drop_conflicting_building"
     },
     {
