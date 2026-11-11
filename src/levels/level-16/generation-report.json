@@ -575,7 +575,7 @@
       "message": "generated buildings from parcels",
       "count": 400,
       "budget": 400,
-      "skippedConflict": 716
+      "skippedConflict": 713
     },
     {
       "severity": "info",
@@ -590,7 +590,7 @@
       "message": "generated district props",
       "count": 320,
       "budget": 320,
-      "attempts": 963
+      "attempts": 944
     },
     {
       "severity": "info",
@@ -618,34 +618,58 @@
       "code": "build_conflicting_buildings_dropped",
       "stage": "build",
       "message": "dropped buildings conflicting with compiled/normalized placement",
-      "count": 4,
+      "count": 8,
       "ids": [
-        "b_district_1_1_187",
-        "b_district_1_2_293",
-        "b_district_2_0_38",
-        "b_district_2_0_43"
+        "b_district_1_1_178",
+        "b_district_1_2_288",
+        "b_district_2_0_31",
+        "b_district_2_0_34",
+        "b_district_2_0_44",
+        "b_district_2_0_50",
+        "b_district_2_0_69",
+        "b_district_2_0_74"
       ]
     }
   ],
   "repairs": [
     {
       "stage": "build",
-      "id": "b_district_1_1_187",
+      "id": "b_district_1_1_178",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_1_2_293",
+      "id": "b_district_1_2_288",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_38",
+      "id": "b_district_2_0_31",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_43",
+      "id": "b_district_2_0_34",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_2_0_44",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_2_0_50",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_2_0_69",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_2_0_74",
       "code": "drop_conflicting_building"
     }
   ],
@@ -653,7 +677,7 @@
   "summary": {
     "errors": 0,
     "warnings": 1,
-    "repairs": 4,
+    "repairs": 8,
     "drops": 0
   }
 }

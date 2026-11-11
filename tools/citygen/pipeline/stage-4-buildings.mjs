@@ -150,9 +150,16 @@ export function makeStage4() {
         const margin = 1.0;
         const maxW = Math.max(4, pw - margin * 2);
         const maxD = Math.max(4, ph - margin * 2);
-        const scaleBase = kinds.length ? (0.55 + rng() * 0.35) : 0.4;
         const cx = (b.minX + b.maxX) / 2;
         const cz = (b.minZ + b.maxZ) / 2;
+        // Road-access metrics used by archetype, scale and placement chance.
+        const roadDist = minDistanceToRoadSegments(cx, cz, roadSegments);
+        const nearRoad = Number.isFinite(roadDist) && roadDist < 70;
+        let scaleBase = kinds.length ? (0.55 + rng() * 0.35) : 0.4;
+        if (p.type === 'industrial') scaleBase = 0.65 + rng() * 0.28;
+        else if (p.type === 'office') scaleBase = nearRoad ? (0.58 + rng() * 0.3) : (0.5 + rng() * 0.28);
+        else if (p.type === 'slums') scaleBase = 0.45 + rng() * 0.35;
+        else if (p.type === 'park' || p.type === 'forest') scaleBase = 0.35 + rng() * 0.25;
         let footprint = null;
         for (const scaleMul of [1, 0.82, 0.68]) {
           const w = clamp(maxW * scaleBase * scaleMul, 4, maxW);
@@ -167,27 +174,46 @@ export function makeStage4() {
           continue;
         }
 
-        // Mild road-access bias: prefer parcels closer to emitted road network for built-up districts.
-        const roadDist = minDistanceToRoadSegments(cx, cz, roadSegments);
+        // Road-access bias: prefer parcels closer to emitted road network for built-up districts.
         let accessChance = chance;
         if (Number.isFinite(roadDist) && roadDist !== Infinity) {
           const needsAccess = ['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports'].includes(p.type);
           if (needsAccess) {
-            if (roadDist < 60) accessChance = Math.min(0.95, chance + 0.18);
+            if (roadDist < 60) accessChance = Math.min(0.97, chance + 0.2);
             else if (roadDist < 140) accessChance = Math.min(0.85, chance + 0.08);
-            else accessChance = Math.max(0.08, chance - 0.12);
+            else accessChance = Math.max(0.06, chance - 0.14);
           } else if (p.type === 'park' || p.type === 'forest') {
-            if (roadDist > 120) accessChance = Math.min(0.9, chance + 0.05);
+            if (roadDist > 120) accessChance = Math.min(0.92, chance + 0.06);
+            if (roadDist < 50 && rng() < 0.5) accessChance *= 0.5; // keep parks/forest more open near roads
           }
         }
         if (rng() > accessChance) continue;
+
+        // District archetypes: height/density by type and road proximity.
         const maxFloors = Math.max(1, Number(profile.buildings?.maxFloors ?? 4));
-        let floors = 1 + Math.floor(rng() * Math.min(maxFloors, 6));
-        // allow taller in office/luxury occasionally
-        if ((p.type === 'office' || p.type === 'luxury') && rng() < 0.25) floors = Math.max(floors, Math.min(maxFloors, 6 + Math.floor(rng() * 10)));
-        if (p.type === 'slums') floors = 1 + Math.floor(rng() * Math.min(maxFloors, 3));
+        let floors = 1;
+        if (p.type === 'office') {
+          floors = nearRoad ? (6 + Math.floor(rng() * Math.max(1, maxFloors - 5))) : (3 + Math.floor(rng() * 6));
+          if (rng() < 0.2) floors = Math.max(floors, Math.min(maxFloors, 10 + Math.floor(rng() * 8)));
+        } else if (p.type === 'luxury') {
+          floors = nearRoad ? (4 + Math.floor(rng() * 7)) : (2 + Math.floor(rng() * 5));
+        } else if (p.type === 'residential') {
+          floors = nearRoad ? (2 + Math.floor(rng() * 5)) : (1 + Math.floor(rng() * 4));
+        } else if (p.type === 'industrial') {
+          floors = 1 + Math.floor(rng() * Math.min(maxFloors, 3));
+        } else if (p.type === 'slums') {
+          floors = 1 + Math.floor(rng() * Math.min(maxFloors, 3));
+        } else if (p.type === 'sports') {
+          floors = 1 + Math.floor(rng() * Math.min(maxFloors, 2));
+        } else if (p.type === 'parking') {
+          floors = rng() < 0.15 ? 2 : 1;
+        } else if (p.type === 'park' || p.type === 'forest') {
+          floors = 1;
+        } else {
+          floors = 1 + Math.floor(rng() * Math.min(maxFloors, 4));
+        }
         floors = clamp(floors, 1, maxFloors);
-        const floorHeight = p.type === 'industrial' ? 4.5 : 3.4;
+        const floorHeight = p.type === 'industrial' ? 4.5 : (p.type === 'office' ? 3.6 : 3.3);
         const id = `b_${p.districtId}_${placed + 1}`;
         out.push({
           id,
