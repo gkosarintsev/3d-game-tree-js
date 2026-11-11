@@ -18,6 +18,7 @@ export function runStage(stage, ctx) {
     if (typeof stage.generate === 'function') stage.generate(ctx);
     if (typeof stage.validate === 'function') stage.validate(ctx);
     if (typeof stage.repair === 'function') stage.repair(ctx);
+    if (typeof stage.emit === 'function') stage.emit(ctx);
     ctx.report.diagnostics.push(info('stage_ok', id, `stage ${id} completed`));
   } catch (e) {
     entry.status = 'error';

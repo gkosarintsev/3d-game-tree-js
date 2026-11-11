@@ -42,7 +42,7 @@
 ## Задачи
 - [~] [TASK-001] Базовая линия (v3-scope), атомарная чистка legacy (§1.1 + v1/v2 схемы/ветки) и scope CI, спецификация v4/ADR, параметры/метрики пилота (гл.16)
 - [~] [TASK-002] Каркас `tools/citygen/`, IR/WorldState, RNG/ids, контракт этапа, diagnostics/report, repair, хуки поведения/GLB, пустой v4-прогон
-- [ ] [TASK-003] Слой 1 — ландшафт и гидрология (рельеф, реки, easement, валидация/repair, emit, тесты)
+- [~] [TASK-003] Слой 1 — ландшафт и гидрология (рельеф, реки, easement, валидация/repair, emit, тесты)
 - [ ] [TASK-004] Слой 2 — транспортный граф, мосты, развязки (связность, шаблоны, клиренсы/уклоны, repair)
 - [ ] [TASK-005] Слой 3 — районы и парцелляция (профили всех типов, соседство/fallback, нарезка, доли)
 - [ ] [TASK-006] Слой 4 — здания и крупные структуры (каталог типов, размещение, мегастроения/проезды, skybridge)
@@ -55,6 +55,12 @@
 - [x] Интеграция в `tools/build-level.mjs`: v4 проходит через `runCitygen`, пишет детерминированный `generation-report.json` в каталог (учтён в `--check`), компиляция в open-каталог сохранена.
 - [x] Пустой v4-прогон: скелет стадий выполняется, отчёт детерминирован (проверено на `.tmp/v4-minimal.json`, 2 прогона → идентичный report, `--check` ok).
 - [ ] Расширение IR/масок/spatial index, реальные стадии 0–6, emit v4→engine (TASK-003..008), node-тесты детерминизма/repair/report.
+
+### [TASK-003] Слой 1 — ландшафт и гидрология (в работе)
+- [x] `tools/citygen/pipeline/stage-1-landscape.mjs`: prepare/generate/validate/repair/emit; санитаризация terrain modifiers и hydrology (clamp height/radius/center/width/depth), drop невалидных рек (path < 2), переименование дубликатов id, easement-маска русел, emit в `cityforge.terrain/hydrology`, диагностика/repairs/drops в отчёте.
+- [x] `tools/citygen/pipeline/stage.mjs`: поддержка `emit()`; оркестратор использует stage 1.
+- [x] Node-тесты: `tools/citygen.test.mjs` (детерминизм отчёта, clamp/repair, drop/rename/id-stability, easement) — добавлено в CI (node job).
+- [ ] Процедурная генерация ландшафта/рек из манифеста/масок, геометрическая валидация уклонов/затопления/границ/самопересечений, расширенный repair и интеграция с emit в engine-брив (реальная генерация для гл.16).
 
 ## Остаётся уточнить
 - (нет — решения зафиксированы в плане §10, §15; при реализации допустимы уточнения в ADR без изменения принятых решений)

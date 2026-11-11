@@ -1,15 +1,16 @@
 /**
- * City generator v4 orchestrator (TASK-002 skeleton).
- * Runs deterministic stages, produces diagnostics/report; for now passes through
- * the v4 source's cityforge content for engine compilation while stages are populated in later tasks.
+ * City generator v4 orchestrator (TASK-002/003).
+ * Runs deterministic stages, produces diagnostics/report; stages progressively
+ * populate/validate/emit IR while preserving compilable v4 content.
  */
 import { createContext } from './context.mjs';
 import { runStage, stage } from './pipeline/stage.mjs';
 import { finalizeReport, reportToJson } from './diagnostics.mjs';
+import { makeStage1 } from './pipeline/stage-1-landscape.mjs';
 
 const STAGES = [
   stage('0_input_space', {}),
-  stage('1_landscape_hydrology', {}),
+  makeStage1(),
   stage('2_transport', {}),
   stage('3_districts_parcels', {}),
   stage('4_buildings_structures', {}),
