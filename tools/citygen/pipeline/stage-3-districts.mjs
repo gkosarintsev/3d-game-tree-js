@@ -111,6 +111,9 @@ export function makeStage3() {
         for (const t of ['office', 'residential', 'park', 'industrial', 'slums', 'forest']) if (profiles[t]) requiredSet.add(t);
         for (const t of preferred) { if (requiredSet.size >= Math.min(preferred.length, grid * grid)) break; requiredSet.add(t); }
         const required = [...requiredSet];
+        const targetCounts = {
+          office: 2, residential: 2, park: 2, industrial: 2, slums: 1, forest: 1, parking: 2, sports: 2, luxury: 2,
+        };
         const coords = [];
         for (let j = 0; j < grid; j++) for (let i = 0; i < grid; i++) coords.push({ i, j });
         // deterministic shuffle of coords
@@ -142,12 +145,16 @@ export function makeStage3() {
 
             let type = preassigned.get(key);
             if (!type || !profiles[type] || !candidates.includes(type)) {
-              // weighted pick with mild balancing and road-access bias
+              // weighted pick with balancing toward target shares and road-access bias
               let total = 0;
               const weights = candidates.map(id => {
                 const base = Math.max(0, Number(profiles[id]?.weight ?? 1));
                 const count = typeCounts[id] || 0;
-                const balance = 1 / (1 + count * 0.6);
+                const target = targetCounts[id] ?? 1;
+                const deficit = Math.max(0, target - count);
+                const targetBoost = 1 + deficit * 0.35;
+                const over = Math.max(0, count - target);
+                const balance = 1 / (1 + count * 0.45 + over * 0.5);
                 let access = 1;
                 if (Number.isFinite(rd) && rd !== Infinity) {
                   if (roadNeedy.has(id)) {
@@ -159,7 +166,7 @@ export function makeStage3() {
                     else if (rd > cell * 1.2) access = 1.12;
                   }
                 }
-                const w = base * balance * access;
+                const w = base * balance * targetBoost * access;
                 total += w;
                 return { id, w };
               });
@@ -184,38 +191,56 @@ export function makeStage3() {
           }
         }
 
-        // Ensure core MVP types are represented when possible (deterministic swaps).
-        const coreNeed = ['office', 'residential', 'park', 'industrial', 'slums', 'forest'].filter(t => profiles[t]);
-        const present = () => new Set(districts.map(d => d.type || d.profileId));
-        for (const need of coreNeed) {
-          if (present().has(need)) continue;
-          // find a district to replace: prefer one whose type is over-represented and replacement is neighbor-compatible
-          let replaced = false;
-          const countsNow = () => { const m = {}; for (const d of districts) m[d.type] = (m[d.type]||0)+1; return m; };
-          for (const d of districts) {
-            const m = countsNow();
-            if ((m[d.type] || 0) <= 1) continue;
-            const c = d.cells?.[0]; if (!c) continue;
-            const neigh = [];
-            for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-              const n = districts.find(x => x.cells?.some(cc => cc.cx===c.cx+dx && cc.cy===c.cy+dy));
-              if (n) neigh.push(n.type);
-            }
-            const ok = neigh.every(nt => (COMPAT[need]?.has(nt) ?? true) && (COMPAT[nt]?.has(need) ?? true));
-            if (!ok) continue;
-            typeCounts[d.type] = Math.max(0, (typeCounts[d.type]||1)-1);
-            d.type = need; d.profileId = need;
-            typeCounts[need] = (typeCounts[need]||0)+1;
-            replaced = true; break;
+        // Balance district types toward targets with compatibility-aware swaps (deterministic).
+        const needTypes = preferred.filter(t => profiles[t]);
+        const getCounts = () => { const m = Object.create(null); for (const d of districts) m[d.type] = (m[d.type]||0)+1; return m; };
+        const canSwapTo = (d, toType) => {
+          const c = d.cells?.[0]; if (!c) return false;
+          const neigh = [];
+          for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+            const n = districts.find(x => x.cells?.some(cc => cc.cx===c.cx+dx && cc.cy===c.cy+dy));
+            if (n && n !== d) neigh.push(n.type);
           }
-          if (!replaced && districts.length) {
-            // last resort: force swap smallest-impact cell (may create adjacency warning, handled by validation)
-            const countsNow2 = () => { const m = {}; for (const d of districts) m[d.type] = (m[d.type]||0)+1; return m; };
-            const m = countsNow2();
-            const cand = districts.find(d => (m[d.type]||0) > 1) || districts[0];
-            typeCounts[cand.type] = Math.max(0, (typeCounts[cand.type]||1)-1);
-            cand.type = need; cand.profileId = need;
-            typeCounts[need] = (typeCounts[need]||0)+1;
+          return neigh.every(nt => (COMPAT[toType]?.has(nt) ?? true) && (COMPAT[nt]?.has(toType) ?? true));
+        };
+        for (let pass = 0; pass < 3; pass++) {
+          const counts = getCounts();
+          for (const need of needTypes) {
+            const target = targetCounts[need] ?? 1;
+            while ((counts[need] || 0) < target) {
+              let swapped = false;
+              // replace an over-target, compatible cell
+              for (const d of districts) {
+                const from = d.type;
+                const fromTarget = targetCounts[from] ?? 1;
+                if ((counts[from] || 0) <= Math.max(1, fromTarget) && (counts[from] || 0) <= 1) continue;
+                if (from === need) continue;
+                if (!canSwapTo(d, need)) continue;
+                counts[from] = Math.max(0, (counts[from] || 1) - 1);
+                d.type = need; d.profileId = need;
+                counts[need] = (counts[need] || 0) + 1;
+                typeCounts[from] = Math.max(0, (typeCounts[from] || 1) - 1);
+                typeCounts[need] = (typeCounts[need] || 0) + 1;
+                swapped = true;
+                break;
+              }
+              if (swapped) continue;
+              // fallback: allow swap from any type with surplus count
+              for (const d of districts) {
+                const from = d.type;
+                if (from === need) continue;
+                if ((counts[from] || 0) <= 1) continue;
+                if (!canSwapTo(d, need)) continue;
+                counts[from] = Math.max(0, (counts[from] || 1) - 1);
+                d.type = need; d.profileId = need;
+                counts[need] = (counts[need] || 0) + 1;
+                typeCounts[from] = Math.max(0, (typeCounts[from] || 1) - 1);
+                typeCounts[need] = (typeCounts[need] || 0) + 1;
+                swapped = true;
+                break;
+              }
+              if (!swapped) break;
+            }
           }
         }
         ctx.districts = districts;
