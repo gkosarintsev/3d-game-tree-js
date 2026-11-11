@@ -228,6 +228,8 @@ export function makeStage3() {
 
       // Generate parcels per district (simple subdivision of rect geometry/cells)
       const parcels = [];
+      const roadSegments = ctx.networks?.roads?.segments ?? [];
+      const roadNeedyTypes = new Set(['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports']);
       for (const d of ctx.districts) {
         const profile = profiles[d.profileId || d.type] || profiles.office || { parcels: { min: 20, max: 40 } };
         const pmin = clamp(Number(profile.parcels?.min) || 20, 8, 120);
@@ -257,13 +259,22 @@ export function makeStage3() {
             const minZ = rect.minZ + j * ph, maxZ = minZ + ph;
             // inset for access/spacing
             const inset = Math.min(1.5, pw * 0.1, ph * 0.1);
+            const aabb = { minX: minX + inset, maxX: maxX - inset, minZ: minZ + inset, maxZ: maxZ - inset };
+            const cx = (aabb.minX + aabb.maxX) / 2, cz = (aabb.minZ + aabb.maxZ) / 2;
+            const rd = minRoadDist(cx, cz, roadSegments);
+            const type = d.type || d.profileId;
+            let reserved = false;
+            // Reserve only very remote parcels in some road-dependent districts to keep access buffers without wiping sparse-network areas
+            const hardReserveTypes = new Set(['parking', 'sports', 'industrial']);
+            if (hardReserveTypes.has(type) && Number.isFinite(rd) && rd > 300) reserved = true;
+            if (type === 'slums' && Number.isFinite(rd) && rd > 360) reserved = true;
             parcels.push({
               id: `${d.id}_p${seq}`,
               districtId: d.id,
-              type: d.type || d.profileId,
-              aabb: { minX: minX + inset, maxX: maxX - inset, minZ: minZ + inset, maxZ: maxZ - inset },
-              access: { edge: j === 0 ? 'south' : j === nz - 1 ? 'north' : (i === 0 ? 'west' : 'east') },
-              reserved: false,
+              type,
+              aabb,
+              access: { edge: j === 0 ? 'south' : j === nz - 1 ? 'north' : (i === 0 ? 'west' : 'east'), roadDist: Number.isFinite(rd) ? +rd.toFixed(2) : null },
+              reserved,
             });
           }
         }

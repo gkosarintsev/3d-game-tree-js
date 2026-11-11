@@ -137,6 +137,7 @@ export function makeStage4() {
       let placed = 0, skippedConflict = 0;
       for (const p of parcels) {
         if (placed >= budget) break;
+        if (p?.reserved) continue;
         const profile = profiles[p.type] || profiles[p.profileId] || {};
         const kinds = profile.buildings?.kinds ?? [];
         const coverage = clamp(Number(profile.parcels?.coverage ?? 0.3), 0, 0.85);
