@@ -248,8 +248,13 @@ function generateProps(ctx, stageId, cfg) {
     }
   }
 
-  // District-driven props
-  for (const p of parcels) {
+  // District-driven props (deterministic shuffled order for more even distribution across districts)
+  const parcelOrder = Array.isArray(parcels) ? parcels.slice() : [];
+  for (let i = parcelOrder.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [parcelOrder[i], parcelOrder[j]] = [parcelOrder[j], parcelOrder[i]];
+  }
+  for (const p of parcelOrder) {
     if (out.length >= budget) break;
     const d = districtById.get(p.districtId);
     const type = d?.type || p.type || 'residential';
