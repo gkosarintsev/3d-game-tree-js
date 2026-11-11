@@ -8,6 +8,25 @@ import { makeRng, mix } from '../rng.mjs';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+function pointSegDistXZ(px, pz, ax, az, bx, bz) {
+  const abx = bx - ax, abz = bz - az, apx = px - ax, apz = pz - az;
+  const ab2 = abx * abx + abz * abz || 1e-12;
+  const t = Math.max(0, Math.min(1, (apx * abx + apz * abz) / ab2));
+  return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
+}
+
+function minRoadDist(x, z, segments = []) {
+  let best = Infinity;
+  for (const s of segments) {
+    const pts = Array.isArray(s?.path) ? s.path : [];
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1];
+      best = Math.min(best, pointSegDistXZ(x, z, a[0], a[2], b[0], b[2]));
+    }
+  }
+  return best;
+}
+
 export const DEFAULT_PROFILES = {
   office: { id: 'office', label: 'Офисный', weight: 1.1, parcels: { min: 18, max: 42, coverage: 0.55 }, buildings: { kinds: ['office_tower', 'office_mid'], maxFloors: 20, materials: ['glass_and_concrete', 'concrete'] } },
   park: { id: 'park', label: 'Парк', weight: 0.9, parcels: { min: 24, max: 64, coverage: 0.12 }, buildings: { kinds: ['pavilion'], maxFloors: 2, materials: ['painted_brick', 'concrete'] } },
@@ -105,6 +124,9 @@ export function makeStage3() {
         }
 
         const typeCounts = Object.fromEntries(allTypeIds.map(t => [t, 0]));
+        const roadSegments = ctx.networks?.roads?.segments ?? [];
+        const roadNeedy = new Set(['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports']);
+        const roadAverse = new Set(['forest', 'park']);
         for (let j = 0; j < grid; j++) {
           for (let i = 0; i < grid; i++) {
             const key = `${i},${j}`;
@@ -114,16 +136,30 @@ export function makeStage3() {
             const nTypes = neighbors.filter(Boolean);
             let candidates = compatibleTypes(nTypes, profiles);
             if (!candidates.length) candidates = allTypeIds.slice();
+            const cx = -half + (i + 0.5) * cell;
+            const cz = -half + (j + 0.5) * cell;
+            const rd = minRoadDist(cx, cz, roadSegments);
 
             let type = preassigned.get(key);
             if (!type || !profiles[type] || !candidates.includes(type)) {
-              // weighted pick with mild balancing: prefer underrepresented types
+              // weighted pick with mild balancing and road-access bias
               let total = 0;
               const weights = candidates.map(id => {
                 const base = Math.max(0, Number(profiles[id]?.weight ?? 1));
                 const count = typeCounts[id] || 0;
                 const balance = 1 / (1 + count * 0.6);
-                const w = base * balance;
+                let access = 1;
+                if (Number.isFinite(rd) && rd !== Infinity) {
+                  if (roadNeedy.has(id)) {
+                    if (rd < cell * 0.7) access = 1.3;
+                    else if (rd < cell * 1.4) access = 1.05;
+                    else access = 0.78;
+                  } else if (roadAverse.has(id)) {
+                    if (rd < cell * 0.7) access = 0.88;
+                    else if (rd > cell * 1.2) access = 1.12;
+                  }
+                }
+                const w = base * balance * access;
                 total += w;
                 return { id, w };
               });
