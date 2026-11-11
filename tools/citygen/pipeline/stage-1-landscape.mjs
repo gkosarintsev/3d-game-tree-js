@@ -11,6 +11,62 @@ import { makeRng, mix } from '../rng.mjs';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const lerp = (a, b, t) => a + (b - a) * t;
+const EPS = 1e-9;
+
+function inBoundsXZ(x, z, half) {
+  return x >= -half - EPS && x <= half + EPS && z >= -half - EPS && z <= half + EPS;
+}
+
+function orient(ax, az, bx, bz, cx, cz) {
+  return (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+}
+
+function onSeg(ax, az, bx, bz, cx, cz) {
+  return Math.min(ax, bx) - EPS <= cx && cx <= Math.max(ax, bx) + EPS
+    && Math.min(az, bz) - EPS <= cz && cz <= Math.max(az, bz) + EPS;
+}
+
+function segsIntersect(a1, a2, b1, b2) {
+  const o1 = orient(a1[0], a1[2], a2[0], a2[2], b1[0], b1[2]);
+  const o2 = orient(a1[0], a1[2], a2[0], a2[2], b2[0], b2[2]);
+  const o3 = orient(b1[0], b1[2], b2[0], b2[2], a1[0], a1[2]);
+  const o4 = orient(b1[0], b1[2], b2[0], b2[2], a2[0], a2[2]);
+  if ((o1 > EPS && o2 < -EPS || o1 < -EPS && o2 > EPS) && (o3 > EPS && o4 < -EPS || o3 < -EPS && o4 > EPS)) return true;
+  if (Math.abs(o1) <= EPS && onSeg(a1[0], a1[2], a2[0], a2[2], b1[0], b1[2])) return true;
+  if (Math.abs(o2) <= EPS && onSeg(a1[0], a1[2], a2[0], a2[2], b2[0], b2[2])) return true;
+  if (Math.abs(o3) <= EPS && onSeg(b1[0], b1[2], b2[0], b2[2], a1[0], a1[2])) return true;
+  if (Math.abs(o4) <= EPS && onSeg(b1[0], b1[2], b2[0], b2[2], a2[0], a2[2])) return true;
+  return false;
+}
+
+function polylineSelfIntersects(path) {
+  const n = path.length;
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = i + 2; j < n - 1; j++) {
+      if (segsIntersect(path[i], path[i + 1], path[j], path[j + 1])) return true;
+    }
+  }
+  return false;
+}
+
+function distPointSegXZ(px, pz, ax, az, bx, bz) {
+  const abx = bx - ax, abz = bz - az;
+  const apx = px - ax, apz = pz - az;
+  const ab2 = abx * abx + abz * abz;
+  const t = ab2 > EPS ? clamp((apx * abx + apz * abz) / ab2, 0, 1) : 0;
+  const cx = ax + abx * t, cz = az + abz * t;
+  return Math.hypot(px - cx, pz - cz);
+}
+
+function riverMinDistToPoint(river, x, z) {
+  const path = river.path ?? [];
+  let best = Infinity;
+  for (let i = 0; i + 1 < path.length; i++) {
+    const a = path[i], b = path[i + 1];
+    best = Math.min(best, distPointSegXZ(x, z, a[0], a[2], b[0], b[2]));
+  }
+  return best;
+}
 
 function shouldGenerate(ctx) {
   const ls = ctx.input?.generator?.landscape;
@@ -183,19 +239,33 @@ export function makeStage1() {
       ctx.terrain.modifiers = uniqIds(mods, 'modifier', ctx, stageId);
 
       // waterways
+      const gp = ctx.input?.gameplay ?? {};
+      const anchors = [
+        { name: 'spawn', x: gp.spawn?.x ?? 0, z: gp.spawn?.z ?? 0 },
+        { name: 'exit', x: gp.exit?.x ?? 0, z: gp.exit?.z ?? 0 },
+      ];
       const rivers = [];
       for (const r of ctx.hydrology.rivers) {
         if (!r || typeof r !== 'object') {
           ctx.report.drops.push({ stage: stageId, id: null, reason: 'invalid_river' });
           continue;
         }
-        const path = Array.isArray(r.path) ? r.path.filter(p => Array.isArray(p) && p.length >= 2) : [];
+        let path = Array.isArray(r.path) ? r.path.filter(p => Array.isArray(p) && p.length >= 2).map(p => [Number(p[0]) || 0, Number(p[1]) || 0, Number(p[2]) || 0]) : [];
         if (path.length < 2) {
           ctx.report.diagnostics.push(warn('river_too_short', stageId, `river '${r.id ?? '?'}' dropped: path < 2 points`));
           ctx.report.drops.push({ stage: stageId, id: r.id ?? null, reason: 'river_too_short' });
           continue;
         }
-        let rr = { ...r };
+        // bounds: clamp points to plate
+        let clamped = false;
+        path = path.map(p => {
+          const x = clamp(p[0], -half, half), z = clamp(p[2], -half, half);
+          if (x !== p[0] || z !== p[2]) clamped = true;
+          return [Math.round(x * 1000) / 1000, p[1], Math.round(z * 1000) / 1000];
+        });
+        if (clamped) ctx.report.repairs.push({ stage: stageId, id: r.id ?? null, code: 'clamp_river_path_bounds' });
+
+        let rr = { ...r, path };
         if (Number.isFinite(rr.width)) {
           const cw = clamp(rr.width, 2, 200);
           if (cw !== rr.width) { rr.width = cw; ctx.report.repairs.push({ stage: stageId, id: rr.id, code: 'clamp_river_width', to: cw }); }
@@ -204,12 +274,39 @@ export function makeStage1() {
           const cd = clamp(rr.depth, 0, 100);
           if (cd !== rr.depth) { rr.depth = cd; ctx.report.repairs.push({ stage: stageId, id: rr.id, code: 'clamp_river_depth', to: cd }); }
         }
+
+        // geometric validation: self-intersection
+        if (polylineSelfIntersects(path)) {
+          ctx.report.diagnostics.push(warn('river_self_intersection', stageId, `river '${rr.id ?? '?'}' dropped: self-intersecting path`));
+          ctx.report.drops.push({ stage: stageId, id: rr.id ?? null, reason: 'river_self_intersection' });
+          continue;
+        }
+
+        // anchor conflict: river corridor too close to spawn/exit (flag/warn; bridges/routes handled later)
+        const clearance = (rr.width ?? 0) * 0.5 + 6;
+        for (const a of anchors) {
+          const d = riverMinDistToPoint(rr, a.x, a.z);
+          if (d < clearance) {
+            ctx.report.diagnostics.push(warn('river_anchor_conflict', stageId, `river '${rr.id ?? '?'}' within ${clearance.toFixed(1)}m of ${a.name} (dist ${d.toFixed(1)}m)`, { anchor: a.name, distance: d, id: rr.id ?? null }));
+          }
+        }
+
         // easement mask: reserve corridor around river centerline (approx by width)
         ctx.masks.easement.rivers.push({ id: rr.id ?? null, path, width: rr.width ?? 0 });
         rivers.push(rr);
       }
       ctx.hydrology.rivers = uniqIds(rivers, 'river', ctx, stageId);
       ctx.hydrology.lakes = uniqIds(ctx.hydrology.lakes, 'lake', ctx, stageId);
+
+      // terrain slope sanity (basic): very steep hill height/radius ratio
+      for (const m of ctx.terrain.modifiers) {
+        if (Number.isFinite(m.height) && Number.isFinite(m.radius) && m.radius > EPS) {
+          const ratio = Math.abs(m.height) / m.radius;
+          if (ratio > 0.8) {
+            ctx.report.diagnostics.push(warn('terrain_steep_modifier', stageId, `modifier '${m.id ?? '?'}' steep (|h|/r=${ratio.toFixed(2)})`, { id: m.id ?? null, ratio }));
+          }
+        }
+      }
     },
     repair(_ctx) {
       // Repairs applied during validate for locality/determinism in this skeleton.

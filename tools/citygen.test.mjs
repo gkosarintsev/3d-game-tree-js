@@ -97,3 +97,28 @@ test('citygen stage 1: procedural landscape generation is deterministic', () => 
   assert.equal(a.reportJson, b.reportJson);
   assert.ok(a.report.diagnostics.some(d => d.code === 'landscape_generated'));
 });
+
+test('citygen stage 1: clamps river path to bounds and drops self-intersecting river', () => {
+  const raw = v4Base();
+  raw.cityforge.hydrology.rivers = [
+    { id: 'oob', path: [[-200,0,0],[200,0,0],[200,0,50]], width: 8, depth: 2 },
+    { id: 'bow', path: [[0,0,0],[20,0,20],[20,0,0],[0,0,20]], width: 8, depth: 2 },
+  ];
+  const out = runCitygen(raw);
+  const rivers = out.engine.cityforge.hydrology.rivers;
+  assert.deepEqual(rivers.map(r => r.id), ['oob']);
+  assert.equal(rivers[0].path[0][0], -128);
+  assert.equal(rivers[0].path[1][0], 128);
+  assert.ok(out.report.repairs.some(r => r.code === 'clamp_river_path_bounds' && r.id === 'oob'));
+  assert.ok(out.report.drops.some(d => d.id === 'bow' && d.reason === 'river_self_intersection'));
+});
+
+test('citygen stage 1: warns on river-anchor conflict', () => {
+  const raw = v4Base(); // spawn 0,0 exit 10,10
+  raw.cityforge.hydrology.rivers = [
+    { id: 'r', path: [[-20,0,-5],[20,0,5]], width: 10, depth: 2 },
+  ];
+  const out = runCitygen(raw);
+  assert.equal(out.engine.cityforge.hydrology.rivers.length, 1);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'river_anchor_conflict' && d.severity === 'warn'));
+});

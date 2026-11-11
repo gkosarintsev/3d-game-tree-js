@@ -58,10 +58,11 @@
 
 ### [TASK-003] Слой 1 — ландшафт и гидрология (в работе)
 - [x] `tools/citygen/pipeline/stage-1-landscape.mjs`: prepare/generate/validate/repair/emit; санитаризация terrain modifiers и hydrology (clamp height/radius/center/width/depth), drop невалидных рек (path < 2), переименование дубликатов id, easement-маска русел, emit в `cityforge.terrain/hydrology`, диагностика/repairs/drops в отчёте.
-- [x] Базовая процедурная генерация из `generator.landscape` (детерминированно, seed/subseed): hills (mountain/valley, count/height/radius, размещение с отступом от spawn/exit) и опциональная река (meandering polyline, width/depth/axis/points, carveTerrain). Пасsthrough, если конфиг отсутствует/генерация не запрошена.
+- [x] Базовая процедурная генерация из `generator.landscape` (детерминированно, seed/subseed): hills (mountain/valley, count/height/radius, размещение с отступом от spawn/exit) и опциональная река (meandering polyline, width/depth/axis/points, carveTerrain). Passthrough, если конфиг отсутствует/генерация не запрошена.
+- [x] Геометрическая валидация/repair (базово): clamp точек русла в границы плиты (`clamp_river_path_bounds`), drop самопересекающихся русел (`river_self_intersection`), предупреждение о конфликте русла с якорями spawn/exit (`river_anchor_conflict`), предупреждение о крутом модификаторе (`terrain_steep_modifier`); easement-коридоры рек в маске.
 - [x] `tools/citygen/pipeline/stage.mjs`: поддержка `emit()`; оркестратор использует stage 1.
-- [x] Node-тесты: `tools/citygen.test.mjs` (детерминизм отчёта, clamp/repair, drop/rename/id-stability, easement, детерминизм процедурной генерации) — добавлено в CI (node job).
-- [ ] Геометрическая валидация: уклоны, затопление/уровни, границы плиты, самопересечения русел/контуров, конфликты с easement/якорями.
+- [x] Node-тесты: `tools/citygen.test.mjs` (детерминизм отчёта, clamp/repair, drop/rename/id-stability, easement, детерминизм процедурной генерации, bounds clamp, self-intersection drop, anchor conflict) — в CI (node job).
+- [ ] Углублённая геометрическая валидация: уклоны/затопление по рельефу, самопересечения контуров/озёр, конфликты easement с обязательными коридорами (с учётом мостов/сети).
 - [ ] Расширенный repair (сглаживание/снижение амплитуды, сдвиг/перетрассировка русла, маркировка «нестроевых» зон) и процедурная генерация, достаточная для пилота гл.16.
 
 ## Остаётся уточнить
