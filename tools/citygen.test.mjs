@@ -122,3 +122,48 @@ test('citygen stage 1: warns on river-anchor conflict', () => {
   assert.equal(out.engine.cityforge.hydrology.rivers.length, 1);
   assert.ok(out.report.diagnostics.some(d => d.code === 'river_anchor_conflict' && d.severity === 'warn'));
 });
+
+test('citygen stage 2: drops degenerate segment and warns on steep slope', () => {
+  const raw = v4Base();
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'a', position: [0,0,0], layer: 'ground' },
+      { id: 'b', position: [100,0,0], layer: 'ground' },
+    ],
+    segments: [
+      { id: 'bad', from: 'a', to: 'b', type: 'local', layer: 'ground', path: [[0,0,0]] },
+      { id: 'steep', from: 'a', to: 'b', type: 'local', layer: 'ground', path: [[0,0,0],[10,20,0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  const segs = out.engine.cityforge.networks.roads.segments;
+  assert.deepEqual(segs.map(s => s.id), ['steep']);
+  assert.ok(out.report.drops.some(d => d.id === 'bad' && d.reason === 'segment_degenerate'));
+  assert.ok(out.report.diagnostics.some(d => d.code === 'segment_steep' && d.stage === '2_transport'));
+});
+
+test('citygen stage 2: reports disconnected road graph and anchor distance warning', () => {
+  const raw = v4Base();
+  raw.gameplay.spawn = { x: -100, z: -100 };
+  raw.gameplay.exit = { x: 100, z: 100 };
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'n1', position: [0,0,0], layer: 'ground' },
+      { id: 'n2', position: [10,0,0], layer: 'ground' },
+      { id: 'n3', position: [0,0,50], layer: 'ground' },
+      { id: 'n4', position: [10,0,50], layer: 'ground' },
+    ],
+    segments: [
+      { id: 's1', from: 'n1', to: 'n2', type: 'local', layer: 'ground', path: [[0,0,0],[10,0,0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+      { id: 's2', from: 'n3', to: 'n4', type: 'local', layer: 'ground', path: [[0,0,50],[10,0,50]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const a = runCitygen(structuredClone(raw));
+  const b = runCitygen(structuredClone(raw));
+  assert.equal(a.reportJson, b.reportJson);
+  assert.ok(a.report.diagnostics.some(d => d.code === 'road_graph_disconnected'));
+  assert.ok(a.report.diagnostics.some(d => d.code === 'anchor_far_from_roads'));
+  assert.equal(a.ctx.masks.easement.roads.length, 2);
+});

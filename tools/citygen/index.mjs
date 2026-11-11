@@ -7,11 +7,12 @@ import { createContext } from './context.mjs';
 import { runStage, stage } from './pipeline/stage.mjs';
 import { finalizeReport, reportToJson } from './diagnostics.mjs';
 import { makeStage1 } from './pipeline/stage-1-landscape.mjs';
+import { makeStage2 } from './pipeline/stage-2-transport.mjs';
 
 const STAGES = [
   stage('0_input_space', {}),
   makeStage1(),
-  stage('2_transport', {}),
+  makeStage2(),
   stage('3_districts_parcels', {}),
   stage('4_buildings_structures', {}),
   stage('5_infrastructure_props', {}),
