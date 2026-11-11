@@ -1390,6 +1390,81 @@ function generateTransport(ctx) {
     ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4)} procedural spur(s)`, { requested: clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4), made }));
   }
 
+  // M3 B2 prototype fallback: try to convert one suitable existing ground segment
+  // into an overpass if main-route prototype was not applied.
+  if (!mainParts.some(p => p && p.interchange === 'overpass')) {
+    const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
+    const INTERCHANGE_CLEARANCE = 3.8;
+    const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.12);
+    for (let si = 0; si < segments.length; si++) {
+      const seg = segments[si];
+      if (!seg || seg.layer === 'elevated' || seg.type === 'arterial') continue; // keep main arterial profile stable unless prototype targeted it
+      const path = Array.isArray(seg.path) ? seg.path : null;
+      if (!path || path.length < 2) continue;
+      const len = totalLen(path);
+      if (len < 64) continue;
+      // axis-aligned straight check (tolerant)
+      const dxSpan = Math.abs(path[path.length - 1][0] - path[0][0]);
+      const dzSpan = Math.abs(path[path.length - 1][2] - path[0][2]);
+      if (dxSpan > 1.0 && dzSpan > 1.0) continue;
+      let straight = true;
+      for (let i = 1; i < path.length; i++) {
+        if (dxSpan <= dzSpan) { if (Math.abs(path[i][0] - path[0][0]) > 1.0) { straight = false; break; } }
+        else { if (Math.abs(path[i][2] - path[0][2]) > 1.0) { straight = false; break; } }
+      }
+      if (!straight) continue;
+      const a = path[0].slice(), b = path[path.length - 1].slice();
+      const run = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      if (run < 64) continue;
+      const ux = (b[0] - a[0]) / run, uz = (b[2] - a[2]) / run;
+      let nearRiver = false;
+      for (let i = 0; i + 1 < path.length && !nearRiver; i++) {
+        if (segCrossesRiver(path[i][0], path[i][2], path[i+1][0], path[i+1][2], rivers)) nearRiver = true;
+      }
+      if (nearRiver) continue;
+      const aY = a[1] ?? sampler.heightAt(a[0], a[2]);
+      const bY = b[1] ?? sampler.heightAt(b[0], b[2]);
+      if (Math.abs(aY - bY) > 2.5) continue;
+      const endMaxY = Math.max(aY, bY);
+      let midTerrain = -Infinity;
+      const steps = Math.max(8, Math.ceil(run / 8));
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        midTerrain = Math.max(midTerrain, sampler.heightAt(a[0] + (b[0]-a[0])*t, a[2] + (b[2]-a[2])*t));
+      }
+      if (!Number.isFinite(midTerrain)) midTerrain = sampler.groundY;
+      const deckH = Math.max(midTerrain + INTERCHANGE_CLEARANCE, endMaxY + 2.2, sampler.groundY + BRIDGE_DECK_MIN);
+      const riseNeed = Math.max(deckH - aY, deckH - bY, 0);
+      let rampLen = clamp(Math.max(18, riseNeed / Math.max(RAMP_SLOPE, 0.05)), 18, run * 0.34);
+      if (run - rampLen * 2 < 16) continue;
+      if ((deckH - aY) / rampLen > RAMP_SLOPE + 1e-6 || (deckH - bY) / rampLen > RAMP_SLOPE + 1e-6) continue;
+      const r1 = [a[0] + ux * rampLen, a[2] + uz * rampLen];
+      const r2 = [b[0] - ux * rampLen, b[2] - uz * rampLen];
+      const yR1 = aY + Math.sign(deckH - aY) * Math.min(Math.abs(deckH - aY), RAMP_SLOPE * rampLen);
+      const yR2 = bY + Math.sign(deckH - bY) * Math.min(Math.abs(deckH - bY), RAMP_SLOPE * rampLen);
+      const pts = [
+        [a[0], aY, a[2]],
+        [Math.round(r1[0]*100)/100, Math.round(yR1*100)/100, Math.round(r1[1]*100)/100],
+        [Math.round(((r1[0]+r2[0])/2)*100)/100, Math.round(deckH*100)/100, Math.round(((r1[1]+r2[1])/2)*100)/100],
+        [Math.round(r2[0]*100)/100, Math.round(yR2*100)/100, Math.round(r2[1]*100)/100],
+        [b[0], bY, b[2]],
+      ];
+      let prof = enforceSlope(pts.map(p => p.slice()), RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+      prof = pinEndpoints(prof, [a[0], aY, a[2]], [b[0], bY, b[2]], RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+      if (!Array.isArray(prof) || prof.length < 2) continue;
+      if (pathMaxSlope(prof) > RAMP_SLOPE + 0.02) continue;
+      const midProfY = prof.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
+      if (!(midProfY > endMaxY + 1.0)) continue;
+      seg.path = prof.map(p => p.slice());
+      seg.layer = 'elevated';
+      seg.interchange = 'overpass';
+      ctx.report.diagnostics.push(info('transport_interchange_overpass', stageId, 'applied overpass interchange prototype on generated segment', {
+        segmentId: seg.id, deckH: +deckH.toFixed(2), rampLen: +rampLen.toFixed(2), len: +run.toFixed(2),
+      }));
+      break;
+    }
+  }
+
   ctx.networks.roads.nodes = nodes;
   ctx.networks.roads.segments = segments;
   ctx.networks.roads.junctions = [];

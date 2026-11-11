@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 110,
+      "diagnostics": 111,
       "repairs": 0,
       "drops": 0
     },
@@ -1397,6 +1397,16 @@
       "seed": 1865128548,
       "branches": 113,
       "profiled": true
+    },
+    {
+      "severity": "info",
+      "code": "transport_interchange_overpass",
+      "stage": "2_transport",
+      "message": "applied overpass interchange prototype on generated segment",
+      "segmentId": "tr_sp1_r",
+      "deckH": 3.8,
+      "rampLen": 31.67,
+      "len": 96
     },
     {
       "severity": "info",
