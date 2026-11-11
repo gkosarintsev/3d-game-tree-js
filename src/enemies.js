@@ -234,6 +234,8 @@ export class Enemy {
 
     this.group.position.set(node.x, node.y, node.z);
     this.group.rotation.set(0, Math.random() * Math.PI * 2, 0);
+    this.mesh.position.set(0, 0, 0);
+    this.mesh.rotation.set(0, 0, 0);
     this.group.visible = true;
     this.feetY = node.y;
     this.facing = this.group.rotation.y;
@@ -255,6 +257,7 @@ export class Enemy {
     this.deathTimer = 0;
     this.respawnTimer = 0;
     this.offstage = false;
+    this.animTime = 0;
     this.mesh.material.emissive.setHex(0x000000); // сброс подсветки попадания
     this._hpBar.visible = false;
     this._updateHealthBar();
@@ -334,6 +337,7 @@ export class Enemy {
     // полоска всегда над головой и развёрнута к камере
     this._hpBar.position.set(this.position.x, this.feetY + 2.05, this.position.z);
     this._hpBar.quaternion.copy(camera.quaternion);
+    this.animTime += dt;
 
     // за бортом активного окна: ждём очередь возрождения, не стреляем и не идём
     // через несобранный район (маршрута к игроку в новом графе у такого нет)
@@ -347,7 +351,10 @@ export class Enemy {
       if (this.deathTimer > 0) {
         this.deathTimer -= dt;
         // заваливается на бок и оседает, затем скрывается до возрождения
-        this.group.rotation.x = -(1 - Math.max(0, this.deathTimer) / 0.9) * Math.PI / 2;
+        const t = 1 - Math.max(0, this.deathTimer) / 0.9;
+        this.group.rotation.x = -t * Math.PI / 2;
+        this.mesh.position.set(0, 0, 0);
+        this.mesh.rotation.set(0, 0, 0);
         if (this.deathTimer <= 0) this.group.visible = false;
       }
       this.respawnTimer -= dt;
@@ -441,6 +448,17 @@ export class Enemy {
     }
     this.facing += wrapAngle(targetYaw - this.facing) * Math.min(1, dt * 8);
     this.group.rotation.y = this.facing;
+
+    // Процедурная анимация (визуал, без влияния на симуляцию/коллизии): шаг/покачивание/отдача.
+    const move01 = Math.min(1, speed2d / Math.max(0.001, cfg.speed.run));
+    const walkCycle = this.animTime * (6.5 + move01 * 5.5) + this.animPhase;
+    const bob = Math.sin(walkCycle * 2) * (0.02 + 0.03 * move01);
+    const sway = Math.sin(walkCycle) * (0.015 + 0.03 * move01);
+    const lean = (this.state === 'attack' ? 0.03 : 0.01 + 0.04 * move01);
+    this.mesh.position.y = bob;
+    this.mesh.rotation.z = sway;
+    this.mesh.rotation.x = -lean;
+    this.group.position.y = this.feetY;
 
     // --- огонь по игроку ---
     if (this.state === 'attack') {
