@@ -14,10 +14,10 @@
 - [x] A2.4: `--check`/пересборка пилота и node-gates зелёные
 
 ### M2 — Детали и perf-gate (в работе)
-- [~] A3.1: аудит текущей детализации/баланса (выявлено: `district_without_buildings` для `district_1_1` campus и `district_1_2` residential; `suburb` не попал в раскладку гл.16 при 4×4; luxury access 0.573 без предупреждения)
-- [~] A3.2: улучшение district-правил/баланса (stage 4: добавлен pass представительности районов; для проблемных районов конфликт/геометрия пока блокирует установку — требуется доработка)
-- [ ] A3.3: новые процедурные props/вариации материалов при необходимости
-- [ ] A3.4: perf-gate (`open-world --details`, worst-frame `picture`) и фиксация метрик
+- [x] A3.1: аудит текущей детализации/баланса (выявлено: отсутствие зданий в части районов из-за бюджетного насыщения/конфликтов easement-масок, `suburb` не попал в раскладку гл.16 при 4×4, luxury access 0.573 без порогового предупреждения)
+- [~] A3.2: улучшение district-правил/баланса — **частично**: stage 4 (лимит normalBudget, pass представительности, детерминированное recovery-размещение с игнорированием только easement-AABB при проверке реальных сегментов дорог) устранил `district_without_buildings` в пилоте гл.16; остаются баланс типов/раскладки (`suburb`), luxury access и возможная донастройка конфликт-логики
+- [ ] A3.3: новые процедурные props/вариации материалов при необходимости (доп. детализация районов)
+- [ ] A3.4: perf-gate (`open-world --details`, worst-frame `picture`) и фиксация метрик (не выполнялось в этой сессии)
 
 ### M3 — Развязки (прототип)
 - [ ] B1–B3: спецификация/шаблоны/валидация
@@ -28,12 +28,11 @@
 ### M5 — Расширение и стабилизация
 - [ ] B4, C4–C5: тесты/perf/lifecycle/полировка
 
-## Результаты M1 (пилот гл.16, детерминированно)
-- Пересборка: `src/levels/level-16.json` (car spot скорректирован) → `src/levels/level-16/` + `generation-report.json`.
-- Сеть/сводка: roads 134/110, components 1, skeleton 3965/3963 (441→2, 37 вне большой сети), 400 зданий / 320 props / 8 lights, chunks 5×5, summary 0E/3W/12R/0D.
-- Новые типы в пилоте: `commercial`, `campus`, `market`, `old_town` (+ `suburb` в профилях/генераторе, в данной раскладке может не выпадать из-за сетки/target mix). Props/buildings присутствуют для commercial/campus/market/old_town.
-- Доступ (report): нет `district_type_poor_road_access`; `anchors_connected_network`. Road-needy ratios: industrial 0.922, luxury 0.573, office 1.0, parking 0.981, residential 0.988, sports 1.0 (luxury ниже прочих, но без порогового предупреждения).
-- Предупреждения: `district_without_buildings` для `district_1_1` (campus) и `district_1_2` (residential) — баланс/покрытие зданий в части районов можно доработать в M2.
+## Результаты M1/M2 (пилот гл.16, детерминированно, после баланс-прохода)
+- Пересборка: `src/levels/level-16.json` → `src/levels/level-16/` + `generation-report.json`.
+- Сеть/сводка: roads 134/110, components 1, skeleton 3965/3963 (441→2, 37 вне большой сети), **401** здание / **320** props / **8** lights, chunks 5×5, summary **0E/0W/12R/0D** (нет `district_without_buildings`).
+- Новые типы в пилоте: `commercial`, `campus`, `market`, `old_town` (+ `suburb` в профилях/генераторе, в данной раскладке 4×4 может не выпадать). Props/buildings присутствуют для commercial/campus/market/old_town.
+- Доступ (report): нет `district_type_poor_road_access`; `anchors_connected_network`. Road-needy ratios: industrial 0.922, luxury 0.573, office 1.0, parking 0.981, residential 0.988, sports 1.0 (luxury ниже прочих, без порогового предупреждения; требуется M2 A3.2).
 
 ## Проверки
 - `node --check` stage 3/4/5 ok
@@ -47,4 +46,5 @@
 
 ## Лог
 - 2026-11-12: создан план и состояние. Реализован M1 базово (stage 3/4/5, пилот пересобран, тесты/артефакты обновлены, gates зелёные).
-- 2026-11-12: начат M2 — аудит баланса/деталей пилота гл.16, добавлен pass представительности районов в stage 4 (без изменения текущего детерминированного вывода; `district_without_buildings` для campus/residential сохраняется из-за конфликтов/размещения), требуется дальнейшая доработка A3.2–A3.4 и perf-замеры. M3 (развязки), M4–M5 (анимации) запланированы.
+- 2026-11-12: начат M2 — аудит баланса/деталей пилота гл.16, добавлен pass представительности районов в stage 4; выявлены `district_without_buildings` (campus/residential) из-за бюджетного насыщения и конфликтов easement-масок.
+- 2026-11-12: M2 A3.1/A3.2 (частично) — нормализация бюджета размещения и детерминированное recovery-размещение (проверка реальных сегментов дорог, игнорирование только easement-AABB в recovery) устранили `district_without_buildings` в гл.16 (401 здание, 0W). Пилот/тесты/артефакты обновлены, node-gates зелёные. Остаются: баланс типов/`suburb`/luxury access (A3.2), доп. детали/props (A3.3), perf-gate (A3.4), M3 (развязки), M4–M5 (анимации).

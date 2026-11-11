@@ -69,18 +69,20 @@ function footprintIntersectsRiver(fp, rivers = [], riverIndex = null) {
   return false;
 }
 
-function footprintIntersectsRoad(fp, roads = [], roadSegments = [], roadIndex = null) {
+function footprintIntersectsRoad(fp, roads = [], roadSegments = [], roadIndex = null, { ignoreEasements = false } = {}) {
   const b = aabbOfFootprint(fp);
   const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
   const samplePts = [[b.minX,b.minZ],[b.maxX,b.minZ],[b.maxX,b.maxZ],[b.minX,b.maxZ],[cx,cz]];
   const padMax = 16; // conservative query margin (typ lane half-width + clearance)
-  const candidates = roadIndex
-    ? roadIndex.query({ minX: b.minX - padMax, maxX: b.maxX + padMax, minZ: b.minZ - padMax, maxZ: b.maxZ + padMax })
-    : roads;
-  for (const r of candidates) {
-    if (r && Number.isFinite(r.minX)) {
-      const pad = (r.width ?? 8) * 0.5 + 1.5;
-      if (b.maxX >= r.minX - pad && b.minX <= r.maxX + pad && b.maxZ >= r.minZ - pad && b.minZ <= r.maxZ + pad) return true;
+  if (!ignoreEasements) {
+    const candidates = roadIndex
+      ? roadIndex.query({ minX: b.minX - padMax, maxX: b.maxX + padMax, minZ: b.minZ - padMax, maxZ: b.maxZ + padMax })
+      : roads;
+    for (const r of candidates) {
+      if (r && Number.isFinite(r.minX)) {
+        const pad = (r.width ?? 8) * 0.5 + 1.5;
+        if (b.maxX >= r.minX - pad && b.minX <= r.maxX + pad && b.maxZ >= r.minZ - pad && b.minZ <= r.maxZ + pad) return true;
+      }
     }
   }
   for (const s of roadSegments) {
@@ -199,7 +201,8 @@ export function makeStage4() {
       const rng = makeRng(seed);
       const out = [];
       const size = ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256;
-      const budget = Math.min(400, Math.max(40, Math.floor(size * size / 3000))); // rough density cap
+      const budget = Math.min(420, Math.max(40, Math.floor(size * size / 3000))); // overall cap (+headroom for district representation)
+      const normalBudget = Math.min(budget, 400);
       const rivers = ctx.masks?.easement?.rivers ?? ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? [];
       const roads = ctx.masks?.easement?.roads ?? [];
       const roadSegments = ctx.networks?.roads?.segments ?? ctx.input?.cityforge?.networks?.roads?.segments ?? [];
@@ -287,7 +290,7 @@ export function makeStage4() {
           if (d >= maxD - 0.01) w = clamp(maxW * s * s / (d / maxD || 1), 4, maxW);
           const fp = footprintRect(cx, cz, w, d);
           const riverIndex = (rivers === (ctx.hydrology?.rivers ?? null) || rivers === (ctx.masks?.easement?.rivers ?? null)) ? (ctx.spatial?.riverSegments ?? null) : null;
-          if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers, riverIndex) || footprintIntersectsRoad(fp, roads, roadSegments, ctx.spatial?.roadEasements)) continue;
+          if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers, riverIndex) || footprintIntersectsRoad(fp, roads, roadSegments, ctx.spatial?.roadEasements, { ignoreEasements: !!force && !!relaxChunk })) continue;
           footprint = fp;
           break;
         }
@@ -369,26 +372,27 @@ export function makeStage4() {
       };
 
       for (const p of orderedParcels) {
-        if (placed >= budget) break;
+        if (placed >= normalBudget) break;
         tryPlaceBuilding(p);
       }
       // Fill pass: if chunk balancing left budget unused, relax chunk pressure to reach target density.
-      if (placed < budget) {
+      if (placed < normalBudget) {
         for (const p of orderedParcels) {
-          if (placed >= budget) break;
+          if (placed >= normalBudget) break;
           tryPlaceBuilding(p, { relaxChunk: true });
         }
       }
       // Final fallback: if still under budget, allow placement with minimal extra pressure (keeps some spread).
-      if (placed < Math.floor(budget * 0.9)) {
+      if (placed < Math.floor(normalBudget * 0.9)) {
         for (const p of orderedParcels) {
-          if (placed >= budget) break;
+          if (placed >= normalBudget) break;
           if (placedParcel.has(p) || p?.reserved) continue;
           tryPlaceBuilding(p, { relaxChunk: true });
         }
       }
       // Ensure district representation: try to place at least one building in districts that have buildable kinds.
-      if (placed < budget) {
+      const reprBudget = budget;
+      if (placed < reprBudget) {
         const placedByDistrict = new Map();
         for (const b of out) {
           const m = /^b_(.+)_\d+$/.exec(String(b.id || ''));
@@ -411,12 +415,62 @@ export function makeStage4() {
             const bd = Number.isFinite(b?.access?.roadDist) ? b.access.roadDist : minDistanceToRoadSegments(bcx,bcz,roadSegments);
             return (Number.isFinite(ad)?ad:1e9) - (Number.isFinite(bd)?bd:1e9);
           });
-          for (const p of dp.slice(0, 40)) {
-            if (placed >= budget) break;
+          let placedDistrict = false;
+          for (const p of dp.slice(0, 80)) {
+            if (placed >= reprBudget) break;
             if (tryPlaceBuilding(p, { relaxChunk: true, force: true })) {
               placedByDistrict.set(d.id, (placedByDistrict.get(d.id) || 0) + 1);
+              placedDistrict = true;
               break;
             }
+          }
+          if (placedDistrict) continue;
+          // Deterministic recovery: place a minimal valid building ignoring easement AABBs and probabilistic/RNG shape variance.
+          for (const p of dp.slice(0, 120)) {
+            if (placed >= reprBudget) break;
+            const b = p.aabb; if (!b) continue;
+            const pw = b.maxX - b.minX, ph = b.maxZ - b.minZ;
+            if (pw < 6 || ph < 6) continue;
+            const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+            let footprint = null;
+            for (const scale of [0.45, 0.35, 0.28]) {
+              const w = clamp((pw - 2) * scale, 4, Math.max(4, pw - 2));
+              const dlen = clamp((ph - 2) * scale, 4, Math.max(4, ph - 2));
+              const fp = footprintRect(cx, cz, w, dlen);
+              const riverIndex = (rivers === (ctx.hydrology?.rivers ?? null) || rivers === (ctx.masks?.easement?.rivers ?? null)) ? (ctx.spatial?.riverSegments ?? null) : null;
+              if (footprintNearAnchors(fp, anchors, 10)) continue;
+              if (footprintIntersectsRiver(fp, rivers, riverIndex)) continue;
+              if (footprintIntersectsRoad(fp, roads, roadSegments, ctx.spatial?.roadEasements, { ignoreEasements: true })) continue;
+              footprint = fp;
+              break;
+            }
+            if (!footprint) continue;
+            const kind = kinds[0] || 'generic';
+            const arch = ARCHETYPES[kind] || null;
+            const maxFloors = Math.max(1, Number(profile.buildings?.maxFloors ?? (arch ? arch.floors[1] : 2)));
+            const floors = clamp(arch ? arch.floors[0] : 1, 1, maxFloors);
+            const floorHeight = arch ? +Number(arch.floorHeight[0]).toFixed(2) : (d.type === 'industrial' ? 4.5 : 3.3);
+            const id = `b_${d.id}_${placed + 1}`;
+            out.push({
+              id,
+              name: `B ${placed + 1}`,
+              isEnterable: false,
+              floorsCount: floors,
+              floorHeight,
+              foundation: 'terrain',
+              facadeMaterial: (materialFor(profile, kind, () => 0)),
+              footprint,
+              rooms: [],
+              stairs: [],
+            });
+            placed++;
+            placedParcel.add(p);
+            placedByType[d.type] = (placedByType[d.type] || 0) + 1;
+            const ck = chunkKeyFor(cx, cz);
+            if (ck) placedPerChunk.set(ck, (placedPerChunk.get(ck) || 0) + 1);
+            placedByDistrict.set(d.id, (placedByDistrict.get(d.id) || 0) + 1);
+            placedDistrict = true;
+            break;
           }
         }
       }

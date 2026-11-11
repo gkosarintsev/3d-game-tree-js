@@ -539,13 +539,14 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.equal(fin?.roadComponents, 1, 'pilot road graph should be connected');
   assert.equal(fin?.roadSegments, 134);
   assert.equal(fin?.roadNodes, 110);
-  assert.equal(fin?.buildings, 400);
+  assert.equal(fin?.buildings, 401);
   assert.equal(fin?.props, 320);
   assert.equal(fin?.lights, 8);
-  // M1 expansion: pilot should include newly added district/building variety.
+  // M1/M2 expansion: pilot should include newly added district/building variety and building coverage across buildable districts.
   assert.ok(Array.isArray(fin?.districtTypes) && fin.districtTypes.includes('commercial') && fin.districtTypes.includes('campus') && fin.districtTypes.includes('market') && fin.districtTypes.includes('old_town'));
   assert.ok(fin?.propsByDistrictType?.commercial > 0 && fin?.propsByDistrictType?.campus > 0 && fin?.propsByDistrictType?.market > 0 && fin?.propsByDistrictType?.old_town > 0);
-  assert.ok(fin?.buildingsByDistrictType?.commercial > 0 && fin?.buildingsByDistrictType?.market > 0 && fin?.buildingsByDistrictType?.old_town > 0);
+  assert.ok(fin?.buildingsByDistrictType?.commercial > 0 && fin?.buildingsByDistrictType?.campus > 0 && fin?.buildingsByDistrictType?.market > 0 && fin?.buildingsByDistrictType?.old_town > 0 && fin?.buildingsByDistrictType?.residential > 0);
+  assert.ok(!report.diagnostics.some(d => d.code === 'district_without_buildings' && d.stage === '6_finalize_emit'), 'pilot buildable districts should have building coverage');
 });
 
 test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {
