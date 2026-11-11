@@ -70,7 +70,7 @@
 - [x] Оркестратор использует stage 2; node-тесты в `tools/citygen.test.mjs` (degenerate/steep, связность/якоря/easement, детерминизм, stage 3/5 инварианты, e2e).
 - [x] Базовая процедурная генерация `generator.transport.generate` (детерминированно): осевая L-артерия spawn↔exit, terrain/river-aware профилирование, мостовой профиль с клиренсом, slope/endpoint repair, gate-эмиссия только engine-valid (axis-aligned, slope-safe).
 - [x] `tools/cityforge-compile.mjs`: привязка площадок `anchored` — по ближайшей точке; проброс `lights`/`landscapeObjects`.
-- [x] Инкремент ветвлений: детерминированные плоские наземные spurs от `spawn` в безопасных условиях (axis-aligned, ground-level, без пересечения реки, в границах мира, slope-safe). Пилот level-16: `tr_main + tr_sp1_r + tr_sp2_r` (3 сегмента), 0 предупреждений, скелет связен.
+- [x] Инкремент ветвлений: детерминированные плоские наземные spurs от `spawn` в безопасных условиях (axis-aligned, ground-level, без пересечения реки, в границах мира, slope-safe) + соединение spurs в локальный блок (`tr_spc_*`) при валидности. Пилот level-16: 5 сегментов (`tr_main`, 2 spurs, 2 connector), 0 предупреждений, скелет связен.
 - [ ] Полноценная генерация сети/коннекторов/развязок (ветвления от произвольных участков/узлов, корректные концы рамп/сопряжения с полотном, клиренсы, самопересечения/ярусы, развязки), гарантированная достижимость `spawn↔exit`, расширенная валидация/repair.
 - [x] Repair связности: при разрыве компонент `spawn↔exit` добавляется профилированный коннектор (`tr_repair_connect`, `connect_spawn_exit_components` / `transport_repaired_connectivity`).
 - [x] e2e v4 (landscape+transport) компилируется в open-каталог стабильно (`node --test tools/citygen.test.mjs`, `node tools/check-levels.mjs`).
