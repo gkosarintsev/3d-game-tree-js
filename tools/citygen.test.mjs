@@ -198,6 +198,28 @@ test('citygen stage 2: procedural transport generation is deterministic and conn
   assert.ok(!a.report.diagnostics.some(d => d.code === 'road_graph_disconnected'));
 });
 
+test('citygen stage 3: auto-generates deterministic districts and parcels with diverse types', () => {
+  const base = () => {
+    const raw = v4Base();
+    raw.ground.size = 1280;
+    raw.gameplay.spawn = { x: -260, z: 160 };
+    raw.gameplay.exit = { x: 560, z: 560 };
+    raw.generator.seed = 15;
+    return raw;
+  };
+  const a = runCitygen(base());
+  const b = runCitygen(base());
+  assert.equal(a.reportJson, b.reportJson);
+  assert.ok(a.ctx.districts.length >= 9); // 4x4 grid for >=1024
+  assert.ok(a.ctx.parcels.length > a.ctx.districts.length);
+  const types = new Set(a.ctx.districts.map(d => d.type));
+  assert.ok(types.size >= 4, 'expected several district types');
+  assert.ok(a.report.diagnostics.some(d => d.code === 'districts_generated'));
+  assert.ok(a.report.diagnostics.some(d => d.code === 'parcels_generated'));
+  const districtStage = a.report.stages.find(s => s.id === '3_districts_parcels');
+  assert.ok(districtStage && districtStage.status === 'ok');
+});
+
 test('citygen v4 end-to-end: generated landscape+transport compiles to open catalog', () => {
   const raw = {
     $schema: './level-v4.schema.json', kind: 'cityforge', schemaVersion: 4,

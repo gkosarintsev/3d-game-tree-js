@@ -8,12 +8,13 @@ import { runStage, stage } from './pipeline/stage.mjs';
 import { finalizeReport, reportToJson } from './diagnostics.mjs';
 import { makeStage1 } from './pipeline/stage-1-landscape.mjs';
 import { makeStage2 } from './pipeline/stage-2-transport.mjs';
+import { makeStage3 } from './pipeline/stage-3-districts.mjs';
 
 const STAGES = [
   stage('0_input_space', {}),
   makeStage1(),
   makeStage2(),
-  stage('3_districts_parcels', {}),
+  makeStage3(),
   stage('4_buildings_structures', {}),
   stage('5_infrastructure_props', {}),
   stage('6_finalize_emit', {}),
