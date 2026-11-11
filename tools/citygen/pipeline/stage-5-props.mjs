@@ -35,6 +35,21 @@ function minDistToRoads(x, z, segments = []) {
   return best;
 }
 
+function nearElevatedRoad(x, z, segments = [], groundY = 0) {
+  for (const s of segments) {
+    const pts = pathPoints(s); if (!pts) continue;
+    const w = (Array.isArray(s?.lanes) && s.lanes[0]?.width) ? s.lanes[0].width : (s.width ?? 8);
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const d = pointSegDistXZ(x, z, a[0], a[2], b[0], b[2]);
+      if (d > w * 0.5 + 5.0) continue;
+      const y = Math.max(a[1] ?? groundY, b[1] ?? groundY);
+      if (y > groundY + 0.15) return true;
+    }
+  }
+  return false;
+}
+
 function pointInRect(x, z, r, pad = 0) {
   return x >= r.minX - pad && x <= r.maxX + pad && z >= r.minZ - pad && z <= r.maxZ + pad;
 }
@@ -132,27 +147,30 @@ function generateProps(ctx, stageId, cfg) {
     ctx.input?.gameplay?.exit ? { x: ctx.input.gameplay.exit.x, z: ctx.input.gameplay.exit.z } : null,
   ].filter(Boolean);
   const buildingRects = buildings.map(b => footprintAabb(b.footprint));
+  const baseGroundY = ctx.input?.ground?.y ?? 0;
 
   const tooCloseToRiver = (x, z) => rivers.some(rv => (rv.path || []).some((pt, i, a) => {
     if (i + 1 >= a.length) return false;
-    const w = (rv.width ?? 10) * 0.5 + 6.0;
+    const w = (rv.width ?? 10) * 0.5 + 8.0;
     return pointSegDistXZ(x, z, pt[0], pt[2], a[i + 1][0], a[i + 1][2]) < w;
   }));
-  const blocked = (x, z, roadPad = 3.5) => {
+  const blocked = (x, z, roadPad = 4.0) => {
     if (minDistToRoads(x, z, roads) < roadPad) return true;
+    if (nearElevatedRoad(x, z, roads, baseGroundY)) return true;
     if (tooCloseToRiver(x, z)) return true;
     if (anchors.some(a => distXZ(x, z, a.x, a.z) < 8)) return true;
-    if (buildingRects.some(r => pointInRect(x, z, r, 1.5))) return true;
+    if (buildingRects.some(r => pointInRect(x, z, r, 2.0))) return true;
     return false;
   };
 
   const size = ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256;
-  const budget = clamp(Number.isInteger(cfg.objectBudget) ? cfg.objectBudget : Math.round(size / 4), 20, 220);
+  const budget = clamp(Number.isInteger(cfg.objectBudget) ? cfg.objectBudget : Math.round(size / 3), 40, 320);
   const out = [];
   let attempts = 0;
   const tryPlace = (model, x, y, z, rotY = 0, scale = { x: 1, y: 1, z: 1 }, roadPad = 3.5, minSep = 4) => {
     attempts++;
     if (out.length >= budget) return false;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return false;
     if (blocked(x, z, roadPad)) return false;
     if (out.some(p => distXZ(p.position.x, p.position.z, x, z) < minSep)) return false;
     out.push({
@@ -163,6 +181,16 @@ function generateProps(ctx, stageId, cfg) {
       scale: { x: +scale.x.toFixed(3), y: +scale.y.toFixed(3), z: +scale.z.toFixed(3) },
     });
     return true;
+  };
+  const tryPlaceNear = (model, cx, cz, baseY, spreadX, spreadZ, tries, rotYFn, scaleFn, roadPad, minSep) => {
+    for (let i = 0; i < tries && out.length < budget; i++) {
+      const jx = (rng() - 0.5) * spreadX;
+      const jz = (rng() - 0.5) * spreadZ;
+      const rotY = typeof rotYFn === 'function' ? rotYFn() : rotYFn;
+      const scale = typeof scaleFn === 'function' ? scaleFn() : scaleFn;
+      if (tryPlace(model, cx + jx, baseY, cz + jz, rotY, scale, roadPad, minSep)) return true;
+    }
+    return false;
   };
 
   // District-driven props
@@ -177,22 +205,26 @@ function generateProps(ctx, stageId, cfg) {
     const baseY = ctx.input?.ground?.y ?? 0;
 
     if (type === 'park' || type === 'forest') {
-      const count = clamp(Math.round(area / (type === 'forest' ? 900 : 1200)), 1, 4);
+      const count = clamp(Math.round(area / (type === 'forest' ? 800 : 1100)), 1, 5);
       for (let i = 0; i < count && out.length < budget; i++) {
-        const jx = (rng() - 0.5) * (b.maxX - b.minX) * 0.5;
-        const jz = (rng() - 0.5) * (b.maxZ - b.minZ) * 0.5;
         const s = 0.85 + rng() * 0.5;
-        tryPlace('tree', cx + jx, baseY, cz + jz, rng() * 360, { x: s, y: s, z: s }, 5.0, type === 'forest' ? 3 : 4);
+        tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.55, (b.maxZ - b.minZ) * 0.55, 4, () => rng() * 360, () => ({ x: s, y: s, z: s }), 5.5, type === 'forest' ? 3 : 4);
       }
-      if (type === 'park' && rng() < 0.7) tryPlace('bench', cx + (rng() - 0.5) * 8, baseY, cz + (rng() - 0.5) * 8, rng() * 360, { x: 1, y: 1, z: 1 }, 5.0, 3.5);
+      if (type === 'park' && rng() < 0.85) tryPlaceNear('bench', cx, cz, baseY, 12, 12, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.5, 3.5);
+      if (type === 'park' && rng() < 0.35) tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.45, (b.maxZ - b.minZ) * 0.45, 3, () => rng() * 360, () => { const s = 0.8 + rng() * 0.4; return { x: s, y: s, z: s }; }, 5.5, 3.5);
     } else if (type === 'residential' || type === 'luxury' || type === 'office') {
-      if (rng() < 0.35) tryPlace('tree', cx + (b.maxX - b.minX) * 0.3 * (rng() - 0.5), baseY, cz + (b.maxZ - b.minZ) * 0.3 * (rng() - 0.5), rng() * 360, { x: 0.9, y: 0.9, z: 0.9 }, 4.8, 4);
-      if (rng() < 0.25) tryPlace('bench', cx + (b.maxX - b.minX) * 0.25 * (rng() - 0.5), baseY, cz + (b.maxZ - b.minZ) * 0.25 * (rng() - 0.5), rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5);
+      if (rng() < 0.45) tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.35, (b.maxZ - b.minZ) * 0.35, 3, () => rng() * 360, { x: 0.9, y: 0.9, z: 0.9 }, 5.0, 4);
+      if (rng() < 0.35) tryPlaceNear('bench', cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.0, 3.5);
+      if ((type === 'office' || type === 'luxury') && rng() < 0.2) tryPlaceNear('bollard', cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, 0, { x: 1, y: 1, z: 1 }, 4.5, 3);
     } else if (type === 'industrial' || type === 'parking') {
-      if (rng() < 0.45) tryPlace(pick(['container', 'barrier'], rng), cx + (b.maxX - b.minX) * 0.25 * (rng() - 0.5), baseY, cz + (b.maxZ - b.minZ) * 0.25 * (rng() - 0.5), rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 4);
-      if (type === 'parking' && rng() < 0.35) tryPlace('bollard', cx + (b.maxX - b.minX) * 0.35 * (rng() - 0.5), baseY, cz + (b.maxZ - b.minZ) * 0.35 * (rng() - 0.5), 0, { x: 1, y: 1, z: 1 }, 4.0, 3);
+      if (rng() < 0.55) tryPlaceNear(pick(['container', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 4);
+      if (type === 'parking' && rng() < 0.45) tryPlaceNear('bollard', cx, cz, baseY, (b.maxX - b.minX) * 0.4, (b.maxZ - b.minZ) * 0.4, 3, 0, { x: 1, y: 1, z: 1 }, 4.2, 3);
+      if (type === 'industrial' && rng() < 0.25) tryPlaceNear('barrier', cx, cz, baseY, (b.maxX - b.minX) * 0.25, (b.maxZ - b.minZ) * 0.25, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5);
     } else if (type === 'slums') {
-      if (rng() < 0.3) tryPlace(pick(['barrier', 'container', 'bench'], rng), cx + (rng() - 0.5) * 10, baseY, cz + (rng() - 0.5) * 10, rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 3.5);
+      if (rng() < 0.4) tryPlaceNear(pick(['barrier', 'container', 'bench'], rng), cx, cz, baseY, 14, 14, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5);
+    } else if (type === 'sports') {
+      if (rng() < 0.35) tryPlaceNear('bench', cx, cz, baseY, 12, 12, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.0, 3.5);
+      if (rng() < 0.25) tryPlaceNear('tree', cx, cz, baseY, 10, 10, 3, () => rng() * 360, { x: 0.9, y: 0.9, z: 0.9 }, 5.0, 4);
     }
   }
 
@@ -200,14 +232,17 @@ function generateProps(ctx, stageId, cfg) {
   for (const seg of roads) {
     if (out.length >= budget) break;
     const pts = pathPoints(seg); if (!pts) continue;
+    const baseYRoad = ctx.input?.ground?.y ?? 0;
     for (let i = 0; i + 1 < pts.length && out.length < budget; i++) {
       const a = pts[i], b = pts[i + 1];
-      const dx = b[0] - a[0], dz = b[2] - a[2], dy = b[1] - a[1];
+      const dx = b[0] - a[0], dz = b[2] - a[2];
       const len = Math.hypot(dx, dz); if (len < 40) continue;
+      // place only near flat/ground segments to avoid deck/support warnings
+      if (Math.abs((a[1] ?? baseYRoad) - baseYRoad) > 0.1 || Math.abs((b[1] ?? baseYRoad) - baseYRoad) > 0.1) continue;
       const t = 0.5;
-      const x = a[0] + dx * t, z = a[2] + dz * t, y = a[1] + dy * t;
+      const x = a[0] + dx * t, z = a[2] + dz * t;
       const nx = -dz / len, nz = dx / len;
-      if (rng() < 0.25) tryPlace('bollard', x + nx * 6.2, ctx.input?.ground?.y ?? y, z + nz * 6.2, 0, { x: 1, y: 1, z: 1 }, 2.8, 5);
+      if (rng() < 0.2) tryPlace('bollard', x + nx * 6.8, baseYRoad, z + nz * 6.8, 0, { x: 1, y: 1, z: 1 }, 3.2, 5);
     }
   }
 
