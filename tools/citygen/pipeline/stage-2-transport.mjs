@@ -359,9 +359,9 @@ function pinEndpoints(path, start, end, maxSlope, stageId, segId, report) {
   return out;
 }
 
-export function makeRoadSegment(id, from, to, path, width, type = 'local') {
+export function makeRoadSegment(id, from, to, path, width, type = 'local', layer = 'ground') {
   return {
-    id, from, to, type, layer: 'ground', path,
+    id, from, to, type, layer, path,
     lanes: [{ id: `${id}_lane_1`, direction: 'forward', width, type: 'vehicle' }],
     shoulderWidth: 1, sidewalk: false, surface: 'asphalt',
   };
@@ -758,7 +758,7 @@ function generateTransport(ctx) {
       nodes.push({ id: toId, position: part.path[part.path.length - 1].slice(), layer: part.bridge ? 'elevated' : 'ground' });
     }
     const segId = mainParts.length === 1 ? 'tr_main' : (part.bridge ? `tr_main_br_${i + 1}` : `tr_main_g_${i + 1}`);
-    segments.push(makeRoadSegment(segId, fromId, toId, part.path.map(p => p.slice()), width, 'arterial'));
+    segments.push(makeRoadSegment(segId, fromId, toId, part.path.map(p => p.slice()), width, 'arterial', part.bridge ? 'elevated' : 'ground'));
   }
   if (!exitNode) {
     exitNode = { id: 'tr_n_exit', position: mainPath[mainPath.length - 1].slice(), layer: 'ground' };
