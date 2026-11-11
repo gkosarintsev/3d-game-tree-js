@@ -131,7 +131,7 @@ export const LEVEL_16 = {
         "file": "chunk-0-4.l14b",
         "id": "0_4",
         "objects": {
-          "buildings": 12,
+          "buildings": 10,
           "lights": 1,
           "roads": 1
         },
@@ -195,7 +195,7 @@ export const LEVEL_16 = {
         "file": "chunk-1-4.l14b",
         "id": "1_4",
         "objects": {
-          "buildings": 11,
+          "buildings": 12,
           "roads": 1
         },
         "rect": {
@@ -264,7 +264,7 @@ export const LEVEL_16 = {
         "file": "chunk-2-4.l14b",
         "id": "2_4",
         "objects": {
-          "buildings": 3,
+          "buildings": 6,
           "channels": 1,
           "roads": 1
         },
@@ -393,7 +393,7 @@ export const LEVEL_16 = {
         "file": "chunk-4-4.l14b",
         "id": "4_4",
         "objects": {
-          "buildings": 7,
+          "buildings": 4,
           "roads": 2
         },
         "rect": {
@@ -2643,47 +2643,38 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_3_300:площадка",
-          "maxX": -605.359,
-          "maxZ": 634.641,
-          "minX": -634.641,
-          "minZ": 605.359,
-          "y": 0.001
-        },
-        {
-          "blend": 14,
-          "id": "b_district_1_3_310:площадка",
-          "maxX": -126.304,
-          "maxZ": 593.696,
-          "minX": -153.696,
-          "minZ": 566.304,
+          "id": "b_district_1_3_312:площадка",
+          "maxX": -128.915,
+          "maxZ": 591.085,
+          "minX": -151.085,
+          "minZ": 568.915,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_1_3_314:площадка",
-          "maxX": -170.213,
-          "maxZ": 629.787,
-          "minX": -189.787,
-          "minZ": 610.213,
-          "y": 0.014
+          "id": "b_district_1_3_316:площадка",
+          "maxX": -127.214,
+          "maxZ": 632.786,
+          "minX": -152.786,
+          "minZ": 607.214,
+          "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_3_320:площадка",
-          "maxX": 630.826,
-          "maxZ": 539.397,
-          "minX": 603.46,
-          "minZ": 512.032,
+          "id": "b_district_1_3_317:площадка",
+          "maxX": -86.638,
+          "maxZ": 633.362,
+          "minX": -113.362,
+          "minZ": 606.638,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_3_322:площадка",
-          "maxX": 634.474,
-          "maxZ": 588.759,
-          "minX": 599.812,
-          "minZ": 554.098,
+          "maxX": 635.454,
+          "maxZ": 544.025,
+          "minX": 598.832,
+          "minZ": 507.403,
           "y": 0
         }
       ],

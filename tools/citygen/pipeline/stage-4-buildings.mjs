@@ -149,13 +149,19 @@ export function makeStage4() {
         const margin = 1.0;
         const maxW = Math.max(4, pw - margin * 2);
         const maxD = Math.max(4, ph - margin * 2);
-        const scale = kinds.length ? (0.55 + rng() * 0.35) : 0.4;
-        const w = clamp(maxW * scale, 4, maxW);
-        const d = clamp(maxD * scale, 4, maxD);
+        const scaleBase = kinds.length ? (0.55 + rng() * 0.35) : 0.4;
         const cx = (b.minX + b.maxX) / 2;
         const cz = (b.minZ + b.maxZ) / 2;
-        const footprint = footprintRect(cx, cz, w, d);
-        if (footprintNearAnchors(footprint, anchors, 10) || footprintIntersectsRiver(footprint, rivers) || footprintIntersectsRoad(footprint, roads, roadSegments)) {
+        let footprint = null;
+        for (const scaleMul of [1, 0.82, 0.68]) {
+          const w = clamp(maxW * scaleBase * scaleMul, 4, maxW);
+          const d = clamp(maxD * scaleBase * scaleMul, 4, maxD);
+          const fp = footprintRect(cx, cz, w, d);
+          if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers) || footprintIntersectsRoad(fp, roads, roadSegments)) continue;
+          footprint = fp;
+          break;
+        }
+        if (!footprint) {
           skippedConflict++;
           continue;
         }

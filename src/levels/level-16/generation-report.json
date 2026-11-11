@@ -325,9 +325,9 @@
       "code": "buildings_generated",
       "stage": "4_buildings_structures",
       "message": "generated buildings from parcels",
-      "count": 322,
+      "count": 323,
       "budget": 400,
-      "skippedConflict": 1153
+      "skippedConflict": 1149
     },
     {
       "severity": "info",
@@ -370,9 +370,11 @@
       "code": "build_conflicting_buildings_dropped",
       "stage": "build",
       "message": "dropped buildings conflicting with compiled/normalized placement",
-      "count": 3,
+      "count": 5,
       "ids": [
-        "b_district_1_3_311",
+        "b_district_1_3_309",
+        "b_district_1_3_313",
+        "b_district_1_3_314",
         "b_district_2_0_173",
         "b_district_2_0_178"
       ]
@@ -381,7 +383,17 @@
   "repairs": [
     {
       "stage": "build",
-      "id": "b_district_1_3_311",
+      "id": "b_district_1_3_309",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_1_3_313",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_1_3_314",
       "code": "drop_conflicting_building"
     },
     {
@@ -399,7 +411,7 @@
   "summary": {
     "errors": 0,
     "warnings": 5,
-    "repairs": 3,
+    "repairs": 5,
     "drops": 0
   }
 }
