@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 5,
+      "diagnostics": 14,
       "repairs": 0,
       "drops": 0
     },
@@ -229,8 +229,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 5,
-      "segments": 5,
+      "nodes": 14,
+      "segments": 14,
       "components": 1
     },
     {
@@ -238,6 +238,96 @@
       "code": "stage_ok",
       "stage": "2_transport",
       "message": "stage 2_transport completed"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_6",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_6",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_7",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_7",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_8",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_8",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_9",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_9",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_10",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_10",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_11",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_11",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_12",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_12",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_13",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_13",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected ground branch",
+      "id": "tr_gb_14",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_14",
+      "tag": "p0"
     },
     {
       "severity": "info",
@@ -252,10 +342,10 @@
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 5,
-      "segments": 5,
+      "nodes": 14,
+      "segments": 14,
       "seed": 1865128548,
-      "branches": 4,
+      "branches": 13,
       "profiled": true
     },
     {
@@ -325,9 +415,9 @@
       "code": "buildings_generated",
       "stage": "4_buildings_structures",
       "message": "generated buildings from parcels",
-      "count": 323,
+      "count": 331,
       "budget": 400,
-      "skippedConflict": 1149
+      "skippedConflict": 1160
     },
     {
       "severity": "info",
@@ -342,7 +432,7 @@
       "message": "generated district props",
       "count": 320,
       "budget": 320,
-      "attempts": 699
+      "attempts": 747
     },
     {
       "severity": "info",
@@ -357,7 +447,7 @@
       "message": "generated street lights along roads",
       "count": 8,
       "budget": 8,
-      "skipped": 0
+      "skipped": 7
     },
     {
       "severity": "info",
@@ -372,20 +462,15 @@
       "message": "dropped buildings conflicting with compiled/normalized placement",
       "count": 5,
       "ids": [
-        "b_district_1_3_309",
         "b_district_1_3_313",
-        "b_district_1_3_314",
-        "b_district_2_0_173",
-        "b_district_2_0_178"
+        "b_district_1_3_319",
+        "b_district_2_0_189",
+        "b_district_2_0_190",
+        "b_district_2_0_196"
       ]
     }
   ],
   "repairs": [
-    {
-      "stage": "build",
-      "id": "b_district_1_3_309",
-      "code": "drop_conflicting_building"
-    },
     {
       "stage": "build",
       "id": "b_district_1_3_313",
@@ -393,17 +478,22 @@
     },
     {
       "stage": "build",
-      "id": "b_district_1_3_314",
+      "id": "b_district_1_3_319",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_173",
+      "id": "b_district_2_0_189",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_178",
+      "id": "b_district_2_0_190",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_2_0_196",
       "code": "drop_conflicting_building"
     }
   ],

@@ -705,8 +705,77 @@ function generateTransport(ctx) {
     }
   }
 
-  if (requested > 0 && made < requested) {
-    ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${requested} procedural spur(s)`, { requested, made }));
+  // Expand connected ground network from existing flat nodes (deterministic, engine-valid only).
+  const branchBudget = Math.min(requested + 10, 18);
+  const tryAddGroundSeg = (fromNode, dx, dz, tag) => {
+    if (made >= branchBudget) return false;
+    const fx = fromNode.position[0], fy = fromNode.position[1], fz = fromNode.position[2];
+    if (Math.abs((fy ?? groundY) - groundY) > 0.05) return false;
+    const tx = Math.round((fx + dx) * 100) / 100;
+    const tz = Math.round((fz + dz) * 100) / 100;
+    if (Math.abs(tx) > half - 2 || Math.abs(tz) > half - 2) return false;
+    if (Math.abs(sampler.heightAt(tx, tz) - groundY) > 0.05) return false;
+    if (segCrossesRiver(fx, fz, tx, tz, rivers)) return false;
+    const path = [
+      [Math.round(fx * 100) / 100, Math.round(groundY * 100) / 100, Math.round(fz * 100) / 100],
+      [Math.round(tx * 100) / 100, Math.round(groundY * 100) / 100, Math.round(tz * 100) / 100],
+    ];
+    if (!isAxisAlignedPath(path) || pathMaxSlope(path) > 0.3005) return false;
+    const len = Math.hypot(tx - fx, tz - fz);
+    if (len < 8) return false;
+    // avoid duplicate edge and close overlaps
+    if (segments.some(s => (s.from === fromNode.id && nodes.find(n=>n.id===s.to && Math.hypot(n.position[0]-tx,n.position[2]-tz)<0.5)) || (s.to === fromNode.id && nodes.find(n=>n.id===s.from && Math.hypot(n.position[0]-tx,n.position[2]-tz)<0.5)))) return false;
+    const segTooClose = segments.some(s => {
+      const sp = pathPoints(s); if (!sp) return false;
+      for (let i = 0; i + 1 < sp.length; i++) {
+        // simple midpoint distance check
+        const mx = (tx + fx) / 2, mz = (tz + fz) / 2;
+        const ax = sp[i][0], az = sp[i][2], bx = sp[i+1][0], bz = sp[i+1][2];
+        const abx = bx-ax, abz=bz-az, apx=mx-ax, apz=mz-az;
+        const ab2 = abx*abx+abz*abz || 1e-12;
+        const t = Math.max(0, Math.min(1, (apx*abx+apz*abz)/ab2));
+        const d = Math.hypot(mx-(ax+abx*t), mz-(az+abz*t));
+        if (d < 5 && !(s.from===fromNode.id || s.to===fromNode.id)) return true;
+      }
+      return false;
+    });
+    if (segTooClose) return false;
+    let toNode = nodes.find(n => Math.hypot(n.position[0] - tx, n.position[2] - tz) < 0.5 && Math.abs((n.position[1] ?? groundY) - groundY) <= 0.05);
+    if (!toNode) {
+      const nid = `tr_gn_${nodes.length + 1}`;
+      toNode = { id: nid, position: path[1].slice(), layer: 'ground' };
+      nodes.push(toNode);
+    } else {
+      // if connecting to existing node, ensure edge not duplicate
+      if (segments.some(s => (s.from===fromNode.id && s.to===toNode.id) || (s.from===toNode.id && s.to===fromNode.id))) return false;
+    }
+    const sid = `tr_gb_${segments.length + 1}`;
+    segments.push(makeRoadSegment(sid, fromNode.id, toNode.id, path, Math.max(6, width - 2), 'local'));
+    made++;
+    ctx.report.diagnostics.push(info('transport_branch', stageId, 'added connected ground branch', { id: sid, from: fromNode.id, to: toNode.id, tag }));
+    return true;
+  };
+
+  const stepLens = [80, 64, 48];
+  const dirs4 = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (let pass = 0; pass < 3 && made < branchBudget; pass++) {
+    const groundNodes = nodes.filter(n => Math.abs((n.position[1] ?? groundY) - groundY) <= 0.05 && n.layer !== 'elevated');
+    // stable order by id for determinism
+    groundNodes.sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+    for (const n of groundNodes) {
+      if (made >= branchBudget) break;
+      for (const len of stepLens) {
+        if (made >= branchBudget) break;
+        for (const [dx,dz] of dirs4) {
+          if (made >= branchBudget) break;
+          tryAddGroundSeg(n, dx*len, dz*len, `p${pass}`);
+        }
+      }
+    }
+  }
+
+  if (requested > 0 && made < Math.min(requested, clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4))) {
+    ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4)} procedural spur(s)`, { requested: clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4), made }));
   }
 
   ctx.networks.roads.nodes = nodes;
