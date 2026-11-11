@@ -601,10 +601,61 @@ function generateTransport(ctx) {
   ];
   const segments = [makeRoadSegment('tr_main', 'tr_n_spawn', 'tr_n_exit', mainPath, width, 'arterial')];
 
-  const requested = clamp(Number.isInteger(tc.branches) ? tc.branches : 0, 0, 4);
-  const made = 0;
-  if (requested > 0) {
-    ctx.report.diagnostics.push(warn('transport_branches_deferred', stageId, `procedural branch generation deferred (${requested} requested) pending axis/slope-valid profiling`, { requested }));
+  const requested = clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4);
+  let made = 0;
+  const tryAddSpur = (idBase, fromNode, fromPos2, toPos2, type = 'local') => {
+    if (made >= requested) return false;
+    const dx = toPos2.x - fromPos2.x, dz = toPos2.z - fromPos2.z;
+    if (Math.abs(dx) > 0.5 && Math.abs(dz) > 0.5) return false; // axis-aligned only
+    const path = buildAxisRoutePath([fromPos2, toPos2], sampler, rivers, groundY, stageId, ctx.report);
+    if (!path || path.length < 2) return false;
+    if (!isAxisAlignedPath(path) || pathMaxSlope(path) > 0.3005) return false;
+    // avoid overlapping main path except endpoint
+    const crossesRiver = !!segCrossesRiver(fromPos2.x, fromPos2.z, toPos2.x, toPos2.z, rivers);
+    if (crossesRiver) return false;
+    const toId = `${idBase}_n`;
+    const segId = `${idBase}_r`;
+    nodes.push({ id: toId, position: path[path.length - 1].slice(), layer: 'ground' });
+    segments.push(makeRoadSegment(segId, fromNode.id, toId, path, Math.max(6, width - 2), type));
+    made++;
+    return true;
+  };
+
+  // Simple deterministic ground spurs on flat ends (best-effort, gated by validity checks).
+  const half = (ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256) / 2;
+  const spurLen = clamp(Math.round(half * 0.15), 50, 96);
+  const s0 = { x: mainPath[0][0], z: mainPath[0][2], y: mainPath[0][1] };
+  const s1 = { x: mainPath[mainPath.length - 1][0], z: mainPath[mainPath.length - 1][2], y: mainPath[mainPath.length - 1][1] };
+  const candSpurs = [
+    { base: 'tr_sp1', from: nodes[0], a: s0, b: { x: s0.x + Math.sign(0 - s0.x || 1) * spurLen, z: s0.z } },
+    { base: 'tr_sp2', from: nodes[0], a: s0, b: { x: s0.x, z: s0.z + Math.sign(0 - s0.z || 1) * spurLen } },
+    { base: 'tr_sp3', from: nodes[1], a: s1, b: { x: s1.x + Math.sign(0 - s1.x || 1) * spurLen, z: s1.z } },
+    { base: 'tr_sp4', from: nodes[1], a: s1, b: { x: s1.x, z: s1.z + Math.sign(0 - s1.z || 1) * spurLen } },
+  ];
+  for (let i = candSpurs.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [candSpurs[i], candSpurs[j]] = [candSpurs[j], candSpurs[i]]; }
+  for (const c of candSpurs) {
+    if (made >= requested) break;
+    // keep spurs ground-level and simple: reject if start elevated or river nearby
+    if (Math.abs((c.a.y ?? groundY) - groundY) > 0.05) continue;
+    if (segCrossesRiver(c.a.x, c.a.z, c.b.x, c.b.z, rivers)) continue;
+    const endY = sampler.heightAt(c.b.x, c.b.z);
+    if (Math.abs(endY - groundY) > 0.05) continue;
+    // avoid going outside world bounds
+    if (Math.abs(c.b.x) > half - 2 || Math.abs(c.b.z) > half - 2) continue;
+    const path = [
+      [Math.round(c.a.x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(c.a.z * 100) / 100],
+      [Math.round(c.b.x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(c.b.z * 100) / 100],
+    ];
+    if (!isAxisAlignedPath(path) || pathMaxSlope(path) > 0.3005) continue;
+    const toId = `${c.base}_n`;
+    const segId = `${c.base}_r`;
+    nodes.push({ id: toId, position: path[path.length - 1].slice(), layer: 'ground' });
+    segments.push(makeRoadSegment(segId, c.from.id, toId, path, Math.max(6, width - 2), 'local'));
+    made++;
+  }
+
+  if (requested > 0 && made < requested) {
+    ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${requested} procedural spur(s)`, { requested, made }));
   }
 
   ctx.networks.roads.nodes = nodes;

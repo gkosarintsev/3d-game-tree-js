@@ -258,3 +258,55 @@ test('citygen v4 end-to-end: generated landscape+transport compiles to open cata
   assert.equal(out.generationReport, out2.generationReport);
   assert.deepEqual(out.files.map(f => f.path), out2.files.map(f => f.path));
 });
+
+test('citygen stage 5: generates capped street lights and deterministic district props with provided roads', () => {
+  const base = () => {
+    const raw = v4Base();
+    raw.ground.size = 512;
+    raw.gameplay.spawn = { x: -200, z: -200 };
+    raw.gameplay.exit = { x: 200, z: 200 };
+    raw.stream = { chunk: 256, keep: 1, aheadMin: 80, aheadMax: 200, budgetMs: 40 };
+    raw.generator.seed = 33;
+    raw.cityforge.networks.roads = {
+      nodes: [
+        { id: 'n1', position: [-200, 0, -200], layer: 'ground' },
+        { id: 'n2', position: [200, 0, -200], layer: 'ground' },
+        { id: 'n3', position: [200, 0, 200], layer: 'ground' },
+      ],
+      segments: [
+        { id: 'r1', from: 'n1', to: 'n2', type: 'local', layer: 'ground', path: [[-200, 0, -200], [200, 0, -200]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+        { id: 'r2', from: 'n2', to: 'n3', type: 'local', layer: 'ground', path: [[200, 0, -200], [200, 0, 200]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+      ],
+      junctions: [],
+    };
+    return raw;
+  };
+  const a = runCitygen(base());
+  const b = runCitygen(base());
+  assert.equal(a.reportJson, b.reportJson);
+  const lights = a.ctx.infrastructure?.lights ?? [];
+  const props = a.ctx.infrastructure?.props ?? [];
+  assert.ok(lights.length >= 1 && lights.length <= 8, `expected 1..8 lights, got ${lights.length}`);
+  assert.ok(lights.every(l => l.type === 'point' && l.position && Number.isFinite(l.position.x)));
+  assert.ok(props.length > 0, 'expected district props to be generated');
+  assert.ok(props.every(p => p.id && p.model && p.position && p.rotation));
+  assert.ok(a.report.diagnostics.some(d => d.code === 'street_lights_generated' && d.stage === '5_infrastructure_props'));
+  assert.ok(a.report.diagnostics.some(d => d.code === 'props_generated' && d.stage === '5_infrastructure_props'));
+  const st5 = a.report.stages.find(s => s.id === '5_infrastructure_props');
+  assert.equal(st5?.status, 'ok');
+});
+
+test('citygen stage 3: guarantees core MVP district types on 1280m pilot grid', () => {
+  const raw = v4Base();
+  raw.ground.size = 1280;
+  raw.gameplay.spawn = { x: -520, z: -520 };
+  raw.gameplay.exit = { x: 520, z: 520 };
+  raw.stream = { chunk: 256, keep: 2, aheadMin: 200, aheadMax: 1200, budgetMs: 80 };
+  raw.generator.seed = 15;
+  const out = runCitygen(raw);
+  const types = new Set(out.ctx.districts.map(d => d.type));
+  for (const t of ['office', 'residential', 'park', 'industrial', 'slums', 'forest']) {
+    assert.ok(types.has(t), `missing core district type: ${t}`);
+  }
+  assert.ok(types.size >= 6);
+});
