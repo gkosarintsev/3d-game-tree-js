@@ -295,10 +295,11 @@ function generateProps(ctx, stageId, cfg) {
         const side = rng() < 0.5 ? -1 : 1;
         const off = 6.4 + rng() * 1.0;
         const r = rng();
-        if (r < 0.14) tryPlace('bollard', x + nx * side * off, baseYRoad, z + nz * side * off, 0, { x: 1, y: 1, z: 1 }, 3.2, 4.8);
-        else if (r < 0.24) tryPlace('bench', x + nx * side * off, baseYRoad, z + nz * side * off, Math.atan2(dx, dz) * 180 / Math.PI, { x: 1, y: 1, z: 1 }, 3.4, 5.2);
-        else if (r < 0.34) tryPlace('tree', x + nx * side * off, baseYRoad, z + nz * side * off, rng() * 360, { x: 0.85, y: 0.85, z: 0.85 }, 3.6, 5.2);
-        else if (r < 0.4) tryPlace(pick(['barrier', 'water_tank', 'wire_spool'], rng), x + nx * side * off, baseYRoad, z + nz * side * off, rng() * 360, { x: 1, y: 1, z: 1 }, 3.8, 5.0);
+        if (r < 0.12) tryPlace('bollard', x + nx * side * off, baseYRoad, z + nz * side * off, 0, { x: 1, y: 1, z: 1 }, 3.2, 4.8);
+        else if (r < 0.22) tryPlace('bench', x + nx * side * off, baseYRoad, z + nz * side * off, Math.atan2(dx, dz) * 180 / Math.PI, { x: 1, y: 1, z: 1 }, 3.4, 5.2);
+        else if (r < 0.30) tryPlace('tree', x + nx * side * off, baseYRoad, z + nz * side * off, rng() * 360, { x: 0.85, y: 0.85, z: 0.85 }, 3.6, 5.2);
+        else if (r < 0.38) tryPlace('lamp_post', x + nx * side * off, baseYRoad, z + nz * side * off, Math.atan2(dx, dz) * 180 / Math.PI + 90, { x: 1, y: 1, z: 1 }, 3.4, 5.2);
+        else if (r < 0.46) tryPlace(pick(['barrier', 'water_tank', 'wire_spool'], rng), x + nx * side * off, baseYRoad, z + nz * side * off, rng() * 360, { x: 1, y: 1, z: 1 }, 3.8, 5.0);
       }
     }
   }
