@@ -224,8 +224,31 @@ function generateProps(ctx, stageId, cfg) {
     return false;
   };
 
-  // District-driven props
   const districtById = new Map(districts.map(d => [d.id, d]));
+
+  // Roadside elements along flat/ground road segments first (visual priority).
+  const roadsideCap = Math.min(24, Math.floor(budget * 0.08));
+  for (const seg of roads) {
+    if (out.length >= roadsideCap) break;
+    const pts = pathPoints(seg); if (!pts) continue;
+    const baseYRoad = ctx.input?.ground?.y ?? 0;
+    for (let i = 0; i + 1 < pts.length && out.length < roadsideCap; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const dx = b[0] - a[0], dz = b[2] - a[2];
+      const len = Math.hypot(dx, dz); if (len < 32) continue;
+      // place only near flat/ground segments to avoid deck/support warnings
+      if (Math.abs((a[1] ?? baseYRoad) - baseYRoad) > 0.1 || Math.abs((b[1] ?? baseYRoad) - baseYRoad) > 0.1) continue;
+      const t = 0.5;
+      const x = a[0] + dx * t, z = a[2] + dz * t;
+      const nx = -dz / len, nz = dx / len;
+      const r = rng();
+      if (r < 0.18) tryPlace('bollard', x + nx * 6.8, baseYRoad, z + nz * 6.8, 0, { x: 1, y: 1, z: 1 }, 3.2, 5);
+      else if (r < 0.26) tryPlace('bench', x + nx * 7.2, baseYRoad, z + nz * 7.2, Math.atan2(dx, dz) * 180 / Math.PI, { x: 1, y: 1, z: 1 }, 3.4, 5.5);
+      else if (r < 0.32) tryPlace('tree', x + nx * 7.6, baseYRoad, z + nz * 7.6, rng() * 360, { x: 0.85, y: 0.85, z: 0.85 }, 3.6, 5.5);
+    }
+  }
+
+  // District-driven props
   for (const p of parcels) {
     if (out.length >= budget) break;
     const d = districtById.get(p.districtId);
@@ -265,23 +288,7 @@ function generateProps(ctx, stageId, cfg) {
     }
   }
 
-  // Sparse roadside bollards (visual) where space allows
-  for (const seg of roads) {
-    if (out.length >= budget) break;
-    const pts = pathPoints(seg); if (!pts) continue;
-    const baseYRoad = ctx.input?.ground?.y ?? 0;
-    for (let i = 0; i + 1 < pts.length && out.length < budget; i++) {
-      const a = pts[i], b = pts[i + 1];
-      const dx = b[0] - a[0], dz = b[2] - a[2];
-      const len = Math.hypot(dx, dz); if (len < 40) continue;
-      // place only near flat/ground segments to avoid deck/support warnings
-      if (Math.abs((a[1] ?? baseYRoad) - baseYRoad) > 0.1 || Math.abs((b[1] ?? baseYRoad) - baseYRoad) > 0.1) continue;
-      const t = 0.5;
-      const x = a[0] + dx * t, z = a[2] + dz * t;
-      const nx = -dz / len, nz = dx / len;
-      if (rng() < 0.2) tryPlace('bollard', x + nx * 6.8, baseYRoad, z + nz * 6.8, 0, { x: 1, y: 1, z: 1 }, 3.2, 5);
-    }
-  }
+
 
   ctx.infrastructure.props = out;
   ctx.report.diagnostics.push(info('props_generated', stageId, 'generated district props', { count: out.length, budget, attempts }));
