@@ -135,7 +135,14 @@ export function makeStage4() {
         { x: gp.exit?.x ?? 0, z: gp.exit?.z ?? 0 },
       ];
       let placed = 0, skippedConflict = 0;
-      for (const p of parcels) {
+      // Prioritize parcels with better road access so budget favors reachable built-up areas.
+      const orderedParcels = parcels.map((p, idx) => {
+        const b = p.aabb; const cx = b ? (b.minX + b.maxX) / 2 : 0; const cz = b ? (b.minZ + b.maxZ) / 2 : 0;
+        const rd = Number.isFinite(p?.access?.roadDist) ? p.access.roadDist : minDistanceToRoadSegments(cx, cz, roadSegments);
+        return { p, idx, rd: Number.isFinite(rd) ? rd : 1e9 };
+      }).sort((a, b) => a.rd - b.rd || a.idx - b.idx).map(x => x.p);
+
+      for (const p of orderedParcels) {
         if (placed >= budget) break;
         if (p?.reserved) continue;
         const profile = profiles[p.type] || profiles[p.profileId] || {};
