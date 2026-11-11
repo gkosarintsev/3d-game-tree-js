@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 13,
+      "diagnostics": 24,
       "repairs": 0,
       "drops": 0
     },
@@ -229,8 +229,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 16,
-      "segments": 16,
+      "nodes": 27,
+      "segments": 27,
       "components": 1
     },
     {
@@ -321,6 +321,116 @@
     },
     {
       "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_17",
+      "from": "tr_n_exit",
+      "to": "tr_gn_17",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_18",
+      "from": "tr_n_exit",
+      "to": "tr_gn_18",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_19",
+      "from": "tr_n_exit",
+      "to": "tr_gn_19",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_20",
+      "from": "tr_n_exit",
+      "to": "tr_gn_20",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_21",
+      "from": "tr_n_m1",
+      "to": "tr_gn_21",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_22",
+      "from": "tr_n_m1",
+      "to": "tr_gn_22",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_23",
+      "from": "tr_n_m1",
+      "to": "tr_gn_23",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_24",
+      "from": "tr_n_m1",
+      "to": "tr_gn_24",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_25",
+      "from": "tr_n_m1",
+      "to": "tr_gn_25",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_26",
+      "from": "tr_n_m1",
+      "to": "tr_gn_26",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_27",
+      "from": "tr_n_m1",
+      "to": "tr_gn_27",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
       "code": "transport_bridge_profiled",
       "stage": "2_transport",
       "message": "segment crossing river 'river_1' bridged (deck 16.10m)",
@@ -332,10 +442,10 @@
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 16,
-      "segments": 16,
+      "nodes": 27,
+      "segments": 27,
       "seed": 1865128548,
-      "branches": 13,
+      "branches": 24,
       "profiled": true
     },
     {
@@ -437,7 +547,7 @@
       "message": "generated street lights along roads",
       "count": 8,
       "budget": 8,
-      "skipped": 0
+      "skipped": 2
     },
     {
       "severity": "info",

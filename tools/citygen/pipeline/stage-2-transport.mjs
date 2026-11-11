@@ -165,7 +165,8 @@ function riverMinDistXZAt(x, z, rivers = []) {
 
 function segCrossesRiver(ax, az, bx, bz, rivers) {
   for (const river of rivers ?? []) {
-    const margin = (river.width ?? 10) * 0.5 + 2;
+    // Conservative: avoid curved-channel bbox/validation conflicts for ground roads.
+    const margin = (river.width ?? 10) * 0.5 + 30;
     const len = Math.hypot(bx - ax, bz - az);
     const steps = Math.max(2, Math.ceil(len / SAMPLE_STEP));
     for (let s = 0; s <= steps; s++) {
@@ -834,7 +835,7 @@ function generateTransport(ctx) {
   }
 
   // Expand connected network with terrain-following branches from existing ground nodes.
-  const branchBudget = Math.min(requested + 10, 18);
+  const branchBudget = Math.min(Math.max(requested + 18, 24), 32);
   const tryAddTerrainSeg = (fromNode, dx, dz, tag) => {
     if (made >= branchBudget) return false;
     const fx = fromNode.position[0], fz = fromNode.position[2];
@@ -878,7 +879,7 @@ function generateTransport(ctx) {
 
   const stepLens = [80, 64, 48];
   const dirs4 = [[1,0],[-1,0],[0,1],[0,-1]];
-  for (let pass = 0; pass < 3 && made < branchBudget; pass++) {
+  for (let pass = 0; pass < 4 && made < branchBudget; pass++) {
     const groundNodes = nodes.filter(n => n.layer !== 'elevated');
     // stable order by id for determinism
     groundNodes.sort((a,b)=>String(a.id).localeCompare(String(b.id)));
