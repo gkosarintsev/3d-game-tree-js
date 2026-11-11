@@ -1,0 +1,354 @@
+{
+  "version": 1,
+  "generator": {
+    "generatorVersion": "0.1.0",
+    "seed": 16,
+    "deterministic": true
+  },
+  "stages": [
+    {
+      "id": "0_input_space",
+      "status": "ok",
+      "diagnostics": 1,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "1_landscape_hydrology",
+      "status": "ok",
+      "diagnostics": 2,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "2_transport",
+      "status": "error",
+      "diagnostics": 6,
+      "repairs": 2,
+      "drops": 0
+    },
+    {
+      "id": "3_districts_parcels",
+      "status": "ok",
+      "diagnostics": 3,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "4_buildings_structures",
+      "status": "ok",
+      "diagnostics": 3,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "5_infrastructure_props",
+      "status": "ok",
+      "diagnostics": 1,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "6_finalize_emit",
+      "status": "ok",
+      "diagnostics": 1,
+      "repairs": 0,
+      "drops": 0
+    }
+  ],
+  "districts": [
+    {
+      "id": "district_0_0",
+      "type": "industrial",
+      "profileId": "industrial",
+      "cells": 1,
+      "parcels": 64
+    },
+    {
+      "id": "district_0_1",
+      "type": "industrial",
+      "profileId": "industrial",
+      "cells": 1,
+      "parcels": 64
+    },
+    {
+      "id": "district_0_2",
+      "type": "slums",
+      "profileId": "slums",
+      "cells": 1,
+      "parcels": 400
+    },
+    {
+      "id": "district_0_3",
+      "type": "forest",
+      "profileId": "forest",
+      "cells": 1,
+      "parcels": 36
+    },
+    {
+      "id": "district_1_0",
+      "type": "forest",
+      "profileId": "forest",
+      "cells": 1,
+      "parcels": 36
+    },
+    {
+      "id": "district_1_1",
+      "type": "industrial",
+      "profileId": "industrial",
+      "cells": 1,
+      "parcels": 64
+    },
+    {
+      "id": "district_1_2",
+      "type": "industrial",
+      "profileId": "industrial",
+      "cells": 1,
+      "parcels": 64
+    },
+    {
+      "id": "district_1_3",
+      "type": "forest",
+      "profileId": "forest",
+      "cells": 1,
+      "parcels": 36
+    },
+    {
+      "id": "district_2_0",
+      "type": "industrial",
+      "profileId": "industrial",
+      "cells": 1,
+      "parcels": 64
+    },
+    {
+      "id": "district_2_1",
+      "type": "slums",
+      "profileId": "slums",
+      "cells": 1,
+      "parcels": 400
+    },
+    {
+      "id": "district_2_2",
+      "type": "industrial",
+      "profileId": "industrial",
+      "cells": 1,
+      "parcels": 64
+    },
+    {
+      "id": "district_2_3",
+      "type": "forest",
+      "profileId": "forest",
+      "cells": 1,
+      "parcels": 36
+    },
+    {
+      "id": "district_3_0",
+      "type": "forest",
+      "profileId": "forest",
+      "cells": 1,
+      "parcels": 36
+    },
+    {
+      "id": "district_3_1",
+      "type": "industrial",
+      "profileId": "industrial",
+      "cells": 1,
+      "parcels": 64
+    },
+    {
+      "id": "district_3_2",
+      "type": "parking",
+      "profileId": "parking",
+      "cells": 1,
+      "parcels": 64
+    },
+    {
+      "id": "district_3_3",
+      "type": "sports",
+      "profileId": "sports",
+      "cells": 1,
+      "parcels": 49
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "stage_error",
+      "stage": "2_transport",
+      "message": "Cannot read properties of undefined (reading '0')"
+    },
+    {
+      "severity": "warn",
+      "code": "endpoint_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_branch_1' adjusted near endpoint for slope",
+      "id": "tr_branch_1"
+    },
+    {
+      "severity": "warn",
+      "code": "segment_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_branch_1' slope clamped/smoothed (2 point adjustments)",
+      "id": "tr_branch_1",
+      "count": 2
+    },
+    {
+      "severity": "warn",
+      "code": "segment_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_branch_1' slope clamped/smoothed (2 point adjustments)",
+      "id": "tr_branch_1",
+      "count": 2
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "0_input_space",
+      "message": "stage 0_input_space completed"
+    },
+    {
+      "severity": "info",
+      "code": "landscape_generated",
+      "stage": "1_landscape_hydrology",
+      "message": "stage 1 generated terrain/hydrology from generator.landscape",
+      "modifiers": 10,
+      "rivers": 1,
+      "seed": 267151709
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "1_landscape_hydrology",
+      "message": "stage 1_landscape_hydrology completed"
+    },
+    {
+      "severity": "info",
+      "code": "transport_bridge_profiled",
+      "stage": "2_transport",
+      "message": "segment crossing river 'river_1' bridged (deck 20.64m)",
+      "river": "river_1",
+      "deckH": 20.63643355761137
+    },
+    {
+      "severity": "info",
+      "code": "transport_bridge_profiled",
+      "stage": "2_transport",
+      "message": "segment crossing river 'river_1' bridged (deck 61.18m)",
+      "river": "river_1",
+      "deckH": 61.17642101986051
+    },
+    {
+      "severity": "info",
+      "code": "districts_generated",
+      "stage": "3_districts_parcels",
+      "message": "auto-generated district grid",
+      "count": 16,
+      "grid": 4,
+      "types": [
+        "forest",
+        "industrial",
+        "parking",
+        "slums",
+        "sports"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "parcels_generated",
+      "stage": "3_districts_parcels",
+      "message": "generated parcels",
+      "districts": 16,
+      "parcels": 1541,
+      "byType": {
+        "industrial": 7,
+        "forest": 5,
+        "slums": 2,
+        "parking": 1,
+        "sports": 1
+      }
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "3_districts_parcels",
+      "message": "stage 3_districts_parcels completed"
+    },
+    {
+      "severity": "info",
+      "code": "buildings_generated",
+      "stage": "4_buildings_structures",
+      "message": "generated buildings from parcels",
+      "count": 400,
+      "budget": 400,
+      "skippedConflict": 53
+    },
+    {
+      "severity": "info",
+      "code": "buildings_generated",
+      "stage": "4_buildings_structures",
+      "message": "generated buildings from parcels",
+      "count": 400,
+      "budget": 400
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "4_buildings_structures",
+      "message": "stage 4_buildings_structures completed"
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "5_infrastructure_props",
+      "message": "stage 5_infrastructure_props completed"
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "6_finalize_emit",
+      "message": "stage 6_finalize_emit completed"
+    },
+    {
+      "severity": "warning",
+      "code": "build_conflicting_buildings_dropped",
+      "stage": "build",
+      "message": "dropped buildings conflicting with compiled/normalized placement",
+      "count": 2,
+      "ids": [
+        "b_district_1_1_93",
+        "b_district_2_1_270"
+      ]
+    }
+  ],
+  "repairs": [
+    {
+      "stage": "2_transport",
+      "id": "tr_branch_1",
+      "code": "clamp_segment_slope",
+      "count": 2
+    },
+    {
+      "stage": "2_transport",
+      "id": "tr_branch_1",
+      "code": "clamp_segment_slope",
+      "count": 2
+    },
+    {
+      "stage": "build",
+      "id": "b_district_1_1_93",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_2_1_270",
+      "code": "drop_conflicting_building"
+    }
+  ],
+  "drops": [],
+  "summary": {
+    "errors": 1,
+    "warnings": 4,
+    "repairs": 4,
+    "drops": 0
+  }
+}

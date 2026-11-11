@@ -276,7 +276,49 @@ function generateCityforge(raw, sourceName, opts = {}) {
     throw new ValidationError(e.errors ?? [String(e?.message ?? e)], v3w);
   }
   // Компилируем в открытый движковый мир → каталог с чанками, как у level-02/14.
-  const out = generateCatalog(compiled.engine, sourceName, opts);
+  // For generated v4 content, placement conflicts (water/road) can slip through
+  // coarse stage checks; deterministically drop offending buildings and retry.
+  let engine = compiled.engine;
+  let out = null;
+  let dropped = [];
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try {
+      out = generateCatalog(engine, sourceName, opts);
+      break;
+    } catch (e) {
+      if (!(e instanceof ValidationError)) throw e;
+      const ids = new Set();
+      for (const msg of e.errors ?? []) {
+        const m = String(msg).match(/buildings\[\d+\]\s+\(([^)]+)\):[\s\S]*?(стоит в воде|стоит в улице|легла на план наземной дороги|легла в русло)/);
+        if (m) ids.add(m[1]);
+      }
+      if (!ids.size || !Array.isArray(engine?.buildings) || engine.buildings.length === 0) throw e;
+      const before = engine.buildings.length;
+      engine = { ...engine, buildings: engine.buildings.filter(b => !ids.has(b?.id)) };
+      const removed = before - engine.buildings.length;
+      if (removed <= 0) throw e;
+      dropped.push(...ids);
+      // continue retry with reduced building set
+    }
+  }
+  if (!out) throw new ValidationError(['generateCatalog: не удалось собрать каталог после repair попыток'], v3w);
+  if (dropped.length) {
+    const uniq = [...new Set(dropped)].sort();
+    if (report) {
+      try {
+        const r = JSON.parse(report);
+        r.diagnostics = r.diagnostics ?? [];
+        r.diagnostics.push({ severity: 'warning', code: 'build_conflicting_buildings_dropped', stage: 'build', message: 'dropped buildings conflicting with compiled/normalized placement', count: uniq.length, ids: uniq });
+        r.repairs = r.repairs ?? [];
+        r.repairs.push(...uniq.map(id => ({ stage: 'build', id, code: 'drop_conflicting_building' })));
+        if (r.summary) {
+          r.summary.warnings = (r.summary.warnings ?? 0) + 1;
+          r.summary.repairs = (r.summary.repairs ?? 0) + uniq.length;
+        }
+        report = JSON.stringify(r, null, 2) + '\n';
+      } catch {}
+    }
+  }
   out.warnings = [...v3w, ...compiled.warnings, ...out.warnings];
   out.sourceFormat = isV4 ? 'cityforge-v4' : 'cityforge-v3';
   if (report) out.generationReport = report;

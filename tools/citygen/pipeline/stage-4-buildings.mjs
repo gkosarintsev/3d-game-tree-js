@@ -41,7 +41,8 @@ function footprintIntersectsRiver(fp, rivers = []) {
   const corners = [[b.minX,b.minZ],[b.maxX,b.minZ],[b.maxX,b.maxZ],[b.minX,b.maxZ],[cx,cz]];
   for (const rv of rivers) {
     const path = rv.path ?? [];
-    const clearance = (rv.width ?? 10) * 0.5 + 2.5;
+    // Be conservative: include banks/bed margins used by compiled waterway/channel checks.
+    const clearance = (rv.width ?? 10) * 0.5 + 20.0;
     for (let i = 0; i + 1 < path.length; i++) {
       const a = path[i], c = path[i+1];
       for (const [px,pz] of corners) {
