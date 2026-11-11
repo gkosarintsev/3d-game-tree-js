@@ -337,6 +337,16 @@ export function makeStage3() {
             if (parcelNearRiver(aabb)) reserved = true;
             // Reserve parcels overlapping/too close to road corridors.
             if (!reserved && Number.isFinite(rd) && rd < 7) reserved = true;
+            // Reserve parcels overlapping gameplay anchors (spawn/exit) with buffer.
+            if (!reserved) {
+              const gp = ctx.input?.gameplay ?? {};
+              const anchors = [gp.spawn, gp.exit].filter(Boolean);
+              for (const a of anchors) {
+                const ax = Number(a.x) || 0, az = Number(a.z) || 0;
+                const pad = 10;
+                if (ax >= aabb.minX - pad && ax <= aabb.maxX + pad && az >= aabb.minZ - pad && az <= aabb.maxZ + pad) { reserved = true; break; }
+              }
+            }
             // Reserve only very remote parcels in some road-dependent districts to keep access buffers without wiping sparse-network areas
             const hardReserveTypes = new Set(['parking', 'sports', 'industrial']);
             if (!reserved && hardReserveTypes.has(type) && Number.isFinite(rd) && rd > 300) reserved = true;
