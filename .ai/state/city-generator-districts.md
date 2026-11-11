@@ -81,10 +81,10 @@ Let us commit. Include index.js if actually changed (diff showed nothing but sta
 ### [TASK-005] Слой 3 — районы и парцелляция (в работе)
 - [x] `tools/citygen/pipeline/stage-3-districts.mjs`: ingest/нормализация объявленных районов и профилей, merge с базовыми профилями, детерминированная автогенерация сетки районов, правила совместимости/выбора типов, нарезка parcel-слотов (AABB), валидация границ/профилей/соседства и repair fallback профиля.
 - [x] Базовый набор профилей (office/park/industrial/luxury/residential/slums/forest/parking/sports) с весами, материалами и параметрами зданий/участков.
-- [x] Авто-генерация районов с road-access bias, целевыми долями/минимумами и детерминированными compatibility-aware swap’ами балансировки. Для пилота гл.16 (4×4): представлены все 9 типов, распределение ближе к целям (office 3, residential 2, park 2, industrial 1, luxury 2, slums 1, forest 1, parking 2, sports 2), 0 предупреждений совместимости.
-- [x] Парцелляция с метаданными расстояния до дороги и резервированием низкодоступных parcel для road-needy типов (учитывается stage 4).
+- [x] Авто-генерация районов с road-access bias, целевыми долями/минимумами, детерминированными compatibility-aware swap’ами балансировки и явными fallback-цепочками типов при несовместимости/ограничениях кандидатов. Для пилота гл.16 (4×4) представлены все 9 типов, 0 предупреждений/ошибок совместимости.
+- [x] Парцелляция с метаданными расстояния до дороги, резервированием низкодоступных parcel для road-needy типов и резервированием parcel в коридоре/клиренсе русел (учитывается stage 4).
 - [x] Оркестратор использует stage 3; node-тесты в `tools/citygen.test.mjs`.
-- [ ] Полная семантика/матрица соседства/fallback-цепочки по плану, точные геометрии/маски/ячейки, бюджеты/плотности, более точная связь доступа с фактической навигацией/сетью.
+- [ ] Полная семантика/матрица соседства/fallback-цепочки по плану (расширение), точные геометрии/маски/ячейки, бюджеты/плотности, более точная связь доступа с фактической навигацией/сетью.
 
 ### [TASK-006] Слой 4 — здания и крупные структуры (в работе)
 - [x] `tools/citygen/pipeline/stage-4-buildings.mjs`: детерминированная генерация невводимых зданий (`isEnterable:false`, `foundation:terrain`) из parcel-слотов с бюджетом плотности, конфликтной фильтрацией (русло/дороги/spawn/exit), retry уменьшением footprint, bias по доступности дорог.
@@ -94,9 +94,9 @@ Let us commit. Include index.js if actually changed (diff showed nothing but sta
 - [ ] Каталог типов/архетипов по правилам районов (вводимые здания/проходы, мегастроения с проездами, skybridge), точные бюджеты/валидация на чанк/доступ.
 
 ### [TASK-008] Слой 6 — финализация и пилот гл.16 (в работе)
-- [x] Пилотный источник `src/levels/level-16.json` (v4, на базе гл.15): плита 1280×1280 м, `stream {chunk:256, keep:2, aheadMin:200, aheadMax:1200, budgetMs:80}`, goal exit spawn↔exit, `generator` (landscape hills+river, transport, авто districts/buildings/props).
-- [x] Текущее состояние каталога `src/levels/level-16/` (детерминированно, `--check` совпадает, 0 предупреждений парсера): 25 чанков 5×5×256 м, 37 дорог (terrain-following, мост ground/bridge/ground, авто `roadCorridors`), скелет 1384/1383 (компоненты 122→1), 808 участников / 764 владельца, 400 зданий, 8 фонарей, 320 `landscapeObjects`, детерминированный `generation-report.json`.
-- [x] Регистрация пилота: `src/levels/index.js`/`LEVEL_NUMBERS` (+16). Node-проверки на последнем состоянии: `node --test tools/citygen.test.mjs` 14/14, `build-level --check` OK, `check-levels` 32/32. Коммиты запушены (`origin/main`, включает `90d3937`).
+- [x] Пилотный источник `src/levels/level-16.json` (v4, на базе гл.15): плита 1280×1280 м, `stream {chunk:256, keep:2, aheadMin:200, aheadMax:1200, budgetMs:80}`, goal exit spawn↔exit, `generator` (landscape hills+river, transport, авто districts/buildings/props). Точка спавна авто скорректирована при изменении раскладки районов/застройки.
+- [x] Текущее состояние каталога `src/levels/level-16/` (детерминированно, `--check` совпадает, 0 предупреждений парсера): 25 чанков 5×5×256 м, 41 дорога (terrain-following, мост ground/bridge/ground, авто `roadCorridors`), скелет 1586/1585 (компоненты 132→1), 803 участника / 771 владелец, 400 зданий, 8 фонарей, 320 `landscapeObjects`, детерминированный `generation-report.json`.
+- [x] Регистрация пилота: `src/levels/index.js`/`LEVEL_NUMBERS` (+16). Node-проверки: `node --test tools/citygen.test.mjs` 14/14, `build-level --check` OK, `check-levels` 32/32.
 - [ ] Замеры метрик пилота (старт/окно/p95 помпы, память/узлы, связность/достижимость spawn↔exit в рантайме) относительно гл.15 и `docs/open-world-plan.md`; итеративная настройка генератора/параметров под бюджеты.
 - [ ] Финализация слоя 6 в генераторе (полная связность/emit/кросс-стадийные проверки) и доведение состава районов/застройки до требований MVP-пилота. Runtime/browser в этой среде не выполнялись.
 

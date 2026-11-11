@@ -51,6 +51,26 @@ const COMPAT = {
   sports: new Set(['sports', 'park', 'residential', 'office', 'luxury', 'parking', 'forest']),
 };
 
+const FALLBACK_CHAINS = {
+  office: ['office', 'residential', 'luxury', 'parking', 'industrial', 'park'],
+  residential: ['residential', 'park', 'luxury', 'office', 'slums', 'parking', 'forest'],
+  park: ['park', 'forest', 'residential', 'sports', 'luxury', 'office', 'parking'],
+  industrial: ['industrial', 'parking', 'office', 'slums', 'forest'],
+  luxury: ['luxury', 'residential', 'park', 'office', 'parking', 'sports'],
+  slums: ['slums', 'residential', 'industrial', 'parking', 'forest'],
+  forest: ['forest', 'park', 'residential', 'sports', 'parking', 'industrial', 'slums', 'luxury', 'office'],
+  parking: ['parking', 'industrial', 'office', 'residential', 'sports', 'park', 'slums', 'forest'],
+  sports: ['sports', 'park', 'residential', 'office', 'luxury', 'parking', 'forest'],
+};
+
+function pickWithFallback(desired, candidates, profiles) {
+  const chain = FALLBACK_CHAINS[desired] || [desired];
+  for (const t of chain) {
+    if (candidates.includes(t) && profiles[t]) return t;
+  }
+  return candidates[0] || desired;
+}
+
 function mergeProfiles(genProfiles) {
   const out = { ...DEFAULT_PROFILES };
   if (genProfiles && typeof genProfiles === 'object') {
@@ -144,7 +164,10 @@ export function makeStage3() {
             const rd = minRoadDist(cx, cz, roadSegments);
 
             let type = preassigned.get(key);
-            if (!type || !profiles[type] || !candidates.includes(type)) {
+            if (type && (!profiles[type] || !candidates.includes(type))) {
+              type = pickWithFallback(type, candidates, profiles);
+            }
+            if (!type) {
               // weighted pick with balancing toward target shares and road-access bias
               let total = 0;
               const weights = candidates.map(id => {
@@ -174,7 +197,7 @@ export function makeStage3() {
               for (const it of weights) { r -= it.w; if (r <= 0) { picked = it.id; break; } }
               type = picked;
             }
-            if (!candidates.includes(type)) type = weightedPick(rng, candidates, profiles);
+            if (!candidates.includes(type)) type = pickWithFallback(type, candidates, profiles) || weightedPick(rng, candidates, profiles);
 
             assigned.set(key, type);
             typeCounts[type] = (typeCounts[type] || 0) + 1;
