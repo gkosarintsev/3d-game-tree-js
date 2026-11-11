@@ -142,6 +142,14 @@ export function makeStage4() {
         return { p, idx, rd: Number.isFinite(rd) ? rd : 1e9 };
       }).sort((a, b) => a.rd - b.rd || a.idx - b.idx).map(x => x.p);
 
+      const placedByType = Object.create(null);
+      // Soft per-type budget shares to avoid one district type consuming the whole building budget.
+      const typeShare = {
+        office: 0.16, residential: 0.2, luxury: 0.14, industrial: 0.1, slums: 0.14,
+        parking: 0.08, sports: 0.08, park: 0.06, forest: 0.04,
+      };
+      const typeTarget = (t) => Math.max(4, Math.round(budget * (typeShare[t] ?? 0.08)));
+
       for (const p of orderedParcels) {
         if (placed >= budget) break;
         if (p?.reserved) continue;
@@ -194,6 +202,14 @@ export function makeStage4() {
             if (roadDist < 50 && rng() < 0.5) accessChance *= 0.5; // keep parks/forest more open near roads
           }
         }
+        // Balance across district types: penalize types that already reached their soft target share.
+        const tcount = placedByType[p.type] || 0;
+        const ttarget = typeTarget(p.type);
+        if (tcount >= ttarget) accessChance *= 0.4;
+        else if (tcount >= Math.floor(ttarget * 0.8)) accessChance *= 0.7;
+        // If budget is still open near the end, allow deficit types to catch up.
+        const remaining = budget - placed;
+        if (remaining < 60 && tcount < Math.floor(ttarget * 0.5)) accessChance = Math.min(0.98, accessChance * 1.2);
         if (rng() > accessChance) continue;
 
         // District archetypes: height/density by type and road proximity.
@@ -235,6 +251,7 @@ export function makeStage4() {
           stairs: [],
         });
         placed++;
+        placedByType[p.type] = (placedByType[p.type] || 0) + 1;
       }
       ctx.buildings = out;
       ctx.report.diagnostics.push(info('buildings_generated', stageId, 'generated buildings from parcels', { count: out.length, budget, skippedConflict }));
