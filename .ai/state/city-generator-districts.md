@@ -69,6 +69,8 @@
 - [x] `tools/citygen/pipeline/stage-2-transport.mjs`: prepare/generate/validate/repair/emit для `networks.roads` (nodes/segments/junctions), uniq id, drop вырожденных сегментов, проверка ссылок `from/to`, предупреждения о крутых участках (`segment_steep`), easement-маска дорог, сводка графа/компонент связности, предупреждения `anchor_far_from_roads`/`road_graph_disconnected`.
 - [x] Оркестратор использует stage 2; node-тесты в `tools/citygen.test.mjs` (degenerate/steep, связность/якоря/easement, детерминизм).
 - [x] Базовая процедурная генерация `generator.transport.generate` (детерминированно): маршрут spawn↔exit (L-образный), профилирование пересечений русел (подъём/рампы-мост) по easement рек, emit узлов/сегмента; end-to-end v4 (landscape+transport) → open-каталог подтверждён.
+- [x] Профилирование по рельефу (аппроксимация высот по `terrain.modifiers`/`reliefOf`) и рекам, мостовой профиль с клиренсом над грунтом/руслом, ограничение уклона (`clamp_segment_slope`/`segment_slope_repaired`) и фиксация концов в якорях с локальным repair; детерминированные диагностики (`transport_generated`, `transport_bridge_profiled`). `tools/cityforge-compile.mjs`: привязка площадок `anchored` — по ближайшей точке (исправляет неверный уровень pad при подходе с перепадом).
+- [x] e2e v4 (landscape+transport) компилируется в open-каталог стабильно (`node --test tools/citygen.test.mjs` 11/11, `node tools/check-levels.mjs` 28/28).
 - [ ] Процедурная трассировка сети (классы дорог, сетка/артерии, мосты над водой/оврагами с корректными клиренсами, развязки/рампы), гарантированная достижимость spawn↔exit по навигации, валидация клиренсов/уклонов/самопересечений уровней, repair (перетрассировка, понижение класса, локальная правка высоты).
 
 ## Остаётся уточнить

@@ -233,14 +233,19 @@ export function compileCityforge(raw) {
   const ex = gp.exit?.x ?? 0, ez = gp.exit?.z ?? 0;
   const gy = ground.y ?? 0;
   // отметка площадки: если рядом есть портал/точка дороги (спавн в тоннеле/на
-  // настиле), берём её y, иначе площадка оказалась бы на ground.y и оторвалась
-  // от сети по высоте (ломает скелет/навигацию)
+  // настиле), берём её y (ближайшая точка в радиусе привязки), иначе площадка
+  // оказалась бы на ground.y и оторвалась от сети по высоте (ломает скелет/навигацию)
   const anchored = (x, z) => {
-    for (const t of (tunnels ?? [])) for (const p of (t.points ?? []))
-      if (Math.hypot(p.x - x, p.z - z) < 12) return p.y;
-    for (const r of roads) for (const p of (r.points ?? []))
-      if (Math.hypot(p.x - x, p.z - z) < 12) return p.y;
-    return null;
+    let best = null, bestD = Infinity;
+    for (const t of (tunnels ?? [])) for (const p of (t.points ?? [])) {
+      const d = Math.hypot(p.x - x, p.z - z);
+      if (d < 12 && d < bestD) { bestD = d; best = p.y; }
+    }
+    for (const r of roads) for (const p of (r.points ?? [])) {
+      const d = Math.hypot(p.x - x, p.z - z);
+      if (d < 12 && d < bestD) { bestD = d; best = p.y; }
+    }
+    return best;
   };
   const padY = (x, z, fallback) => anchored(x, z) ?? fallback;
   /**

@@ -5,10 +5,15 @@
  */
 import { warn, info } from '../diagnostics.mjs';
 import { makeRng, mix } from '../rng.mjs';
+import { reliefOf } from '../../../src/relief.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const EPS = 1e-9;
+const MAX_ROAD_SLOPE = 0.3; // align with jsonMap.maxSlope intent for generated roads
+const BRIDGE_CLEARANCE = 2.0; // m above ground/river bed corridor for underpass readability
+const BRIDGE_DECK_MIN = 1.2; // compiler warns below this over groundY
+const SAMPLE_STEP = 4; // m for terrain/river profiling samples
 
 function pathPoints(seg) {
   if (Array.isArray(seg.elements) && seg.elements.length) return null; // element-based, skip point slope checks
@@ -78,53 +83,249 @@ function shouldGenerateTransport(ctx) {
   return !has;
 }
 
-function segCrossesRiver(ax, az, bx, bz, river) {
-  const path = river.path ?? [];
-  const margin = (river.width ?? 10) * 0.5 + 4;
-  for (let i = 0; i + 1 < path.length; i++) {
-    const r1 = path[i], r2 = path[i + 1];
-    // approximate: sample along road segment and check distance to river centerline
+function modifiersToHills(mods = [], groundY = 0) {
+  const hills = [];
+  mods.forEach((m, i) => {
+    if (!m || typeof m !== 'object') return;
+    if (m.type !== 'mountain' && m.type !== 'valley') return;
+    const center = Array.isArray(m.center) ? m.center : [Number(m.center?.x) || 0, Number(m.center?.z) || 0];
+    const path = Array.isArray(m.path) && m.path.length >= 2 ? m.path : null;
+    const ax = path ? (Array.isArray(path[0]) ? path[0][0] : center[0]) : center[0];
+    const az = path ? (Array.isArray(path[0]) ? path[0][1] : center[1]) : center[1];
+    const bx = path ? (Array.isArray(path[path.length - 1]) ? path[path.length - 1][0] : center[0]) : center[0];
+    const bz = path ? (Array.isArray(path[path.length - 1]) ? path[path.length - 1][1] : center[1]) : center[1];
+    const radius = Number.isFinite(m.radius) ? m.radius : 0;
+    const height = Number.isFinite(m.height) ? m.height : 0;
+    if (!(radius > 0) || !Number.isFinite(ax)) return;
+    const signed = m.operation === 'subtract' ? -height : height;
+    hills.push({ id: m.id ?? `hill_${i}`, x: ax, z: az, bx, bz, radius, height: signed });
+  });
+  // reliefOf needs a spec; baseY is ground reference.
+  return { baseY: groundY, hills, pads: [], rivers: [], roadCorridors: [] };
+}
+
+function makeTerrainSampler(ctx) {
+  const groundY = ctx.input?.ground?.y ?? 0;
+  const mods = ctx.terrain?.modifiers ?? ctx.input?.cityforge?.terrain?.modifiers ?? [];
+  const spec = modifiersToHills(mods, groundY);
+  try {
+    const relief = reliefOf(spec);
+    return {
+      groundY,
+      heightAt: (x, z) => relief.heightAt(x, z),
+      relief,
+    };
+  } catch {
+    return { groundY, heightAt: () => groundY, relief: null };
+  }
+}
+
+function riverMinDistXZAt(x, z, rivers = []) {
+  let best = Infinity, river = null;
+  for (const rv of rivers) {
+    const path = rv?.path ?? [];
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a = path[i], b = path[i + 1];
+      const d = pointSegDistXZ(x, z, a[0], a[2], b[0], b[2]);
+      if (d < best) { best = d; river = rv; }
+    }
+  }
+  return { d: best, river };
+}
+
+function segCrossesRiver(ax, az, bx, bz, rivers) {
+  for (const river of rivers ?? []) {
+    const margin = (river.width ?? 10) * 0.5 + 2;
     const len = Math.hypot(bx - ax, bz - az);
-    const steps = Math.max(2, Math.ceil(len / 5));
+    const steps = Math.max(2, Math.ceil(len / SAMPLE_STEP));
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
       const px = ax + (bx - ax) * t, pz = az + (bz - az) * t;
-      if (pointSegDistXZ(px, pz, r1[0], r1[2], r2[0], r2[2]) < margin) return true;
+      const d = riverMinDistXZAt(px, pz, [river]).d;
+      if (d < margin) return { river, tHit: t };
     }
   }
-  return false;
+  return null;
 }
 
-function buildRoutePath(points2d, yFn, rivers) {
-  // points2d: [{x,z}, ...] in order. Expand crossings with bridge profiles.
+function enforceSlope(path, maxSlope, stageId, segId, report) {
+  if (!Array.isArray(path) || path.length < 2) return path;
+  const out = [path[0].slice()];
+  let repairs = 0;
+  for (let i = 0; i + 1 < path.length; i++) {
+    let a = out[out.length - 1];
+    const b = path[i + 1].slice();
+    const dx = b[0] - a[0], dz = b[2] - a[2];
+    const dy = b[1] - a[1];
+    const h = Math.hypot(dx, dz);
+    if (h < EPS) { out.push(b); continue; }
+    const slope = Math.abs(dy) / h;
+    if (slope <= maxSlope + EPS) { out.push(b); continue; }
+    // Split segment and clamp intermediate elevation to max slope from a toward b.
+    const n = Math.ceil(slope / maxSlope);
+    for (let k = 1; k <= n; k++) {
+      const t = k / n;
+      const x = a[0] + dx * t;
+      const z = a[2] + dz * t;
+      const targetLinear = a[1] + dy * t;
+      const maxUp = a[1] + maxSlope * h * t;
+      const maxDown = a[1] - maxSlope * h * t;
+      const y = clamp(targetLinear, maxDown, maxUp);
+      if (Math.abs(y - targetLinear) > 1e-6) repairs++;
+      const p = [Math.round(x * 100) / 100, Math.round(y * 100) / 100, Math.round(z * 100) / 100];
+      out.push(p);
+      a = p;
+    }
+  }
+  if (repairs && report) {
+    report.repairs.push({ stage: stageId, id: segId, code: 'clamp_segment_slope', count: repairs });
+    report.diagnostics.push(warn('segment_slope_repaired', stageId, `segment '${segId}' slope clamped/smoothed (${repairs} point adjustments)`, { id: segId, count: repairs }));
+  }
+  // remove tiny duplicates
+  const dedup = [out[0]];
+  for (let i = 1; i < out.length; i++) {
+    const p = out[i], l = dedup[dedup.length - 1];
+    if (Math.hypot(p[0]-l[0], p[1]-l[1], p[2]-l[2]) > 0.05) dedup.push(p);
+  }
+  return dedup.length >= 2 ? dedup : out;
+}
+
+function sampleMaxTerrainOnSegment(ax, az, bx, bz, sampler) {
+  const len = Math.hypot(bx - ax, bz - az);
+  const steps = Math.max(1, Math.ceil(len / SAMPLE_STEP));
+  let maxY = -Infinity;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const y = sampler.heightAt(ax + (bx - ax) * t, az + (bz - az) * t);
+    if (y > maxY) maxY = y;
+  }
+  return Number.isFinite(maxY) ? maxY : sampler.groundY;
+}
+
+function buildRoutePath(points2d, sampler, rivers, stageId, report) {
+  // points2d: [{x,z}, ...] in order. Profile on terrain and add bridge spans over rivers.
   const out = [];
   const pushPt = (x, y, z) => {
     const p = [Math.round(x * 100) / 100, Math.round(y * 100) / 100, Math.round(z * 100) / 100];
     const last = out[out.length - 1];
-    if (!last || Math.hypot(last[0]-p[0], last[1]-p[1], last[2]-p[2]) > EPS) out.push(p);
+    if (!last || Math.hypot(last[0]-p[0], last[1]-p[1], last[2]-p[2]) > 0.05) out.push(p);
   };
   for (let i = 0; i + 1 < points2d.length; i++) {
     const a = points2d[i], b = points2d[i + 1];
-    const crosses = (rivers ?? []).some(rv => segCrossesRiver(a.x, a.z, b.x, b.z, rv));
-    const ya = yFn(a.x, a.z), yb = yFn(b.x, b.z);
-    if (!crosses) {
-      if (i === 0) pushPt(a.x, ya, a.z);
-      pushPt(b.x, yb, b.z);
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < EPS) continue;
+    const ux = dx / len, uz = dz / len;
+    const crossing = segCrossesRiver(a.x, a.z, b.x, b.z, rivers ?? []);
+    const ya = sampler.heightAt(a.x, a.z);
+    const yb = sampler.heightAt(b.x, b.z);
+    if (!crossing) {
+      // sample terrain-following polyline for on-ground segment
+      const steps = Math.max(1, Math.ceil(len / 12));
+      for (let s = (i === 0 ? 0 : 1); s <= steps; s++) {
+        const t = s / steps;
+        const x = a.x + dx * t, z = a.z + dz * t;
+        const y = sampler.heightAt(x, z);
+        pushPt(x, y, z);
+      }
       continue;
     }
-    const dx = b.x - a.x, dz = b.z - a.z;
-    const len = Math.hypot(dx, dz) || 1;
-    const ux = dx / len, uz = dz / len;
-    const ramp = Math.min(18, len * 0.25);
-    const deckH = Math.max(ya, yb, 0) + 7;
+    // Bridge profile: ensure clearance above sampled terrain and river corridor bed estimate.
+    const river = crossing.river;
+    const maxTerrain = sampleMaxTerrainOnSegment(a.x, a.z, b.x, b.z, sampler);
+    const riverBed = sampler.groundY - (Number.isFinite(river?.depth) ? river.depth : 2);
+    const minDeckByGround = sampler.groundY + BRIDGE_DECK_MIN;
+    const minDeckByClearance = Math.max(maxTerrain, riverBed) + BRIDGE_CLEARANCE;
+    let deckH = Math.max(ya, yb, minDeckByGround, minDeckByClearance);
+    // ramp length limited by segment and by slope
+    const riseNeed = Math.max(deckH - ya, deckH - yb, 0);
+    const rampMin = riseNeed / Math.max(MAX_ROAD_SLOPE, 0.05);
+    const rampMax = Math.max(6, len * 0.35);
+    let ramp = clamp(Math.max(10, rampMin), 6, rampMax);
+    if (ramp * 2 >= len) ramp = Math.max(4, len * 0.25);
+    // if still too steep for available length, raise deck (longer effective slope over same rise impossible, so increase deck? no)
+    // ensure end ramps feasible by allowing slightly higher deck
+    const feasibleRise = Math.max(MAX_ROAD_SLOPE * ramp, riseNeed);
+    deckH = Math.max(deckH, ya + feasibleRise, yb + feasibleRise, minDeckByGround, minDeckByClearance);
     const a1x = a.x + ux * ramp, a1z = a.z + uz * ramp;
     const b1x = b.x - ux * ramp, b1z = b.z - uz * ramp;
+    const deckMidX = (a1x + b1x) / 2, deckMidZ = (a1z + b1z) / 2;
+    // refine deck by terrain at mid
+    const midTerrain = sampler.heightAt(deckMidX, deckMidZ);
+    deckH = Math.max(deckH, midTerrain + BRIDGE_CLEARANCE, sampler.groundY + BRIDGE_DECK_MIN);
     if (i === 0) pushPt(a.x, ya, a.z);
-    pushPt(a1x, ya + (deckH - ya) * 0.7, a1z);
-    pushPt((a1x + b1x) / 2, deckH, (a1z + b1z) / 2);
-    pushPt(b1x, yb + (deckH - yb) * 0.7, b1z);
+    pushPt(a1x, lerp(ya, deckH, 0.85), a1z);
+    pushPt(deckMidX, deckH, deckMidZ);
+    pushPt(b1x, lerp(yb, deckH, 0.85), b1z);
     pushPt(b.x, yb, b.z);
+    report?.diagnostics.push(info('transport_bridge_profiled', stageId, `segment crossing river '${river?.id ?? '?'}' bridged (deck ${deckH.toFixed(2)}m)`, { river: river?.id ?? null, deckH }));
   }
+  return out;
+}
+
+function pinEndpoints(path, start, end, maxSlope, stageId, segId, report) {
+  if (!Array.isArray(path) || path.length < 2) return path;
+  const p = path.map(pt => pt.slice());
+  p[0] = start.slice();
+  p[p.length - 1] = end.slice();
+  // Adjust points adjacent to endpoints to satisfy slope constraints, inserting if needed.
+  const fixEnd = (fromIdx, toIdx, fixed) => {
+    let guard = 0;
+    while (guard++ < 20) {
+      const a = p[fromIdx], b = p[toIdx];
+      const dx = b[0] - a[0], dz = b[2] - a[2], dy = b[1] - a[1];
+      const h = Math.hypot(dx, dz);
+      const slope = h < EPS ? 0 : Math.abs(dy) / h;
+      if (slope <= maxSlope + EPS || h < 0.2) return;
+      // move/insert intermediate point closer to fixed end to reduce slope
+      if (Math.abs(toIdx - fromIdx) === 1) {
+        const mid = [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
+        if (fixed === 'to') {
+          // keep b fixed, adjust mid from b side
+          const dirX = a[0]-b[0], dirZ = a[2]-b[2];
+          const len = Math.hypot(dirX, dirZ) || 1;
+          const needH = Math.abs(a[1]-b[1]) / maxSlope;
+          const hh = Math.max(0.5, Math.min(needH, len - 0.1));
+          mid[0] = b[0] + dirX/len*hh; mid[2] = b[2] + dirZ/len*hh;
+          mid[1] = b[1] + Math.sign(a[1]-b[1]) * Math.min(Math.abs(a[1]-b[1]), maxSlope*hh);
+        } else {
+          const dirX = b[0]-a[0], dirZ = b[2]-a[2];
+          const len = Math.hypot(dirX, dirZ) || 1;
+          const needH = Math.abs(b[1]-a[1]) / maxSlope;
+          const hh = Math.max(0.5, Math.min(needH, len - 0.1));
+          mid[0] = a[0] + dirX/len*hh; mid[2] = a[2] + dirZ/len*hh;
+          mid[1] = a[1] + Math.sign(b[1]-a[1]) * Math.min(Math.abs(b[1]-a[1]), maxSlope*hh);
+        }
+        p.splice(Math.max(fromIdx,toIdx), 0, mid.map(v => Math.round(v*100)/100));
+        report?.diagnostics.push(warn('endpoint_slope_repaired', stageId, `segment '${segId}' adjusted near endpoint for slope`, { id: segId }));
+        return;
+      } else {
+        // pull adjacent interior toward feasible y
+        const dir = toIdx > fromIdx ? 1 : -1;
+        const adj = fromIdx + dir;
+        const fixedPt = p[toIdx];
+        const inner = p[adj];
+        const dx2 = inner[0]-fixedPt[0], dz2 = inner[2]-fixedPt[2];
+        const h2 = Math.hypot(dx2,dz2);
+        if (h2 < EPS) return;
+        const maxDy = maxSlope * h2;
+        const dy2 = clamp(inner[1]-fixedPt[1], -maxDy, maxDy);
+        if (Math.abs(dy2 - (inner[1]-fixedPt[1])) > 1e-6) {
+          inner[1] = Math.round((fixedPt[1] + dy2) * 100) / 100;
+          report?.diagnostics.push(warn('endpoint_slope_repaired', stageId, `segment '${segId}' adjusted near endpoint for slope`, { id: segId }));
+        } else return;
+      }
+    }
+  };
+  fixEnd(1, 0, 'to');
+  fixEnd(p.length - 2, p.length - 1, 'to');
+  let out = enforceSlope(p, maxSlope, stageId, segId, report);
+  // enforceSlope may move endpoints; restore and locally re-fix adjacent slopes.
+  out[0] = start.slice();
+  out[out.length - 1] = end.slice();
+  fixEnd(1, 0, 'to');
+  // recompute indices after possible inserts? fixEnd mutates in-place but indices for end side
+  fixEnd(out.length - 2, out.length - 1, 'to');
   return out;
 }
 
@@ -137,20 +338,25 @@ function generateTransport(ctx) {
   const seed = mix(ctx.meta.seed ?? 0, stageId, tc.seedOffset ?? 0);
   const rng = makeRng(seed);
   const groundY = ctx.input?.ground?.y ?? 0;
-  // simple base elevation (stage 1 terrain not analytically sampled here; keep near ground, bridges handled by profile)
-  const yFn = () => groundY;
-  const rivers = (ctx.masks.easement?.rivers ?? ctx.hydrology?.rivers ?? []);
-  // L-shaped route with deterministic bend choice
+  const sampler = makeTerrainSampler(ctx);
+  const rivers = (ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? []);
+  // L-shaped route with deterministic bend choice; keep bend inside bounds-ish by anchors.
   const bend = rng() < 0.5
     ? { x: exit.x, z: spawn.z }
     : { x: spawn.x, z: exit.z };
   const pts2d = [spawn, bend, exit].filter((p, i, arr) => i === 0 || Math.hypot(p.x - arr[i-1].x, p.z - arr[i-1].z) > 1);
-  const path = buildRoutePath(pts2d, yFn, rivers);
+  let path = buildRoutePath(pts2d, sampler, rivers, stageId, ctx.report);
+  if (path.length < 2) return;
+  path = enforceSlope(path, MAX_ROAD_SLOPE, stageId, 'tr_main', ctx.report);
+  // Pin endpoints to terrain/anchors and re-enforce slope while preserving them.
+  const start = [Math.round(spawn.x * 100) / 100, Math.round(sampler.heightAt(spawn.x, spawn.z) * 100) / 100, Math.round(spawn.z * 100) / 100];
+  const end = [Math.round(exit.x * 100) / 100, Math.round(sampler.heightAt(exit.x, exit.z) * 100) / 100, Math.round(exit.z * 100) / 100];
+  path = pinEndpoints(path, start, end, MAX_ROAD_SLOPE, stageId, 'tr_main', ctx.report);
   if (path.length < 2) return;
   const width = clamp(Number.isFinite(tc.width) ? tc.width : 8, 4, 20);
   const nodes = [
-    { id: 'tr_n_spawn', position: path[0], layer: 'ground' },
-    { id: 'tr_n_exit', position: path[path.length - 1], layer: 'ground' },
+    { id: 'tr_n_spawn', position: path[0].slice(), layer: 'ground' },
+    { id: 'tr_n_exit', position: path[path.length - 1].slice(), layer: 'ground' },
   ];
   const segments = [{
     id: 'tr_main',
@@ -167,7 +373,7 @@ function generateTransport(ctx) {
   ctx.networks.roads.nodes = nodes;
   ctx.networks.roads.segments = segments;
   ctx.networks.roads.junctions = [];
-  ctx.report.diagnostics.push(info('transport_generated', stageId, 'stage 2 generated base route spawn↔exit', { nodes: nodes.length, segments: segments.length, seed, points: path.length }));
+  ctx.report.diagnostics.push(info('transport_generated', stageId, 'stage 2 generated base route spawn↔exit', { nodes: nodes.length, segments: segments.length, seed, points: path.length, profiled: true }));
 }
 
 export function makeStage2() {
