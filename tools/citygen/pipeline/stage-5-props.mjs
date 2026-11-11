@@ -236,20 +236,21 @@ function generateProps(ctx, stageId, cfg) {
     const baseY = ctx.input?.ground?.y ?? 0;
 
     if (type === 'park' || type === 'forest') {
-      const count = clamp(Math.round(area / (type === 'forest' ? 800 : 1100)), 1, 5);
+      const count = clamp(Math.round(area / (type === 'forest' ? 700 : 1000)), 1, 6);
       for (let i = 0; i < count && out.length < budget; i++) {
-        const s = 0.85 + rng() * 0.5;
-        tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.55, (b.maxZ - b.minZ) * 0.55, 4, () => rng() * 360, () => ({ x: s, y: s, z: s }), 5.5, type === 'forest' ? 3 : 4);
+        const s = 0.85 + rng() * 0.55;
+        tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.58, (b.maxZ - b.minZ) * 0.58, 5, () => rng() * 360, () => ({ x: s, y: s, z: s }), 5.2, type === 'forest' ? 2.8 : 3.5);
       }
-      if (type === 'park' && rng() < 0.85) tryPlaceNear('bench', cx, cz, baseY, 12, 12, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.5, 3.5);
-      if (type === 'park' && rng() < 0.35) tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.45, (b.maxZ - b.minZ) * 0.45, 3, () => rng() * 360, () => { const s = 0.8 + rng() * 0.4; return { x: s, y: s, z: s }; }, 5.5, 3.5);
-      if (type === 'forest' && rng() < 0.25) tryPlaceNear(pick(['wire_spool', 'barrier'], rng), cx, cz, baseY, 10, 10, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.0, 4);
+      if (type === 'park' && rng() < 0.9) tryPlaceNear('bench', cx, cz, baseY, 14, 14, 5, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.2, 3.2);
+      if (type === 'park' && rng() < 0.5) tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.48, (b.maxZ - b.minZ) * 0.48, 4, () => rng() * 360, () => { const s = 0.8 + rng() * 0.45; return { x: s, y: s, z: s }; }, 5.2, 3.2);
+      if (type === 'park' && rng() < 0.25) tryPlaceNear(pick(['bollard', 'bench'], rng), cx, cz, baseY, 10, 10, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.0, 3.2);
+      if (type === 'forest' && rng() < 0.35) tryPlaceNear(pick(['wire_spool', 'barrier', 'tree'], rng), cx, cz, baseY, 12, 12, 3, () => rng() * 360, () => { const s = 0.75 + rng() * 0.4; return { x: s, y: s, z: s }; }, 5.0, 3.0);
     } else if (type === 'residential' || type === 'luxury' || type === 'office') {
-      if (rng() < 0.45) tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.35, (b.maxZ - b.minZ) * 0.35, 3, () => rng() * 360, { x: 0.9, y: 0.9, z: 0.9 }, 5.0, 4);
-      if (rng() < 0.35) tryPlaceNear('bench', cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.0, 3.5);
-      if ((type === 'office' || type === 'luxury') && rng() < 0.25) tryPlaceNear(pick(['bollard', 'ac_unit', 'vent'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 3);
-      if (type === 'luxury' && rng() < 0.2) tryPlaceNear(pick(['antenna', 'av_pad'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.25, (b.maxZ - b.minZ) * 0.25, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5);
-      if (type === 'office' && rng() < 0.2) tryPlaceNear(pick(['ac_unit', 'vent', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.25, (b.maxZ - b.minZ) * 0.25, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5);
+      if (rng() < 0.5) tryPlaceNear('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.38, (b.maxZ - b.minZ) * 0.38, 4, () => rng() * 360, { x: 0.9, y: 0.9, z: 0.9 }, 4.8, 3.8);
+      if (rng() < 0.4) tryPlaceNear('bench', cx, cz, baseY, (b.maxX - b.minX) * 0.32, (b.maxZ - b.minZ) * 0.32, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.2);
+      if ((type === 'office' || type === 'luxury') && rng() < 0.3) tryPlaceNear(pick(['bollard', 'ac_unit', 'vent'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 3);
+      if (type === 'luxury' && rng() < 0.22) tryPlaceNear(pick(['antenna', 'av_pad'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.25, (b.maxZ - b.minZ) * 0.25, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5);
+      if (type === 'office' && rng() < 0.22) tryPlaceNear(pick(['ac_unit', 'vent', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.25, (b.maxZ - b.minZ) * 0.25, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5);
     } else if (type === 'industrial' || type === 'parking') {
       if (rng() < 0.55) tryPlaceNear(pick(['container', 'barrier', 'wire_spool', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 4);
       if (type === 'parking' && rng() < 0.45) tryPlaceNear(pick(['bollard', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.4, (b.maxZ - b.minZ) * 0.4, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.2, 3);
