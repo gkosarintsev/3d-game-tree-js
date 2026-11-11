@@ -80,6 +80,18 @@ function footprintIntersectsRoad(fp, roads = [], roadSegments = []) {
   return false;
 }
 
+function minDistanceToRoadSegments(x, z, roadSegments = []) {
+  let best = Infinity;
+  for (const s of roadSegments) {
+    const pts = Array.isArray(s?.path) ? s.path : [];
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], c = pts[i+1];
+      best = Math.min(best, pointSegDistXZ(x, z, a[0], a[2], c[0], c[2]));
+    }
+  }
+  return best;
+}
+
 function footprintNearAnchors(fp, anchors = [], margin = 8) {
   const b = aabbOfFootprint(fp);
   for (const a of anchors) {
@@ -128,9 +140,9 @@ export function makeStage4() {
         const profile = profiles[p.type] || profiles[p.profileId] || {};
         const kinds = profile.buildings?.kinds ?? [];
         const coverage = clamp(Number(profile.parcels?.coverage ?? 0.3), 0, 0.85);
-        // skip empty/low-coverage zones sometimes (parks/forest/parking)
+        // base placement probability by district/building profile
         const chance = kinds.length === 0 ? 0 : Math.max(0.15, coverage + 0.1);
-        if (rng() > chance) continue;
+        // (actual roll may be biased by road access below)
         const b = p.aabb; if (!b) continue;
         const pw = b.maxX - b.minX, ph = b.maxZ - b.minZ;
         if (pw < 6 || ph < 6) continue;
@@ -147,6 +159,21 @@ export function makeStage4() {
           skippedConflict++;
           continue;
         }
+
+        // Mild road-access bias: prefer parcels closer to emitted road network for built-up districts.
+        const roadDist = minDistanceToRoadSegments(cx, cz, roadSegments);
+        let accessChance = chance;
+        if (Number.isFinite(roadDist) && roadDist !== Infinity) {
+          const needsAccess = ['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports'].includes(p.type);
+          if (needsAccess) {
+            if (roadDist < 60) accessChance = Math.min(0.95, chance + 0.18);
+            else if (roadDist < 140) accessChance = Math.min(0.85, chance + 0.08);
+            else accessChance = Math.max(0.08, chance - 0.12);
+          } else if (p.type === 'park' || p.type === 'forest') {
+            if (roadDist > 120) accessChance = Math.min(0.9, chance + 0.05);
+          }
+        }
+        if (rng() > accessChance) continue;
         const maxFloors = Math.max(1, Number(profile.buildings?.maxFloors ?? 4));
         let floors = 1 + Math.floor(rng() * Math.min(maxFloors, 6));
         // allow taller in office/luxury occasionally
@@ -171,7 +198,6 @@ export function makeStage4() {
       }
       ctx.buildings = out;
       ctx.report.diagnostics.push(info('buildings_generated', stageId, 'generated buildings from parcels', { count: out.length, budget, skippedConflict }));
-      ctx.report.diagnostics.push(info('buildings_generated', stageId, 'generated buildings from parcels', { count: out.length, budget }));
     },
     validate(ctx) {
       const stageId = '4_buildings_structures';
