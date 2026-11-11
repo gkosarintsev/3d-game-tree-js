@@ -1445,7 +1445,7 @@ export const LEVEL_15 = {
     "stream": {
       "aheadMax": 1200,
       "aheadMin": 200,
-      "budgetMs": 80,
+      "budgetMs": 120,
       "chunk": 256,
       "keep": 2,
       "overlap": 1.175

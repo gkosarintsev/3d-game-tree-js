@@ -151,6 +151,7 @@ function argAll(name) {
 
 const only = (arg('suites', '') || '').split(',').filter(Boolean);
 const fast = process.argv.includes('--fast');
+const details = process.argv.includes('--details');
 const levelArg = arg('level', null);
 const flakes = argAll('flake').map(spec => {
   const at = spec.indexOf('::');
@@ -194,8 +195,12 @@ for (const file of files) {
   const skipNote = r.skipped ? ' (пропуск по фильтру главы)' : '';
   const tag = !ok ? 'FAIL' : (r.skipped ? 'SKIP' : 'PASS');
   console.log(`${tag} ${file}: ${r.passed}/${r.total}${flakeNote}${skipNote} (${((r.durationMs ?? 0) / 1000).toFixed(1)}s)`);
-  for (const [, name, info] of red) {
-    console.log(`       ${isFlaky(file, name) ? 'FLAKE (не блокирует)' : '✖'} ${name}: ${String(info).slice(0, 2000)}`);
+  const toShow = details ? (r.results ?? []) : red;
+  for (const [passed, name, info] of toShow) {
+    if (details || !passed) {
+      const prefix = passed ? '·' : (isFlaky(file, name) ? 'FLAKE (не блокирует)' : '✖');
+      console.log(`       ${prefix} ${name}: ${String(info).slice(0, 4000)}`);
+    }
   }
   if (r.consoleErrors?.length) {
     console.log(`       errors: ${r.consoleErrors.slice(0, 3).join(' | ').slice(0, 300)}`);

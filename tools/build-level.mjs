@@ -1,7 +1,7 @@
 /**
  * CLI пайплайна «уровень из JSON»:
  *
- *   node tools/build-level.mjs src/levels/level-13.json [--check] [--out path]
+ *   node tools/build-level.mjs src/levels/level-16.json [--check] [--out path]
  *
  * Читает сырой бриф, разворачивает из него секцию `city` в улицы и дома
  * (`tools/city.js`), валлидирует результат (`tools/level-schema.mjs`),
@@ -23,8 +23,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2, LEVEL_SPEC_V3, LEVEL_SPEC_V4 } from './level-schema.mjs';
-import { normalizeLevel, isV2Kind } from './normalize-level.mjs';
+import { validateLevel, LEVEL_SPEC_V2, LEVEL_SPEC_V3, LEVEL_SPEC_V4 } from './level-schema.mjs';
+import { normalizeLevel } from './normalize-level.mjs';
 import { expandCity } from './city.js';
 import { splitLevel, stringifyStable } from './chunk-level.mjs';
 import { skeletonOf } from './skeleton.mjs';
@@ -36,10 +36,14 @@ import { runCitygen } from './citygen/index.mjs';
 const ROOT = resolve(import.meta.dirname, '..');
 
 /**
- * Путь брифа до чисел карты — один для модуля и для каталога: разворот города,
+ * Путь брифа до чисел карты — один для каталога: разворот города,
  * схема по версии брифа, валидация, нормализация. Два таких пути разошлись бы
  * при первой же правке, и каталог начал бы собираться не по тем правилам, что
  * проверяет сюжетная валидация.
+ *
+ * Поддерживаемые исходные/компилируемые форматы: `cityforge` (v3/v4 → каталог)
+ * и `kind: 'open'` (каталог). Устаревшие `json`/`json2` источники модуля не
+ * поддерживаются.
  *
  * @param {object} raw сырой уровень (может содержать `city`)
  * @param {string} sourceName имя исходника для шапок
@@ -53,13 +57,17 @@ function prepare(raw, sourceName) {
   } catch (e) {
     throw new ValidationError([String(e?.message ?? e)], []);
   }
-  // переключатель версии — в самом брифе: v1 (`kind: 'json'` или без него) не
-  // принимает ни `rotation`, ни дуги, поэтому схема обязана выбираться до
-  // геометрического прохода, а не после. v4 — CityForge с манифестом генератора
-  // (`schemaVersion: 4`), валидируется отдельной схемой.
+  const kind = expanded.kind ?? 'json';
+  if (kind === 'json' || kind === 'json2') {
+    throw new ValidationError([
+      `kind '${kind}' (v1/v2 модуль) не поддерживается: используйте cityforge v3/v4 или kind 'open' (каталог).`,
+    ], []);
+  }
+  // v4 — CityForge с манифестом генератора (`schemaVersion: 4`), валидируется
+  // отдельной схемой; скомпилированный/исходный открытый мир — схемой v2/open.
   const spec = expanded.kind === 'cityforge' && expanded.schemaVersion === 4 ? LEVEL_SPEC_V4
     : expanded.kind === 'cityforge' ? LEVEL_SPEC_V3
-    : isV2Kind(expanded.kind) ? LEVEL_SPEC_V2 : LEVEL_SPEC;
+    : LEVEL_SPEC_V2;
   const { errors, warnings: geoWarnings } = validateLevel(expanded, spec);
   if (errors.length) throw new ValidationError(errors, geoWarnings);
   let level;
@@ -74,57 +82,14 @@ function prepare(raw, sourceName) {
 }
 
 /**
- * @param {object} raw сырой уровень (уже прочитанный JSON, может содержать `city`)
- * @param {string} sourceName имя исходника для шапки (src/levels/level-13.json)
- * @returns {{name:string, code:string, warnings:string[]}} текст модуля главы
+ * Устаревший модуль главы (`json`/`json2`) не поддерживается: v3/v4 используют
+ * CityForge → каталог. Оставлено как явная ошибка вместо тихой генерации.
  */
 export function generateModule(raw, sourceName) {
-  const { expanded, level, warnings, constName } = prepare(raw, sourceName);
-  // открытая глава в модуль не пишется принципиально: браузер прочитал бы 27 МБ
-  // целиком, а весь смысл разрезки — в `fetch` одного чанка
-  if (expanded.kind === 'open') {
-    throw new ValidationError([`kind: 'open' пишется каталогом — вызовите generateCatalog (${sourceName})`], warnings);
-  }
-  const body = JSON.stringify(
-    { name: level.name, hint: level.hint, map: level.map, sky: level.sky, gameplay: level.gameplay },
-    null, 2,
-  );
-  const notice = warnings.length
-    ? `\n * Предупреждения парсера:\n${warnings.map(w => ` *   — ${w}`).join('\n')}\n *`
-    : '';
-  // строка появляется только у брифа с секцией `city` — бриф без неё от этого
-  // текста не меняется и остаётся байт в байт прежним
-  const seeded = raw.city
-    ? `\n *\n * Секцию \`city\* развернул генератор кварталов (tools/city.js): его ГПСЧ сидит\n * в \`city.seed\`, поэтому и этот файл детерминирован — правка района в брифе\n * меняет дома, а правка сида меняет весь район целиком.`
-    : '';
-  // абзац появляется только у брифа `kind: 'json2'` — модули v1-глав обязаны
-  // остаться побайтово прежними
-  const turned = expanded.kind === 'json2'
-    ? `\n *\n * Поворотные дома (\`buildings[].rotation\*) ставят корпус под углом к северу:\n * весь внутренний расчёт — стены, комнаты, шахты маршей и проёмы дверей —\n * идёт в его собственных осях, а в мировом плане его держит ориентированная\n * коробка (src/solids.js), потому что габарит решил бы твёрдость вокруг дома\n * и вокруг неё выросли бы невидимые башни.`
-    : '';
-  const code = `/**
- * СГЕНЕРИРОВАННО — руками не править.
- *
- * Источник правки: ${sourceName}. После его изменения запуск
- * \`node tools/build-level.mjs ${sourceName}\` перезаписывает этот файл
- * побайтово одинаково (ГПСЧ в парсере нет, ключи объектов отсортированы).${seeded}
- *
- * Тип карты — \`kind: '${expanded.kind ?? 'json'}'\`: числа и топологию готовит Node-парсер
- * (замкнутые полигоны, союз прямоугольников footprint, абсолютные высоты
- * этажей, проступи лестниц, пластины настилов, автогенерированные опоры и
- * фонари, проёмы дверей), браузер строит из них только солиды, опоры,
- * навигацию и меш.${turned}${notice}
- */
-export const ${constName} = ${body};
-`;
-  return {
-    name: constName,
-    code: code.replace(/\r\n/g, '\n'),
-    warnings,
-    kind: 'module',
-    dir: dirname(sourceName).replace(/\\/g, '/'),
-    files: [{ path: `${basename(sourceName, extname(sourceName))}.js`, code: code.replace(/\r\n/g, '\n') }],
-  };
+  const kind = raw?.kind ?? 'json';
+  throw new ValidationError([
+    `generateModule: kind '${kind}' не поддерживается. Поддерживаются cityforge v3/v4 и kind 'open' (каталог).`,
+  ], []);
 }
 
 /**
@@ -147,7 +112,7 @@ export const ${constName} = ${body};
  * вторая реализация геодезии.
  *
  * @param {object} raw сырой бриф с `kind: 'open'` и секцией `stream`
- * @param {string} sourceName имя исходника (src/levels/level-14.json)
+ * @param {string} sourceName имя исходника (src/levels/level-16.json)
  * @param {{reverse?:boolean, outDir?:string}} opts обход клеток задом наперёд —
  *   knob сюиты; `outDir` — каталог вывода CLI (`--out`), из него же печатается
  *   `catalog`, иначе скопированный каталог звал бы файлы по прежнему пути
@@ -265,7 +230,14 @@ function generateCityforge(raw, sourceName, opts = {}) {
       const cg = runCitygen(raw);
       source = cg.engine ?? raw;
       report = cg.reportJson ?? null;
+      if ((cg.report?.summary?.errors ?? 0) > 0) {
+        const errs = (cg.report?.diagnostics ?? [])
+          .filter(d => d.severity === 'error')
+          .map(d => `[${d.stage ?? 'citygen'}] ${d.code}: ${d.message}`);
+        throw new ValidationError(errs.length ? errs : ['citygen: generation failed with errors'], v3w);
+      }
     } catch (e) {
+      if (e instanceof ValidationError) throw e;
       throw new ValidationError([String(e?.message ?? e)], v3w);
     }
   }
@@ -377,13 +349,17 @@ function generateCityforge(raw, sourceName, opts = {}) {
   return out;
 }
 
-/** Чем платить бриф: модулем — обычно, каталогом — открытая глава, CityForge v3 — компиляция в движок. */
+/** Чем платить бриф: CityForge v3/v4 — компиляция в движок, `open` — каталог. */
 export function generateOutput(raw, sourceName, opts = {}) {
   if (raw?.kind === 'cityforge') return generateCityforge(raw, sourceName, opts);
-  return raw?.kind === 'open' ? generateCatalog(raw, sourceName, opts) : generateModule(raw, sourceName);
+  if (raw?.kind === 'open') return generateCatalog(raw, sourceName, opts);
+  const kind = raw?.kind ?? 'json';
+  throw new ValidationError([
+    `kind '${kind}' не поддерживается: поддерживаются только cityforge v3/v4 и kind 'open' (каталог).`,
+  ], []);
 }
 
-/** Имя экспорта из имени файла: level-13.json → LEVEL_13, city-3 → CITY_3. */
+/** Имя экспорта из имени файла: level-16.json → LEVEL_16, city-3 → CITY_3. */
 function exportName(sourceName) {
   const stem = basename(sourceName, extname(sourceName));
   return stem.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'LEVEL';
@@ -398,7 +374,7 @@ class ValidationError extends Error {
   }
 }
 
-/** Путь модуля главы по пути JSON: src/levels/level-13.json → .../level-13.js */
+/** Путь модуля главы по пути JSON: src/levels/level-15.json → .../level-15.js */
 const defaultOut = jsonPath => resolve(dirname(jsonPath), `${basename(jsonPath, extname(jsonPath))}.js`);
 
 function main(argv) {

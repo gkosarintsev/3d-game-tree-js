@@ -5,6 +5,8 @@
  */
 import { info, warn } from '../diagnostics.mjs';
 import { makeRng, mix } from '../rng.mjs';
+import { createSpatialIndex } from '../spatial.mjs';
+import { addAxisAlignedAccessRoadsForParcels } from './stage-2-transport.mjs';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const EPS = 1e-9;
@@ -35,10 +37,22 @@ function pointSegDistXZ(px, pz, ax, az, bx, bz) {
   return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
 }
 
-function footprintIntersectsRiver(fp, rivers = []) {
+function footprintIntersectsRiver(fp, rivers = [], riverIndex = null) {
   const b = aabbOfFootprint(fp);
   const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
   const corners = [[b.minX,b.minZ],[b.maxX,b.minZ],[b.maxX,b.maxZ],[b.minX,b.maxZ],[cx,cz]];
+  if (riverIndex) {
+    const pad = 30;
+    const candidates = riverIndex.query({ minX: b.minX - pad, maxX: b.maxX + pad, minZ: b.minZ - pad, maxZ: b.maxZ + pad });
+    for (const seg of candidates) {
+      const clearance = (seg.width ?? 10) * 0.5 + 20.0;
+      for (const [px,pz] of corners) {
+        if (pointSegDistXZ(px, pz, seg.ax, seg.az, seg.bx, seg.bz) < clearance) return true;
+      }
+      if (pointSegDistXZ(cx, cz, seg.ax, seg.az, seg.bx, seg.bz) < clearance) return true;
+    }
+    return false;
+  }
   for (const rv of rivers) {
     const path = rv.path ?? [];
     // Be conservative: include banks/bed margins used by compiled waterway/channel checks.
@@ -55,11 +69,15 @@ function footprintIntersectsRiver(fp, rivers = []) {
   return false;
 }
 
-function footprintIntersectsRoad(fp, roads = [], roadSegments = []) {
+function footprintIntersectsRoad(fp, roads = [], roadSegments = [], roadIndex = null) {
   const b = aabbOfFootprint(fp);
   const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
   const samplePts = [[b.minX,b.minZ],[b.maxX,b.minZ],[b.maxX,b.maxZ],[b.minX,b.maxZ],[cx,cz]];
-  for (const r of roads) {
+  const padMax = 16; // conservative query margin (typ lane half-width + clearance)
+  const candidates = roadIndex
+    ? roadIndex.query({ minX: b.minX - padMax, maxX: b.maxX + padMax, minZ: b.minZ - padMax, maxZ: b.maxZ + padMax })
+    : roads;
+  for (const r of candidates) {
     if (r && Number.isFinite(r.minX)) {
       const pad = (r.width ?? 8) * 0.5 + 1.5;
       if (b.maxX >= r.minX - pad && b.minX <= r.maxX + pad && b.maxZ >= r.minZ - pad && b.minZ <= r.maxZ + pad) return true;
@@ -119,6 +137,12 @@ export function makeStage4() {
         ctx.report.diagnostics.push(info('buildings_passthrough', stageId, 'using declared buildings', { count: ctx.buildings.length }));
         return;
       }
+      // Targeted axis-aligned access roads for far road-needy parcels (TASK-004/005/006).
+      try {
+        addAxisAlignedAccessRoadsForParcels(ctx);
+      } catch (e) {
+        ctx.report.diagnostics.push(warn('transport_access_augment_failed', stageId, `access augmentation failed: ${e?.message ?? e}`));
+      }
       const profiles = ctx.meta.profiles || {};
       const parcels = ctx.parcels || [];
       const seed = mix(ctx.meta.seed ?? 0, stageId);
@@ -142,6 +166,24 @@ export function makeStage4() {
         return { p, idx, rd: Number.isFinite(rd) ? rd : 1e9 };
       }).sort((a, b) => a.rd - b.rd || a.idx - b.idx).map(x => x.p);
 
+      const stream = ctx.meta?.stream ?? ctx.input?.stream ?? null;
+      const chunkSize = Number(stream?.chunk) > 0 ? Number(stream.chunk) : null;
+      const chunkGrid = chunkSize ? Math.max(1, Math.round(size / chunkSize)) : 0;
+      const totalChunks = chunkGrid > 0 ? chunkGrid * chunkGrid : 0;
+      const idealPerChunk = totalChunks > 0 ? (budget / totalChunks) : Infinity;
+      const chunkSoft = Number.isFinite(idealPerChunk) ? Math.max(8, Math.ceil(idealPerChunk * 1.3)) : Infinity;
+      const chunkHard = Number.isFinite(idealPerChunk) ? Math.max(chunkSoft + 2, Math.ceil(idealPerChunk * 1.7)) : Infinity;
+      const placedPerChunk = new Map();
+      const placedParcel = new Set();
+      const conflictParcel = new Set();
+      const chunkKeyFor = (x, z) => {
+        if (!chunkSize || !chunkGrid) return null;
+        const half = size / 2;
+        const ix = Math.max(0, Math.min(chunkGrid - 1, Math.floor((x + half) / chunkSize)));
+        const iz = Math.max(0, Math.min(chunkGrid - 1, Math.floor((z + half) / chunkSize)));
+        return `${ix},${iz}`;
+      };
+
       const placedByType = Object.create(null);
       // Soft per-type budget shares to avoid one district type consuming the whole building budget.
       const typeShare = {
@@ -150,25 +192,25 @@ export function makeStage4() {
       };
       const typeTarget = (t) => Math.max(4, Math.round(budget * (typeShare[t] ?? 0.08)));
 
-      for (const p of orderedParcels) {
-        if (placed >= budget) break;
-        if (p?.reserved) continue;
+      const tryPlaceBuilding = (p, { relaxChunk = false } = {}) => {
+        if (placed >= budget) return false;
+        if (placedParcel.has(p)) return false;
+        if (p?.reserved) return false;
         const profile = profiles[p.type] || profiles[p.profileId] || {};
         const kinds = profile.buildings?.kinds ?? [];
         const coverage = clamp(Number(profile.parcels?.coverage ?? 0.3), 0, 0.85);
         // base placement probability by district/building profile
         const chance = kinds.length === 0 ? 0 : Math.max(0.15, coverage + 0.1);
-        // (actual roll may be biased by road access below)
-        const b = p.aabb; if (!b) continue;
+        const b = p.aabb; if (!b) return false;
         const pw = b.maxX - b.minX, ph = b.maxZ - b.minZ;
-        if (pw < 6 || ph < 6) continue;
+        if (pw < 6 || ph < 6) return false;
         const margin = 1.0;
         const maxW = Math.max(4, pw - margin * 2);
         const maxD = Math.max(4, ph - margin * 2);
         const cx = (b.minX + b.maxX) / 2;
         const cz = (b.minZ + b.maxZ) / 2;
         // Road-access metrics used by archetype, scale and placement chance.
-        const roadDist = minDistanceToRoadSegments(cx, cz, roadSegments);
+        const roadDist = Number.isFinite(p?.access?.roadDist) ? p.access.roadDist : minDistanceToRoadSegments(cx, cz, roadSegments);
         const nearRoad = Number.isFinite(roadDist) && roadDist < 70;
         let scaleBase = kinds.length ? (0.55 + rng() * 0.35) : 0.4;
         if (p.type === 'industrial') scaleBase = 0.65 + rng() * 0.28;
@@ -180,13 +222,14 @@ export function makeStage4() {
           const w = clamp(maxW * scaleBase * scaleMul, 4, maxW);
           const d = clamp(maxD * scaleBase * scaleMul, 4, maxD);
           const fp = footprintRect(cx, cz, w, d);
-          if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers) || footprintIntersectsRoad(fp, roads, roadSegments)) continue;
+          const riverIndex = (rivers === (ctx.hydrology?.rivers ?? null) || rivers === (ctx.masks?.easement?.rivers ?? null)) ? (ctx.spatial?.riverSegments ?? null) : null;
+          if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers, riverIndex) || footprintIntersectsRoad(fp, roads, roadSegments, ctx.spatial?.roadEasements)) continue;
           footprint = fp;
           break;
         }
         if (!footprint) {
-          skippedConflict++;
-          continue;
+          if (!conflictParcel.has(p)) { conflictParcel.add(p); skippedConflict++; }
+          return false;
         }
 
         // Road-access bias: prefer parcels closer to emitted road network for built-up districts.
@@ -202,6 +245,16 @@ export function makeStage4() {
             if (roadDist < 50 && rng() < 0.5) accessChance *= 0.5; // keep parks/forest more open near roads
           }
         }
+        // Chunk load balancing (TASK-006/008): discourage concentration in a single stream chunk.
+        const ck = chunkKeyFor(cx, cz);
+        const cc = ck ? (placedPerChunk.get(ck) || 0) : 0;
+        const hard = relaxChunk ? Math.ceil(chunkHard * 1.15) : chunkHard;
+        const soft = relaxChunk ? Math.ceil(chunkSoft * 1.1) : chunkSoft;
+        if (Number.isFinite(idealPerChunk)) {
+          if (cc >= hard) accessChance *= (relaxChunk ? 0.2 : 0.05);
+          else if (cc >= soft) accessChance *= (relaxChunk ? 0.45 : 0.25);
+          else if (cc >= Math.ceil(idealPerChunk * 1.15)) accessChance *= 0.7;
+        }
         // Balance across district types: penalize types that already reached their soft target share.
         const tcount = placedByType[p.type] || 0;
         const ttarget = typeTarget(p.type);
@@ -210,7 +263,7 @@ export function makeStage4() {
         // If budget is still open near the end, allow deficit types to catch up.
         const remaining = budget - placed;
         if (remaining < 60 && tcount < Math.floor(ttarget * 0.5)) accessChance = Math.min(0.98, accessChance * 1.2);
-        if (rng() > accessChance) continue;
+        if (rng() > accessChance) return false;
 
         // District archetypes: height/density by type and road proximity.
         const maxFloors = Math.max(1, Number(profile.buildings?.maxFloors ?? 4));
@@ -251,7 +304,32 @@ export function makeStage4() {
           stairs: [],
         });
         placed++;
+        placedParcel.add(p);
         placedByType[p.type] = (placedByType[p.type] || 0) + 1;
+        if (ck) placedPerChunk.set(ck, (placedPerChunk.get(ck) || 0) + 1);
+        return true;
+      };
+
+      for (const p of orderedParcels) {
+        if (placed >= budget) break;
+        tryPlaceBuilding(p);
+      }
+      // Fill pass: if chunk balancing left budget unused, relax chunk pressure to reach target density.
+      if (placed < budget) {
+        for (const p of orderedParcels) {
+          if (placed >= budget) break;
+          tryPlaceBuilding(p, { relaxChunk: true });
+        }
+      }
+      // Final fallback: if still under budget, allow placement with minimal extra pressure (keeps some spread).
+      if (placed < Math.floor(budget * 0.9)) {
+        for (const p of orderedParcels) {
+          if (placed >= budget) break;
+          if (placedParcel.has(p) || p?.reserved) continue;
+          // bypass chunk pressure by temporarily treating as relaxed+; handled via flag not available, so do a targeted attempt
+          // (reuse tryPlaceBuilding by monkeying? simpler: inline relaxed attempt by calling with relaxChunk and accepting higher cc effect already limited)
+          tryPlaceBuilding(p, { relaxChunk: true });
+        }
       }
       ctx.buildings = out;
       ctx.report.diagnostics.push(info('buildings_generated', stageId, 'generated buildings from parcels', { count: out.length, budget, skippedConflict }));
@@ -282,6 +360,15 @@ export function makeStage4() {
       } else if (ctx.buildings.length) {
         ctx.input.buildings = ctx.buildings;
       }
+      // Spatial index for building footprints (TASK-002), additive for downstream queries.
+      ctx.spatial = ctx.spatial || {};
+      const bIdx = createSpatialIndex(ctx.meta.worldBounds ?? { size: ctx.input?.ground?.size ?? 256 });
+      for (const b of (ctx.buildings ?? [])) {
+        if (!Array.isArray(b?.footprint)) continue;
+        const a = aabbOfFootprint(b.footprint);
+        if (Number.isFinite(a.minX)) bIdx.insert({ id: b.id ?? null, ...a });
+      }
+      ctx.spatial.buildings = bIdx;
       ctx.engine = ctx.input;
     },
   };

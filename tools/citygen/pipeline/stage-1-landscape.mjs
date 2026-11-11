@@ -8,6 +8,7 @@
  */
 import { warn, info } from '../diagnostics.mjs';
 import { makeRng, mix } from '../rng.mjs';
+import { createSpatialIndex } from '../spatial.mjs';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -66,6 +67,29 @@ function riverMinDistToPoint(river, x, z) {
     best = Math.min(best, distPointSegXZ(x, z, a[0], a[2], b[0], b[2]));
   }
   return best;
+}
+
+function hillContribution(mod, x, z) {
+  const type = mod?.type;
+  if (type !== 'mountain' && type !== 'valley') return 0;
+  const h = Number(mod.height) || 0;
+  const r = Number(mod.radius) || 0;
+  if (!(r > EPS) || !Number.isFinite(h)) return 0;
+  const c = Array.isArray(mod.center) ? mod.center : [Number(mod.center?.x) || 0, Number(mod.center?.z) || 0];
+  const dx = x - (Number(c[0]) || 0);
+  const dz = z - (Number(c[1]) || 0);
+  const d = Math.hypot(dx, dz);
+  if (d >= r) return 0;
+  const t = 1 - d / r;
+  const e = t * t * (3 - 2 * t); // smooth ease
+  const signed = (mod.operation === 'subtract') ? -h : h;
+  return signed * e;
+}
+
+function terrainHeightAt(x, z, baseY, modifiers = []) {
+  let y = Number.isFinite(baseY) ? baseY : 0;
+  for (const m of modifiers) y += hillContribution(m, x, z);
+  return y;
 }
 
 function shouldGenerate(ctx) {
@@ -296,7 +320,87 @@ export function makeStage1() {
         rivers.push(rr);
       }
       ctx.hydrology.rivers = uniqIds(rivers, 'river', ctx, stageId);
-      ctx.hydrology.lakes = uniqIds(ctx.hydrology.lakes, 'lake', ctx, stageId);
+
+      // lakes: basic validation (compiler support limited; keep deterministic/safe)
+      const lakes = [];
+      for (const l of ctx.hydrology.lakes) {
+        if (!l || typeof l !== 'object') {
+          ctx.report.diagnostics.push(warn('invalid_lake', stageId, 'lake dropped: not an object'));
+          ctx.report.drops.push({ stage: stageId, id: null, reason: 'invalid_lake' });
+          continue;
+        }
+        const ll = { ...l };
+        if (!ll.id || typeof ll.id !== 'string') ll.id = `lake_${lakes.length + 1}`;
+        if (ll.waterLevel != null && !Number.isFinite(Number(ll.waterLevel))) {
+          delete ll.waterLevel;
+          ctx.report.repairs.push({ stage: stageId, id: ll.id, code: 'drop_invalid_lake_water_level' });
+        } else if (ll.waterLevel != null) {
+          ll.waterLevel = Number(ll.waterLevel);
+        }
+        if (!ll.area || typeof ll.area !== 'object') {
+          ctx.report.diagnostics.push(warn('invalid_lake_area', stageId, `lake '${ll.id}' dropped: missing/invalid area`));
+          ctx.report.drops.push({ stage: stageId, id: ll.id, reason: 'invalid_lake_area' });
+          continue;
+        }
+        lakes.push(ll);
+      }
+      ctx.hydrology.lakes = uniqIds(lakes, 'lake', ctx, stageId);
+
+      // terrain/river profile checks (approximate, deterministic): slopes and bed-vs-terrain
+      const baseY = Number(ctx.input?.ground?.y ?? 0) || 0;
+      for (const rv of ctx.hydrology.rivers) {
+        const path = Array.isArray(rv.path) ? rv.path : [];
+        if (path.length < 2) continue;
+        const depth = Number.isFinite(rv.depth) ? rv.depth : 0;
+        let steep = 0;
+        let bedAbove = 0;
+        let bedAboveMax = 0;
+        for (let i = 0; i < path.length; i++) {
+          const p = path[i];
+          const ty = terrainHeightAt(p[0], p[2], baseY, ctx.terrain.modifiers);
+          const bedY = (Number(p[1]) || 0) - depth;
+          // If river is not explicitly carved, bed above terrain is suspicious (floating channel).
+          if (rv.carveTerrain === false && bedY > ty + 0.5) {
+            bedAbove++;
+            bedAboveMax = Math.max(bedAboveMax, bedY - ty);
+          }
+          if (i + 1 < path.length) {
+            const q = path[i + 1];
+            const dx = q[0] - p[0], dy = (q[1] || 0) - (p[1] || 0), dz = q[2] - p[2];
+            const run = Math.hypot(dx, dz);
+            const grade = run > EPS ? Math.abs(dy) / run : 0;
+            // generous threshold: rivers can follow terrain but extreme jumps are suspect
+            if (grade > 0.35) steep++;
+          }
+        }
+        if (steep > 0) {
+          ctx.report.diagnostics.push(warn('river_steep_profile', stageId, `river '${rv.id ?? '?'}' has steep segments (>${(0.35).toFixed(2)} grade)`, { id: rv.id ?? null, segments: steep }));
+        }
+        if (bedAbove > 0) {
+          ctx.report.diagnostics.push(warn('river_bed_above_terrain', stageId, `river '${rv.id ?? '?'}' bed above terrain at ${bedAbove} point(s) without carveTerrain`, { id: rv.id ?? null, points: bedAbove, maxDelta: +bedAboveMax.toFixed(3) }));
+        }
+      }
+      // Spatial index for river segments (TASK-002), conservative clearance for downstream checks.
+      ctx.spatial = ctx.spatial || {};
+      const rIdx = createSpatialIndex(ctx.meta.worldBounds ?? { size: ctx.input?.ground?.size ?? 256 });
+      for (const rv of ctx.hydrology.rivers) {
+        const path = Array.isArray(rv.path) ? rv.path : [];
+        const w = Number(rv.width) || 10;
+        const pad = w * 0.5 + 20.0;
+        for (let i = 0; i + 1 < path.length; i++) {
+          const a = path[i], b = path[i + 1];
+          if (!a || !b) continue;
+          rIdx.insert({
+            id: `${rv.id ?? 'river'}_${i}`,
+            riverId: rv.id ?? null,
+            ax: a[0], az: a[2], bx: b[0], bz: b[2],
+            width: w,
+            minX: Math.min(a[0], b[0]) - pad, maxX: Math.max(a[0], b[0]) + pad,
+            minZ: Math.min(a[2], b[2]) - pad, maxZ: Math.max(a[2], b[2]) + pad,
+          });
+        }
+      }
+      ctx.spatial.riverSegments = rIdx;
 
       // terrain slope sanity/repair (basic): very steep hill height/radius ratio
       const repairedMods = [];

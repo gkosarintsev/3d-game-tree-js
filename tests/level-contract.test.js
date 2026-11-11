@@ -3,11 +3,11 @@
  * и `await runLevelContractTests()` из консоли `http://localhost:8124/3d-game.html`.
  * Отдельная глава: `await runLevelContractTests(12)` или `TEST_LEVEL=12; await runLevelContractTests()`.
  *
- * В отличие от `tests/json2-level.test.js` и `tests/track-city.test.js`, которые
- * знают одну главу и её числа, здесь проверяется свойство **любой** главы реестра:
+ * В отличие от специализированных сюит по конкретной главе/механике,
+ * здесь проверяется свойство **любой** главы реестра:
  * собранная карта держит члены контракта, спавн и точка B лежат на плите, маршрут
  * A→B стоит на своих опорах, сеть одна связная, врагам хватает узлов для респавна,
- * а `build`/`dispose` не оставляет в сцене мусора. Новая глава (`level-14`) попадает
+ * а `build`/`dispose` не оставляет в сцене мусора. Новая глава попадает
  * в сюиту сама — достаточно строки в `src/levels/index.js`, правки здесь не нужны.
  *
  * Maps собираются тем же выбором `kind`, что и движок (`window.game.createMap`),
@@ -196,7 +196,7 @@ function reachableFrom(map, start, fit = null) {
   return seen;
 }
 
-/** Точка B на своей опоре — по тому же приёму, что в `tests/json2-level.test.js`. */
+/** Точка B на своей опоре — по тому же приёму, что в специализированных проверках глав. */
 function exitNode(ctx) {
   const e = ctx.level.gameplay.exit;
   const map = ctx.map;

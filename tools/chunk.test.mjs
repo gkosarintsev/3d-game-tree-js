@@ -21,7 +21,7 @@ import { resolve } from 'node:path';
 import { CONFIG } from '../src/config.js';
 import { circleHitsRect } from '../src/solids.js';
 import { SurfaceField } from '../src/surfaces.js';
-import { validateLevel, LEVEL_SPEC, LEVEL_SPEC_V2 } from './level-schema.mjs';
+import { validateLevel, LEVEL_SPEC_V2 } from './level-schema.mjs';
 import { generateCatalog, generateModule } from './build-level.mjs';
 import { SKELETON_STEP, GROUND_FIT, axisLength, skeletonOf } from './skeleton.mjs';
 import { schemaText, schemaTextFor, SCHEMA_FILES } from './export-schema.mjs';
@@ -662,8 +662,6 @@ t('схема: stream берёт только open; open без него и json
     'stream', 'v2 со stream принят');
   hasError(validateLevel(openBrief(CHUNK, r => { delete r.stream; }), LEVEL_SPEC_V2).errors,
     'stream', 'open без stream принят');
-  hasError(validateLevel(openBrief(CHUNK, r => { r.kind = 'json'; }), LEVEL_SPEC).errors,
-    'stream', 'v1 со stream принят');
   hasError(validateLevel(openBrief(CHUNK, r => { r.stream.aheadMax = 100; }), LEVEL_SPEC_V2).errors,
     'ahead', 'aheadMax меньше aheadMin принят');
   hasError(validateLevel(openBrief(45), LEVEL_SPEC_V2).errors,

@@ -9,42 +9,137 @@
     "units": "meters",
     "notes": "Пилот v4 на базе главы 15: плита 1280×1280 м, стриминг 5×5×256, процедурные landscape/transport/districts/buildings (citygen)."
   },
-  "ground": { "y": 0, "size": 1280, "color": 7322954 },
+  "ground": {
+    "y": 0,
+    "size": 1280,
+    "color": 7322954
+  },
+  "windows": {
+    "spacing": 12
+  },
   "gameplay": {
     "goal": "exit",
-    "spawn": { "x": -520, "z": -520 },
-    "exit": { "x": 520, "z": 520 },
+    "spawn": {
+      "x": -520,
+      "z": -520
+    },
+    "exit": {
+      "x": 520,
+      "z": 520
+    },
     "exitRadius": 4,
-    "enemies": { "count": 6 },
-    "alienEnemies": { "count": 0 },
-    "cars": { "count": 1, "spots": [{ "x": -550, "z": -550, "yaw": 0 }] }
+    "enemies": {
+      "count": 6
+    },
+    "alienEnemies": {
+      "count": 0
+    },
+    "cars": {
+      "count": 1,
+      "spots": [
+        {
+          "x": -550,
+          "z": -550,
+          "yaw": 0
+        }
+      ]
+    }
   },
-  "stream": { "chunk": 256, "keep": 2, "aheadMin": 200, "aheadMax": 1200, "budgetMs": 80 },
+  "stream": {
+    "chunk": 256,
+    "keep": 2,
+    "aheadMin": 200,
+    "aheadMax": 1200,
+    "budgetMs": 120
+  },
   "cityforge": {
     "format": "cityforge",
     "version": "0.1",
     "world": {
       "units": "meters",
-      "coordinateSystem": { "type": "local", "handedness": "right", "up": "Z" },
-      "origin": [0, 0, 0],
-      "bounds": { "min": [-640, -640, -80], "max": [640, 640, 160] }
+      "coordinateSystem": {
+        "type": "local",
+        "handedness": "right",
+        "up": "Z"
+      },
+      "origin": [
+        0,
+        0,
+        0
+      ],
+      "bounds": {
+        "min": [
+          -640,
+          -640,
+          -80
+        ],
+        "max": [
+          640,
+          640,
+          160
+        ]
+      }
     },
     "assets": [
-      { "id": "ground.placeholder", "kind": "procedural", "generator": "placeholder.flat", "bounds": [1280, 1280, 1] }
+      {
+        "id": "ground.placeholder",
+        "kind": "procedural",
+        "generator": "placeholder.flat",
+        "bounds": [
+          1280,
+          1280,
+          1
+        ]
+      }
     ],
     "terrain": {
-      "base": { "type": "heightfield", "source": "procedural", "resolution": 4 },
+      "base": {
+        "type": "heightfield",
+        "source": "procedural",
+        "resolution": 4
+      },
       "modifiers": [
-        { "id": "seed_hill", "type": "mountain", "center": [0, 0], "radius": 120, "height": 8, "falloff": "smooth", "operation": "add", "sourceRef": "terrain.base", "parameters": {} }
+        {
+          "id": "seed_hill",
+          "type": "mountain",
+          "center": [
+            0,
+            0
+          ],
+          "radius": 120,
+          "height": 8,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        }
       ]
     },
-    "hydrology": { "rivers": [], "lakes": [] },
-    "networks": {
-      "roads": { "nodes": [], "segments": [], "junctions": [] },
-      "railways": { "nodes": [], "segments": [], "junctions": [] },
-      "paths": { "nodes": [], "segments": [], "junctions": [] }
+    "hydrology": {
+      "rivers": [],
+      "lakes": []
     },
-    "structures": { "bridges": [], "tunnels": [] },
+    "networks": {
+      "roads": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      },
+      "railways": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      },
+      "paths": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      }
+    },
+    "structures": {
+      "bridges": [],
+      "tunnels": []
+    },
     "instances": [],
     "chunks": []
   },
@@ -62,9 +157,25 @@
     "policies": {},
     "landscape": {
       "generate": true,
-      "hills": { "count": 10, "minHeight": 10, "maxHeight": 40, "minRadius": 120, "maxRadius": 320 },
-      "river": { "enabled": true, "width": 22, "depth": 4, "points": 7, "axis": "z" }
+      "hills": {
+        "count": 10,
+        "minHeight": 10,
+        "maxHeight": 40,
+        "minRadius": 120,
+        "maxRadius": 320
+      },
+      "river": {
+        "enabled": true,
+        "width": 22,
+        "depth": 4,
+        "points": 7,
+        "axis": "z"
+      }
     },
-    "transport": { "generate": true, "width": 8, "branches": 3 }
+    "transport": {
+      "generate": true,
+      "width": 8,
+      "branches": 3
+    }
   }
 }

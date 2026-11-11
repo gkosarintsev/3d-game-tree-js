@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { runCitygen } from './citygen/index.mjs';
+import { createReport, finalizeReport, reportToJson } from './citygen/diagnostics.mjs';
+import { makeRng, mix, hashString } from './citygen/rng.mjs';
+import { stableId, stageSubseed, byId } from './citygen/ids.mjs';
+import { createSpatialIndex } from './citygen/spatial.mjs';
 import { generateOutput } from './build-level.mjs';
 
 function v4Base(over = {}) {
@@ -124,6 +130,17 @@ test('citygen stage 1: warns on river-anchor conflict', () => {
   assert.ok(out.report.diagnostics.some(d => d.code === 'river_anchor_conflict' && d.severity === 'warn'));
 });
 
+test('citygen stage 1: warns on steep river profile and bed above terrain without carving', () => {
+  const raw = v4Base();
+  raw.cityforge.hydrology.rivers = [
+    { id: 'steep', path: [[-20,0,0],[0,20,0],[20,0,0]], width: 8, depth: 2, carveTerrain: true },
+    { id: 'floating', path: [[-30,5,-30],[-10,5,-30]], width: 8, depth: 1, carveTerrain: false },
+  ];
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'river_steep_profile' && d.severity === 'warn' && d.id === 'steep'));
+  assert.ok(out.report.diagnostics.some(d => d.code === 'river_bed_above_terrain' && d.severity === 'warn' && d.id === 'floating'));
+});
+
 test('citygen stage 2: drops degenerate segment and warns on steep slope', () => {
   const raw = v4Base();
   raw.cityforge.networks.roads = {
@@ -166,7 +183,8 @@ test('citygen stage 2: reports disconnected road graph and anchor distance warni
   assert.equal(a.reportJson, b.reportJson);
   assert.ok(a.report.diagnostics.some(d => d.code === 'road_graph_disconnected'));
   assert.ok(a.report.diagnostics.some(d => d.code === 'anchor_far_from_roads'));
-  assert.equal(a.ctx.masks.easement.roads.length, 2);
+  // Original 2 segments + repair connectors (spawn-exit + remaining components) now added with easements.
+  assert.equal(a.ctx.masks.easement.roads.length, 5);
 });
 
 test('citygen stage 2: procedural transport generation is deterministic (emission deferred pending engine-valid geometry)', () => {
@@ -291,7 +309,12 @@ test('citygen stage 5: generates capped street lights and deterministic district
   assert.ok(props.length > 0, 'expected district props to be generated');
   assert.ok(props.every(p => p.id && p.model && p.position && p.rotation));
   assert.ok(a.report.diagnostics.some(d => d.code === 'street_lights_generated' && d.stage === '5_infrastructure_props'));
-  assert.ok(a.report.diagnostics.some(d => d.code === 'props_generated' && d.stage === '5_infrastructure_props'));
+  const propsDiag = a.report.diagnostics.find(d => d.code === 'props_generated' && d.stage === '5_infrastructure_props');
+  assert.ok(propsDiag, 'props_generated diagnostic missing');
+  assert.ok(propsDiag.byDistrictType && typeof propsDiag.byDistrictType === 'object', 'props_generated.byDistrictType missing');
+  assert.ok(Object.keys(propsDiag.byDistrictType).length >= 1, 'props_generated.byDistrictType should have at least one district type');
+  const byTypeSum = Object.values(propsDiag.byDistrictType).reduce((s, n) => s + n, 0);
+  assert.ok(byTypeSum <= props.length, `byDistrictType sum ${byTypeSum} should not exceed props count ${props.length}`);
   const st5 = a.report.stages.find(s => s.id === '5_infrastructure_props');
   assert.equal(st5?.status, 'ok');
 });
@@ -309,4 +332,425 @@ test('citygen stage 3: guarantees core MVP district types on 1280m pilot grid', 
     assert.ok(types.has(t), `missing core district type: ${t}`);
   }
   assert.ok(types.size >= 6);
+});
+
+test('citygen stage 2: errors when road crosses river without bridge', () => {
+  const raw = v4Base();
+  raw.gameplay.spawn = { x: -50, z: 0 };
+  raw.gameplay.exit = { x: 50, z: 0 };
+  raw.cityforge.hydrology.rivers = [
+    { id: 'r', path: [[0, 0, -40], [0, 0, 40]], width: 12, depth: 3 },
+  ];
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'a', position: [-40, 0, 0], layer: 'ground' },
+      { id: 'b', position: [40, 0, 0], layer: 'ground' },
+    ],
+    segments: [
+      { id: 'bad_cross', from: 'a', to: 'b', type: 'local', layer: 'ground', path: [[-40, 0, 0], [40, 0, 0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'road_crosses_river_without_bridge' && d.stage === '2_transport' && d.severity === 'error'));
+});
+
+test('citygen v4 build: fails on road crossing river without bridge', () => {
+  const raw = v4Base();
+  raw.ground.size = 256;
+  raw.gameplay.spawn = { x: -80, z: 0 };
+  raw.gameplay.exit = { x: 80, z: 0 };
+  raw.cityforge.terrain.modifiers = [
+    { id: 'm1', type: 'mountain', center: [0, 80], radius: 40, height: 10, falloff: 'smooth', operation: 'add', sourceRef: 'terrain.base', parameters: {} },
+  ];
+  raw.cityforge.hydrology.rivers = [
+    { id: 'r', path: [[0, 0, -40], [0, 0, 40]], width: 12, depth: 3 },
+  ];
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'a', position: [-60, 0, 0], layer: 'ground' },
+      { id: 'b', position: [60, 0, 0], layer: 'ground' },
+    ],
+    segments: [
+      { id: 'bad_cross', from: 'a', to: 'b', type: 'local', layer: 'ground', path: [[-60, 0, 0], [60, 0, 0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  assert.throws(
+    () => generateOutput(structuredClone(raw), 'src/levels/v4-bad-river.json'),
+    (e) => String(e?.message ?? '').includes('road_crosses_river_without_bridge')
+      || (e?.errors ?? []).some(x => String(x).includes('road_crosses_river_without_bridge'))
+  );
+});
+
+test('cityforge v3 build: fails on road crossing river without bridge', () => {
+  const raw = {
+    $schema: './level-v3.schema.json',
+    kind: 'cityforge',
+    metadata: { levelName: 't', name: 't', hint: 't', units: 'meters' },
+    ground: { y: 0, size: 256 },
+    gameplay: { goal: 'exit', spawn: { x: -80, z: 0 }, exit: { x: 80, z: 0 }, exitRadius: 4 },
+    stream: { chunk: 256, keep: 1, aheadMin: 50, aheadMax: 100, budgetMs: 20 },
+    cityforge: {
+      format: 'cityforge', version: '0.1',
+      world: { units: 'meters', coordinateSystem: { type: 'local', handedness: 'right', up: 'Z' }, origin: [0,0,0], bounds: { min: [-128,-128,-50], max: [128,128,50] } },
+      generation: { seed: 1, generatorVersion: '0.1', deterministic: true },
+      assets: [{ id: 'ground.placeholder', kind: 'procedural', generator: 'placeholder.flat', bounds: [256,256,1] }],
+      districts: [], blocks: [], parcels: [], instances: [],
+      terrain: { base: { type: 'heightfield', source: 'procedural', resolution: 4 }, modifiers: [{ id: 'm1', type: 'mountain', center: [0,80], radius: 40, height: 10, falloff: 'smooth', operation: 'add', sourceRef: 'terrain.base', parameters: {} }] },
+      hydrology: { rivers: [{ id: 'r', path: [[-40,0,0],[40,0,0]], width: 12, depth: 3, flow: 'start_to_end', carveTerrain: false }], lakes: [] },
+      networks: {
+        roads: {
+          nodes: [{ id: 'a', position: [0,0,-60], layer: 'ground' }, { id: 'b', position: [0,0,60], layer: 'ground' }],
+          segments: [{ id: 'bad', from: 'a', to: 'b', type: 'local', layer: 'ground', path: [[0,0,-60],[0,0,60]], lanes: [{ id: 'l', direction: 'forward', width: 8, type: 'vehicle' }], shoulderWidth: 1, sidewalk: false, surface: 'asphalt' }],
+          junctions: [],
+        },
+        railways: { nodes: [], segments: [], junctions: [] },
+        paths: { nodes: [], segments: [], junctions: [] },
+      },
+      structures: { bridges: [], tunnels: [] },
+    },
+  };
+  assert.throws(
+    () => generateOutput(structuredClone(raw), 'src/levels/v3-bad-river.json'),
+    (e) => String(e?.message ?? '').includes('без моста') || (e?.errors ?? []).some(x => String(x).includes('без моста'))
+  );
+});
+
+test('citygen report: deterministic structure with all stages and summary', () => {
+  const raw = v4Base();
+  const a = runCitygen(structuredClone(raw));
+  const b = runCitygen(structuredClone(raw));
+  assert.equal(a.reportJson, b.reportJson);
+  const r = a.report;
+  assert.equal(r.version, 1);
+  assert.ok(r.generator && r.generator.seed === raw.generator.seed);
+  assert.ok(Array.isArray(r.stages));
+  assert.deepEqual(r.stages.map(s => s.id), ['0_input_space','1_landscape_hydrology','2_transport','3_districts_parcels','4_buildings_structures','5_infrastructure_props','6_finalize_emit']);
+  assert.ok(r.summary && typeof r.summary.errors === 'number' && typeof r.summary.warnings === 'number');
+  assert.ok(Array.isArray(r.diagnostics) && Array.isArray(r.repairs) && Array.isArray(r.drops));
+});
+
+test('citygen diagnostics: finalizeReport/reportToJson sort deterministically and summarize', () => {
+  const r = createReport({ generatorVersion: '0.1.0', seed: 7, deterministic: true });
+  r.stages = [{ id: '2_transport', status: 'ok' }, { id: '1_landscape_hydrology', status: 'ok' }];
+  r.diagnostics = [
+    { severity: 'info', code: 'b', stage: '2_transport', message: 'm2' },
+    { severity: 'error', code: 'a', stage: '1_landscape_hydrology', message: 'm1' },
+    { severity: 'warn', code: 'c', stage: '1_landscape_hydrology', message: 'm0' },
+  ];
+  r.repairs = [{ stage: '2_transport', code: 'z' }, { stage: '1_landscape_hydrology', code: 'a' }];
+  r.drops = [{ stage: '2_transport', id: 'b' }, { stage: '1_landscape_hydrology', id: 'a' }];
+  const j1 = reportToJson(structuredClone(r));
+  const j2 = reportToJson(structuredClone(r));
+  assert.equal(j1, j2);
+  const out = JSON.parse(j1);
+  assert.deepEqual(out.stages.map(s => s.id), ['1_landscape_hydrology', '2_transport']);
+  assert.deepEqual(out.diagnostics.map(d => [d.severity, d.code]), [['error','a'], ['warn','c'], ['info','b']]);
+  assert.deepEqual(out.repairs.map(x => [x.stage, x.code]), [['1_landscape_hydrology','a'], ['2_transport','z']]);
+  assert.deepEqual(out.drops.map(x => [x.stage, x.id]), [['1_landscape_hydrology','a'], ['2_transport','b']]);
+  assert.deepEqual(out.summary, { errors: 1, warnings: 1, repairs: 2, drops: 2 });
+  assert.equal(out.generator.seed, 7);
+});
+
+test('citygen rng/ids: deterministic seeds, rng sequence and stable ids', () => {
+  assert.equal(mix(42, '1_landscape_hydrology', 'd1', 0, 0, '', 0), mix(42, '1_landscape_hydrology', 'd1', 0, 0, '', 0));
+  assert.notEqual(mix(42, 'stage', 1), mix(42, 'stage', 2));
+  assert.equal(hashString('abc'), hashString('abc'));
+  assert.equal(stageSubseed(42, '2_transport', 'd1', 1, 2, 'slot', 3), mix(42, '2_transport', 'd1', 1, 2, 'slot', 3));
+  const a = makeRng(123), b = makeRng(123);
+  const seqA = [a(), a(), a(), a(), a()], seqB = [b(), b(), b(), b(), b()];
+  assert.deepEqual(seqA, seqB);
+  assert.ok(seqA.every(v => v >= 0 && v < 1));
+  assert.equal(stableId('stage', 1, 'x'), 'stage_1_x');
+  assert.deepEqual([{ id: 'b' }, { id: 'a' }, { id: 'c' }].sort(byId).map(x => x.id), ['a', 'b', 'c']);
+});
+
+test('citygen pipeline: all stages complete with status ok on base v4 input', () => {
+  const out = runCitygen(v4Base());
+  assert.deepEqual(out.report.stages.map(s => ({ id: s.id, status: s.status })), [
+    { id: '0_input_space', status: 'ok' },
+    { id: '1_landscape_hydrology', status: 'ok' },
+    { id: '2_transport', status: 'ok' },
+    { id: '3_districts_parcels', status: 'ok' },
+    { id: '4_buildings_structures', status: 'ok' },
+    { id: '5_infrastructure_props', status: 'ok' },
+    { id: '6_finalize_emit', status: 'ok' },
+  ]);
+});
+
+test('citygen spatial index: inserts and queries AABBs deterministically', () => {
+  const idx = createSpatialIndex({ size: 256 }, 64);
+  assert.equal(idx.size, 0);
+  assert.ok(idx.insert({ id: 'a', minX: -10, maxX: 10, minZ: -10, maxZ: 10 }));
+  assert.ok(idx.insert({ id: 'b', minX: 100, maxX: 120, minZ: 100, maxZ: 120 }));
+  assert.ok(idx.insert({ id: 'c', minX: 5, maxX: 15, minZ: 5, maxZ: 15 }));
+  assert.equal(idx.size, 3);
+  const q1 = idx.query({ minX: -5, maxX: 6, minZ: -5, maxZ: 6 }).map(x => x.id).sort();
+  assert.deepEqual(q1, ['a', 'c']);
+  const q2 = idx.query({ minX: 90, maxX: 110, minZ: 90, maxZ: 110 }).map(x => x.id).sort();
+  assert.deepEqual(q2, ['b']);
+  const q3 = idx.query({ minX: -200, maxX: -150, minZ: -200, maxZ: -150 });
+  assert.equal(q3.length, 0);
+  idx.clear();
+  assert.equal(idx.size, 0);
+});
+
+test('citygen stage 2: clamps road path points outside world bounds (warn + repair)', () => {
+  const raw = v4Base();
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'a', position: [-50, 0, 0], layer: 'ground' },
+      { id: 'b', position: [50, 0, 0], layer: 'ground' },
+    ],
+    segments: [
+      { id: 'oob_seg', from: 'a', to: 'b', type: 'local', layer: 'ground', path: [[-50, 0, 0], [150, 0, 0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'road_point_out_of_bounds' && d.stage === '2_transport'));
+  assert.ok(out.report.repairs.some(r => r.code === 'clamp_road_path_bounds' && r.stage === '2_transport' && r.id === 'oob_seg'));
+  const seg = out.engine.cityforge.networks.roads.segments.find(s => s.id === 'oob_seg');
+  assert.ok(seg);
+  assert.equal(seg.path[1][0], 128);
+});
+
+test('pilot level-16 v4: generateOutput deterministic (report and catalog contents)', () => {
+  const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, '../src/levels/level-16.json'), 'utf8'));
+  const a = generateOutput(structuredClone(raw), 'src/levels/level-16.json');
+  const b = generateOutput(structuredClone(raw), 'src/levels/level-16.json');
+  assert.equal(a.kind, 'catalog');
+  assert.equal(a.sourceFormat, 'cityforge-v4');
+  assert.equal(a.generationReport, b.generationReport);
+  assert.deepEqual(a.files.map(f => f.path), b.files.map(f => f.path));
+  assert.deepEqual(
+    a.files.map(f => f.code ?? Buffer.from(f.bytes).toString('base64')),
+    b.files.map(f => f.code ?? Buffer.from(f.bytes).toString('base64'))
+  );
+  const report = JSON.parse(a.generationReport);
+  assert.equal(report.summary.errors, 0);
+  assert.equal(raw.windows?.spacing, 12, 'pilot source should keep windows spacing perf tuning');
+  assert.ok(report.diagnostics.some(d => d.code === 'anchors_connected_network' && d.stage === '6_finalize_emit'), 'pilot should report anchors connected to road network');
+  assert.ok(!report.diagnostics.some(d => d.code === 'district_type_poor_road_access' && d.stage === '6_finalize_emit'), 'pilot should not have poor road access by district type');
+  const fin = report.diagnostics.find(d => d.code === 'finalize_counts' && d.stage === '6_finalize_emit');
+  assert.ok(fin?.propsByDistrictType && typeof fin.propsByDistrictType === 'object', 'pilot finalize_counts should include propsByDistrictType');
+  assert.ok(fin?.roadAccessByType && typeof fin.roadAccessByType === 'object', 'pilot finalize_counts should include roadAccessByType');
+  assert.equal(fin?.roadComponents, 1, 'pilot road graph should be connected');
+  assert.equal(fin?.roadSegments, 135);
+  assert.equal(fin?.roadNodes, 111);
+});
+
+test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {
+  const raw = v4Base();
+  raw.cityforge.hydrology.rivers = [
+    { id: 'wide', path: [[-20, 0, 0], [20, 0, 0]], width: 999, depth: 999 },
+  ];
+  raw.cityforge.terrain.modifiers = [
+    { id: 'steep', type: 'mountain', center: [0, 0], radius: 10, height: 100 },
+  ];
+  const out = runCitygen(raw);
+  const river = out.engine.cityforge.hydrology.rivers[0];
+  assert.equal(river.width, 200);
+  assert.equal(river.depth, 100);
+  assert.ok(out.report.repairs.some(r => r.id === 'wide' && r.code === 'clamp_river_width'));
+  assert.ok(out.report.repairs.some(r => r.id === 'wide' && r.code === 'clamp_river_depth'));
+  const mod = out.engine.cityforge.terrain.modifiers.find(m => m.id === 'steep');
+  assert.ok(mod);
+  assert.ok(Math.abs(mod.height) / mod.radius <= 0.8 + 1e-9);
+  assert.ok(out.report.repairs.some(r => r.id === 'steep' && (r.code === 'repair_steep_modifier_radius' || r.code === 'repair_steep_modifier_height')));
+  assert.ok(out.report.diagnostics.some(d => d.code === 'terrain_steep_modifier_repaired' && d.stage === '1_landscape_hydrology'));
+});
+
+test('citygen stage 1: renames duplicate terrain modifier ids deterministically', () => {
+  const raw = v4Base();
+  raw.cityforge.terrain.modifiers = [
+    { id: 'm', type: 'mountain', center: [-20, 0], radius: 20, height: 10 },
+    { id: 'm', type: 'valley', center: [20, 0], radius: 20, height: -8 },
+  ];
+  const a = runCitygen(structuredClone(raw));
+  const b = runCitygen(structuredClone(raw));
+  assert.equal(a.reportJson, b.reportJson);
+  assert.deepEqual(a.engine.cityforge.terrain.modifiers.map(m => m.id), ['m', 'm_2']);
+  assert.ok(a.report.repairs.some(r => r.code === 'duplicate_id_renamed' && r.stage === '1_landscape_hydrology' && r.id === 'm' && r.to === 'm_2'));
+});
+
+test('citygen stage 3: repairs unknown district profile to fallback', () => {
+  const raw = v4Base();
+  raw.generator.districts = [
+    { id: 'd1', type: 'unknown_weird_type', geometry: { rect: { minX: -64, minZ: -64, maxX: 64, maxZ: 64 } } },
+  ];
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'unknown_district_profile' && d.stage === '3_districts_parcels'));
+  assert.ok(out.report.repairs.some(r => r.code === 'district_profile_fallback' && r.id === 'd1'));
+  const d = out.ctx.districts.find(x => x.id === 'd1');
+  assert.ok(d);
+  assert.equal(d.type || d.profileId, 'forest');
+});
+
+test('citygen stage 3: warns on incompatible adjacent declared districts', () => {
+  const raw = v4Base();
+  raw.generator.districts = [
+    { id: 'd1', type: 'office', geometry: { rect: { minX: -128, minZ: -128, maxX: 0, maxZ: 128 } }, cells: [{ cx: 0, cy: 0 }] },
+    { id: 'd2', type: 'forest', geometry: { rect: { minX: 0, minZ: -128, maxX: 128, maxZ: 128 } }, cells: [{ cx: 1, cy: 0 }] },
+  ];
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'district_adjacency_fallback' && d.stage === '3_districts_parcels'));
+  assert.ok(out.report.diagnostics.some(d => d.code === 'districts_passthrough' && d.stage === '3_districts_parcels'));
+});
+
+test('citygen stage 6: emits finalize summary and status', () => {
+  const out = runCitygen(v4Base());
+  const st6 = out.report.stages.find(s => s.id === '6_finalize_emit');
+  assert.equal(st6?.status, 'ok');
+  assert.ok(out.report.diagnostics.some(d => d.code === 'finalize_counts' && d.stage === '6_finalize_emit'));
+  assert.ok(out.report.diagnostics.some(d => d.code === 'finalize_no_roads' && d.severity === 'warn' && d.stage === '6_finalize_emit'));
+  assert.ok(out.report.summary && typeof out.report.summary.errors === 'number');
+});
+
+test('citygen stage 4: repairs duplicate building ids in declared buildings', () => {
+  const raw = v4Base();
+  raw.buildings = [
+    { id: 'dup_b', type: 'residential', isEnterable: false, position: { x: 0, y: 0, z: 0 }, footprint: [{ x: -4, z: -4 }, { x: 4, z: -4 }, { x: 4, z: 4 }, { x: -4, z: 4 }], floors: 1, floorHeight: 3, material: 'concrete' },
+    { id: 'dup_b', type: 'office', isEnterable: false, position: { x: 20, y: 0, z: 0 }, footprint: [{ x: 16, z: -4 }, { x: 24, z: -4 }, { x: 24, z: 4 }, { x: 16, z: 4 }], floors: 2, floorHeight: 3, material: 'glass' },
+  ];
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'buildings_passthrough' && d.stage === '4_buildings_structures'));
+  assert.ok(out.report.repairs.some(r => r.code === 'duplicate_building_id' && r.stage === '4_buildings_structures'));
+  const ids = (out.engine.buildings ?? []).map(b => b.id);
+  assert.deepEqual(ids, ['dup_b', 'dup_b_2']);
+});
+
+test('citygen stage 2: repairs spawn-exit connectivity by adding connector segment', () => {
+  const raw = v4Base();
+  raw.gameplay.spawn = { x: -100, z: -100 };
+  raw.gameplay.exit = { x: 100, z: 100 };
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'n1', position: [-100, 0, -100], layer: 'ground' },
+      { id: 'n2', position: [-80, 0, -100], layer: 'ground' },
+      { id: 'n3', position: [80, 0, 100], layer: 'ground' },
+      { id: 'n4', position: [100, 0, 100], layer: 'ground' },
+    ],
+    segments: [
+      { id: 's1', from: 'n1', to: 'n2', type: 'local', layer: 'ground', path: [[-100, 0, -100], [-80, 0, -100]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+      { id: 's2', from: 'n3', to: 'n4', type: 'local', layer: 'ground', path: [[80, 0, 100], [100, 0, 100]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'road_graph_disconnected' && d.stage === '2_transport'));
+  assert.ok(out.report.repairs.some(r => r.code === 'connect_spawn_exit_components' && r.stage === '2_transport'));
+  assert.ok(out.report.diagnostics.some(d => d.code === 'transport_repaired_connectivity' && d.stage === '2_transport'));
+  const segs = out.engine.cityforge.networks.roads.segments;
+  assert.ok(segs.length >= 3);
+  assert.ok(segs.some(s => s.id === 'tr_repair_connect'));
+});
+
+test('citygen: stages build spatial indices (river/road/building) for downstream queries', () => {
+  const raw = v4Base();
+  raw.cityforge.hydrology.rivers = [
+    { id: 'river1', path: [[-10, 0, 0], [10, 0, 0]], width: 12, depth: 2 },
+  ];
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'a', position: [-40, 0, 20], layer: 'ground' },
+      { id: 'b', position: [40, 0, 20], layer: 'ground' },
+    ],
+    segments: [
+      { id: 's1', from: 'a', to: 'b', type: 'local', layer: 'ground', path: [[-40, 0, 20], [40, 0, 20]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  raw.generator.districts = [
+    { id: 'd1', type: 'residential', geometry: { rect: { minX: -60, minZ: -60, maxX: 60, maxZ: -5 } } },
+  ];
+  raw.generator.buildings = { generate: true, budget: 8 };
+  const out = runCitygen(raw);
+  assert.ok(out.ctx.spatial?.riverSegments, 'riverSegments index missing');
+  assert.ok(out.ctx.spatial.riverSegments.query({ minX: -5, maxX: 5, minZ: -20, maxZ: 20 }).length >= 1, 'river index query near river should hit');
+  assert.ok(out.ctx.spatial?.roadEasements, 'roadEasements index missing');
+  assert.ok(out.ctx.spatial.roadEasements.query({ minX: -5, maxX: 5, minZ: 10, maxZ: 30 }).length >= 1, 'road index query near road should hit');
+  assert.ok(out.ctx.spatial?.buildings, 'buildings index missing');
+  if ((out.ctx.buildings?.length ?? 0) > 0) {
+    const b = out.ctx.buildings[0];
+    const xs = b.footprint.map(p => p.x), zs = b.footprint.map(p => p.z);
+    const q = out.ctx.spatial.buildings.query({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) });
+    assert.ok(q.length >= 1, 'building index query over footprint should hit');
+  }
+});
+
+test('citygen report: districts include reservedParcels and finalize includes road graph components', () => {
+  const raw = v4Base();
+  raw.generator.districts = [
+    { id: 'd1', type: 'residential', geometry: { rect: { minX: -64, minZ: -64, maxX: 64, maxZ: 64 } } },
+  ];
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'a', position: [-40, 0, 0], layer: 'ground' },
+      { id: 'b', position: [40, 0, 0], layer: 'ground' },
+    ],
+    segments: [
+      { id: 's1', from: 'a', to: 'b', type: 'local', layer: 'ground', path: [[-40, 0, 0], [40, 0, 0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  assert.ok(Array.isArray(out.report.districts) && out.report.districts.length >= 1);
+  for (const d of out.report.districts) {
+    assert.equal(typeof d.reservedParcels, 'number');
+    assert.ok(d.reservedParcels >= 0 && d.reservedParcels <= d.parcels);
+  }
+  const fin = out.report.diagnostics.find(d => d.code === 'finalize_counts' && d.stage === '6_finalize_emit');
+  assert.ok(fin, 'finalize_counts missing');
+  assert.equal(typeof fin.roadComponents, 'number');
+  assert.equal(typeof fin.roadGraphNodes, 'number');
+  assert.ok(fin.roadComponents >= 1);
+  if ((fin.props ?? 0) > 0) {
+    assert.ok(fin.propsByDistrictType && typeof fin.propsByDistrictType === 'object', 'finalize_counts.propsByDistrictType missing when props generated');
+  }
+  assert.ok(fin.roadAccessByType && typeof fin.roadAccessByType === 'object', 'finalize_counts.roadAccessByType missing');
+});
+
+test('citygen stage 2/6: repair connects spawn-exit and remaining road components (no disconnected finalize)', () => {
+  const raw = v4Base();
+  raw.gameplay.spawn = { x: -100, z: -100 };
+  raw.gameplay.exit = { x: 100, z: 100 };
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'n1', position: [-100, 0, -100], layer: 'ground' },
+      { id: 'n2', position: [-80, 0, -100], layer: 'ground' },
+      { id: 'n3', position: [80, 0, 100], layer: 'ground' },
+      { id: 'n4', position: [100, 0, 100], layer: 'ground' },
+      { id: 'n5', position: [0, 0, 0], layer: 'ground' },
+      { id: 'n6', position: [10, 0, 0], layer: 'ground' },
+    ],
+    segments: [
+      { id: 's1', from: 'n1', to: 'n2', type: 'local', layer: 'ground', path: [[-100, 0, -100], [-80, 0, -100]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+      { id: 's2', from: 'n3', to: 'n4', type: 'local', layer: 'ground', path: [[80, 0, 100], [100, 0, 100]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+      { id: 's3', from: 'n5', to: 'n6', type: 'local', layer: 'ground', path: [[0, 0, 0], [10, 0, 0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  assert.ok(out.report.repairs.some(r => r.code === 'connect_spawn_exit_components' && r.stage === '2_transport'));
+  assert.ok(out.report.repairs.some(r => r.code === 'connect_road_component' && r.stage === '2_transport'));
+  const fin = out.report.diagnostics.find(d => d.code === 'finalize_counts' && d.stage === '6_finalize_emit');
+  assert.ok(fin);
+  assert.equal(fin.roadComponents, 1);
+  assert.ok(!out.report.diagnostics.some(d => d.code === 'road_graph_disconnected_final' && d.stage === '6_finalize_emit'));
+});
+
+test('citygen stage 2 helpers: axis-aligned terrain path rejects diagonal and river-proximate paths', async () => {
+  const { buildAxisAlignedTerrainPath, isValidAxisAlignedTerrainPath } = await import('./citygen/pipeline/stage-2-transport.mjs');
+  const flat = { heightAt: () => 0 };
+  const diag = buildAxisAlignedTerrainPath(0, 0, 10, 10, flat, [], 4);
+  assert.equal(diag, null, 'diagonal path must be rejected');
+  const straight = buildAxisAlignedTerrainPath(0, 0, 24, 0, flat, [], 12);
+  assert.ok(Array.isArray(straight) && straight.length >= 2);
+  assert.equal(isValidAxisAlignedTerrainPath(straight, []), true);
+  const river = [{ path: [[12, 0, -40], [12, 0, 40]], width: 12 }];
+  const nearRiver = buildAxisAlignedTerrainPath(0, 0, 24, 0, flat, river, 12);
+  assert.ok(Array.isArray(nearRiver));
+  assert.equal(isValidAxisAlignedTerrainPath(nearRiver, river), false, 'path crossing/near river corridor must be rejected');
 });

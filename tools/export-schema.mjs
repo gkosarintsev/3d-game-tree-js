@@ -3,36 +3,30 @@
  *
  *   node tools/export-schema.mjs [--check]
  *
- * Пишет `src/levels/level.schema.json` (v1, `kind: 'json'`),
- * `src/levels/level-v2.schema.json` (v2, `kind: 'json2'`),
- * `src/levels/level-v3.schema.json` (v3, `kind: 'cityforge'`) и его общие
- * определения `src/levels/level-common.schema.json`. Все файлы — производное от
- * `tools/level-schema.mjs`: единственный источник правды остаётся DSL, а JSON
- * Schema — его вывод для тех, кто читает бриф ДО запуска пайплайна (редактор,
- * ИИ, ревьюер). Поэтому файл, написанный руками, был бы вторым домом для тех же
+ * Пишет производные файлы схем в `src/levels/`:
+ * - `level-v3.schema.json` (v3, `kind: 'cityforge'`)
+ * - `level-common.schema.json` (общие определения v3/v4, `$ref`-цели)
+ * - `level-v4.schema.json` (v4, `kind: 'cityforge'`, `schemaVersion: 4`)
+ *
+ * Все файлы — производное от `tools/level-schema.mjs`: единственный источник правды
+ * остаётся DSL, а JSON Schema — его вывод для тех, кто читает бриф до запуска пайплайна
+ * (редактор, ИИ, ревьюер). Поэтому файл, написанный руками, был бы вторым домом для тех же
  * чисел и описаний и разошёлся бы при первой правке.
  *
  * Поля DSL переводятся так: `kind` → `type`, `req` → вхождение в `required`,
  * `min`/`max` → `minimum`/`maximum`, `enum` → `enum`, `minItems`/`maxItems` →
  * они же, `doc` → `description`, `default` → `default`, а объект получает
- * `additionalProperties: false` — то же самое делает `checkValue` («поле не
- * описано в схеме» есть у обоих версий).
+ * `additionalProperties: false` — то же самое делает `checkValue`.
  *
  * `color` — union: валидатор принимает и число `0x…`, и строку `'#rrggbb'`, и
- * схема обязана принимать то же, иначе редактор подсветит ошибкой законный бриф.
+ * схема обязана принимать то же.
  *
- * Две схемы, а не одна с `allOf`: `additionalProperties: false` внутри ветки
- * draft-07 не видит `properties` outside, и объединённая схема отвергала бы
- * `relief` и `elements` у законного v2-брифа.
+ * `level-common.schema.json` содержит общие определения (point3/area/network и др.),
+ * на которые корневые схемы ссылаются через `$ref`, чтобы CityForge-элементы и вложенные
+ * объекты не дублировались по секциям.
  *
- * v3 делится на два файла: корень (`level-v3.schema.json`) и общие определения
- * (`level-common.schema.json`). Корень ссылается на определения через `$ref`,
- * поэтому CityForge-элементы из `docs/world-format.md` описаны один раз, а
- * вложенные объекты (`point3`, `area`, `network`…) не дублируются по секциям.
- *
- * `--check` ничего не пишет и уходит с кодом 2 при расхождении — так
- * детерминизм вывода проверяется в автотесте (сюжет «схемные файлы совпадают с
- * экспортёром»).
+ * `--check` ничего не пишет и уходит с кодом 2 при расхождении — так детерминизм
+ * вывода проверяется в автотесте.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';

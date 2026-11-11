@@ -162,7 +162,7 @@ const CITY_SPEC_V2 = obj({
   track: CITY_TRACK,
 }, { doc: CITY_SPEC_V1.doc });
 
-export const LEVEL_SPEC = obj({
+const LEVEL_SPEC = obj({
   // путь к exported-схеме: подсказка редактору и ИИ, где лежат описания полей.
   // Значение выбирается по `kind` (`./level.schema.json` для v1,
   // `./level-v2.schema.json` для `json2`); в модуль главы ключ не доезжает
@@ -172,7 +172,7 @@ export const LEVEL_SPEC = obj({
   // 'json' честно, получал бы «поле не описано в схеме» за то же самое значение
   kind: str({ enum: ['json'], doc: 'версия брифа: v1 (оси мира); в v2 поле обязательное и принимает `json2` и `open`' }),
   metadata: obj({
-    levelName: str({ req: true, doc: 'имя главы для пайплайна (level-13) — по нему CLI выводит имя экспорта' }),
+    levelName: str({ req: true, doc: 'имя главы для пайплайна (например, level-16) — по нему CLI выводит имя экспорта' }),
     name: str({ req: true, doc: 'заголовок главы в HUD' }),
     hint: str({ req: true, doc: 'подсказка игроку о пути A→B' }),
     engine: str({ doc: 'служебная подпись исходника, движок не читает' }),
@@ -503,7 +503,7 @@ export const LEVEL_SPEC_V2 = {
       }),
       budgetMs: num({
         min: 1,
-        max: 100,
+        max: 200,
         req: true,
         doc: 'мс: потолок одного кадра достройки. Разделимая работа (полосы решётки, фазы графа) останавливается раньше — на меньшем из этого числа и просьбы движка (`CONFIG.jsonMap.pump.frameBudgetMs`), а неразделимый атом обязан влезть в кадр один: по шести прогонам гейта этапа 4 на клетке 200 м медиана…хвост у `commit` 13,7…39,0 мс, у `picture` — 5,1…25,0 мс, и на кадры они не режутся (цена `commit` ∝ **площади загруженного окна**, § 6.4; 30 мс отсеяны именно его хвостом, и потолок 40 держит худший замер с запасом 2,5 % — это не запас по железу, а признак того, что предел стоит на хвосте `commit` и остаётся открытым решением § 10.14). Кадр 60 Гц — 16,7 мс, а худший чанк (§ 2.7) стоил 1 401 мс, поэтому достройка растягивается на кадры в любом случае: на клетке 200 м это 92…231 мс wall-clock',
       }),
@@ -653,7 +653,7 @@ const V3_STREAM = obj({
   keep: num({ min: 0, max: 4, req: true, doc: 'Loaded cells around the player: window (2*keep + 1)^2.' }),
   aheadMin: num({ min: 0, max: 1200, req: true, doc: 'Look-ahead radius on foot, in meters.' }),
   aheadMax: num({ min: 0, max: 1200, req: true, doc: 'Look-ahead radius for vehicles; must be >= aheadMin.' }),
-  budgetMs: num({ min: 1, max: 100, req: true, doc: 'Per-frame build budget in milliseconds.' }),
+  budgetMs: num({ min: 1, max: 200, req: true, doc: 'Per-frame build budget in milliseconds.' }),
 }, { doc: 'Open-world streaming window; omit for a single-cell world.' });
 
 // --- CityForge entities ----------------------------------------------------
@@ -1099,6 +1099,8 @@ export const LEVEL_SPEC_V4 = obj({
   ground: ref('ground', { req: true }),
   gameplay: ref('gameplay', { req: true }),
   stream: ref('stream'),
+  windows: LEVEL_SPEC_V2.fields.windows,
+  sky: LEVEL_SPEC_V2.fields.sky,
   // Optional hooks for future behavior/assets; static in MVP (ADR-001).
   properties: V4_OPEN,
   buildings: LEVEL_SPEC_V2.fields.buildings,
@@ -1181,7 +1183,7 @@ function checkValue(value, spec, path, errors) {
 }
 
 /** Проверка структуры: только типы, обязательность, enum и диапазоны. */
-export function validateSpec(raw, spec = LEVEL_SPEC) {
+export function validateSpec(raw, spec = LEVEL_SPEC_V2) {
   const errors = [];
   checkValue(raw, spec, '', errors);
   return errors;
@@ -1235,12 +1237,12 @@ function streamErrors(raw, spec) {
  * footprint, пересечения комнат, лестницы в комнатах, осевые рёбра дорог,
  * уклоны, опоры под настилом, лимит огней.
  * @param {object} raw бриф уровня
- * @param {object} spec схема (`LEVEL_SPEC` для `kind: 'json'`, `LEVEL_SPEC_V2`
- *   для поворотного города) — структуру и геометрию обязан проверять один и тот
- *   же набор правил, иначе валидатор пропустил бы поле, которое парсер не читает
+ * @param {object} spec схема (по умолчанию `LEVEL_SPEC_V2` — open/v2; для
+ *   CityForge передаётся `LEVEL_SPEC_V3`/`LEVEL_SPEC_V4`) — структуру и
+ *   геометрию обязан проверять один и тот же набор правил.
  * @returns {{errors:string[], warnings:string[]}}
  */
-export function validateLevel(raw, spec = LEVEL_SPEC) {
+export function validateLevel(raw, spec = LEVEL_SPEC_V2) {
   const errors = validateSpec(raw, spec);
   const warnings = [];
   if (errors.length) return { errors, warnings, geometryOnly: false };

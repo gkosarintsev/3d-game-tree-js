@@ -20,28 +20,23 @@
 
 - Источник правды — DSL в `tools/level-schema.mjs`. JSON Schema draft-07
   экспортируется из него: `node tools/export-schema.mjs` →
-  `src/levels/level.schema.json` (v1), `src/levels/level-v2.schema.json` (json2),
-  `src/levels/level-v3.schema.json` + `src/levels/level-common.schema.json`
-  (cityforge). Рукописного `.schema.json` нет.
+  `src/levels/level-v3.schema.json`, `src/levels/level-common.schema.json`,
+  `src/levels/level-v4.schema.json` (актуальный scope v3/v4). Рукописного `.schema.json` нет.
 - Экспортёр обязан сходиться побайтово (`node tools/export-schema.mjs --check`).
-- Каждый бриф начинается с `$schema` своей версии (`./level.schema.json`,
-  `./level-v2.schema.json`, `./level-v3.schema.json`).
+- Каждый бриф начинается с `$schema` своей версии (в текущем scope — `./level-v3.schema.json` или `./level-v4.schema.json`; у v4 дополнительно `schemaVersion: 4`).
 - Версии — разные корни (не `allOf`), т.к. `additionalProperties: false` в ветке
   draft-07 не видит внешние `properties`.
-- У каждого адресуемого поля v1/v2 обязателен `doc` (смысл, единица, источник
-  предела); примитивный элемент массива описывает массив. В v3 `doc` — только у
-  неочевидных полей и **на английском**.
+- У адресуемых полей обязателен `doc` (смысл, единица, источник предела) там, где это требуется DSL/экспортёром; примитивный элемент массива описывает массив. В v3/v4 `doc` — по правилам соответствующих спекификаций (в v3 неочевидные поля — на английском).
 - `default` в DSL берётся из того же объекта, который его применяет
   (`CONFIG.jsonMap`, `CONFIG.fog/sun/hemi/night`, `DISTRICT_DEFAULTS`/
-  `TRACK_DEFAULTS` из `tools/city.js`), иначе схема станет второй правдой.
-  Ключи `city` в схеме равны гейтам генератора.
+  `TRACK_DEFAULTS` из `tools/city.js` и др.), иначе схема станет второй правдой.
+  Ключи `city` в схеме равны гейтам генератора (где применимо).
 - **Число, равное `default`, в бриф не пишут.** Исключение-переключатель:
   наличие секции (`windows`, `clutter`, `signage`, `relief`, `city`) — воля
   автора, даже при всех дефолтных числах.
 - Rationale главы — `metadata.notes` (в модуль не доезжает). JSONC/комментарии
   в JSON не используются (`JSON.parse` в пайплайне).
-- `kind: 'json'` в v1-брифе законен (= отсутствие). Неизвестный `kind` опасен
-  (движок может взять `TownMap`), поэтому схема держит перечисление.
+- Неизвестный/несогласованный `kind` опасен, поэтому схема держит перечисление и версионные ограничения. (Legacy v1/v2 схемы и брифы выведены из scope; поддержка в инструментах может сохраняться отдельно по решению плана.)
 
 ## Процедурные ряды вывода (json/json2)
 
@@ -85,3 +80,11 @@
 v3 (`kind: 'cityforge'`) компилируется в v2-бриф и разрезается в `kind: 'open'`
 каталог: [architecture-cityforge-v3.md](architecture-cityforge-v3.md). Движковая
 арифметика данных — [architecture-surfaces.md](architecture-surfaces.md).
+
+## Citygen v4 (районы, процедурная генерация)
+
+v4 (`kind: 'cityforge'`, `schemaVersion: 4`, манифест `generator`) проходит
+`tools/citygen` (детерминированные стадии 0–6, IR/отчёт/repair) → компиляция
+в open-каталог общим пайплайном, с коммитируемым `generation-report.json` для
+пилота. Текущее устройство и ограничения: [architecture-citygen.md](architecture-citygen.md),
+решения — [ADR-001](architecture/adr/ADR-001-v4-citygen-districts.md).

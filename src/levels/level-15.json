@@ -46,7 +46,7 @@
     "keep": 2,
     "aheadMin": 200,
     "aheadMax": 1200,
-    "budgetMs": 80
+    "budgetMs": 120
   },
   "buildings": [
     {

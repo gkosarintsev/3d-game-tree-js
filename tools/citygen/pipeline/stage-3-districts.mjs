@@ -278,6 +278,42 @@ export function makeStage3() {
       const parcels = [];
       const roadSegments = ctx.networks?.roads?.segments ?? [];
       const roadNeedyTypes = new Set(['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports']);
+      const rivers = [
+        ...(ctx.hydrology?.rivers ?? []),
+        ...(ctx.input?.cityforge?.hydrology?.rivers ?? []),
+        ...(ctx.input?.waterways ?? []),
+      ];
+      const hydro = ctx.hydrology?.rivers ?? [];
+      const cfHydro = ctx.input?.cityforge?.hydrology?.rivers;
+      const riverIndex = (ctx.spatial?.riverSegments && rivers.length === hydro.length &&
+        !(ctx.input?.waterways?.length) && (cfHydro === hydro || !cfHydro))
+        ? ctx.spatial.riverSegments : null;
+      const parcelNearRiver = (aabb) => {
+        const corners = [[aabb.minX,aabb.minZ],[aabb.maxX,aabb.minZ],[aabb.maxX,aabb.maxZ],[aabb.minX,aabb.maxZ],[(aabb.minX+aabb.maxX)/2,(aabb.minZ+aabb.maxZ)/2]];
+        if (riverIndex) {
+          const pad = 20;
+          const candidates = riverIndex.query({ minX: aabb.minX - pad, maxX: aabb.maxX + pad, minZ: aabb.minZ - pad, maxZ: aabb.maxZ + pad });
+          for (const seg of candidates) {
+            const clearance = (seg.width ?? 10) * 0.5 + 12;
+            for (const [px, pz] of corners) {
+              if (pointSegDistXZ(px, pz, seg.ax, seg.az, seg.bx, seg.bz) < clearance) return true;
+            }
+          }
+          return false;
+        }
+        for (const rv of rivers) {
+          const path = rv?.path ?? (Array.isArray(rv?.points) ? rv.points.map(p => [p.x, 0, p.z]) : []);
+          if (path.length < 2) continue;
+          const clearance = (Number(rv.width) || 10) * 0.5 + 12;
+          for (let pi = 0; pi + 1 < path.length; pi++) {
+            const a = path[pi], c = path[pi + 1];
+            for (const [px, pz] of corners) {
+              if (pointSegDistXZ(px, pz, a[0], a[2], c[0], c[2]) < clearance) return true;
+            }
+          }
+        }
+        return false;
+      };
       for (const d of ctx.districts) {
         const profile = profiles[d.profileId || d.type] || profiles.office || { parcels: { min: 20, max: 40 } };
         const pmin = clamp(Number(profile.parcels?.min) || 20, 8, 120);
@@ -293,26 +329,6 @@ export function makeStage3() {
           rect = null;
         }
         if (!rect) continue;
-        const rivers = [
-          ...(ctx.hydrology?.rivers ?? []),
-          ...(ctx.input?.cityforge?.hydrology?.rivers ?? []),
-          ...(ctx.input?.waterways ?? []),
-        ];
-        const parcelNearRiver = (aabb) => {
-          const corners = [[aabb.minX,aabb.minZ],[aabb.maxX,aabb.minZ],[aabb.maxX,aabb.maxZ],[aabb.minX,aabb.maxZ],[(aabb.minX+aabb.maxX)/2,(aabb.minZ+aabb.maxZ)/2]];
-          for (const rv of rivers) {
-            const path = rv?.path ?? (Array.isArray(rv?.points) ? rv.points.map(p => [p.x, 0, p.z]) : []);
-            if (path.length < 2) continue;
-            const clearance = (Number(rv.width) || 10) * 0.5 + 12;
-            for (let pi = 0; pi + 1 < path.length; pi++) {
-              const a = path[pi], c = path[pi + 1];
-              for (const [px, pz] of corners) {
-                if (pointSegDistXZ(px, pz, a[0], a[2], c[0], c[2]) < clearance) return true;
-              }
-            }
-          }
-          return false;
-        };
         const w = rect.maxX - rect.minX, h = rect.maxZ - rect.minZ;
         if (w <= 0 || h <= 0) continue;
         const target = (pmin + pmax) / 2;
@@ -398,20 +414,33 @@ export function makeStage3() {
       }
     },
     repair(ctx) {
-      // Fallback: ensure every district has known profile id
+      // Fallback: ensure every district has known profile id (use fallback chain when possible).
+      const stageId = '3_districts_parcels';
       const profiles = ctx.meta.profiles || {};
+      const profileIds = Object.keys(profiles);
       for (const d of ctx.districts) {
         const t = d.type || d.profileId;
         if (t && !profiles[t]) {
-          const fallback = 'forest';
-          ctx.report.repairs.push({ stage: '3_districts_parcels', id: d.id, code: 'district_profile_fallback', from: t, to: fallback });
+          const chain = FALLBACK_CHAINS[t] || ['forest', 'park', 'residential', 'parking', 'office', 'industrial', 'slums', 'luxury', 'sports'];
+          const fallback = chain.find(x => profiles[x]) || profileIds[0] || 'forest';
+          ctx.report.repairs.push({ stage: stageId, id: d.id, code: 'district_profile_fallback', from: t, to: fallback });
           d.type = fallback; d.profileId = fallback;
         }
       }
     },
     emit(ctx) {
       // Persist planning results in report and context (engine emission comes in later stages/TASK-008)
-      ctx.report.districts = ctx.districts.map(d => ({ id: d.id, type: d.type || d.profileId, profileId: d.profileId || d.type, cells: d.cells?.length ?? 0, parcels: ctx.parcels.filter(p => p.districtId === d.id).length }));
+      ctx.report.districts = ctx.districts.map(d => {
+        const dParcels = ctx.parcels.filter(p => p.districtId === d.id);
+        return {
+          id: d.id,
+          type: d.type || d.profileId,
+          profileId: d.profileId || d.type,
+          cells: d.cells?.length ?? 0,
+          parcels: dParcels.length,
+          reservedParcels: dParcels.filter(p => p?.reserved).length,
+        };
+      });
     },
   };
 }

@@ -47,6 +47,7 @@ import { Alien } from '../src/alien.js';
 import { TownMap } from '../src/map.js';
 import { generateBuilding } from '../src/building.js';
 import { CONFIG } from '../src/config.js';
+import { parseLevelFilter, SKIPPED } from './level-filter.js';
 
 const DT = 1 / 60;                 // фиксированный шаг физики — тесты детерминированы
 const RADIUS = CONFIG.alien.radius; // 0.5

@@ -5,6 +5,7 @@
  */
 import { warn, info } from '../diagnostics.mjs';
 import { makeRng, mix } from '../rng.mjs';
+import { createSpatialIndex } from '../spatial.mjs';
 import { reliefOf } from '../../../src/relief.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -134,7 +135,7 @@ function modifiersToHills(mods = [], groundY = 0) {
   return { baseY: groundY, hills, pads: [], rivers: [], roadCorridors: [] };
 }
 
-function makeTerrainSampler(ctx) {
+export function makeTerrainSampler(ctx) {
   const groundY = ctx.input?.ground?.y ?? 0;
   const mods = ctx.terrain?.modifiers ?? ctx.input?.cityforge?.terrain?.modifiers ?? [];
   const spec = modifiersToHills(mods, groundY);
@@ -358,7 +359,7 @@ function pinEndpoints(path, start, end, maxSlope, stageId, segId, report) {
   return out;
 }
 
-function makeRoadSegment(id, from, to, path, width, type = 'local') {
+export function makeRoadSegment(id, from, to, path, width, type = 'local') {
   return {
     id, from, to, type, layer: 'ground', path,
     lanes: [{ id: `${id}_lane_1`, direction: 'forward', width, type: 'vehicle' }],
@@ -366,7 +367,7 @@ function makeRoadSegment(id, from, to, path, width, type = 'local') {
   };
 }
 
-function buildProfiledSegment(ctx, segId, a2, b2, width, viaPoints = null) {
+export function buildProfiledSegment(ctx, segId, a2, b2, width, viaPoints = null) {
   const stageId = '2_transport';
   const sampler = makeTerrainSampler(ctx); // cheap to rebuild; deterministic
   const rivers = (ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? []);
@@ -455,6 +456,41 @@ function pathMaxSlope(pts) {
     if (run > EPS) m = Math.max(m, Math.abs(b[1]-a[1]) / run);
   }
   return m;
+}
+
+export function buildAxisAlignedTerrainPath(ax, az, bx, bz, sampler, rivers, step = 12) {
+  const dx = bx - ax, dz = bz - az;
+  const len = Math.hypot(dx, dz);
+  if (len < EPS) return null;
+  // Only axis-aligned in XZ for engine-valid road segments.
+  if (Math.abs(dx) > 0.01 && Math.abs(dz) > 0.01) return null;
+  const n = Math.max(1, Math.ceil(len / step));
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = ax + dx * t, z = az + dz * t;
+    const y = sampler?.heightAt ? sampler.heightAt(x, z) : 0;
+    pts.push([Math.round(x * 100) / 100, Math.round(y * 100) / 100, Math.round(z * 100) / 100]);
+  }
+  return enforceSlope(pts, MAX_ROAD_SLOPE, '2_transport', 'terrain_path', null);
+}
+
+export function isValidAxisAlignedTerrainPath(path, rivers = []) {
+  if (!Array.isArray(path) || path.length < 2) return false;
+  if (!isAxisAlignedPath(path)) return false;
+  if (pathMaxSlope(path) > 0.3005) return false;
+  for (let i = 0; i + 1 < path.length; i++) {
+    const a = path[i], b = path[i + 1];
+    if (segCrossesRiver(a[0], a[2], b[0], b[2], rivers)) return false;
+  }
+  // Conservative pointwise clearance against river corridors/channels (compiler-safe margin).
+  for (const pt of path) {
+    const near = riverMinDistXZAt(pt[0], pt[2], rivers);
+    const rv = near.river;
+    const margin = ((rv?.width ?? 10) * 0.5) + 35;
+    if (near.d < margin) return false;
+  }
+  return true;
 }
 
 function riverCrossingsOnAxisLeg(ax, az, bx, bz, rivers, sampler, groundY) {
@@ -772,6 +808,14 @@ function generateTransport(ctx) {
       const a = path[i], b = path[i + 1];
       if (segCrossesRiver(a[0], a[2], b[0], b[2], rivers)) return false;
     }
+    // Conservative pointwise clearance against river corridors/channels to stay compiler-safe.
+    for (const pt of path) {
+      const near = riverMinDistXZAt(pt[0], pt[2], rivers);
+      const rv = near.river;
+      if (!rv) continue;
+      const margin = ((rv?.width ?? 10) * 0.5) + 35;
+      if (near.d < margin) return false;
+    }
     return true;
   };
 
@@ -835,7 +879,7 @@ function generateTransport(ctx) {
   }
 
   // Expand connected network with terrain-following branches from existing ground nodes.
-  const branchBudget = Math.min(Math.max(requested + 18, 24), 32);
+  const branchBudget = Math.min(Math.max(requested + 40, 40), 64);
   const tryAddTerrainSeg = (fromNode, dx, dz, tag) => {
     if (made >= branchBudget) return false;
     const fx = fromNode.position[0], fz = fromNode.position[2];
@@ -936,9 +980,9 @@ function generateTransport(ctx) {
     return false;
   };
 
-  const stepLens = [80, 64, 48];
+  const stepLens = [96, 80, 64, 48, 40];
   const dirs4 = [[1,0],[-1,0],[0,1],[0,-1]];
-  for (let pass = 0; pass < 4 && made < branchBudget; pass++) {
+  for (let pass = 0; pass < 6 && made < branchBudget; pass++) {
     const groundNodes = nodes.filter(n => n.layer !== 'elevated');
     // stable order by id for determinism
     groundNodes.sort((a,b)=>String(a.id).localeCompare(String(b.id)));
@@ -953,7 +997,7 @@ function generateTransport(ctx) {
       }
       // try L-branches to reach farther/diagonal areas
       if (made >= branchBudget) break;
-      for (const len of [96, 128]) {
+      for (const len of [112, 96, 80, 64]) {
         if (made >= branchBudget) break;
         for (const [dx, dz] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
           if (made >= branchBudget) break;
@@ -964,7 +1008,7 @@ function generateTransport(ctx) {
   }
 
   // Try to connect nearby nodes/leaves with axis-aligned terrain-following segments (improves mesh connectivity).
-  const connectBudget = 10;
+  const connectBudget = 24;
   let connected = 0;
   const degNow = () => {
     const d = Object.create(null);
@@ -973,12 +1017,12 @@ function generateTransport(ctx) {
     return d;
   };
   const candidatesNodes = () => nodes.filter(n => n.layer !== 'elevated').sort((a,b)=>String(a.id).localeCompare(String(b.id)));
-  for (let pass = 0; pass < 2 && connected < connectBudget; pass++) {
+  for (let pass = 0; pass < 3 && connected < connectBudget; pass++) {
     const deg = degNow();
     const list = candidatesNodes();
     for (let i = 0; i < list.length && connected < connectBudget; i++) {
       const a = list[i];
-      if ((deg[a.id] || 0) > 4) continue;
+      if ((deg[a.id] || 0) > 5) continue;
       for (let j = i + 1; j < list.length && connected < connectBudget; j++) {
         const b = list[j];
         if (a.id === b.id) continue;
@@ -986,7 +1030,7 @@ function generateTransport(ctx) {
         const dx = b.position[0] - a.position[0];
         const dz = b.position[2] - a.position[2];
         const manhattan = Math.abs(dx) + Math.abs(dz);
-        if (manhattan < 32 || manhattan > 160) continue;
+        if (manhattan < 24 || manhattan > 200) continue;
         // prefer axis-aligned direct or L-shape via corner if aligned
         const tryPath = (pts2) => {
           let path = [];
@@ -1041,7 +1085,7 @@ function generateTransport(ctx) {
   }
 
   // Edge outreach: extend network toward map bounds where uncovered.
-  const edgeBudget = 8;
+  const edgeBudget = 16;
   let edgeAdded = 0;
   const edgeTargets = [
     { dx: -1, dz: 0, edge: -half + 8, axis: 'x' },
@@ -1056,7 +1100,7 @@ function generateTransport(ctx) {
       const bv = et.axis === 'x' ? b.position[0] : b.position[2];
       return et.dx + et.dz < 0 ? (av - bv) : (bv - av);
     });
-    for (const n of groundNodes.slice(0, 8)) {
+    for (const n of groundNodes.slice(0, 12)) {
       if (edgeAdded >= edgeBudget) break;
       const fx = n.position[0], fz = n.position[2];
       const cur = et.axis === 'x' ? fx : fz;
@@ -1111,6 +1155,156 @@ function generateTransport(ctx) {
     }
   }
 
+  // Coverage pass: extend network toward underserved interior areas (improves district road access).
+  const roadDistAt = (x, z) => {
+    let best = Infinity;
+    for (const s of segments) {
+      const pts = pathPoints(s); if (!pts) continue;
+      for (let i = 0; i + 1 < pts.length; i++) best = Math.min(best, pointSegDistXZ(x, z, pts[i][0], pts[i][2], pts[i + 1][0], pts[i + 1][2]));
+    }
+    return best;
+  };
+  const nearestGroundNode = (x, z) => {
+    let best = null, bestD = Infinity;
+    for (const n of nodes) {
+      if (n.layer === 'elevated') continue;
+      const p = n.position || [0, 0, 0];
+      const d = Math.hypot((p[0] ?? 0) - x, (p[2] ?? 0) - z);
+      if (d < bestD) { bestD = d; best = n; }
+    }
+    return best ? { node: best, d: bestD } : null;
+  };
+  const tryAddCoverageToward = (tx, tz, tag) => {
+    const txx = Math.round(clamp(tx, -half + 12, half - 12) * 100) / 100;
+    const tzz = Math.round(clamp(tz, -half + 12, half - 12) * 100) / 100;
+    if (roadDistAt(txx, tzz) < 110) return false;
+    // Try several nearest ground nodes (greedy frontier), deterministic order.
+    const candidates = nodes
+      .filter(n => n.layer !== 'elevated')
+      .map(n => {
+        const p = n.position || [0, 0, 0];
+        return { node: n, d: Math.hypot((p[0] ?? 0) - txx, (p[2] ?? 0) - tzz) };
+      })
+      .sort((a, b) => a.d - b.d || String(a.node.id).localeCompare(String(b.node.id)))
+      .slice(0, 12);
+    for (const near of candidates) {
+      if (near.d < 20) continue;
+      const fx = near.node.position[0], fz = near.node.position[2];
+      const dx = txx - fx, dz = tzz - fz;
+      const adx = Math.abs(dx), adz = Math.abs(dz);
+      const steps = near.d > 220 ? [80, 64, 48, 40] : near.d > 140 ? [64, 48, 40, 32] : [48, 40, 32];
+      // Prefer axis-aligned moves (and diagonal fallback) that reduce distance to target.
+      const dirOptions = [];
+      if (adx >= adz) {
+        dirOptions.push([Math.sign(dx) || 1, 0], [0, Math.sign(dz) || 1], [Math.sign(dx) || 1, Math.sign(dz) || 1]);
+      } else {
+        dirOptions.push([0, Math.sign(dz) || 1], [Math.sign(dx) || 1, 0], [Math.sign(dx) || 1, Math.sign(dz) || 1]);
+      }
+      const trySingle = (sx, sz, ex, ez) => {
+        if (Math.hypot(ex - sx, ez - sz) < 16) return null;
+        const path = buildTerrainPath(sx, sz, ex, ez, 12);
+        if (!isTerrainPathValid(path)) return null;
+        const end = path[path.length - 1];
+        if (roadDistAt(end[0], end[2]) < 8) return null;
+        const endD = Math.hypot(end[0] - txx, end[2] - tzz);
+        return { path, end, endD };
+      };
+      const addEdge = (fromNode, toPosArr, kind) => {
+        let toNode = nodes.find(n => n.layer !== 'elevated' && Math.hypot(n.position[0] - toPosArr[0], n.position[2] - toPosArr[2]) < 0.5);
+        const edgeExists = toNode && segments.some(s => (s.from === fromNode.id && s.to === toNode.id) || (s.from === toNode.id && s.to === fromNode.id));
+        if (edgeExists) return null;
+        if (!toNode) { toNode = { id: `tr_gn_${nodes.length + 1}`, position: toPosArr.slice(), layer: 'ground' }; nodes.push(toNode); }
+        return toNode;
+      };
+      for (const len of steps) {
+        for (const [ux, uz] of dirOptions) {
+          const mag = (ux !== 0 && uz !== 0) ? Math.SQRT2 : 1;
+          const ex = Math.round(clamp(fx + ux * (len / mag), -half + 6, half - 6) * 100) / 100;
+          const ez = Math.round(clamp(fz + uz * (len / mag), -half + 6, half - 6) * 100) / 100;
+          const single = trySingle(fx, fz, ex, ez);
+          if (single && single.endD <= near.d - 6) {
+            const toNode = addEdge(near.node, single.end, 's');
+            if (!toNode) continue;
+            const sid = `tr_gb_${segments.length + 1}`;
+            segments.push(makeRoadSegment(sid, near.node.id, toNode.id, single.path, Math.max(6, width - 2), 'local'));
+            made++;
+            ctx.report.diagnostics.push(info('transport_coverage_branch', stageId, 'added coverage branch toward underserved area', { id: sid, target: { x: txx, z: tzz }, tag, from: near.node.id }));
+            return true;
+          }
+          // L-shaped fallback (two axis-aligned legs) when straight/diagonal step is invalid
+          if (ux === 0 || uz === 0) continue;
+          const corners = [
+            { cx: fx + ux * (len / mag), cz: fz },
+            { cx: fx, cz: fz + uz * (len / mag) },
+          ];
+          for (const c of corners) {
+            const cxp = Math.round(clamp(c.cx, -half + 6, half - 6) * 100) / 100;
+            const czp = Math.round(clamp(c.cz, -half + 6, half - 6) * 100) / 100;
+            const leg1 = trySingle(fx, fz, cxp, czp);
+            if (!leg1) continue;
+            const leg2 = trySingle(leg1.end[0], leg1.end[2], ex, ez);
+            if (!leg2 || leg2.endD > near.d - 6) continue;
+            // add corner and end nodes/segments (ensure no duplicate edges)
+            let cNode = nodes.find(n => n.layer !== 'elevated' && Math.hypot(n.position[0] - leg1.end[0], n.position[2] - leg1.end[2]) < 0.5);
+            let eNode = nodes.find(n => n.layer !== 'elevated' && Math.hypot(n.position[0] - leg2.end[0], n.position[2] - leg2.end[2]) < 0.5);
+            const edgeExists = (aId, bId) => segments.some(s => (s.from === aId && s.to === bId) || (s.from === bId && s.to === aId));
+            if (edgeExists(near.node.id, cNode?.id) || (cNode && eNode && edgeExists(cNode.id, eNode.id))) continue;
+            if (!cNode) { cNode = { id: `tr_gn_${nodes.length + 1}`, position: leg1.end.slice(), layer: 'ground' }; nodes.push(cNode); }
+            if (edgeExists(near.node.id, cNode.id)) continue;
+            if (!eNode) { eNode = { id: `tr_gn_${nodes.length + 1}`, position: leg2.end.slice(), layer: 'ground' }; nodes.push(eNode); }
+            if (edgeExists(cNode.id, eNode.id)) continue;
+            const sid1 = `tr_gb_${segments.length + 1}`;
+            segments.push(makeRoadSegment(sid1, near.node.id, cNode.id, leg1.path, Math.max(6, width - 2), 'local'));
+            made++;
+            const sid2 = `tr_gb_${segments.length + 1}`;
+            segments.push(makeRoadSegment(sid2, cNode.id, eNode.id, leg2.path, Math.max(6, width - 2), 'local'));
+            made++;
+            ctx.report.diagnostics.push(info('transport_coverage_branch', stageId, 'added L-shaped coverage branch toward underserved area', { id: sid2, target: { x: txx, z: tzz }, tag, from: near.node.id, via: cNode.id }));
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
+  const coverageBudget = 44;
+  let coverageAdded = 0;
+  const size = half * 2;
+  const grid = size >= 1024 ? 4 : 3;
+  const ccell = size / grid;
+  const centers = [];
+  for (let iz = 0; iz < grid; iz++) {
+    for (let ix = 0; ix < grid; ix++) {
+      centers.push({ x: -half + ccell * (ix + 0.5), z: -half + ccell * (iz + 0.5), ix, iz });
+    }
+  }
+  // prioritize farthest-from-road centers (deterministic)
+  centers.sort((a, b) => roadDistAt(b.x, b.z) - roadDistAt(a.x, a.z) || a.iz - b.iz || a.ix - b.ix);
+  const subOffs = [[-0.25,-0.25],[0.25,-0.25],[-0.25,0.25],[0.25,0.25],[0,0],[-0.375,0],[0.375,0],[0,-0.375],[0,0.375]];
+  for (let pass = 0; pass < 7 && coverageAdded < coverageBudget; pass++) {
+    for (const c of centers) {
+      if (coverageAdded >= coverageBudget) break;
+      const cd = roadDistAt(c.x, c.z);
+      // allow chained steps toward the same center per pass (more for far targets)
+      const chainSteps = cd > 250 ? 5 : cd > 150 ? 4 : 3;
+      for (let step = 0; step < chainSteps && coverageAdded < coverageBudget; step++) {
+        if (roadDistAt(c.x, c.z) < 110) break;
+        if (!tryAddCoverageToward(c.x, c.z, `c${pass}`)) break;
+        coverageAdded++;
+      }
+    }
+    // also try subcell points for still-far areas
+    for (const c of centers) {
+      if (coverageAdded >= coverageBudget) break;
+      for (const [ox, oz] of subOffs) {
+        if (coverageAdded >= coverageBudget) break;
+        const tx = c.x + ox * ccell, tz = c.z + oz * ccell;
+        if (roadDistAt(tx, tz) < 110) continue;
+        if (tryAddCoverageToward(tx, tz, `c${pass}s`)) coverageAdded++;
+      }
+    }
+  }
+
   if (requested > 0 && made < Math.min(requested, clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4))) {
     ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4)} procedural spur(s)`, { requested: clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4), made }));
   }
@@ -1119,6 +1313,232 @@ function generateTransport(ctx) {
   ctx.networks.roads.segments = segments;
   ctx.networks.roads.junctions = [];
   ctx.report.diagnostics.push(info('transport_generated', stageId, 'stage 2 generated road network', { nodes: nodes.length, segments: segments.length, seed, branches: made, profiled: true }));
+}
+
+/**
+ * Targeted access-road augmentation for far road-needy parcels (TASK-004/005/006).
+ * Runs after stage 3 parcels exist (e.g. from stage 4) to connect underserved areas
+ * to the nearest road network with short profiled segments. Deterministic, bounded.
+ */
+/**
+ * Targeted axis-aligned access roads for far road-needy parcels (TASK-004/005/006).
+ * Runs after stage 3 (parcels known), before building placement. Adds L-shaped or
+ * straight axis-aligned terrain-following local segments toward underserved parcels.
+ * Deterministic and bounded.
+ */
+
+/**
+ * Targeted axis-aligned access roads for far road-needy parcels (TASK-004/005/006).
+ * Runs after stage 3 (parcels known), before building placement. Adds straight/L
+ * axis-aligned terrain-following local segments toward underserved parcels.
+ * Deterministic and bounded; strict river/slope/axis validation.
+ */
+
+/**
+ * Targeted axis-aligned access roads for far road-needy parcels (TASK-004/005/006).
+ * Conservative: strict axis/slope/river clearance; deterministic and bounded.
+ */
+export function addAxisAlignedAccessRoadsForParcels(ctx) {
+  const stageId = '2_transport_access';
+  const parcels = Array.isArray(ctx.parcels) ? ctx.parcels : [];
+  const networks = ctx.networks?.roads;
+  if (!networks || !Array.isArray(networks.nodes) || !Array.isArray(networks.segments)) return { added: 0 };
+  // Skip for small/synthetic contexts to keep unit tests stable; pilot-scale worlds benefit most.
+  if ((ctx.meta?.worldBounds?.size ?? 0) < 512 || parcels.length < 30) return { added: 0 };
+  const nodes = networks.nodes;
+  const segments = networks.segments;
+  if (!nodes.length || !segments.length) return { added: 0 };
+
+  const roadNeedyTypes = new Set(['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports']);
+  const half = (ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256) / 2;
+  const sampler = makeTerrainSampler(ctx);
+  const rivers = ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? [];
+
+  const riverClear = (path) => {
+    if (!Array.isArray(path)) return false;
+    for (const pt of path) {
+      const near = riverMinDistXZAt(pt[0], pt[2], rivers);
+      const rv = near.river;
+      if (!rv) continue;
+      const margin = ((rv?.width ?? 10) * 0.5) + 50;
+      if (near.d < margin) return false;
+    }
+    return true;
+  };
+
+  const minRoadDist = (x, z) => {
+    let best = Infinity;
+    for (const s of segments) {
+      const pts = Array.isArray(s?.path) ? s.path : [];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const a = pts[i], b = pts[i + 1];
+        if (!a || !b) continue;
+        best = Math.min(best, pointSegDistXZ(x, z, a[0], a[2], b[0], b[2]));
+      }
+    }
+    return best;
+  };
+  const nodePos = (n) => { const p = Array.isArray(n?.position) ? n.position : [0,0,0]; return { x: Number(p[0])||0, y: Number(p[1])||0, z: Number(p[2])||0 }; };
+  const nearestNode = (x, z) => {
+    let best = null, bestD = Infinity;
+    for (const n of nodes) {
+      if (n?.layer === 'elevated') continue;
+      const p = nodePos(n);
+      const d = Math.hypot(p.x - x, p.z - z);
+      if (d < bestD) { bestD = d; best = n; }
+    }
+    return best ? { node: best, d: bestD } : null;
+  };
+  const ensureRoadIndex = () => {
+    ctx.spatial = ctx.spatial || {};
+    if (ctx.spatial.roadEasements && typeof ctx.spatial.roadEasements.insert === 'function') return ctx.spatial.roadEasements;
+    const idx = createSpatialIndex(ctx.meta.worldBounds ?? { size: (half * 2) });
+    for (const r of (ctx.masks?.easement?.roads ?? [])) idx.insert(r);
+    ctx.spatial.roadEasements = idx;
+    return idx;
+  };
+  const syncSegment = (seg) => {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const pt of (seg.path || [])) { minX = Math.min(minX, pt[0]); maxX = Math.max(maxX, pt[0]); minZ = Math.min(minZ, pt[2]); maxZ = Math.max(maxZ, pt[2]); }
+    const eas = { id: seg.id, minX, maxX, minZ, maxZ, width: (Array.isArray(seg?.lanes) && seg.lanes[0]?.width) ? seg.lanes[0].width : 8 };
+    if (!ctx.masks.easement) ctx.masks.easement = { rivers: [], roads: [] };
+    ctx.masks.easement.roads = ctx.masks.easement.roads || [];
+    ctx.masks.easement.roads.push(eas);
+    ensureRoadIndex().insert(eas);
+  };
+  const uniqueSegId = (base) => { const used = new Set(segments.map(s => s.id)); if (!used.has(base)) return base; let k = 2; while (used.has(`${base}_${k}`)) k++; return `${base}_${k}`; };
+  const uniqueNodeId = (base) => { const used = new Set(nodes.map(n => n.id)); if (!used.has(base)) return base; let k = 2; while (used.has(`${base}_${k}`)) k++; return `${base}_${k}`; };
+  const edgeExists = (a, b) => segments.some(s => (s.from === a && s.to === b) || (s.from === b && s.to === a));
+  const getOrCreateNodeAt = (x, y, z, baseId) => {
+    let n = nodes.find(nn => nn.layer !== 'elevated' && Math.hypot(nn.position[0] - x, nn.position[2] - z) < 0.5);
+    if (!n) { n = { id: uniqueNodeId(baseId), position: [Math.round(x*100)/100, Math.round(y*100)/100, Math.round(z*100)/100], layer: 'ground' }; nodes.push(n); }
+    return n;
+  };
+  const tryAddLeg = (fromNode, toX, toZ, idBase) => {
+    const fp = nodePos(fromNode);
+    const tx = Math.round(clamp(toX, -half + 6, half - 6) * 100) / 100;
+    const tz = Math.round(clamp(toZ, -half + 6, half - 6) * 100) / 100;
+    if (Math.abs(tx - fp.x) > 0.01 && Math.abs(tz - fp.z) > 0.01) return null;
+    if (Math.hypot(tx - fp.x, tz - fp.z) < 12) return null;
+    const path = buildAxisAlignedTerrainPath(fp.x, fp.z, tx, tz, sampler, rivers, 12);
+    if (!isValidAxisAlignedTerrainPath(path, rivers)) return null;
+    if (!riverClear(path)) return null;
+    const end = path[path.length - 1];
+    const toNode = getOrCreateNodeAt(end[0], end[1], end[2], `${idBase}_n`);
+    if (edgeExists(fromNode.id, toNode.id)) return null;
+    const segId = uniqueSegId(idBase);
+    const seg = makeRoadSegment(segId, fromNode.id, toNode.id, path, 8, 'local');
+    segments.push(seg);
+    syncSegment(seg);
+    return { seg, toNode, end };
+  };
+
+  const targets = [];
+  for (const p of parcels) {
+    if (!p || p.reserved) continue;
+    const type = p.type || p.profileId;
+    if (!roadNeedyTypes.has(type)) continue;
+    const b = p.aabb; if (!b) continue;
+    const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    const rd = Number.isFinite(p.access?.roadDist) ? p.access.roadDist : minRoadDist(cx, cz);
+    if (rd < 140) continue;
+    const rn = riverMinDistXZAt(cx, cz, rivers);
+    if ((rn.river ? rn.d : 1e9) < ((rn.river?.width ?? 10) * 0.5 + 70)) continue;
+    targets.push({ x: cx, z: cz, rd, type, id: p.id });
+  }
+  // Rebalanced within fixed budget: prioritize currently underserved types (sports/slums)
+  // while keeping deterministic order and respecting river/perf constraints.
+  targets.sort((a, b) => {
+    const aw = a.type === 'office' ? 0 : a.type === 'residential' ? 1 : a.type === 'sports' ? 2 : 3;
+    const bw = b.type === 'office' ? 0 : b.type === 'residential' ? 1 : b.type === 'sports' ? 2 : 3;
+    return aw - bw || b.rd - a.rd || String(a.id).localeCompare(String(b.id));
+  });
+  const picked = [];
+  for (const t of targets) {
+    if (picked.some(p => Math.hypot(p.x - t.x, p.z - t.z) < 50)) continue;
+    picked.push(t);
+    if (picked.length >= 80) break;
+  }
+
+  let added = 0;
+  const budget = 18;
+  const rollbackLegs = (legs) => {
+    for (let i = legs.length - 1; i >= 0; i--) {
+      const leg = legs[i]; if (!leg?.seg) continue;
+      const segIdx = segments.lastIndexOf(leg.seg);
+      if (segIdx >= 0) segments.splice(segIdx, 1);
+      const n = leg.toNode;
+      if (n && !segments.some(s => s.from === n.id || s.to === n.id)) {
+        const idx = nodes.indexOf(n); if (idx >= 0) nodes.splice(idx, 1);
+      }
+      ctx.masks.easement.roads = (ctx.masks.easement.roads || []).filter(r => r.id !== leg.seg.id);
+    }
+    if (legs.length) {
+      const idx = createSpatialIndex(ctx.meta.worldBounds ?? { size: (half * 2) });
+      for (const r of (ctx.masks.easement.roads || [])) idx.insert(r);
+      ctx.spatial.roadEasements = idx;
+    }
+  };
+
+  for (let pass = 0; pass < 3 && added < budget; pass++) {
+    for (const t of picked) {
+      if (added >= budget) break;
+      const cur = minRoadDist(t.x, t.z);
+      if (cur < 120) continue;
+      const near = nearestNode(t.x, t.z);
+      if (!near || near.d < 18) continue;
+      const fp = nodePos(near.node);
+      const dx = t.x - fp.x, dz = t.z - fp.z;
+      const adx = Math.abs(dx), adz = Math.abs(dz);
+      const maxStep = clamp(cur - 30, 40, 96);
+      const stepLens = [Math.min(maxStep, 72), 48, 40].filter((v, i, a) => v >= 32 && a.indexOf(v) === i);
+      const tryRoutes = [];
+      const sx = Math.sign(dx) || 1, sz = Math.sign(dz) || 1;
+      for (const L of stepLens) {
+        const lx = Math.min(L, adx), lz = Math.min(L, adz);
+        if (adz < 1 && adx >= 12) tryRoutes.push([[fp.x + sx * lx, fp.z]]);
+        else if (adx < 1 && adz >= 12) tryRoutes.push([[fp.x, fp.z + sz * lz]]);
+        else {
+          tryRoutes.push([[fp.x + sx * lx, fp.z], [fp.x + sx * lx, fp.z + sz * lz]]);
+          tryRoutes.push([[fp.x, fp.z + sz * lz], [fp.x + sx * lx, fp.z + sz * lz]]);
+        }
+      }
+      let placed = false;
+      for (const route of tryRoutes) {
+        if (placed) break;
+        const legs = [];
+        let from = near.node; let ok = true;
+        for (let i = 0; i < route.length; i++) {
+          const [tx, tz] = route[i];
+          const leg = tryAddLeg(from, tx, tz, `tr_acc_${pass + 1}_${added + 1}`);
+          if (!leg) { ok = false; break; }
+          legs.push(leg); from = leg.toNode;
+        }
+        if (!ok) { rollbackLegs(legs); continue; }
+        const end = legs[legs.length - 1].end;
+        const endD = Math.hypot(end[0] - t.x, end[2] - t.z);
+        if (endD < cur - 8 || endD < 130) {
+          added += legs.length;
+          ctx.report.repairs.push({ stage: stageId, code: 'access_roads_added', id: legs.map(l => l.seg.id).join(','), target: t.id });
+          placed = true;
+        } else {
+          rollbackLegs(legs);
+        }
+      }
+    }
+  }
+
+  if (added > 0 && Array.isArray(ctx.parcels)) {
+    for (const p of ctx.parcels) {
+      const b = p?.aabb; if (!b) continue;
+      const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+      const rd = minRoadDist(cx, cz);
+      if (!p.access) p.access = { edge: 'north', roadDist: null };
+      p.access.roadDist = Number.isFinite(rd) ? +rd.toFixed(2) : null;
+    }
+  }
+  if (ctx.input?.cityforge?.networks?.roads) ctx.input.cityforge.networks.roads = networks;
+  return { added };
 }
 
 export function makeStage2() {
@@ -1167,6 +1587,8 @@ export function makeStage2() {
     },
     validate(ctx) {
       const stageId = '2_transport';
+      const size = ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256;
+      const half = size / 2;
       const nodes = uniqById(ctx.networks.roads.nodes, 'node', ctx, stageId);
       const nodeIds = new Set(nodes.map(n => n.id));
       const segmentsIn = uniqById(ctx.networks.roads.segments, 'segment', ctx, stageId);
@@ -1187,24 +1609,73 @@ export function makeStage2() {
         if (pts && polylineSelfIntersectsXZ(pts)) {
           ctx.report.diagnostics.push(warn('segment_self_intersection', stageId, `segment '${s.id}' has self-intersecting path`, { id: s.id }));
         }
+        // Clamp out-of-bounds path points to world bounds (deterministic repair)
+        if (pts) {
+          let clamped = false;
+          const newPts = pts.map(p => {
+            const x = clamp(p[0], -half, half);
+            const z = clamp(p[2], -half, half);
+            if (Math.abs(x - p[0]) > 0.01 || Math.abs(z - p[2]) > 0.01) clamped = true;
+            return [Math.round(x * 1000) / 1000, p[1], Math.round(z * 1000) / 1000];
+          });
+          if (clamped) {
+            s.path = newPts;
+            // refresh local pts view for subsequent checks/masks
+            pts.length = 0; for (const p of newPts) pts.push(p);
+            ctx.report.diagnostics.push(warn('road_point_out_of_bounds', stageId, `segment '${s.id}' had path point(s) outside world bounds (clamped)`, { id: s.id }));
+            ctx.report.repairs.push({ stage: stageId, id: s.id ?? null, code: 'clamp_road_path_bounds' });
+          }
+        }
         // river easement conflict: path points inside river corridor at low relative elevation
         const rivers = ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? [];
+        const groundY = ctx.input?.ground?.y ?? 0;
         if (pts && rivers.length) {
           let conflicts = 0;
+          let unbridgedCrossings = 0;
           for (const p of pts) {
             const near = riverMinDistXZAt(p[0], p[2], rivers);
             if (near.river) {
               const margin = (near.river.width ?? 10) * 0.5 + 1;
-              const bed = (ctx.meta.worldBounds?.y ?? ctx.input?.ground?.y ?? 0) - (Number.isFinite(near.river.depth) ? near.river.depth : 2);
+              const bed = groundY - (Number.isFinite(near.river.depth) ? near.river.depth : 2);
               if (near.d < margin && p[1] < bed + 1.2) conflicts++;
             }
           }
+          // Проверка: дорога не должна проходить через реку без моста (пересечение русла на низкой отметке).
+          for (let i = 0; i + 1 < pts.length; i++) {
+            const a = pts[i], b = pts[i + 1];
+            const crossing = segCrossesRiver(a[0], a[2], b[0], b[2], rivers);
+            if (!crossing) continue;
+            const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
+            const steps = Math.max(2, Math.ceil(len / SAMPLE_STEP));
+            let bridged = true;
+            for (let st = 0; st <= steps; st++) {
+              const t = st / steps;
+              const x = a[0] + (b[0] - a[0]) * t;
+              const y = a[1] + (b[1] - a[1]) * t;
+              const z = a[2] + (b[2] - a[2]) * t;
+              const near = riverMinDistXZAt(x, z, [crossing.river]);
+              const channelHalf = (Number(crossing.river.width) || 10) * 0.5;
+              if (near.d <= channelHalf + 0.5) {
+                const minBridgeY = groundY + BRIDGE_DECK_MIN;
+                if (y < minBridgeY) { bridged = false; break; }
+              }
+            }
+            if (!bridged) unbridgedCrossings++;
+          }
           if (conflicts) ctx.report.diagnostics.push(warn('road_river_conflict', stageId, `segment '${s.id}' has ${conflicts} point(s) inside river corridor`, { id: s.id, count: conflicts }));
+          if (unbridgedCrossings) {
+            ctx.report.diagnostics.push({ severity: 'error', code: 'road_crosses_river_without_bridge', stage: stageId, message: `segment '${s.id}' crosses river without bridge (${unbridgedCrossings} sub-segment(s))`, objectIds: [s.id] });
+          }
         }
         // road easement mask (approx by path bbox/width)
         if (pts) {
           let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
-          for (const p of pts) { minX=Math.min(minX,p[0]); maxX=Math.max(maxX,p[0]); minZ=Math.min(minZ,p[2]); maxZ=Math.max(maxZ,p[2]); }
+          let oob = 0;
+          for (const p of pts) {
+            minX=Math.min(minX,p[0]); maxX=Math.max(maxX,p[0]); minZ=Math.min(minZ,p[2]); maxZ=Math.max(maxZ,p[2]);
+            if (Math.abs(p[0]) > half + 0.01 || Math.abs(p[2]) > half + 0.01) oob++;
+          }
+          if (oob) ctx.report.diagnostics.push(warn('road_point_out_of_bounds', stageId, `segment '${s.id}' has ${oob} path point(s) outside world bounds`, { id: s.id, count: oob }));
           const w = (Array.isArray(s.lanes) && s.lanes[0]?.width) ? s.lanes[0].width : 8;
           ctx.masks.easement.roads.push({ id: s.id ?? null, minX, maxX, minZ, maxZ, width: w });
         }
@@ -1213,6 +1684,11 @@ export function makeStage2() {
       ctx.networks.roads.nodes = nodes;
       ctx.networks.roads.segments = segments;
       ctx.networks.roads.junctions = uniqById(ctx.networks.roads.junctions, 'junction', ctx, stageId);
+      // Spatial index for road easement AABBs (TASK-002): deterministic, additive for stage queries.
+      ctx.spatial = ctx.spatial || {};
+      const roadIdx = createSpatialIndex(ctx.meta.worldBounds ?? { size: ctx.input?.ground?.size ?? 256 });
+      for (const r of (ctx.masks.easement?.roads ?? [])) roadIdx.insert(r);
+      ctx.spatial.roadEasements = roadIdx;
 
       // connectivity hint: spawn/exit near any road segment?
       const gp = ctx.input?.gameplay ?? {};
@@ -1264,11 +1740,15 @@ export function makeStage2() {
         cid++; const q=[id]; compOf.set(id, cid);
         while (q.length) { const cur=q.shift(); for (const nb of (adj.get(cur)||[])) if(!compOf.has(nb)){compOf.set(nb,cid); q.push(nb);} }
       }
+      const nodePos = (n) => {
+        const p = Array.isArray(n?.position) ? n.position : [0,0,0];
+        return { x: Number(p[0]) || 0, y: Number(p[1]) || 0, z: Number(p[2]) || 0 };
+      };
       const nearestNode = (pos) => {
         let best = null, bestD = Infinity;
         for (const n of nodes) {
-          const p = Array.isArray(n.position) ? n.position : [0,0,0];
-          const d = Math.hypot((p[0]??0)-pos.x, (p[2]??0)-pos.z);
+          const p = nodePos(n);
+          const d = Math.hypot(p.x - pos.x, p.z - pos.z);
           if (d < bestD) { bestD = d; best = n; }
         }
         return best ? { node: best, d: bestD } : null;
@@ -1285,25 +1765,95 @@ export function makeStage2() {
         ctx.report.repairs.push({ stage: stageId, code: 'add_anchor_node', id: n.id });
         return n;
       };
+
+      const addConnector = (idBase, fromNode, toNode, code, message) => {
+        const width = 8;
+        const a = nodePos(fromNode), b = nodePos(toNode);
+        const path = buildProfiledSegment(ctx, idBase, { x: a.x, z: a.z }, { x: b.x, z: b.z }, width, null);
+        if (!path) {
+          ctx.report.diagnostics.push(warn('transport_repair_failed', stageId, `could not create connector segment '${idBase}'`));
+          return false;
+        }
+        // unique segment id
+        let segId = idBase;
+        const used = new Set(segments.map(s => s.id));
+        if (used.has(segId)) { let k = 2; while (used.has(`${idBase}_${k}`)) k++; segId = `${idBase}_${k}`; }
+        const seg = makeRoadSegment(segId, fromNode.id, toNode.id, path, width, 'local');
+        segments.push(seg);
+        // Keep road easement mask/index in sync with repaired network.
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        for (const pt of path) { minX = Math.min(minX, pt[0]); maxX = Math.max(maxX, pt[0]); minZ = Math.min(minZ, pt[2]); maxZ = Math.max(maxZ, pt[2]); }
+        const eas = { id: seg.id, minX, maxX, minZ, maxZ, width };
+        if (!ctx.masks.easement) ctx.masks.easement = { rivers: [], roads: [] };
+        ctx.masks.easement.roads = ctx.masks.easement.roads || [];
+        ctx.masks.easement.roads.push(eas);
+        ctx.spatial = ctx.spatial || {};
+        if (ctx.spatial.roadEasements && typeof ctx.spatial.roadEasements.insert === 'function') {
+          ctx.spatial.roadEasements.insert(eas);
+        } else {
+          const roadIdx = createSpatialIndex(ctx.meta.worldBounds ?? { size: ctx.input?.ground?.size ?? 256 });
+          for (const r of ctx.masks.easement.roads) roadIdx.insert(r);
+          ctx.spatial.roadEasements = roadIdx;
+        }
+        adj.get(fromNode.id)?.add(toNode.id); adj.get(toNode.id)?.add(fromNode.id);
+        const mainC = compOf.get(fromNode.id);
+        const otherC = compOf.get(toNode.id);
+        if (mainC != null && otherC != null && mainC !== otherC) {
+          for (const [nid, c] of compOf.entries()) if (c === otherC) compOf.set(nid, mainC);
+        }
+        ctx.report.repairs.push({ stage: stageId, code, id: seg.id, from: fromNode.id, to: toNode.id });
+        ctx.report.diagnostics.push(info('transport_repaired_connectivity', stageId, message, { id: seg.id }));
+        return true;
+      };
+
       const spawnNode = ensureAnchorNode('spawn', spawnPos);
       const exitNode = ensureAnchorNode('exit', exitPos);
       const cSpawn = compOf.get(spawnNode.id);
       const cExit = compOf.get(exitNode.id);
       if (cSpawn && cExit && cSpawn !== cExit) {
-        const width = 8;
-        const path = buildProfiledSegment(ctx, 'tr_repair_connect', { x: spawnNode.position[0], z: spawnNode.position[2] }, { x: exitNode.position[0], z: exitNode.position[2] }, width, null);
-        if (path) {
-          const seg = makeRoadSegment('tr_repair_connect', spawnNode.id, exitNode.id, path, width, 'local');
-          segments.push(seg);
-          adj.get(spawnNode.id)?.add(exitNode.id); adj.get(exitNode.id)?.add(spawnNode.id);
-          const merged = compOf.get(exitNode.id);
-          for (const [nid, c] of compOf.entries()) if (c === merged) compOf.set(nid, compOf.get(spawnNode.id));
-          ctx.report.repairs.push({ stage: stageId, code: 'connect_spawn_exit_components', id: seg.id });
-          ctx.report.diagnostics.push(info('transport_repaired_connectivity', stageId, 'added connector segment to join spawn/exit components', { id: seg.id }));
-        } else {
-          ctx.report.diagnostics.push(warn('transport_repair_failed', stageId, 'could not create connector segment for spawn/exit connectivity'));
+        addConnector('tr_repair_connect', spawnNode, exitNode, 'connect_spawn_exit_components', 'added connector segment to join spawn/exit components');
+      }
+
+      // Connect any remaining disconnected components to the spawn/exit main component (deterministic).
+      const mainC = compOf.get(spawnNode.id);
+      if (mainC != null) {
+        const byComp = new Map();
+        for (const n of nodes) {
+          const c = compOf.get(n.id);
+          if (c == null) continue;
+          if (!byComp.has(c)) byComp.set(c, []);
+          byComp.get(c).push(n);
+        }
+        const otherComps = [...byComp.keys()]
+          .filter(c => c !== mainC)
+          .sort((a, b) => {
+            const ak = byComp.get(a).map(n => String(n.id)).sort()[0] ?? '';
+            const bk = byComp.get(b).map(n => String(n.id)).sort()[0] ?? '';
+            return ak < bk ? -1 : ak > bk ? 1 : 0;
+          });
+        let extra = 0;
+        for (const c of otherComps) {
+          const mainNodes = nodes.filter(n => compOf.get(n.id) === mainC);
+          const compNodes = byComp.get(c) || [];
+          if (!mainNodes.length || !compNodes.length) continue;
+          let best = null;
+          for (const a of mainNodes) {
+            const ap = nodePos(a);
+            for (const b of compNodes) {
+              const bp = nodePos(b);
+              const d = Math.hypot(ap.x - bp.x, ap.z - bp.z);
+              if (!best || d < best.d - 1e-9 ||
+                (Math.abs(d - best.d) <= 1e-9 && (String(a.id) < String(best.a.id) || (String(a.id) === String(best.a.id) && String(b.id) < String(best.b.id))))) {
+                best = { a, b, d };
+              }
+            }
+          }
+          if (!best) continue;
+          extra++;
+          addConnector(`tr_repair_connect_extra_${extra}`, best.a, best.b, 'connect_road_component', 'added connector segment to join disconnected road component');
         }
       }
+
       ctx.networks.roads.nodes = nodes;
       ctx.networks.roads.segments = segments;
     },

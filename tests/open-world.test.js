@@ -1326,6 +1326,11 @@ async function testEngineChapter() {
         && game.exit.radius === (gp.exitRadius ?? CONFIG.terrain.exitRadius),
     } : null);
     const fitCount = () => map.nav.pos.reduce((n, _, i) => n + (map.navFit(i) ? 1 : 0), 0);
+    const memSnapshot = () => {
+      try { game.renderer.render(game.scene, game.camera); } catch { /* кадр не обязателен для вердикта */ }
+      const m = game.renderer?.info?.memory;
+      return m ? { geometries: m.geometries, textures: m.textures } : null;
+    };
     at = {
       state: game.state,
       chapter: game.levelIndex === index && game.level === level,
@@ -1345,6 +1350,7 @@ async function testEngineChapter() {
       warm: map.pump.costWorst.size,
       firstChunkMs: map.pump.stats.firstChunkMs,
       sceneChildren: game.scene.children.length,
+      memory: memSnapshot(),
     };
     let frames = 0;
     let idleAt = null;
@@ -1412,6 +1418,8 @@ async function testEngineChapter() {
       beacon: beacon(),
       counters: counters(),
       sums: sums(),
+      sceneChildren: game.scene.children.length,
+      memory: memSnapshot(),
       route: {
         nodes: path.length, cells, m: len, unbuilt, offSupport,
         toExit: last ? Math.hypot(last.x - to.x, last.z - to.z) : null,
@@ -1456,7 +1464,8 @@ async function testEngineChapter() {
       + ` проходим ${!at.blockedAtSpawn}; стартовая клетка ${at.startId} нарисована ${at.startPic},`
       + ` до играбельного окна ${at.firstChunkMs === null ? 'нет' : at.firstChunkMs.toFixed(0) + ' мс'},`
       + ` мереных меток после build ${at.warm}; узлов ${at.nodes} (годных ${at.fit}), объектов сцены`
-      + ` ${at.sceneChildren}; врагов ${at.enemies.length} при данных ${wantEnemies} (вне застроенных`
+      + ` ${at.sceneChildren}; память renderer.info.memory ${at.memory ? `${at.memory.geometries}g/${at.memory.textures}t` : 'н/д'};`
+      + ` врагов ${at.enemies.length} при данных ${wantEnemies} (вне застроенных`
       + ` ${at.enemies.filter((e) => !e.built).length}, снятых ${at.enemies.filter((e) => e.offstage).length},`
       + ` худший зазор до узла ${worstGap(at.enemies).toFixed(3)} м при допуске ${nodeGap}), кузовов`
       + ` ${at.cars} при данных ${wantCars}; маяк ${at.beacon === null ? 'не нужен' : `в (${gp.exit?.x ?? 0}, ${gp.exit?.z ?? 0})`}`
@@ -1467,7 +1476,10 @@ async function testEngineChapter() {
       + ` ${rest.drawn}; худший кадр ${rest.worstFrameMs.toFixed(1)} мс при потолке главы ${frameCap}`
       + ` (атом ${rest.worstAtomMs.toFixed(1)} «${rest.atomLabel}», накопление ≤ ${rest.worstAccumMs.toFixed(1)}`
       + ` при просьбе движка ${engineAsk}), wall-clock худшей клетки ${rest.worstChunkMs.toFixed(0)} мс;`
-      + ` узлов ${rest.nodes} (годных ${rest.fit}), ряды ${rowText(rest)}, врагов вне застроенных`
+      + ` узлов ${rest.nodes} (годных ${rest.fit}), объектов сцены ${rest.sceneChildren}, память`
+      + ` ${rest.memory ? `${rest.memory.geometries}g/${rest.memory.textures}t` : 'н/д'} (дельта`
+      + ` ${at.memory && rest.memory ? `${rest.memory.geometries - at.memory.geometries}g/${rest.memory.textures - at.memory.textures}t` : 'н/д'}),`
+      + ` ряды ${rowText(rest)}, врагов вне застроенных`
       + ` ${rest.enemies.filter((e) => !e.built).length}, маяк застроен ${rest.beacon?.built ?? '—'} и видим`
       + ` ${rest.beacon?.visible ?? '—'}; маршрут к B частичный: ${rest.route.nodes} узлов /`
       + ` ${rest.route.m.toFixed(1)} м через ${rest.route.cells.join('→')}, до маяка`

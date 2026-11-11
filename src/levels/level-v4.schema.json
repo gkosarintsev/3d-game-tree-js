@@ -30,6 +30,227 @@
     "stream": {
       "$ref": "./level-common.schema.json#/definitions/stream"
     },
+    "windows": {
+      "type": "object",
+      "properties": {
+        "spacing": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 12,
+          "description": "м: ритм окон вдоль грани; 0 — дому окна не рисуются вовсе",
+          "default": 3
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 6,
+          "description": "м: ширина квада",
+          "default": 1.15
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 6,
+          "description": "м: высота квада",
+          "default": 1.6
+        },
+        "sill": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "м: подоконник от пола этажа",
+          "default": 0.9
+        },
+        "offset": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 1,
+          "description": "м: вынос квада за грань стены",
+          "default": 0.06
+        },
+        "lit": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "доля окон светящимися (ГПСЧ вывода, солёный шаг на каждый отсчёт)",
+          "default": 0.4
+        }
+      },
+      "additionalProperties": false,
+      "description": "включатель + переопределение ряда окон: картинку выводит JsonMap, модуль главы этих чисел не содержит; по facadeMaterial работает надстройка byMaterial"
+    },
+    "sky": {
+      "type": "object",
+      "properties": {
+        "sky": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            }
+          ],
+          "description": "цвет неба (фон сцены)",
+          "default": 11130101
+        },
+        "fog": {
+          "type": "object",
+          "properties": {
+            "color": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              ],
+              "description": "цвет тумана",
+              "default": 14084607
+            },
+            "near": {
+              "type": "number",
+              "minimum": 1,
+              "description": "м: начало тумана",
+              "default": 120
+            },
+            "far": {
+              "type": "number",
+              "minimum": 2,
+              "description": "м: полное затемнение; правки этой пары — стиль главы, дефолта в брифе не требуется",
+              "default": 460
+            }
+          },
+          "additionalProperties": false,
+          "description": "туман; секция мержится как { ...CONFIG.fog, ...sky.fog }"
+        },
+        "sun": {
+          "type": "object",
+          "properties": {
+            "color": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              ],
+              "description": "цвет «луны»",
+              "default": 16774368
+            },
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "яркость «луны»: единственный источник теней и яркость улицы (правило «достоинство луны, а не подсветок»)",
+              "default": 2.4
+            },
+            "position": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "number"
+              },
+              "description": "[x, y, z] мир: направление «луны»",
+              "default": [
+                150,
+                200,
+                -110
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "description": "мержится как { ...CONFIG.sun, ...sky.sun }"
+        },
+        "hemi": {
+          "type": "object",
+          "properties": {
+            "sky": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              ],
+              "description": "цвет верхнего полусферического света",
+              "default": 12575743
+            },
+            "ground": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              ],
+              "description": "цвет нижнего полусферического света",
+              "default": 4877107
+            },
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "яркость полусферического света",
+              "default": 1
+            }
+          },
+          "additionalProperties": false,
+          "description": "мержится как { ...CONFIG.hemi, ...sky.hemi }"
+        },
+        "lights": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 8,
+              "description": "штук: настоящих источников в пуле; по наличию этой секции заводится NightLights, без неё глава живёт на «луне» (глава 12)",
+              "default": 6
+            },
+            "reach": {
+              "type": "number",
+              "minimum": 1,
+              "description": "м: радиус поиска опорных точек вокруг камеры",
+              "default": 60
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0,
+              "description": "м: подъём огня над опорной точкой",
+              "default": 6
+            },
+            "spacing": {
+              "type": "number",
+              "minimum": 1,
+              "description": "м: минимальное разнос огней",
+              "default": 26
+            },
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "яркость одного огня пула",
+              "default": 60
+            }
+          },
+          "additionalProperties": false,
+          "description": "пул src/night-lights.js переставляет count огней на map.openPositions() рядом с камерой"
+        }
+      },
+      "additionalProperties": false,
+      "description": "ночь главы как данные: слияние с дефолтами делает game.js, номеров глав карта не знает"
+    },
     "properties": {
       "type": "object",
       "properties": {}

@@ -18,6 +18,67 @@ import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
 
+function pointSegDistXZ(px, pz, ax, az, bx, bz) {
+  const abx = bx - ax, abz = bz - az, apx = px - ax, apz = pz - az;
+  const ab2 = abx * abx + abz * abz;
+  const t = ab2 > 1e-9 ? Math.max(0, Math.min(1, (apx * abx + apz * abz) / ab2)) : 0;
+  return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
+}
+
+function riverDistXZ(x, z, rivers = []) {
+  let best = Infinity, river = null;
+  for (const rv of rivers) {
+    const pts = rv?.points ?? rv?.path ?? [];
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const ax = Array.isArray(a) ? a[0] : a.x, az = Array.isArray(a) ? a[2] ?? a.z : a.z;
+      const bx = Array.isArray(b) ? b[0] : b.x, bz = Array.isArray(b) ? b[2] ?? b.z : b.z;
+      const d = pointSegDistXZ(x, z, ax, az, bx, bz);
+      if (d < best) { best = d; river = rv; }
+    }
+  }
+  return { d: best, river };
+}
+
+function roadCrossesRiverWithoutBridge(road, waterways, groundY) {
+  const pts = road?.points;
+  if (!Array.isArray(pts) || pts.length < 2 || !waterways?.length) return null;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const len = Math.hypot((b.x - a.x), (b.z - a.z));
+    const steps = Math.max(2, Math.ceil(len / 4));
+    for (const w of waterways) {
+      let crossed = false;
+      const half = (Number(w.width) || 10) * 0.5;
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const x = a.x + (b.x - a.x) * t;
+        const y = a.y + (b.y - a.y) * t;
+        const z = a.z + (b.z - a.z) * t;
+        const d = pointSegDistXZ(x, z, 0, 0, 0, 0); // placeholder
+        void d;
+      }
+    }
+  }
+  // simpler: sample and check
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const steps = Math.max(2, Math.ceil(len / 4));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const x = a.x + (b.x - a.x) * t;
+      const y = a.y + (b.y - a.y) * t;
+      const z = a.z + (b.z - a.z) * t;
+      const near = riverDistXZ(x, z, waterways);
+      if (!near.river) continue;
+      const half = (Number(near.river.width) || 10) * 0.5;
+      if (near.d <= half + 0.5 && y < groundY + J.bridgeMinHeight) return near.river.id ?? 'river';
+    }
+  }
+  return null;
+}
+
 const SUPPORTED_EMPTY = (arr, name, errors) => {
   const hasContent = (v) => {
     if (v == null) return false;
@@ -248,6 +309,10 @@ export function compileCityforge(raw) {
   const roads = compileRoads(cf, groundY, terrainHeightAt);
   const waterways = compileHydrology(cf, groundY, warnings);
   const tunnels = compileTunnels(cf, roads, errors);
+  for (const r of roads) {
+    const riverId = roadCrossesRiverWithoutBridge(r, waterways, groundY);
+    if (riverId) errors.push(`cityforge.networks.roads.segments (${r.id}): дорога пересекает реку '${riverId}' без моста (поднимите путь над руслом)`);
+  }
   if (errors.length) {
     const e = new Error(errors.join('\n'));
     e.name = 'CityforgeCompileError';
@@ -332,8 +397,9 @@ export function compileCityforge(raw) {
   const engine = {
     $schema: './level-v2.schema.json',
     kind: 'open',
-    // v3: окна фасадов включены по умолчанию (программная текстура/ритм из движка)
-    windows: raw.windows ?? {},
+    // v3: окна фасадов включены по умолчанию (программная текстура/ритм из движка).
+    // Явное null/false в источнике отключает окна (perf-тюнинг); отсутствие поля = defaults.
+    windows: raw.windows === undefined ? {} : raw.windows,
     metadata: {
       levelName: raw.metadata?.levelName,
       name: raw.metadata?.name,
