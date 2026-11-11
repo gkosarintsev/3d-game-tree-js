@@ -45,20 +45,20 @@ export const DEFAULT_PROFILES = {
 };
 
 const COMPAT = {
-  office: new Set(['office', 'parking', 'luxury', 'residential', 'park', 'industrial', 'sports', 'commercial', 'campus', 'downtown']),
-  park: new Set(['park', 'luxury', 'residential', 'office', 'forest', 'sports', 'parking', 'suburb', 'campus', 'old_town']),
+  office: new Set(['office', 'parking', 'luxury', 'residential', 'park', 'industrial', 'sports', 'commercial', 'campus', 'suburb']),
+  park: new Set(['park', 'luxury', 'residential', 'office', 'forest', 'sports', 'parking', 'suburb', 'campus', 'old_town', 'market']),
   industrial: new Set(['industrial', 'parking', 'office', 'slums', 'forest', 'commercial', 'market']),
-  luxury: new Set(['luxury', 'park', 'office', 'residential', 'parking', 'sports', 'commercial', 'campus']),
+  luxury: new Set(['luxury', 'park', 'office', 'residential', 'parking', 'sports', 'commercial', 'campus', 'market']),
   residential: new Set(['residential', 'luxury', 'park', 'office', 'parking', 'sports', 'slums', 'forest', 'suburb', 'old_town', 'commercial', 'campus', 'market']),
   slums: new Set(['slums', 'industrial', 'residential', 'parking', 'forest', 'market', 'old_town']),
-  forest: new Set(['forest', 'park', 'residential', 'industrial', 'slums', 'parking', 'sports', 'office', 'luxury', 'suburb', 'campus']),
+  forest: new Set(['forest', 'park', 'residential', 'industrial', 'slums', 'parking', 'sports', 'office', 'luxury', 'suburb', 'campus', 'market']),
   parking: new Set(['parking', 'office', 'industrial', 'luxury', 'park', 'residential', 'slums', 'sports', 'forest', 'commercial', 'campus', 'market']),
   sports: new Set(['sports', 'park', 'residential', 'office', 'luxury', 'parking', 'forest', 'campus', 'suburb']),
   commercial: new Set(['commercial', 'office', 'residential', 'parking', 'luxury', 'industrial', 'market', 'old_town', 'campus']),
-  suburb: new Set(['suburb', 'residential', 'park', 'forest', 'sports', 'campus', 'old_town']),
+  suburb: new Set(['suburb', 'residential', 'park', 'forest', 'sports', 'campus', 'old_town', 'office', 'commercial', 'parking']),
   old_town: new Set(['old_town', 'residential', 'commercial', 'market', 'park', 'suburb', 'slums', 'campus']),
   campus: new Set(['campus', 'park', 'residential', 'office', 'sports', 'parking', 'suburb', 'commercial', 'luxury', 'forest', 'old_town']),
-  market: new Set(['market', 'commercial', 'residential', 'slums', 'industrial', 'parking', 'old_town']),
+  market: new Set(['market', 'commercial', 'residential', 'slums', 'industrial', 'parking', 'old_town', 'forest', 'luxury', 'park', 'campus']),
 };
 
 const FALLBACK_CHAINS = {
@@ -283,6 +283,42 @@ export function makeStage3() {
                 break;
               }
               if (!swapped) break;
+            }
+          }
+        }
+
+        // Guarantee representation of key district types (incl. newly added) when grid capacity allows.
+        const mustHave = allTypeIds.filter(t => profiles[t] && t !== 'forest' || ['commercial','suburb','old_town','campus','market','slums','office','residential','industrial','park','luxury','parking','sports','forest'].includes(t));
+        const mustSet = [...new Set(mustHave)];
+        if (districts.length >= mustSet.length) {
+          const counts = getCounts();
+          for (const need of mustSet) {
+            if ((counts[need] || 0) > 0) continue;
+            let swapped = false;
+            for (const d of districts) {
+              const from = d.type;
+              if ((counts[from] || 0) <= 1) continue;
+              if (!canSwapTo(d, need)) continue;
+              counts[from] = Math.max(0, (counts[from] || 1) - 1);
+              d.type = need; d.profileId = need;
+              counts[need] = 1;
+              typeCounts[from] = Math.max(0, (typeCounts[from] || 1) - 1);
+              typeCounts[need] = (typeCounts[need] || 0) + 1;
+              swapped = true;
+              break;
+            }
+            if (!swapped) {
+              // Last resort: force into a cell even if adjacency suboptimal (keeps variety; downstream repair may adjust).
+              const victim = districts.find(d => (counts[d.type] || 0) > 1) || districts.find(d => d.type !== need);
+              if (victim) {
+                const from = victim.type;
+                counts[from] = Math.max(0, (counts[from] || 1) - 1);
+                victim.type = need; victim.profileId = need;
+                counts[need] = 1;
+                typeCounts[from] = Math.max(0, (typeCounts[from] || 1) - 1);
+                typeCounts[need] = (typeCounts[need] || 0) + 1;
+                ctx.report.diagnostics.push(warn('district_forced_representation', stageId, `forced district type '${need}' into cell (compatibility relaxed)`, { cell: victim.cells?.[0], from }));
+              }
             }
           }
         }

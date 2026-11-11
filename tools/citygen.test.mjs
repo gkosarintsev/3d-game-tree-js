@@ -542,11 +542,16 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.equal(fin?.buildings, 401);
   assert.equal(fin?.props, 320);
   assert.equal(fin?.lights, 8);
-  // M1/M2 expansion: pilot should include newly added district/building variety and building coverage across buildable districts.
-  assert.ok(Array.isArray(fin?.districtTypes) && fin.districtTypes.includes('commercial') && fin.districtTypes.includes('campus') && fin.districtTypes.includes('old_town') && fin.districtTypes.includes('slums'));
-  assert.ok(fin?.propsByDistrictType?.commercial > 0 && fin?.propsByDistrictType?.campus > 0 && fin?.propsByDistrictType?.old_town > 0 && fin?.propsByDistrictType?.slums > 0);
-  assert.ok(fin?.buildingsByDistrictType?.commercial > 0 && fin?.buildingsByDistrictType?.campus > 0 && fin?.buildingsByDistrictType?.old_town > 0 && fin?.buildingsByDistrictType?.slums > 0 && fin?.buildingsByDistrictType?.residential > 0);
+  // M1/M2 expansion: pilot should include expanded district/building variety and building coverage across buildable districts.
+  const expectedNewTypes = ['commercial', 'suburb', 'old_town', 'campus', 'market'];
+  for (const t of expectedNewTypes) {
+    assert.ok(fin?.districtTypes?.includes(t), `pilot should include district type ${t}`);
+    assert.ok((fin?.buildingsByDistrictType?.[t] ?? 0) > 0, `pilot should place buildings in ${t}`);
+    assert.ok((fin?.propsByDistrictType?.[t] ?? 0) > 0, `pilot should place props in ${t}`);
+  }
+  assert.ok(fin?.buildingsByDistrictType?.residential > 0 && fin?.buildingsByDistrictType?.slums > 0);
   assert.ok(!report.diagnostics.some(d => d.code === 'district_without_buildings' && d.stage === '6_finalize_emit'), 'pilot buildable districts should have building coverage');
+  assert.ok(!report.diagnostics.some(d => d.severity === 'warn' && d.stage === '3_districts_parcels'), 'pilot district assignment should avoid adjacency/representation warnings');
 });
 
 test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {
