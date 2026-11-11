@@ -76,3 +76,24 @@ test('citygen stage 1: easement mask records river corridors', () => {
   assert.equal(out.ctx.masks.easement.rivers[0].id, 'river1');
   assert.equal(out.ctx.masks.easement.rivers[0].width, 12);
 });
+
+test('citygen stage 1: procedural landscape generation is deterministic', () => {
+  const base = () => {
+    const raw = v4Base();
+    raw.generator.seed = 123;
+    raw.generator.landscape = {
+      generate: true,
+      hills: { count: 5, minHeight: 10, maxHeight: 30, minRadius: 60, maxRadius: 120 },
+      river: { enabled: true, width: 20, depth: 3, points: 5, axis: 'z' },
+    };
+    return raw;
+  };
+  const a = runCitygen(base());
+  const b = runCitygen(base());
+  assert.equal(a.engine.cityforge.terrain.modifiers.length, 5);
+  assert.equal(a.engine.cityforge.hydrology.rivers.length, 1);
+  assert.deepEqual(a.engine.cityforge.terrain.modifiers, b.engine.cityforge.terrain.modifiers);
+  assert.deepEqual(a.engine.cityforge.hydrology.rivers, b.engine.cityforge.hydrology.rivers);
+  assert.equal(a.reportJson, b.reportJson);
+  assert.ok(a.report.diagnostics.some(d => d.code === 'landscape_generated'));
+});

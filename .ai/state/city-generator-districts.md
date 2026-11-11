@@ -58,9 +58,11 @@
 
 ### [TASK-003] Слой 1 — ландшафт и гидрология (в работе)
 - [x] `tools/citygen/pipeline/stage-1-landscape.mjs`: prepare/generate/validate/repair/emit; санитаризация terrain modifiers и hydrology (clamp height/radius/center/width/depth), drop невалидных рек (path < 2), переименование дубликатов id, easement-маска русел, emit в `cityforge.terrain/hydrology`, диагностика/repairs/drops в отчёте.
+- [x] Базовая процедурная генерация из `generator.landscape` (детерминированно, seed/subseed): hills (mountain/valley, count/height/radius, размещение с отступом от spawn/exit) и опциональная река (meandering polyline, width/depth/axis/points, carveTerrain). Пасsthrough, если конфиг отсутствует/генерация не запрошена.
 - [x] `tools/citygen/pipeline/stage.mjs`: поддержка `emit()`; оркестратор использует stage 1.
-- [x] Node-тесты: `tools/citygen.test.mjs` (детерминизм отчёта, clamp/repair, drop/rename/id-stability, easement) — добавлено в CI (node job).
-- [ ] Процедурная генерация ландшафта/рек из манифеста/масок, геометрическая валидация уклонов/затопления/границ/самопересечений, расширенный repair и интеграция с emit в engine-брив (реальная генерация для гл.16).
+- [x] Node-тесты: `tools/citygen.test.mjs` (детерминизм отчёта, clamp/repair, drop/rename/id-stability, easement, детерминизм процедурной генерации) — добавлено в CI (node job).
+- [ ] Геометрическая валидация: уклоны, затопление/уровни, границы плиты, самопересечения русел/контуров, конфликты с easement/якорями.
+- [ ] Расширенный repair (сглаживание/снижение амплитуды, сдвиг/перетрассировка русла, маркировка «нестроевых» зон) и процедурная генерация, достаточная для пилота гл.16.
 
 ## Остаётся уточнить
 - (нет — решения зафиксированы в плане §10, §15; при реализации допустимы уточнения в ADR без изменения принятых решений)

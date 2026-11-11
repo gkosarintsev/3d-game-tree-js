@@ -2,10 +2,101 @@
  * Stage 1: landscape and hydrology (TASK-003, incremental).
  * Validates/repairs terrain modifiers and waterways in IR; emits sanitized data
  * back into the source cityforge for compilation. Deterministic, local repairs.
+ * Procedural generation: when `generator.landscape` requests it (or provides
+ * config and there is no authored terrain/hydrology), produces hills/rivers
+ * from seed/subseed without Math.random.
  */
 import { warn, info } from '../diagnostics.mjs';
+import { makeRng, mix } from '../rng.mjs';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function shouldGenerate(ctx) {
+  const ls = ctx.input?.generator?.landscape;
+  if (!ls || typeof ls !== 'object') return false;
+  if (ls.generate === true) return true;
+  if (ls.generate === false) return false;
+  // If config present and no authored content, generate.
+  const hasAuthored = (ctx.terrain.modifiers?.length ?? 0) > 0 || (ctx.hydrology.rivers?.length ?? 0) > 0;
+  return !hasAuthored;
+}
+
+function farFromAnchors(x, z, anchors, minD) {
+  for (const a of anchors) if (Math.hypot(x - a.x, z - a.z) < minD) return false;
+  return true;
+}
+
+function generateLandscape(ctx) {
+  const stageId = '1_landscape_hydrology';
+  const ls = ctx.input.generator.landscape || {};
+  const size = ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256;
+  const half = size / 2;
+  const seed = mix(ctx.meta.seed ?? 0, stageId, ls.seedOffset ?? 0);
+  const rng = makeRng(seed);
+  const gp = ctx.input?.gameplay ?? {};
+  const anchors = [
+    { x: gp.spawn?.x ?? 0, z: gp.spawn?.z ?? 0 },
+    { x: gp.exit?.x ?? 0, z: gp.exit?.z ?? 0 },
+  ];
+  const hillsCfg = ls.hills || {};
+  const wantHills = hillsCfg.enabled !== false;
+  const count = clamp(Number.isInteger(hillsCfg.count) ? hillsCfg.count : 6, 0, 40);
+  const minH = Number.isFinite(hillsCfg.minHeight) ? hillsCfg.minHeight : 10;
+  const maxH = Number.isFinite(hillsCfg.maxHeight) ? hillsCfg.maxHeight : 45;
+  const minR = Number.isFinite(hillsCfg.minRadius) ? hillsCfg.minRadius : 80;
+  const maxR = Number.isFinite(hillsCfg.maxRadius) ? hillsCfg.maxRadius : 300;
+  const type = hillsCfg.type === 'valley' ? 'valley' : 'mountain';
+  const modifiers = [];
+  let attempts = 0;
+  for (let i = 0; i < count && attempts < count * 20; attempts++) {
+    const x = lerp(-half * 0.8, half * 0.8, rng());
+    const z = lerp(-half * 0.8, half * 0.8, rng());
+    if (!farFromAnchors(x, z, anchors, Math.max(40, minR * 0.25))) continue;
+    const radius = lerp(minR, maxR, rng());
+    const height = lerp(minH, maxH, rng());
+    modifiers.push({
+      id: `hill_${i + 1}`,
+      type,
+      center: [Math.round(x * 10) / 10, Math.round(z * 10) / 10],
+      radius: Math.round(radius * 10) / 10,
+      height: Math.round(height * 10) / 10,
+      falloff: 'smooth',
+    });
+    i++;
+  }
+  if (wantHills && count > 0) ctx.terrain.modifiers = modifiers;
+
+  const riverCfg = ls.river || {};
+  const rivers = [];
+  if (riverCfg.enabled === true) {
+    const width = clamp(Number.isFinite(riverCfg.width) ? riverCfg.width : 24, 4, 120);
+    const depth = clamp(Number.isFinite(riverCfg.depth) ? riverCfg.depth : 4, 0.5, 30);
+    const margin = half * 0.9;
+    // Simple deterministic meandering river roughly across the map (west->east or north->south)
+    const axis = riverCfg.axis === 'x' ? 'x' : 'z';
+    const points = [];
+    const steps = clamp(Number.isInteger(riverCfg.points) ? riverCfg.points : 6, 2, 12);
+    const amp = Math.min(half * 0.35, Number.isFinite(riverCfg.amplitude) ? riverCfg.amplitude : half * 0.2);
+    const base = lerp(-amp, amp, rng());
+    for (let i = 0; i < steps; i++) {
+      const t = steps === 1 ? 0.5 : i / (steps - 1);
+      const along = lerp(-margin, margin, t);
+      const wiggle = base + Math.sin(t * Math.PI * 2 + rng() * 0.5) * amp * 0.5;
+      const x = axis === 'z' ? wiggle : along;
+      const z = axis === 'z' ? along : wiggle;
+      points.push([Math.round(x * 10) / 10, 0, Math.round(z * 10) / 10]);
+    }
+    rivers.push({ id: 'river_1', path: points, width, depth, carveTerrain: riverCfg.carveTerrain !== false });
+  }
+  if (riverCfg.enabled === true) ctx.hydrology.rivers = rivers;
+
+  ctx.report.diagnostics.push(info('landscape_generated', stageId, 'stage 1 generated terrain/hydrology from generator.landscape', {
+    modifiers: ctx.terrain.modifiers.length,
+    rivers: ctx.hydrology.rivers.length,
+    seed,
+  }));
+}
 
 function uniqIds(items, kind, ctx, stageId) {
   const seen = new Set();
@@ -43,8 +134,12 @@ export function makeStage1() {
       };
     },
     generate(ctx) {
-      // TASK-003 incremental: generation hooks reserved; for now keep/normalize existing IR.
-      ctx.report.diagnostics.push(info('landscape_passthrough', '1_landscape_hydrology', 'stage 1 using provided terrain/hydrology (procedural generation pending)', {
+      const stageId = '1_landscape_hydrology';
+      if (shouldGenerate(ctx)) {
+        generateLandscape(ctx);
+        return;
+      }
+      ctx.report.diagnostics.push(info('landscape_passthrough', stageId, 'stage 1 using provided terrain/hydrology (procedural generation pending)', {
         modifiers: ctx.terrain.modifiers.length,
         rivers: ctx.hydrology.rivers.length,
         lakes: ctx.hydrology.lakes.length,
@@ -135,6 +230,6 @@ export function makeStage1() {
 
 export function applyStage1(ctx) {
   const s = makeStage1();
-  s.prepare(ctx); s.generate(ctx); s.validate(ctx); s.repair(ctx); s.generateEmit(ctx);
+  s.prepare(ctx); s.generate(ctx); s.validate(ctx); s.repair(ctx); s.emit(ctx);
   return ctx;
 }
