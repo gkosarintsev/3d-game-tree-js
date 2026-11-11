@@ -5,6 +5,7 @@
  */
 import { info } from '../diagnostics.mjs';
 import { makeRng, mix } from '../rng.mjs';
+import { reliefOf } from '../../../src/relief.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -131,8 +132,10 @@ function generateProps(ctx, stageId, cfg) {
   const rng = makeRng(seed);
   const roads = ctx.networks?.roads?.segments ?? [];
   const riverLike = [
+    ...(ctx.hydrology?.rivers ?? []),
     ...(ctx.landscape?.hydrology?.rivers ?? []),
     ...(ctx.input?.waterways ?? []),
+    ...(ctx.input?.cityforge?.hydrology?.rivers ?? []),
     ...(ctx.input?.cityforge?.landscape?.hydrology?.rivers ?? []),
   ];
   const rivers = riverLike.map(r => ({
@@ -148,10 +151,34 @@ function generateProps(ctx, stageId, cfg) {
   ].filter(Boolean);
   const buildingRects = buildings.map(b => footprintAabb(b.footprint));
   const baseGroundY = ctx.input?.ground?.y ?? 0;
+  let landHeightAt = () => baseGroundY;
+  try {
+    const mods = ctx.terrain?.modifiers ?? ctx.input?.cityforge?.terrain?.modifiers ?? [];
+    const hills = mods.map((m, i) => {
+      if (!m || typeof m !== 'object') return null;
+      if (m.type !== 'mountain' && m.type !== 'valley') return null;
+      const center = Array.isArray(m.center) ? m.center : [Number(m.center?.x) || 0, Number(m.center?.z) || 0];
+      const path = Array.isArray(m.path) && m.path.length >= 2 ? m.path : null;
+      const ax = path ? (Array.isArray(path[0]) ? path[0][0] : center[0]) : center[0];
+      const az = path ? (Array.isArray(path[0]) ? path[0][1] : center[1]) : center[1];
+      const bx = path ? (Array.isArray(path[path.length - 1]) ? path[path.length - 1][0] : center[0]) : center[0];
+      const bz = path ? (Array.isArray(path[path.length - 1]) ? path[path.length - 1][1] : center[1]) : center[1];
+      const radius = Number.isFinite(m.radius) ? m.radius : 0;
+      const height = Number.isFinite(m.height) ? m.height : 0;
+      if (!(radius > 0)) return null;
+      const signed = m.operation === 'subtract' ? -height : height;
+      return { id: m.id ?? `hill_${i}`, x: ax, z: az, bx, bz, radius, height: signed };
+    }).filter(Boolean);
+    // Use hills-only relief for land height; river areas are excluded geometrically.
+    const rel = reliefOf({ baseY: baseGroundY, hills, pads: [], rivers: [], roadCorridors: [] });
+    landHeightAt = (x, z) => rel.heightAt(x, z);
+  } catch {
+    // fallback to groundY
+  }
 
   const tooCloseToRiver = (x, z) => rivers.some(rv => (rv.path || []).some((pt, i, a) => {
     if (i + 1 >= a.length) return false;
-    const w = (rv.width ?? 10) * 0.5 + 8.0;
+    const w = (rv.width ?? 10) * 0.5 + 12.0;
     return pointSegDistXZ(x, z, pt[0], pt[2], a[i + 1][0], a[i + 1][2]) < w;
   }));
   const blocked = (x, z, roadPad = 4.0) => {
@@ -167,12 +194,16 @@ function generateProps(ctx, stageId, cfg) {
   const budget = clamp(Number.isInteger(cfg.objectBudget) ? cfg.objectBudget : Math.round(size / 3), 40, 320);
   const out = [];
   let attempts = 0;
-  const tryPlace = (model, x, y, z, rotY = 0, scale = { x: 1, y: 1, z: 1 }, roadPad = 3.5, minSep = 4) => {
+  const tryPlace = (model, x, _y, z, rotY = 0, scale = { x: 1, y: 1, z: 1 }, roadPad = 3.5, minSep = 4) => {
     attempts++;
     if (out.length >= budget) return false;
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return false;
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
     if (blocked(x, z, roadPad)) return false;
     if (out.some(p => distXZ(p.position.x, p.position.z, x, z) < minSep)) return false;
+    const y = landHeightAt(x, z);
+    if (!Number.isFinite(y)) return false;
+    // avoid placing in river bed / underwater depressions
+    if (y < baseGroundY - 0.2) return false;
     out.push({
       id: `prop_${out.length + 1}`,
       model,
@@ -182,13 +213,13 @@ function generateProps(ctx, stageId, cfg) {
     });
     return true;
   };
-  const tryPlaceNear = (model, cx, cz, baseY, spreadX, spreadZ, tries, rotYFn, scaleFn, roadPad, minSep) => {
+  const tryPlaceNear = (model, cx, cz, _baseY, spreadX, spreadZ, tries, rotYFn, scaleFn, roadPad, minSep) => {
     for (let i = 0; i < tries && out.length < budget; i++) {
       const jx = (rng() - 0.5) * spreadX;
       const jz = (rng() - 0.5) * spreadZ;
       const rotY = typeof rotYFn === 'function' ? rotYFn() : rotYFn;
       const scale = typeof scaleFn === 'function' ? scaleFn() : scaleFn;
-      if (tryPlace(model, cx + jx, baseY, cz + jz, rotY, scale, roadPad, minSep)) return true;
+      if (tryPlace(model, cx + jx, 0, cz + jz, rotY, scale, roadPad, minSep)) return true;
     }
     return false;
   };
