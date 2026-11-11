@@ -895,6 +895,83 @@ function generateTransport(ctx) {
     }
   }
 
+  // Try to connect nearby nodes/leaves with axis-aligned terrain-following segments (improves mesh connectivity).
+  const connectBudget = 10;
+  let connected = 0;
+  const degNow = () => {
+    const d = Object.create(null);
+    for (const n of nodes) d[n.id] = 0;
+    for (const s of segments) { d[s.from] = (d[s.from] || 0) + 1; d[s.to] = (d[s.to] || 0) + 1; }
+    return d;
+  };
+  const candidatesNodes = () => nodes.filter(n => n.layer !== 'elevated').sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  for (let pass = 0; pass < 2 && connected < connectBudget; pass++) {
+    const deg = degNow();
+    const list = candidatesNodes();
+    for (let i = 0; i < list.length && connected < connectBudget; i++) {
+      const a = list[i];
+      if ((deg[a.id] || 0) > 4) continue;
+      for (let j = i + 1; j < list.length && connected < connectBudget; j++) {
+        const b = list[j];
+        if (a.id === b.id) continue;
+        if (segments.some(s => (s.from === a.id && s.to === b.id) || (s.from === b.id && s.to === a.id))) continue;
+        const dx = b.position[0] - a.position[0];
+        const dz = b.position[2] - a.position[2];
+        const manhattan = Math.abs(dx) + Math.abs(dz);
+        if (manhattan < 32 || manhattan > 160) continue;
+        // prefer axis-aligned direct or L-shape via corner if aligned
+        const tryPath = (pts2) => {
+          let path = [];
+          if (pts2.length === 2) {
+            path = buildTerrainPath(pts2[0].x, pts2[0].z, pts2[1].x, pts2[1].z, 12);
+          } else {
+            const p1 = buildTerrainPath(pts2[0].x, pts2[0].z, pts2[1].x, pts2[1].z, 12);
+            const p2 = buildTerrainPath(pts2[1].x, pts2[1].z, pts2[2].x, pts2[2].z, 12);
+            if (!p1 || !p2) return null;
+            path = p1.concat(p2.slice(1));
+            path = enforceSlope(path, MAX_ROAD_SLOPE, stageId, 'tr_conn', null);
+          }
+          if (!isTerrainPathValid(path)) return null;
+          // avoid close overlaps with unrelated segments
+          const midx = (a.position[0] + b.position[0]) / 2, midz = (a.position[2] + b.position[2]) / 2;
+          const tooClose = segments.some(s => {
+            if (s.from === a.id || s.to === a.id || s.from === b.id || s.to === b.id) return false;
+            const sp = pathPoints(s); if (!sp) return false;
+            for (let k = 0; k + 1 < sp.length; k++) {
+              const ax = sp[k][0], az = sp[k][2], bx = sp[k+1][0], bz = sp[k+1][2];
+              const abx = bx-ax, abz=bz-az, apx=midx-ax, apz=midz-az;
+              const ab2 = abx*abx+abz*abz || 1e-12;
+              const t = Math.max(0, Math.min(1, (apx*abx+apz*abz)/ab2));
+              const d = Math.hypot(midx-(ax+abx*t), midz-(az+abz*t));
+              if (d < 4.5) return true;
+            }
+            return false;
+          });
+          if (tooClose) return null;
+          return path;
+        };
+        let path = null;
+        if (Math.abs(dx) < 0.01 || Math.abs(dz) < 0.01) {
+          path = tryPath([{ x: a.position[0], z: a.position[2] }, { x: b.position[0], z: b.position[2] }]);
+        } else {
+          // try L connections via corners, deterministic order
+          const c1 = { x: b.position[0], z: a.position[2] };
+          const c2 = { x: a.position[0], z: b.position[2] };
+          path = tryPath([{ x: a.position[0], z: a.position[2] }, c1, { x: b.position[0], z: b.position[2] }])
+            || tryPath([{ x: a.position[0], z: a.position[2] }, c2, { x: b.position[0], z: b.position[2] }]);
+        }
+        if (!path) continue;
+        const sid = `tr_gc_${segments.length + 1}`;
+        segments.push(makeRoadSegment(sid, a.id, b.id, path, Math.max(6, width - 2), 'local'));
+        made++;
+        connected++;
+        deg[a.id] = (deg[a.id] || 0) + 1;
+        deg[b.id] = (deg[b.id] || 0) + 1;
+        ctx.report.diagnostics.push(info('transport_connector', stageId, 'added terrain-following connector between existing nodes', { id: sid, from: a.id, to: b.id }));
+      }
+    }
+  }
+
   if (requested > 0 && made < Math.min(requested, clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4))) {
     ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4)} procedural spur(s)`, { requested: clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4), made }));
   }

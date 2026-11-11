@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 24,
+      "diagnostics": 34,
       "repairs": 0,
       "drops": 0
     },
@@ -230,7 +230,7 @@
       "stage": "2_transport",
       "message": "road graph summary",
       "nodes": 27,
-      "segments": 27,
+      "segments": 37,
       "components": 1
     },
     {
@@ -439,13 +439,103 @@
     },
     {
       "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_28",
+      "from": "tr_gn_10",
+      "to": "tr_gn_11"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_29",
+      "from": "tr_gn_10",
+      "to": "tr_gn_12"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_30",
+      "from": "tr_gn_10",
+      "to": "tr_gn_15"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_31",
+      "from": "tr_gn_10",
+      "to": "tr_gn_16"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_32",
+      "from": "tr_gn_10",
+      "to": "tr_gn_19"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_33",
+      "from": "tr_gn_10",
+      "to": "tr_gn_20"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_34",
+      "from": "tr_gn_11",
+      "to": "tr_gn_13"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_35",
+      "from": "tr_gn_11",
+      "to": "tr_gn_14"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_36",
+      "from": "tr_gn_11",
+      "to": "tr_gn_17"
+    },
+    {
+      "severity": "info",
+      "code": "transport_connector",
+      "stage": "2_transport",
+      "message": "added terrain-following connector between existing nodes",
+      "id": "tr_gc_37",
+      "from": "tr_gn_11",
+      "to": "tr_gn_18"
+    },
+    {
+      "severity": "info",
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
       "nodes": 27,
-      "segments": 27,
+      "segments": 37,
       "seed": 1865128548,
-      "branches": 24,
+      "branches": 34,
       "profiled": true
     },
     {
@@ -547,7 +637,7 @@
       "message": "generated street lights along roads",
       "count": 8,
       "budget": 8,
-      "skipped": 2
+      "skipped": 0
     },
     {
       "severity": "info",
