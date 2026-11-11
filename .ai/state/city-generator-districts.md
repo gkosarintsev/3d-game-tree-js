@@ -104,7 +104,8 @@ Let us commit. Include index.js if actually changed (diff showed nothing but sta
 
 ### [TASK-007] Слой 5 — инфраструктура и props (в работе, MVP)
 - [x] `tools/citygen/pipeline/stage-5-props.mjs`: детерминированная генерация уличных источников света (`lights`, point) вдоль эмитированных road-сегментов (выбор репрезентативных точек, оффсет к краю) с учётом жёсткого лимита реальных источников движка (`CONFIG.jsonMap.maxRealLights = 8`), дедупликация/валидация, emit в engine (через `raw.lights`).
-- [x] `tools/cityforge-compile.mjs`: проброс `lights` из source в engine; `tools/citygen/index.mjs` подключает stage 5 и использует stage-выход для компиляции. Пилот гл.16 содержит 3 фонаря вдоль артерии (0 предупреждений).
+- [x] `tools/cityforge-compile.mjs`: проброс `lights`/`landscapeObjects` из source в engine; `tools/citygen/index.mjs` подключает stage 5 и использует stage-выход для компиляции. Пилот гл.16 содержит 3 фонаря вдоль артерии (0 предупреждений).
+- [~] Скаффолд детерминированной генерации district-props (`landscapeObjects`: деревья/скамьи/болларды/контейнеры и др. существующие модели) с бюджетами/клиренсом/river-avoidance добавлен в stage 5, но по умолчанию отложен (`props.objects=true` для включения) до реализации support-height sampling без parser-warnings.
 - [ ] Расширение props/инфраструктуры существующими примитивами (знаки/столбы/простые объекты там, где поддержано движком), бюджеты/клиренс по маскам, интеграция с дорогами/районами.
 
 ## Остаётся уточнить

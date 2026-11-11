@@ -44,7 +44,7 @@
     {
       "id": "5_infrastructure_props",
       "status": "ok",
-      "diagnostics": 2,
+      "diagnostics": 3,
       "repairs": 0,
       "drops": 0
     },
@@ -334,6 +334,12 @@
       "code": "stage_ok",
       "stage": "4_buildings_structures",
       "message": "stage 4_buildings_structures completed"
+    },
+    {
+      "severity": "info",
+      "code": "props_deferred",
+      "stage": "5_infrastructure_props",
+      "message": "district prop generation deferred (enable with props.objects=true when support-safe)"
     },
     {
       "severity": "info",

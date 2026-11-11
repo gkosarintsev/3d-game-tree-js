@@ -333,7 +333,7 @@ export function compileCityforge(raw) {
     ...(waterways.length ? { waterways } : {}),
     tunnels,
     lights: Array.isArray(raw.lights) ? raw.lights : [],
-    ...(Array.isArray(raw.props) && raw.props.length ? { props: raw.props } : {}),
+    ...(Array.isArray(raw.landscapeObjects) && raw.landscapeObjects.length ? { landscapeObjects: raw.landscapeObjects } : {}),
     gameplay: {
       goal: gp.goal ?? 'exit',
       spawn: { x: sx, z: sz },
