@@ -337,9 +337,12 @@
     },
     {
       "severity": "info",
-      "code": "props_deferred",
+      "code": "props_generated",
       "stage": "5_infrastructure_props",
-      "message": "district prop generation deferred (enable with props.objects=true when support-safe)"
+      "message": "generated district props",
+      "count": 220,
+      "budget": 220,
+      "attempts": 312
     },
     {
       "severity": "info",
@@ -372,6 +375,147 @@
         "b_district_1_3_298",
         "b_district_2_0_175"
       ]
+    },
+    {
+      "severity": "warning",
+      "code": "build_conflicting_props_dropped",
+      "stage": "build",
+      "message": "dropped landscapeObjects with parser warnings",
+      "count": 132,
+      "ids": [
+        "prop_100",
+        "prop_101",
+        "prop_102",
+        "prop_103",
+        "prop_107",
+        "prop_108",
+        "prop_109",
+        "prop_110",
+        "prop_111",
+        "prop_113",
+        "prop_115",
+        "prop_116",
+        "prop_117",
+        "prop_118",
+        "prop_119",
+        "prop_120",
+        "prop_122",
+        "prop_123",
+        "prop_124",
+        "prop_125",
+        "prop_126",
+        "prop_127",
+        "prop_128",
+        "prop_129",
+        "prop_130",
+        "prop_131",
+        "prop_132",
+        "prop_133",
+        "prop_135",
+        "prop_136",
+        "prop_137",
+        "prop_138",
+        "prop_139",
+        "prop_140",
+        "prop_141",
+        "prop_142",
+        "prop_143",
+        "prop_144",
+        "prop_145",
+        "prop_146",
+        "prop_147",
+        "prop_148",
+        "prop_149",
+        "prop_150",
+        "prop_151",
+        "prop_153",
+        "prop_154",
+        "prop_155",
+        "prop_156",
+        "prop_157",
+        "prop_158",
+        "prop_159",
+        "prop_160",
+        "prop_162",
+        "prop_163",
+        "prop_164",
+        "prop_165",
+        "prop_166",
+        "prop_167",
+        "prop_168",
+        "prop_169",
+        "prop_170",
+        "prop_171",
+        "prop_172",
+        "prop_173",
+        "prop_174",
+        "prop_175",
+        "prop_176",
+        "prop_177",
+        "prop_178",
+        "prop_179",
+        "prop_180",
+        "prop_181",
+        "prop_185",
+        "prop_186",
+        "prop_187",
+        "prop_188",
+        "prop_189",
+        "prop_19",
+        "prop_190",
+        "prop_191",
+        "prop_192",
+        "prop_193",
+        "prop_194",
+        "prop_195",
+        "prop_197",
+        "prop_198",
+        "prop_199",
+        "prop_200",
+        "prop_203",
+        "prop_204",
+        "prop_205",
+        "prop_206",
+        "prop_207",
+        "prop_208",
+        "prop_210",
+        "prop_211",
+        "prop_212",
+        "prop_213",
+        "prop_214",
+        "prop_215",
+        "prop_216",
+        "prop_217",
+        "prop_218",
+        "prop_219",
+        "prop_220",
+        "prop_23",
+        "prop_27",
+        "prop_28",
+        "prop_32",
+        "prop_40",
+        "prop_41",
+        "prop_47",
+        "prop_48",
+        "prop_54",
+        "prop_55",
+        "prop_56",
+        "prop_57",
+        "prop_59",
+        "prop_60",
+        "prop_67",
+        "prop_74",
+        "prop_77",
+        "prop_78",
+        "prop_83",
+        "prop_88",
+        "prop_89",
+        "prop_90",
+        "prop_91",
+        "prop_92",
+        "prop_93",
+        "prop_97"
+      ]
     }
   ],
   "repairs": [
@@ -384,13 +528,673 @@
       "stage": "build",
       "id": "b_district_2_0_175",
       "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "prop_100",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_101",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_102",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_103",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_107",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_108",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_109",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_110",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_111",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_113",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_115",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_116",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_117",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_118",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_119",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_120",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_122",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_123",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_124",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_125",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_126",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_127",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_128",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_129",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_130",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_131",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_132",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_133",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_135",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_136",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_137",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_138",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_139",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_140",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_141",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_142",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_143",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_144",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_145",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_146",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_147",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_148",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_149",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_150",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_151",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_153",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_154",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_155",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_156",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_157",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_158",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_159",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_160",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_162",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_163",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_164",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_165",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_166",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_167",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_168",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_169",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_170",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_171",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_172",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_173",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_174",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_175",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_176",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_177",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_178",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_179",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_180",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_181",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_185",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_186",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_187",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_188",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_189",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_19",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_190",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_191",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_192",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_193",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_194",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_195",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_197",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_198",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_199",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_200",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_203",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_204",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_205",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_206",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_207",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_208",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_210",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_211",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_212",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_213",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_214",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_215",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_216",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_217",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_218",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_219",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_220",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_23",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_27",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_28",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_32",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_40",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_41",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_47",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_48",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_54",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_55",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_56",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_57",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_59",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_60",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_67",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_74",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_77",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_78",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_83",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_88",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_89",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_90",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_91",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_92",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_93",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_97",
+      "code": "drop_conflicting_prop"
     }
   ],
   "drops": [],
   "summary": {
     "errors": 0,
-    "warnings": 6,
-    "repairs": 2,
+    "warnings": 7,
+    "repairs": 134,
     "drops": 0
   }
 }

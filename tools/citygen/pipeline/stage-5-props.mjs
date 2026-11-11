@@ -233,9 +233,7 @@ export function makeStage5() {
         return;
       }
       generateLights(ctx, stageId, cfg);
-      // Visual prop generation deferred until support-height sampling avoids parser warnings.
-      if (cfg.objects === true) generateProps(ctx, stageId, cfg);
-      else ctx.report.diagnostics.push(info('props_deferred', stageId, 'district prop generation deferred (enable with props.objects=true when support-safe)'));
+      generateProps(ctx, stageId, cfg);
     },
     validate(ctx) {
       const stageId = '5_infrastructure_props';

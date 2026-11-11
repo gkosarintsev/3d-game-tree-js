@@ -281,10 +281,10 @@ function generateCityforge(raw, sourceName, opts = {}) {
   let engine = compiled.engine;
   let out = null;
   let dropped = [];
-  for (let attempt = 0; attempt < 20; attempt++) {
+  let droppedProps = [];
+  for (let attempt = 0; attempt < 30; attempt++) {
     try {
       out = generateCatalog(engine, sourceName, opts);
-      break;
     } catch (e) {
       if (!(e instanceof ValidationError)) throw e;
       const ids = new Set();
@@ -298,8 +298,23 @@ function generateCityforge(raw, sourceName, opts = {}) {
       const removed = before - engine.buildings.length;
       if (removed <= 0) throw e;
       dropped.push(...ids);
-      // continue retry with reduced building set
+      out = null;
+      continue;
     }
+    // Drop generated landscapeObjects that normalize warns about (support mismatch, hidden, etc.)
+    // so committed pilot stays parser-warning-free.
+    const badProps = new Set();
+    for (const msg of out.warnings ?? []) {
+      const m = String(msg).match(/^landscapeObjects\s+\(([^)]+)\):/);
+      if (m) badProps.add(m[1]);
+    }
+    if (!badProps.size || !Array.isArray(engine?.landscapeObjects) || engine.landscapeObjects.length === 0) break;
+    const beforeProps = engine.landscapeObjects.length;
+    engine = { ...engine, landscapeObjects: engine.landscapeObjects.filter(o => !badProps.has(o?.id)) };
+    const removedProps = beforeProps - engine.landscapeObjects.length;
+    if (removedProps <= 0) break;
+    droppedProps.push(...badProps);
+    out = null;
   }
   if (!out) throw new ValidationError(['generateCatalog: не удалось собрать каталог после repair попыток'], v3w);
   if (dropped.length) {
@@ -311,6 +326,23 @@ function generateCityforge(raw, sourceName, opts = {}) {
         r.diagnostics.push({ severity: 'warning', code: 'build_conflicting_buildings_dropped', stage: 'build', message: 'dropped buildings conflicting with compiled/normalized placement', count: uniq.length, ids: uniq });
         r.repairs = r.repairs ?? [];
         r.repairs.push(...uniq.map(id => ({ stage: 'build', id, code: 'drop_conflicting_building' })));
+        if (r.summary) {
+          r.summary.warnings = (r.summary.warnings ?? 0) + 1;
+          r.summary.repairs = (r.summary.repairs ?? 0) + uniq.length;
+        }
+        report = JSON.stringify(r, null, 2) + '\n';
+      } catch {}
+    }
+  }
+  if (droppedProps.length) {
+    const uniq = [...new Set(droppedProps)].sort();
+    if (report) {
+      try {
+        const r = JSON.parse(report);
+        r.diagnostics = r.diagnostics ?? [];
+        r.diagnostics.push({ severity: 'warning', code: 'build_conflicting_props_dropped', stage: 'build', message: 'dropped landscapeObjects with parser warnings', count: uniq.length, ids: uniq });
+        r.repairs = r.repairs ?? [];
+        r.repairs.push(...uniq.map(id => ({ stage: 'build', id, code: 'drop_conflicting_prop' })));
         if (r.summary) {
           r.summary.warnings = (r.summary.warnings ?? 0) + 1;
           r.summary.repairs = (r.summary.repairs ?? 0) + uniq.length;
