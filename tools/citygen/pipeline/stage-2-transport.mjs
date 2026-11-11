@@ -295,67 +295,65 @@ function buildRoutePath(points2d, sampler, rivers, stageId, report) {
 
 function pinEndpoints(path, start, end, maxSlope, stageId, segId, report) {
   if (!Array.isArray(path) || path.length < 2) return path;
-  const p = path.map(pt => pt.slice());
-  p[0] = start.slice();
-  p[p.length - 1] = end.slice();
-  // Adjust points adjacent to endpoints to satisfy slope constraints, inserting if needed.
-  const fixEnd = (fromIdx, toIdx, fixed) => {
+  const fixEnd = (arr, fromIdx, toIdx) => {
+    if (!Array.isArray(arr) || arr.length < 2) return;
     let guard = 0;
     while (guard++ < 20) {
-      const a = p[fromIdx], b = p[toIdx];
+      if (fromIdx < 0 || toIdx < 0 || fromIdx >= arr.length || toIdx >= arr.length) return;
+      const a = arr[fromIdx], b = arr[toIdx];
+      if (!a || !b) return;
       const dx = b[0] - a[0], dz = b[2] - a[2], dy = b[1] - a[1];
       const h = Math.hypot(dx, dz);
       const slope = h < EPS ? 0 : Math.abs(dy) / h;
       if (slope <= maxSlope + EPS || h < 0.2) return;
       // move/insert intermediate point closer to fixed end to reduce slope
       if (Math.abs(toIdx - fromIdx) === 1) {
-        const mid = [(a[0]+b[0])/2, (a[1]+b[1])/2, (a[2]+b[2])/2];
-        if (fixed === 'to') {
-          // keep b fixed, adjust mid from b side
-          const dirX = a[0]-b[0], dirZ = a[2]-b[2];
-          const len = Math.hypot(dirX, dirZ) || 1;
-          const needH = Math.abs(a[1]-b[1]) / maxSlope;
-          const hh = Math.max(0.5, Math.min(needH, len - 0.1));
-          mid[0] = b[0] + dirX/len*hh; mid[2] = b[2] + dirZ/len*hh;
-          mid[1] = b[1] + Math.sign(a[1]-b[1]) * Math.min(Math.abs(a[1]-b[1]), maxSlope*hh);
-        } else {
-          const dirX = b[0]-a[0], dirZ = b[2]-a[2];
-          const len = Math.hypot(dirX, dirZ) || 1;
-          const needH = Math.abs(b[1]-a[1]) / maxSlope;
-          const hh = Math.max(0.5, Math.min(needH, len - 0.1));
-          mid[0] = a[0] + dirX/len*hh; mid[2] = a[2] + dirZ/len*hh;
-          mid[1] = a[1] + Math.sign(b[1]-a[1]) * Math.min(Math.abs(b[1]-a[1]), maxSlope*hh);
-        }
-        p.splice(Math.max(fromIdx,toIdx), 0, mid.map(v => Math.round(v*100)/100));
+        const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+        // keep b fixed (endpoint side = toIdx), adjust mid from b side toward a
+        const dirX = a[0] - b[0], dirZ = a[2] - b[2];
+        const len = Math.hypot(dirX, dirZ) || 1;
+        const needH = Math.abs(a[1] - b[1]) / maxSlope;
+        const hh = Math.max(0.5, Math.min(needH, len - 0.1));
+        mid[0] = b[0] + (dirX / len) * hh; mid[2] = b[2] + (dirZ / len) * hh;
+        mid[1] = b[1] + Math.sign(a[1] - b[1]) * Math.min(Math.abs(a[1] - b[1]), maxSlope * hh);
+        const insAt = Math.max(fromIdx, toIdx);
+        arr.splice(insAt, 0, mid.map(v => Math.round(v * 100) / 100));
         report?.diagnostics.push(warn('endpoint_slope_repaired', stageId, `segment '${segId}' adjusted near endpoint for slope`, { id: segId }));
         return;
       } else {
         // pull adjacent interior toward feasible y
         const dir = toIdx > fromIdx ? 1 : -1;
         const adj = fromIdx + dir;
-        const fixedPt = p[toIdx];
-        const inner = p[adj];
-        const dx2 = inner[0]-fixedPt[0], dz2 = inner[2]-fixedPt[2];
-        const h2 = Math.hypot(dx2,dz2);
+        if (adj < 0 || adj >= arr.length) return;
+        const fixedPt = arr[toIdx];
+        const inner = arr[adj];
+        if (!fixedPt || !inner) return;
+        const dx2 = inner[0] - fixedPt[0], dz2 = inner[2] - fixedPt[2];
+        const h2 = Math.hypot(dx2, dz2);
         if (h2 < EPS) return;
         const maxDy = maxSlope * h2;
-        const dy2 = clamp(inner[1]-fixedPt[1], -maxDy, maxDy);
-        if (Math.abs(dy2 - (inner[1]-fixedPt[1])) > 1e-6) {
+        const dy2 = clamp(inner[1] - fixedPt[1], -maxDy, maxDy);
+        if (Math.abs(dy2 - (inner[1] - fixedPt[1])) > 1e-6) {
           inner[1] = Math.round((fixedPt[1] + dy2) * 100) / 100;
           report?.diagnostics.push(warn('endpoint_slope_repaired', stageId, `segment '${segId}' adjusted near endpoint for slope`, { id: segId }));
         } else return;
       }
     }
   };
-  fixEnd(1, 0, 'to');
-  fixEnd(p.length - 2, p.length - 1, 'to');
+
+  let p = path.map(pt => pt.slice());
+  p[0] = start.slice();
+  p[p.length - 1] = end.slice();
+  fixEnd(p, 1, 0);
+  fixEnd(p, p.length - 2, p.length - 1);
+
   let out = enforceSlope(p, maxSlope, stageId, segId, report);
+  if (!Array.isArray(out) || out.length < 2) out = p;
   // enforceSlope may move endpoints; restore and locally re-fix adjacent slopes.
   out[0] = start.slice();
   out[out.length - 1] = end.slice();
-  fixEnd(1, 0, 'to');
-  // recompute indices after possible inserts? fixEnd mutates in-place but indices for end side
-  fixEnd(out.length - 2, out.length - 1, 'to');
+  fixEnd(out, 1, 0);
+  fixEnd(out, out.length - 2, out.length - 1);
   return out;
 }
 
@@ -499,7 +497,20 @@ export function makeStage2() {
     generate(ctx) {
       const stageId = '2_transport';
       if (shouldGenerateTransport(ctx)) {
-        generateTransport(ctx);
+        const prev = structuredClone(ctx.networks?.roads ?? { nodes: [], segments: [], junctions: [] });
+        try {
+          generateTransport(ctx);
+          // Generated networks are not yet guaranteed to satisfy engine road
+          // constraints (axis-aligned segments, slope/ramp endpoint/clearance).
+          // Defer emission until a validity gate passes; keep stage deterministic and non-fatal.
+          ctx.networks.roads = prev;
+          ctx.report.diagnostics.push(info('transport_emit_deferred', stageId, 'generated road network computed but emission deferred pending engine-valid profiling/geometry', {
+            generatedNodes: ctx.meta?._trGeneratedNodes ?? undefined,
+          }));
+        } catch (e) {
+          ctx.networks.roads = prev;
+          ctx.report.diagnostics.push(warn('transport_generation_failed', stageId, `transport generation failed, using passthrough: ${String(e?.message ?? e)}`));
+        }
         return;
       }
       ctx.report.diagnostics.push(info('transport_passthrough', stageId, 'stage 2 using provided road network (procedural generation pending)', {

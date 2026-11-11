@@ -22,7 +22,8 @@ export function runStage(stage, ctx) {
     ctx.report.diagnostics.push(info('stage_ok', id, `stage ${id} completed`));
   } catch (e) {
     entry.status = 'error';
-    ctx.report.diagnostics.push({ severity: 'error', code: 'stage_error', stage: id, message: String(e?.message ?? e) });
+    const msg = String(e?.stack ?? e?.message ?? e);
+    ctx.report.diagnostics.push({ severity: 'error', code: 'stage_error', stage: id, message: msg });
   }
   entry.diagnostics = ctx.report.diagnostics.length - beforeD;
   entry.repairs = ctx.report.repairs.length - beforeR;

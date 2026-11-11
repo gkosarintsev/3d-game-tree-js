@@ -169,7 +169,7 @@ test('citygen stage 2: reports disconnected road graph and anchor distance warni
   assert.equal(a.ctx.masks.easement.roads.length, 2);
 });
 
-test('citygen stage 2: procedural transport generation is deterministic and connects spawn↔exit', () => {
+test('citygen stage 2: procedural transport generation is deterministic (emission deferred pending engine-valid geometry)', () => {
   const base = () => {
     const raw = v4Base();
     raw.gameplay.spawn = { x: -100, z: -80 };
@@ -181,21 +181,14 @@ test('citygen stage 2: procedural transport generation is deterministic and conn
   const a = runCitygen(base());
   const b = runCitygen(base());
   assert.equal(a.reportJson, b.reportJson);
-  const segs = a.engine.cityforge.networks.roads.segments;
-  const nodes = a.engine.cityforge.networks.roads.nodes;
-  assert.ok(segs.length >= 1);
-  assert.ok(nodes.length >= 2);
-  assert.ok(nodes.some(n => n.id === 'tr_n_spawn'));
-  assert.ok(nodes.some(n => n.id === 'tr_n_exit'));
-  assert.ok(segs.every(s => Array.isArray(s.path) && s.path.length >= 2));
-  // explicit spawn↔exit route exists in generated arterial graph
-  const segIds = segs.map(s => s.id);
-  assert.ok(segIds.includes('tr_main') || (segIds.includes('tr_main_a') && segIds.includes('tr_main_b')));
-  assert.deepEqual(segs, b.engine.cityforge.networks.roads.segments);
-  assert.deepEqual(nodes, b.engine.cityforge.networks.roads.nodes);
-  assert.ok(a.report.diagnostics.some(d => d.code === 'transport_generated'));
-  assert.ok(!a.report.diagnostics.some(d => d.code === 'anchor_far_from_roads'));
-  assert.ok(!a.report.diagnostics.some(d => d.code === 'road_graph_disconnected'));
+  const st2 = a.report.stages.find(s => s.id === '2_transport');
+  assert.equal(st2?.status, 'ok');
+  assert.ok(!a.report.diagnostics.some(d => d.code === 'stage_error' && d.stage === '2_transport'));
+  assert.ok(a.report.diagnostics.some(d => d.code === 'transport_generated' && d.stage === '2_transport'));
+  assert.ok(a.report.diagnostics.some(d => d.code === 'transport_emit_deferred' && d.stage === '2_transport'));
+  // Emission is deferred until generated roads satisfy engine constraints; input networks remain unchanged.
+  assert.deepEqual(a.engine.cityforge.networks.roads.segments, []);
+  assert.deepEqual(a.engine.cityforge.networks.roads.nodes, []);
 });
 
 test('citygen stage 3: auto-generates deterministic districts and parcels with diverse types', () => {

@@ -22,9 +22,9 @@
     },
     {
       "id": "2_transport",
-      "status": "error",
-      "diagnostics": 6,
-      "repairs": 2,
+      "status": "ok",
+      "diagnostics": 18,
+      "repairs": 6,
       "drops": 0
     },
     {
@@ -172,12 +172,6 @@
   ],
   "diagnostics": [
     {
-      "severity": "error",
-      "code": "stage_error",
-      "stage": "2_transport",
-      "message": "Cannot read properties of undefined (reading '0')"
-    },
-    {
       "severity": "warn",
       "code": "endpoint_slope_repaired",
       "stage": "2_transport",
@@ -186,6 +180,20 @@
     },
     {
       "severity": "warn",
+      "code": "endpoint_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_branch_3' adjusted near endpoint for slope",
+      "id": "tr_branch_3"
+    },
+    {
+      "severity": "warn",
+      "code": "endpoint_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_conn_3' adjusted near endpoint for slope",
+      "id": "tr_conn_3"
+    },
+    {
+      "severity": "warn",
       "code": "segment_slope_repaired",
       "stage": "2_transport",
       "message": "segment 'tr_branch_1' slope clamped/smoothed (2 point adjustments)",
@@ -199,6 +207,38 @@
       "message": "segment 'tr_branch_1' slope clamped/smoothed (2 point adjustments)",
       "id": "tr_branch_1",
       "count": 2
+    },
+    {
+      "severity": "warn",
+      "code": "segment_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_branch_3' slope clamped/smoothed (2 point adjustments)",
+      "id": "tr_branch_3",
+      "count": 2
+    },
+    {
+      "severity": "warn",
+      "code": "segment_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_branch_3' slope clamped/smoothed (2 point adjustments)",
+      "id": "tr_branch_3",
+      "count": 2
+    },
+    {
+      "severity": "warn",
+      "code": "segment_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_conn_3' slope clamped/smoothed (2 point adjustments)",
+      "id": "tr_conn_3",
+      "count": 2
+    },
+    {
+      "severity": "warn",
+      "code": "segment_slope_repaired",
+      "stage": "2_transport",
+      "message": "segment 'tr_conn_3' slope clamped/smoothed (4 point adjustments)",
+      "id": "tr_conn_3",
+      "count": 4
     },
     {
       "severity": "info",
@@ -223,6 +263,21 @@
     },
     {
       "severity": "info",
+      "code": "road_graph",
+      "stage": "2_transport",
+      "message": "road graph summary",
+      "nodes": 0,
+      "segments": 0,
+      "components": 0
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "2_transport",
+      "message": "stage 2_transport completed"
+    },
+    {
+      "severity": "info",
       "code": "transport_bridge_profiled",
       "stage": "2_transport",
       "message": "segment crossing river 'river_1' bridged (deck 20.64m)",
@@ -233,9 +288,50 @@
       "severity": "info",
       "code": "transport_bridge_profiled",
       "stage": "2_transport",
+      "message": "segment crossing river 'river_1' bridged (deck 26.49m)",
+      "river": "river_1",
+      "deckH": 26.491510050373716
+    },
+    {
+      "severity": "info",
+      "code": "transport_bridge_profiled",
+      "stage": "2_transport",
+      "message": "segment crossing river 'river_1' bridged (deck 34.60m)",
+      "river": "river_1",
+      "deckH": 34.59868620802669
+    },
+    {
+      "severity": "info",
+      "code": "transport_bridge_profiled",
+      "stage": "2_transport",
+      "message": "segment crossing river 'river_1' bridged (deck 44.70m)",
+      "river": "river_1",
+      "deckH": 44.69642941015479
+    },
+    {
+      "severity": "info",
+      "code": "transport_bridge_profiled",
+      "stage": "2_transport",
       "message": "segment crossing river 'river_1' bridged (deck 61.18m)",
       "river": "river_1",
       "deckH": 61.17642101986051
+    },
+    {
+      "severity": "info",
+      "code": "transport_emit_deferred",
+      "stage": "2_transport",
+      "message": "generated road network computed but emission deferred pending engine-valid profiling/geometry"
+    },
+    {
+      "severity": "info",
+      "code": "transport_generated",
+      "stage": "2_transport",
+      "message": "stage 2 generated road network",
+      "nodes": 9,
+      "segments": 8,
+      "seed": 1865128548,
+      "branches": 3,
+      "profiled": true
     },
     {
       "severity": "info",
@@ -334,6 +430,30 @@
       "count": 2
     },
     {
+      "stage": "2_transport",
+      "id": "tr_branch_3",
+      "code": "clamp_segment_slope",
+      "count": 2
+    },
+    {
+      "stage": "2_transport",
+      "id": "tr_branch_3",
+      "code": "clamp_segment_slope",
+      "count": 2
+    },
+    {
+      "stage": "2_transport",
+      "id": "tr_conn_3",
+      "code": "clamp_segment_slope",
+      "count": 2
+    },
+    {
+      "stage": "2_transport",
+      "id": "tr_conn_3",
+      "code": "clamp_segment_slope",
+      "count": 4
+    },
+    {
       "stage": "build",
       "id": "b_district_1_1_93",
       "code": "drop_conflicting_building"
@@ -346,9 +466,9 @@
   ],
   "drops": [],
   "summary": {
-    "errors": 1,
-    "warnings": 4,
-    "repairs": 4,
+    "errors": 0,
+    "warnings": 10,
+    "repairs": 8,
     "drops": 0
   }
 }
