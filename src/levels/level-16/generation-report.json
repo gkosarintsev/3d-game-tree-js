@@ -30,7 +30,7 @@
     {
       "id": "3_districts_parcels",
       "status": "ok",
-      "diagnostics": 3,
+      "diagnostics": 7,
       "repairs": 0,
       "drops": 0
     },
@@ -59,10 +59,10 @@
   "districts": [
     {
       "id": "district_0_0",
-      "type": "luxury",
-      "profileId": "luxury",
+      "type": "slums",
+      "profileId": "slums",
       "cells": 1,
-      "parcels": 121
+      "parcels": 400
     },
     {
       "id": "district_0_1",
@@ -179,6 +179,38 @@
       "requested": 3
     },
     {
+      "severity": "warn",
+      "code": "district_adjacency_fallback",
+      "stage": "3_districts_parcels",
+      "message": "adjacency luxury↔slums not preferred",
+      "a": "luxury",
+      "b": "slums"
+    },
+    {
+      "severity": "warn",
+      "code": "district_adjacency_fallback",
+      "stage": "3_districts_parcels",
+      "message": "adjacency slums↔luxury not preferred",
+      "a": "slums",
+      "b": "luxury"
+    },
+    {
+      "severity": "warn",
+      "code": "district_adjacency_fallback",
+      "stage": "3_districts_parcels",
+      "message": "adjacency slums↔sports not preferred",
+      "a": "slums",
+      "b": "sports"
+    },
+    {
+      "severity": "warn",
+      "code": "district_adjacency_fallback",
+      "stage": "3_districts_parcels",
+      "message": "adjacency sports↔slums not preferred",
+      "a": "sports",
+      "b": "slums"
+    },
+    {
       "severity": "info",
       "code": "stage_ok",
       "stage": "0_input_space",
@@ -248,15 +280,16 @@
         "park",
         "parking",
         "residential",
+        "slums",
         "sports"
       ],
       "counts": {
         "office": 3,
         "park": 2,
         "industrial": 1,
-        "luxury": 4,
+        "luxury": 3,
         "residential": 1,
-        "slums": 0,
+        "slums": 1,
         "forest": 1,
         "parking": 2,
         "sports": 2
@@ -268,12 +301,13 @@
       "stage": "3_districts_parcels",
       "message": "generated parcels",
       "districts": 16,
-      "parcels": 1496,
+      "parcels": 1775,
       "byType": {
-        "luxury": 4,
+        "slums": 1,
         "sports": 2,
         "residential": 1,
         "office": 3,
+        "luxury": 3,
         "park": 2,
         "parking": 2,
         "industrial": 1,
@@ -291,16 +325,16 @@
       "code": "buildings_generated",
       "stage": "4_buildings_structures",
       "message": "generated buildings from parcels",
-      "count": 199,
+      "count": 294,
       "budget": 400,
-      "skippedConflict": 488
+      "skippedConflict": 565
     },
     {
       "severity": "info",
       "code": "buildings_generated",
       "stage": "4_buildings_structures",
       "message": "generated buildings from parcels",
-      "count": 199,
+      "count": 294,
       "budget": 400
     },
     {
@@ -335,42 +369,36 @@
       "code": "build_conflicting_buildings_dropped",
       "stage": "build",
       "message": "dropped buildings conflicting with compiled/normalized placement",
-      "count": 4,
+      "count": 3,
       "ids": [
-        "b_district_1_3_191",
-        "b_district_2_0_58",
-        "b_district_2_0_59",
-        "b_district_2_0_65"
+        "b_district_1_3_277",
+        "b_district_2_0_155",
+        "b_district_2_0_161"
       ]
     }
   ],
   "repairs": [
     {
       "stage": "build",
-      "id": "b_district_1_3_191",
+      "id": "b_district_1_3_277",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_58",
+      "id": "b_district_2_0_155",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_59",
-      "code": "drop_conflicting_building"
-    },
-    {
-      "stage": "build",
-      "id": "b_district_2_0_65",
+      "id": "b_district_2_0_161",
       "code": "drop_conflicting_building"
     }
   ],
   "drops": [],
   "summary": {
     "errors": 0,
-    "warnings": 2,
-    "repairs": 4,
+    "warnings": 6,
+    "repairs": 3,
     "drops": 0
   }
 }

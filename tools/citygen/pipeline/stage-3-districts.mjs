@@ -85,9 +85,13 @@ export function makeStage3() {
         const districts = [];
 
         // Ensure a diverse baseline mix for MVP (>=6 target types when possible).
-        const preferred = ['office', 'residential', 'park', 'industrial', 'slums', 'forest', 'parking', 'sports', 'luxury']
-          .filter(t => profiles[t]);
-        const required = preferred.slice(0, Math.min(preferred.length, grid * grid));
+        const core = ['office', 'residential', 'park', 'industrial', 'slums', 'forest', 'parking', 'sports', 'luxury'];
+        const preferred = core.filter(t => profiles[t]);
+        // Guarantee a broad core set first, then fill remaining slots from preferred.
+        const requiredSet = new Set();
+        for (const t of ['office', 'residential', 'park', 'industrial', 'slums', 'forest']) if (profiles[t]) requiredSet.add(t);
+        for (const t of preferred) { if (requiredSet.size >= Math.min(preferred.length, grid * grid)) break; requiredSet.add(t); }
+        const required = [...requiredSet];
         const coords = [];
         for (let j = 0; j < grid; j++) for (let i = 0; i < grid; i++) coords.push({ i, j });
         // deterministic shuffle of coords
@@ -127,7 +131,6 @@ export function makeStage3() {
               for (const it of weights) { r -= it.w; if (r <= 0) { picked = it.id; break; } }
               type = picked;
             }
-            // if compatibility rejected preassigned, try to keep it by fallback search
             if (!candidates.includes(type)) type = weightedPick(rng, candidates, profiles);
 
             assigned.set(key, type);
@@ -142,6 +145,41 @@ export function makeStage3() {
               cells: [{ cx: i, cy: j }],
               priority: 0,
             });
+          }
+        }
+
+        // Ensure core MVP types are represented when possible (deterministic swaps).
+        const coreNeed = ['office', 'residential', 'park', 'industrial', 'slums', 'forest'].filter(t => profiles[t]);
+        const present = () => new Set(districts.map(d => d.type || d.profileId));
+        for (const need of coreNeed) {
+          if (present().has(need)) continue;
+          // find a district to replace: prefer one whose type is over-represented and replacement is neighbor-compatible
+          let replaced = false;
+          const countsNow = () => { const m = {}; for (const d of districts) m[d.type] = (m[d.type]||0)+1; return m; };
+          for (const d of districts) {
+            const m = countsNow();
+            if ((m[d.type] || 0) <= 1) continue;
+            const c = d.cells?.[0]; if (!c) continue;
+            const neigh = [];
+            for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+              const n = districts.find(x => x.cells?.some(cc => cc.cx===c.cx+dx && cc.cy===c.cy+dy));
+              if (n) neigh.push(n.type);
+            }
+            const ok = neigh.every(nt => (COMPAT[need]?.has(nt) ?? true) && (COMPAT[nt]?.has(need) ?? true));
+            if (!ok) continue;
+            typeCounts[d.type] = Math.max(0, (typeCounts[d.type]||1)-1);
+            d.type = need; d.profileId = need;
+            typeCounts[need] = (typeCounts[need]||0)+1;
+            replaced = true; break;
+          }
+          if (!replaced && districts.length) {
+            // last resort: force swap smallest-impact cell (may create adjacency warning, handled by validation)
+            const countsNow2 = () => { const m = {}; for (const d of districts) m[d.type] = (m[d.type]||0)+1; return m; };
+            const m = countsNow2();
+            const cand = districts.find(d => (m[d.type]||0) > 1) || districts[0];
+            typeCounts[cand.type] = Math.max(0, (typeCounts[cand.type]||1)-1);
+            cand.type = need; cand.profileId = need;
+            typeCounts[need] = (typeCounts[need]||0)+1;
           }
         }
         ctx.districts = districts;
