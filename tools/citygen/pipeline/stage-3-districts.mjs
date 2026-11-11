@@ -9,21 +9,27 @@ import { makeRng, mix } from '../rng.mjs';
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export const DEFAULT_PROFILES = {
-  office: { id: 'office', label: 'Офисный', weight: 1, parcels: { min: 18, max: 40, coverage: 0.55 }, buildings: { kinds: ['office_tower', 'office_mid'], maxFloors: 24 } },
-  park: { id: 'park', label: 'Парк', weight: 1, parcels: { min: 24, max: 60, coverage: 0.15 }, buildings: { kinds: ['pavilion'], maxFloors: 2 } },
-  industrial: { id: 'industrial', label: 'Промышленный', weight: 1, parcels: { min: 24, max: 55, coverage: 0.45 }, buildings: { kinds: ['warehouse', 'factory'], maxFloors: 4 } },
-  luxury: { id: 'luxury', label: 'Лакшери/жилой', weight: 1, parcels: { min: 16, max: 36, coverage: 0.4 }, buildings: { kinds: ['residential_mid', 'villa'], maxFloors: 12 } },
-  forest: { id: 'forest', label: 'Лес/поле', weight: 1, parcels: { min: 30, max: 80, coverage: 0.05 }, buildings: { kinds: [] , maxFloors: 1 } },
-  parking: { id: 'parking', label: 'Парковки/дороги', weight: 1, parcels: { min: 20, max: 50, coverage: 0.1 }, buildings: { kinds: ['booth'], maxFloors: 1 } },
+  office: { id: 'office', label: 'Офисный', weight: 1.1, parcels: { min: 18, max: 42, coverage: 0.55 }, buildings: { kinds: ['office_tower', 'office_mid'], maxFloors: 20, materials: ['glass_and_concrete', 'concrete'] } },
+  park: { id: 'park', label: 'Парк', weight: 0.9, parcels: { min: 24, max: 64, coverage: 0.12 }, buildings: { kinds: ['pavilion'], maxFloors: 2, materials: ['painted_brick', 'concrete'] } },
+  industrial: { id: 'industrial', label: 'Промышленный', weight: 1.0, parcels: { min: 24, max: 56, coverage: 0.45 }, buildings: { kinds: ['warehouse', 'factory'], maxFloors: 5, materials: ['concrete', 'rusted_metal'] } },
+  luxury: { id: 'luxury', label: 'Лакшери', weight: 0.8, parcels: { min: 18, max: 38, coverage: 0.38 }, buildings: { kinds: ['residential_mid', 'villa'], maxFloors: 14, materials: ['stone_base', 'glass_and_concrete'] } },
+  residential: { id: 'residential', label: 'Жилой', weight: 1.0, parcels: { min: 14, max: 30, coverage: 0.42 }, buildings: { kinds: ['residential_low', 'residential_mid'], maxFloors: 9, materials: ['painted_brick', 'concrete'] } },
+  slums: { id: 'slums', label: 'Трущобы', weight: 0.7, parcels: { min: 10, max: 22, coverage: 0.5 }, buildings: { kinds: ['shack', 'residential_low'], maxFloors: 3, materials: ['rusted_metal', 'painted_brick'] } },
+  forest: { id: 'forest', label: 'Лес/поле', weight: 0.8, parcels: { min: 30, max: 80, coverage: 0.04 }, buildings: { kinds: [], maxFloors: 1, materials: [] } },
+  parking: { id: 'parking', label: 'Парковки', weight: 0.8, parcels: { min: 22, max: 56, coverage: 0.08 }, buildings: { kinds: ['booth'], maxFloors: 2, materials: ['concrete'] } },
+  sports: { id: 'sports', label: 'Спорт', weight: 0.6, parcels: { min: 26, max: 60, coverage: 0.2 }, buildings: { kinds: ['sports_hall', 'pavilion'], maxFloors: 3, materials: ['concrete', 'glass_and_concrete'] } },
 };
 
 const COMPAT = {
-  industrial: new Set(['parking', 'office', 'forest', 'industrial']),
-  luxury: new Set(['park', 'office', 'forest', 'luxury', 'parking']),
-  park: new Set(['luxury', 'office', 'forest', 'parking', 'park']),
-  office: new Set(['parking', 'luxury', 'industrial', 'park', 'office']),
-  forest: new Set(['forest', 'park', 'luxury', 'parking', 'industrial', 'office']),
-  parking: new Set(['parking', 'office', 'industrial', 'luxury', 'park', 'forest']),
+  office: new Set(['office', 'parking', 'luxury', 'residential', 'park', 'industrial', 'sports']),
+  park: new Set(['park', 'luxury', 'residential', 'office', 'forest', 'sports', 'parking']),
+  industrial: new Set(['industrial', 'parking', 'office', 'slums', 'forest']),
+  luxury: new Set(['luxury', 'park', 'office', 'residential', 'parking', 'sports']),
+  residential: new Set(['residential', 'luxury', 'park', 'office', 'parking', 'sports', 'slums', 'forest']),
+  slums: new Set(['slums', 'industrial', 'residential', 'parking', 'forest']),
+  forest: new Set(['forest', 'park', 'residential', 'industrial', 'slums', 'parking', 'sports', 'office', 'luxury']),
+  parking: new Set(['parking', 'office', 'industrial', 'luxury', 'park', 'residential', 'slums', 'sports', 'forest']),
+  sports: new Set(['sports', 'park', 'residential', 'office', 'luxury', 'parking', 'forest']),
 };
 
 function mergeProfiles(genProfiles) {
