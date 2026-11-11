@@ -548,6 +548,9 @@ export class AlienEnemy extends AlienBody {
     this._xAxis = new THREE.Vector3();
     this._zAxis = new THREE.Vector3();
     this._basis = new THREE.Matrix4();
+    this._baseMeshY = -this.cfg.radius;
+    this.animTime = 0;
+    this.animPhase = Math.random() * Math.PI * 2; // визуальный разброс, не влияет на симуляцию
 
     // цель прыжка — сам игрок: при контакте в полёте он получает урон.
     // (имя _leapTarget, а не _target: _target в AlienBody занят буфером нормали)
@@ -660,6 +663,8 @@ export class AlienEnemy extends AlienBody {
 
   _die() {
     this.respawnTimer = this.cfgEnemy.respawnDelay;
+    this.mesh.position.y = this._baseMeshY ?? -this.cfg.radius;
+    this.mesh.rotation.set(0, 0, 0);
     this.group.visible = false;
     beep(320, 0.12, 'sawtooth');
     if (this.onDeath) this.onDeath(this);
@@ -693,6 +698,9 @@ export class AlienEnemy extends AlienBody {
     this._lastDamage = -1e9;
     this.respawnTimer = 0;
     this.offstage = false;
+    this.animTime = 0;
+    this.mesh.rotation.set(0, 0, 0);
+    this.mesh.position.y = this._baseMeshY ?? -this.cfg.radius;
     this.group.visible = true;
     this._syncMesh();
   }
@@ -722,6 +730,18 @@ export class AlienEnemy extends AlienBody {
     if (this.material && this.material.emissive) {
       this.material.emissive.setHex(this.hurt > 0.01 ? 0x551200 : 0x000000);
     }
+    // Процедурная анимация (визуал): покачивание/рывок в локальных осях тела без влияния на физику/ориентацию.
+    this.animTime += dt;
+    const spd = Math.hypot(this.vel.x, this.vel.y, this.vel.z);
+    const move01 = Math.min(1, spd / Math.max(0.001, (this.cfg?.speed?.run ?? 6)));
+    const inLeap = this.leapTimer > 0;
+    const cycle = this.animTime * (7.5 + move01 * 6.5) + this.animPhase;
+    const bob = Math.sin(cycle * 2) * (0.012 + 0.03 * move01) + (inLeap ? 0.03 : 0);
+    const sway = Math.sin(cycle) * (0.01 + 0.025 * move01);
+    const lean = inLeap ? -0.18 : (0.02 + 0.05 * move01);
+    this.mesh.position.y = this._baseMeshY + bob;
+    this.mesh.rotation.x = lean;
+    this.mesh.rotation.z = sway;
   }
 
   /** Привязывает модель к телу: позиция — центр, ориентация — по нормали и курсу. */
