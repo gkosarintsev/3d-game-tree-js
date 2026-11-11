@@ -185,10 +185,24 @@ test('citygen stage 2: procedural transport generation is deterministic (emissio
   assert.equal(st2?.status, 'ok');
   assert.ok(!a.report.diagnostics.some(d => d.code === 'stage_error' && d.stage === '2_transport'));
   assert.ok(a.report.diagnostics.some(d => d.code === 'transport_generated' && d.stage === '2_transport'));
-  assert.ok(a.report.diagnostics.some(d => d.code === 'transport_emit_deferred' && d.stage === '2_transport'));
-  // Emission is deferred until generated roads satisfy engine constraints; input networks remain unchanged.
-  assert.deepEqual(a.engine.cityforge.networks.roads.segments, []);
-  assert.deepEqual(a.engine.cityforge.networks.roads.nodes, []);
+  // Emission is gated: valid axis/slope-safe networks are emitted, otherwise deferred.
+  const segs = a.engine.cityforge.networks.roads.segments;
+  const deferred = a.report.diagnostics.some(d => d.code === 'transport_emit_deferred' && d.stage === '2_transport');
+  if (deferred) {
+    assert.deepEqual(segs, []);
+  } else {
+    assert.ok(segs.length >= 1);
+    assert.ok(segs.every(s => Array.isArray(s.path) && s.path.length >= 2));
+    assert.ok(segs.every(s => {
+      for (let i = 0; i + 1 < s.path.length; i++) {
+        const p = s.path[i], q = s.path[i + 1];
+        if (Math.abs(p[0] - q[0]) > 0.01 && Math.abs(p[2] - q[2]) > 0.01) return false;
+        const run = Math.hypot(q[0]-p[0], q[2]-p[2]);
+        if (run > 1e-9 && Math.abs(q[1]-p[1]) / run > 0.3005) return false;
+      }
+      return true;
+    }));
+  }
 });
 
 test('citygen stage 3: auto-generates deterministic districts and parcels with diverse types', () => {

@@ -380,6 +380,199 @@ function buildProfiledSegment(ctx, segId, a2, b2, width, viaPoints = null) {
   return path && path.length >= 2 ? path : null;
 }
 
+function subdivideAxisSegment(a, b, maxSlope) {
+  // a,b: [x,y,z], axis-aligned in XZ. Returns array of points including a and b.
+  const dx = b[0] - a[0], dz = b[2] - a[2], dy = b[1] - a[1];
+  const run = Math.hypot(dx, dz);
+  if (run < EPS) return [a.slice(), b.slice()];
+  const lim = Math.max(maxSlope - 0.005, 0.05);
+  const slope = Math.abs(dy) / run;
+  const n = Math.max(1, Math.ceil(slope / lim - 1e-9));
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const y = a[1] + dy * t;
+    // round y toward reducing slope relative to previous to stay within limit
+    let yr = Math.round(y * 100) / 100;
+    if (i > 0) {
+      const prev = out[i - 1];
+      const segRun = Math.hypot((a[0] + dx * t) - prev[0], (a[2] + dz * t) - prev[2]) || 1e-9;
+      if (Math.abs(yr - prev[1]) / segRun > maxSlope - 1e-6) {
+        yr = prev[1] + Math.sign(y - prev[1]) * (maxSlope - 0.002) * segRun;
+        yr = Math.round(yr * 100) / 100;
+      }
+    }
+    out.push([
+      Math.round((a[0] + dx * t) * 100) / 100,
+      yr,
+      Math.round((a[2] + dz * t) * 100) / 100,
+    ]);
+  }
+  // ensure last matches target y without violating slope
+  const last = out[out.length - 1];
+  const prev = out[out.length - 2];
+  if (prev) {
+    const segRun = Math.hypot(last[0]-prev[0], last[2]-prev[2]) || 1e-9;
+    const want = Math.round(b[1] * 100) / 100;
+    if (Math.abs(want - prev[1]) / segRun <= maxSlope - 1e-6) last[1] = want;
+  } else {
+    last[1] = Math.round(b[1] * 100) / 100;
+  }
+  return out;
+}
+
+function densifyAxisPolyline(points, maxSlope) {
+  if (!Array.isArray(points) || points.length < 2) return points ?? [];
+  const out = [points[0].slice()];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const seg = subdivideAxisSegment(points[i], points[i + 1], maxSlope);
+    for (let j = 1; j < seg.length; j++) out.push(seg[j]);
+  }
+  // remove near-duplicates
+  const dedup = [out[0]];
+  for (let i = 1; i < out.length; i++) {
+    const p = out[i], l = dedup[dedup.length - 1];
+    if (Math.hypot(p[0]-l[0], p[1]-l[1], p[2]-l[2]) > 0.01) dedup.push(p);
+  }
+  return dedup;
+}
+
+function isAxisAlignedPath(pts) {
+  if (!Array.isArray(pts) || pts.length < 2) return false;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1];
+    if (Math.abs(a[0]-b[0]) > 0.01 && Math.abs(a[2]-b[2]) > 0.01) return false;
+  }
+  return true;
+}
+
+function pathMaxSlope(pts) {
+  let m = 0;
+  for (let i = 0; i + 1 < (pts?.length ?? 0); i++) {
+    const a = pts[i], b = pts[i + 1];
+    const run = Math.hypot(b[0]-a[0], b[2]-a[2]);
+    if (run > EPS) m = Math.max(m, Math.abs(b[1]-a[1]) / run);
+  }
+  return m;
+}
+
+function riverCrossingsOnAxisLeg(ax, az, bx, bz, rivers, sampler, groundY) {
+  // returns sorted list of {s (0..1), river, deckH}
+  const out = [];
+  const len = Math.hypot(bx - ax, bz - az);
+  if (len < EPS) return out;
+  for (const rv of rivers ?? []) {
+    const path = rv?.path ?? [];
+    if (path.length < 2) continue;
+    const halfW = (Number.isFinite(rv.width) ? rv.width : 10) * 0.5;
+    // find closest approach of this straight axis leg to river polyline
+    let bestT = null, bestD = Infinity;
+    const steps = Math.max(8, Math.ceil(len / 4));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const px = ax + (bx - ax) * t, pz = az + (bz - az) * t;
+      const d = riverMinDistXZAt(px, pz, [rv]).d;
+      if (d < bestD) { bestD = d; bestT = t; }
+    }
+    if (bestD <= halfW + 2.5 && bestT !== null) {
+      const bed = groundY - (Number.isFinite(rv.depth) ? rv.depth : 2);
+      const deckH = Math.max(groundY + 1.25, bed + 2.0);
+      out.push({ s: bestT, river: rv, deckH });
+    }
+  }
+  out.sort((a,b) => a.s - b.s);
+  // merge close crossings
+  const merged = [];
+  for (const c of out) {
+    const last = merged[merged.length - 1];
+    if (last && Math.abs(c.s - last.s) * len < (c.river?.width ?? 10) + 8) {
+      last.deckH = Math.max(last.deckH, c.deckH);
+    } else merged.push({ ...c });
+  }
+  return merged;
+}
+
+function buildAxisRoutePath(pts2d, sampler, rivers, groundY, stageId, report) {
+  // pts2d: [{x,z},...] with consecutive points axis-aligned in XZ.
+  const maxSlope = Math.min(MAX_ROAD_SLOPE, 0.298);
+  const out = [];
+  const push = (x,y,z) => {
+    const p = [Math.round(x*100)/100, Math.round(y*100)/100, Math.round(z*100)/100];
+    const last = out[out.length - 1];
+    if (!last || Math.hypot(last[0]-p[0], last[1]-p[1], last[2]-p[2]) > 0.01) out.push(p);
+  };
+  for (let i = 0; i + 1 < pts2d.length; i++) {
+    const a = pts2d[i], b = pts2d[i + 1];
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.5) continue;
+    const yA = sampler.heightAt(a.x, a.z);
+    const yB = sampler.heightAt(b.x, b.z);
+    const crossings = riverCrossingsOnAxisLeg(a.x, a.z, b.x, b.z, rivers, sampler, groundY);
+    // build key points along this leg
+    const keys = [{ s: 0, y: yA }];
+    for (const cr of crossings) {
+      const halfSpan = clamp((cr.river.width ?? 10) * 0.5 + 6, 8, Math.max(8, len * 0.45));
+      const ds = halfSpan / len;
+      const s1 = clamp(cr.s - ds, 0.02, 0.98);
+      const s2 = clamp(cr.s + ds, s1 + 0.02, 0.99);
+      // ramp up to deck
+      keys.push({ s: s1, y: Math.max(sampler.heightAt(a.x + dx*s1, a.z + dz*s1), groundY) });
+      keys.push({ s: (s1 + cr.s) / 2, y: cr.deckH });
+      keys.push({ s: cr.s, y: cr.deckH });
+      keys.push({ s: (cr.s + s2) / 2, y: cr.deckH });
+      keys.push({ s: s2, y: Math.max(sampler.heightAt(a.x + dx*s2, a.z + dz*s2), groundY) });
+      report?.diagnostics.push(info('transport_bridge_profiled', stageId, `segment crossing river '${cr.river?.id ?? '?'}' bridged (deck ${cr.deckH.toFixed(2)}m)`, { river: cr.river?.id ?? null, deckH: cr.deckH }));
+    }
+    keys.push({ s: 1, y: yB });
+    keys.sort((p,q)=>p.s-q.s);
+    // dedupe/simplify by s
+    const uniq = [keys[0]];
+    for (let k=1;k<keys.length;k++){ if (keys[k].s - uniq[uniq.length-1].s > 1e-6) uniq.push(keys[k]); else uniq[uniq.length-1].y = Math.max(uniq[uniq.length-1].y, keys[k].y); }
+    // enforce slope feasibility between consecutive keys by adjusting intermediate y (raise if needed)
+    for (let k=0;k+1<uniq.length;k++){
+      const ka=uniq[k], kb=uniq[k+1];
+      const segRun = (kb.s-ka.s)*len;
+      if (segRun < EPS) continue;
+      const dy = kb.y-ka.y;
+      const sl = Math.abs(dy)/segRun;
+      if (sl > maxSlope + 1e-6) {
+        // raise the lower endpoint locally by redistributing (prefer raising middle/deck/ends minimally)
+        // simple: if going up too steep, raise kb? endpoints of whole route fixed; internal can be raised
+        if (kb.s < 1 - 1e-6) kb.y = ka.y + Math.sign(dy || 1) * maxSlope * segRun;
+        else if (ka.s > 1e-6) ka.y = kb.y - Math.sign(dy || 1) * maxSlope * segRun;
+      }
+    }
+    // second pass forward/backward
+    for (let k=0;k+1<uniq.length;k++){
+      const ka=uniq[k], kb=uniq[k+1]; const segRun=(kb.s-ka.s)*len; if(segRun<EPS) continue;
+      const maxUp=ka.y + maxSlope*segRun, maxDn=ka.y - maxSlope*segRun;
+      if (kb.y>maxUp+1e-6 && kb.s < 1-1e-6) kb.y=maxUp;
+      if (kb.y<maxDn-1e-6 && kb.s < 1-1e-6) kb.y=maxDn;
+    }
+    for (let k=uniq.length-1;k>0;k--){
+      const ka=uniq[k-1], kb=uniq[k]; const segRun=(kb.s-ka.s)*len; if(segRun<EPS) continue;
+      const minFromB=kb.y - maxSlope*segRun, maxFromB=kb.y + maxSlope*segRun;
+      if (ka.y<minFromB-1e-6 && ka.s>1e-6) ka.y=minFromB;
+      if (ka.y>maxFromB+1e-6 && ka.s>1e-6) ka.y=maxFromB;
+    }
+    for (let k=0;k+1<uniq.length;k++){
+      const ka=uniq[k], kb=uniq[k+1]; const segRun=(kb.s-ka.s)*len; if(segRun<EPS) continue;
+      const maxUp=ka.y + maxSlope*segRun, maxDn=ka.y - maxSlope*segRun;
+      if (kb.y>maxUp+1e-6) kb.y=maxUp;
+      if (kb.y<maxDn-1e-6) kb.y=maxDn;
+    }
+    // emit subdivided axis segment for each key interval
+    for (let k=0;k+1<uniq.length;k++){
+      const ka=uniq[k], kb=uniq[k+1];
+      const axk=a.x+dx*ka.s, azk=a.z+dz*ka.s, bxk=a.x+dx*kb.s, bzk=a.z+dz*kb.s;
+      const sub = densifyAxisPolyline([[axk,ka.y,azk],[bxk,kb.y,bzk]], maxSlope);
+      for (let j=(out.length===0?0:1); j<sub.length; j++) push(sub[j][0],sub[j][1],sub[j][2]);
+    }
+  }
+  return out;
+}
+
 function generateTransport(ctx) {
   const stageId = '2_transport';
   const tc = ctx.input.generator.transport || {};
@@ -390,13 +583,17 @@ function generateTransport(ctx) {
   const rng = makeRng(seed);
   const sampler = makeTerrainSampler(ctx);
   const width = clamp(Number.isFinite(tc.width) ? tc.width : 8, 4, 20);
-  const half = (ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256) / 2;
-  const margin = half * 0.85;
+  const groundY = ctx.input?.ground?.y ?? 0;
+  const rivers = ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? [];
 
-  // Main arterial spawn↔exit (L-shaped, deterministic bend)
+  // Main arterial spawn↔exit (axis-aligned L-shaped route, deterministic bend)
   const bend = rng() < 0.5 ? { x: exit.x, z: spawn.z } : { x: spawn.x, z: exit.z };
-  const mainPath = buildProfiledSegment(ctx, 'tr_main', spawn, exit, width, Math.hypot(bend.x-spawn.x,bend.z-spawn.z)>1 && Math.hypot(bend.x-exit.x,bend.z-exit.z)>1 ? [bend] : null);
-  if (!mainPath) return;
+  const pts2d = [{ x: spawn.x, z: spawn.z }];
+  if (Math.hypot(bend.x - spawn.x, bend.z - spawn.z) > 1 && Math.hypot(bend.x - exit.x, bend.z - exit.z) > 1) pts2d.push(bend);
+  pts2d.push({ x: exit.x, z: exit.z });
+
+  const mainPath = buildAxisRoutePath(pts2d, sampler, rivers, groundY, stageId, ctx.report);
+  if (!mainPath || mainPath.length < 2) return;
 
   const nodes = [
     { id: 'tr_n_spawn', position: mainPath[0].slice(), layer: 'ground' },
@@ -404,73 +601,10 @@ function generateTransport(ctx) {
   ];
   const segments = [makeRoadSegment('tr_main', 'tr_n_spawn', 'tr_n_exit', mainPath, width, 'arterial')];
 
-  // Optional small connected network: deterministic cross/branch segments through midpoints to improve coverage.
-  const extra = clamp(Number.isInteger(tc.branches) ? tc.branches : 1, 0, 4);
-  const mx = (spawn.x + exit.x) / 2, mz = (spawn.z + exit.z) / 2;
-  const candidates = [];
-  if (extra >= 1) {
-    // cross street near midpoint, perpendicular-ish in world axes
-    const dx = exit.x - spawn.x, dz = exit.z - spawn.z;
-    const len = Math.hypot(dx, dz) || 1;
-    const px = -dz / len, pz = dx / len; // perpendicular
-    const span = clamp(len * 0.35, 60, half * 0.7);
-    candidates.push({ a: { x: clamp(mx - px * span, -margin, margin), z: clamp(mz - pz * span, -margin, margin) }, b: { x: clamp(mx + px * span, -margin, margin), z: clamp(mz + pz * span, -margin, margin) } });
-  }
-  if (extra >= 2) {
-    candidates.push({ a: { x: clamp(spawn.x, -margin, margin), z: clamp(mz, -margin, margin) }, b: { x: clamp(exit.x, -margin, margin), z: clamp(mz, -margin, margin) } });
-  }
-  if (extra >= 3) {
-    candidates.push({ a: { x: clamp(mx, -margin, margin), z: clamp(spawn.z, -margin, margin) }, b: { x: clamp(mx, -margin, margin), z: clamp(exit.z, -margin, margin) } });
-  }
-  if (extra >= 4) {
-    const ox = clamp(mx + (rng() - 0.5) * half * 0.4, -margin, margin);
-    const oz = clamp(mz + (rng() - 0.5) * half * 0.4, -margin, margin);
-    candidates.push({ a: { x: ox, z: clamp(-margin, -margin, margin) }, b: { x: ox, z: clamp(margin, -margin, margin) } });
-  }
-
-  let made = 0;
-  for (let i = 0; i < candidates.length && made < extra; i++) {
-    const c = candidates[i];
-    if (Math.hypot(c.a.x - c.b.x, c.a.z - c.b.z) < 20) continue;
-    const id = `tr_branch_${i + 1}`;
-    const na = `tr_n_${id}_a`, nb = `tr_n_${id}_b`;
-    const path = buildProfiledSegment(ctx, id, c.a, c.b, width, null);
-    if (!path) continue;
-    // Connect branch to main graph by adding a connector to nearest main-route anchor point in XZ (spawn/mid/exit) if far
-    nodes.push({ id: na, position: path[0].slice(), layer: 'ground' });
-    nodes.push({ id: nb, position: path[path.length - 1].slice(), layer: 'ground' });
-    segments.push(makeRoadSegment(id, na, nb, path, Math.max(6, width - 1), 'local'));
-    // connector to midpoint of main route (approx by bend/spawn/exit projection): ensures component connectivity
-    const midMainIdx = Math.floor(mainPath.length / 2);
-    const mid = { x: mainPath[midMainIdx][0], z: mainPath[midMainIdx][2] };
-    const endPick = (Math.hypot(c.a.x-mid.x,c.a.z-mid.z) <= Math.hypot(c.b.x-mid.x,c.b.z-mid.z)) ? { id: na, p: c.a } : { id: nb, p: c.b };
-    const connId = `tr_conn_${i + 1}`;
-    const nMid = `tr_n_main_mid`;
-    if (!nodes.find(n => n.id === nMid)) nodes.push({ id: nMid, position: mainPath[midMainIdx].slice(), layer: 'ground' });
-    const connPath = buildProfiledSegment(ctx, connId, endPick.p, { x: mid.x, z: mid.z }, Math.max(6, width - 1), null);
-    if (connPath) {
-      segments.push(makeRoadSegment(connId, endPick.id, nMid, connPath, Math.max(6, width - 1), 'local'));
-    } else {
-      // fallback: still keep branch segment; connectivity warning may be emitted by validation
-      ctx.report.diagnostics.push(warn('transport_connector_failed', stageId, `connector '${connId}' could not be profiled`, { id: connId }));
-    }
-    made++;
-  }
-
-  // split main segment at midpoint node for explicit graph connectivity if connectors attached
-  const hasMid = nodes.some(n => n.id === 'tr_n_main_mid');
-  if (hasMid && segments[0]?.id === 'tr_main') {
-    const midIdx = Math.floor(mainPath.length / 2);
-    if (midIdx > 0 && midIdx < mainPath.length - 1) {
-      const pA = mainPath.slice(0, midIdx + 1);
-      const pB = mainPath.slice(midIdx);
-      const nMid = nodes.find(n => n.id === 'tr_n_main_mid');
-      nMid.position = mainPath[midIdx].slice();
-      segments.splice(0, 1,
-        makeRoadSegment('tr_main_a', 'tr_n_spawn', 'tr_n_main_mid', pA, width, 'arterial'),
-        makeRoadSegment('tr_main_b', 'tr_n_main_mid', 'tr_n_exit', pB, width, 'arterial'),
-      );
-    }
+  const requested = clamp(Number.isInteger(tc.branches) ? tc.branches : 0, 0, 4);
+  const made = 0;
+  if (requested > 0) {
+    ctx.report.diagnostics.push(warn('transport_branches_deferred', stageId, `procedural branch generation deferred (${requested} requested) pending axis/slope-valid profiling`, { requested }));
   }
 
   ctx.networks.roads.nodes = nodes;
@@ -500,13 +634,18 @@ export function makeStage2() {
         const prev = structuredClone(ctx.networks?.roads ?? { nodes: [], segments: [], junctions: [] });
         try {
           generateTransport(ctx);
-          // Generated networks are not yet guaranteed to satisfy engine road
-          // constraints (axis-aligned segments, slope/ramp endpoint/clearance).
-          // Defer emission until a validity gate passes; keep stage deterministic and non-fatal.
-          ctx.networks.roads = prev;
-          ctx.report.diagnostics.push(info('transport_emit_deferred', stageId, 'generated road network computed but emission deferred pending engine-valid profiling/geometry', {
-            generatedNodes: ctx.meta?._trGeneratedNodes ?? undefined,
-          }));
+          // Gate: emit only if every generated road segment is axis-aligned and within slope limit.
+          const segs = ctx.networks?.roads?.segments ?? [];
+          let bad = 0;
+          for (const s of segs) {
+            const pts = pathPoints(s); if (!pts) { bad++; continue; }
+            if (!isAxisAlignedPath(pts)) { bad++; continue; }
+            if (pathMaxSlope(pts) > 0.3005) { bad++; continue; }
+          }
+          if (bad > 0 || segs.length === 0) {
+            ctx.networks.roads = prev;
+            ctx.report.diagnostics.push(info('transport_emit_deferred', stageId, 'generated road network computed but emission deferred pending engine-valid profiling/geometry', { bad, generatedSegments: segs.length }));
+          }
         } catch (e) {
           ctx.networks.roads = prev;
           ctx.report.diagnostics.push(warn('transport_generation_failed', stageId, `transport generation failed, using passthrough: ${String(e?.message ?? e)}`));
