@@ -739,7 +739,88 @@ function generateTransport(ctx) {
     return merged.length ? merged : [{ bridge: false, path: path.map(p=>p.slice()) }];
   };
 
+  // M3 B2 prototype: deterministic overpass (эстакада + пандусы) on one suitable
+  // straight ground segment of the main route. Elevates middle span with ramps
+  // while preserving endpoints/connectivity; degrades (no-op) if infeasible.
+  const tryApplyOverpassPrototype = (parts) => {
+    const INTERCHANGE_CLEARANCE = 4.0;
+    const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.1); // conservative for prototype
+    const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
+    for (let pi = 0; pi < parts.length; pi++) {
+      const part = parts[pi];
+      if (!part || part.bridge) continue;
+      const path = part.path;
+      if (!Array.isArray(path) || path.length < 2) continue;
+      const len = totalLen(path);
+      if (len < 90) continue;
+      // Straight axis-aligned segment only (simple, robust profile).
+      let straight = true;
+      for (let i = 1; i < path.length; i++) {
+        if (Math.abs(path[i][0] - path[0][0]) > 0.5 && Math.abs(path[i][2] - path[0][2]) > 0.5) { straight = false; break; }
+      }
+      if (!straight) continue;
+      const a = path[0].slice(), b = path[path.length - 1].slice();
+      const run = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      if (run < 90) continue;
+      const ux = (b[0] - a[0]) / run, uz = (b[2] - a[2]) / run;
+      // Skip if near/crossing rivers (bridge logic handles rivers separately).
+      let nearRiver = false;
+      for (let i = 0; i + 1 < path.length && !nearRiver; i++) {
+        if (segCrossesRiver(path[i][0], path[i][2], path[i+1][0], path[i+1][2], rivers)) nearRiver = true;
+      }
+      if (nearRiver) continue;
+
+      const aY = a[1] ?? sampler.heightAt(a[0], a[2]);
+      const bY = b[1] ?? sampler.heightAt(b[0], b[2]);
+      if (Math.abs(aY - bY) > 1.5) continue; // keep prototype simple/flat endpoints
+      const endMaxY = Math.max(aY, bY);
+      let midTerrain = -Infinity;
+      const steps = Math.max(8, Math.ceil(run / 8));
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const x = a[0] + (b[0] - a[0]) * t, z = a[2] + (b[2] - a[2]) * t;
+        midTerrain = Math.max(midTerrain, sampler.heightAt(x, z));
+      }
+      if (!Number.isFinite(midTerrain)) midTerrain = sampler.groundY;
+      const deckH = Math.max(midTerrain + INTERCHANGE_CLEARANCE, endMaxY + 3.0, sampler.groundY + BRIDGE_DECK_MIN);
+      const rise = Math.max(deckH - aY, deckH - bY, 0);
+      let rampLen = clamp(Math.max(24, rise / Math.max(RAMP_SLOPE, 0.05)), 24, run * 0.3);
+      let deckLen = run - rampLen * 2;
+      if (deckLen < 24) continue;
+      if ((deckH - aY) / rampLen > RAMP_SLOPE + 1e-6 || (deckH - bY) / rampLen > RAMP_SLOPE + 1e-6) continue;
+
+      const r1 = [a[0] + ux * rampLen, a[2] + uz * rampLen];
+      const r2 = [b[0] - ux * rampLen, b[2] - uz * rampLen];
+      const yR1 = aY + Math.sign(deckH - aY) * Math.min(Math.abs(deckH - aY), RAMP_SLOPE * rampLen);
+      const yR2 = bY + Math.sign(deckH - bY) * Math.min(Math.abs(deckH - bY), RAMP_SLOPE * rampLen);
+      const pts = [
+        [a[0], aY, a[2]],
+        [Math.round(r1[0]*100)/100, Math.round(yR1*100)/100, Math.round(r1[1]*100)/100],
+        [Math.round(((r1[0]+r2[0])/2)*100)/100, Math.round(deckH*100)/100, Math.round(((r1[1]+r2[1])/2)*100)/100],
+        [Math.round(r2[0]*100)/100, Math.round(yR2*100)/100, Math.round(r2[1]*100)/100],
+        [b[0], bY, b[2]],
+      ];
+      // Trial without polluting report; apply only if clean/valid.
+      let prof = enforceSlope(pts.map(p => p.slice()), RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+      prof = pinEndpoints(prof, [a[0], aY, a[2]], [b[0], bY, b[2]], RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+      if (!Array.isArray(prof) || prof.length < 2) continue;
+      if (pathMaxSlope(prof) > RAMP_SLOPE + 0.015) continue;
+      const midProfY = prof.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
+      if (!(midProfY > endMaxY + 1.5)) continue;
+
+      part.path = prof.map(p => p.slice());
+      part.bridge = true;
+      part.interchange = 'overpass';
+      ctx.report.diagnostics.push(info('transport_interchange_overpass', stageId, 'applied overpass interchange prototype on main route segment', {
+        segmentIndex: pi, deckH: +deckH.toFixed(2), rampLen: +rampLen.toFixed(2), len: +run.toFixed(2),
+      }));
+      return true; // one prototype per generation (deterministic, low risk)
+    }
+    return false;
+  };
+
   const mainParts = splitMainSegments(mainPath);
+  tryApplyOverpassPrototype(mainParts);
   const nodes = [
     { id: 'tr_n_spawn', position: mainPath[0].slice(), layer: 'ground' },
   ];
