@@ -644,7 +644,22 @@
       ],
       "parcels": 1983,
       "reservedParcels": 222,
+      "parcelAccess": {
+        "near": 370,
+        "mid": 399,
+        "far": 1214
+      },
       "buildings": 400,
+      "buildingsByDistrictType": {
+        "luxury": 67,
+        "slums": 246,
+        "parking": 21,
+        "industrial": 8,
+        "park": 5,
+        "sports": 7,
+        "residential": 45,
+        "office": 1
+      },
       "lights": 8,
       "props": 320
     },
