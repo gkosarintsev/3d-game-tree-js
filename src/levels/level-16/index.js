@@ -72,9 +72,9 @@ export const LEVEL_16 = {
         "id": "0_0",
         "objects": {
           "buildings": 111,
-          "lights": 5,
-          "props": 82,
-          "roads": 4
+          "lights": 6,
+          "props": 79,
+          "roads": 6
         },
         "rect": {
           "maxX": -384,
@@ -88,7 +88,7 @@ export const LEVEL_16 = {
         "id": "0_1",
         "objects": {
           "buildings": 38,
-          "props": 29,
+          "props": 24,
           "roads": 1
         },
         "rect": {
@@ -147,7 +147,7 @@ export const LEVEL_16 = {
         "id": "1_0",
         "objects": {
           "buildings": 20,
-          "props": 36
+          "props": 37
         },
         "rect": {
           "maxX": -128,
@@ -211,7 +211,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 10,
           "channels": 1,
-          "props": 39
+          "props": 47
         },
         "rect": {
           "maxX": 128,
@@ -225,7 +225,7 @@ export const LEVEL_16 = {
         "id": "2_1",
         "objects": {
           "channels": 1,
-          "props": 9
+          "props": 10
         },
         "rect": {
           "maxX": 128,
@@ -266,7 +266,6 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 3,
           "channels": 1,
-          "lights": 1,
           "roads": 1
         },
         "rect": {
@@ -281,7 +280,7 @@ export const LEVEL_16 = {
         "id": "3_0",
         "objects": {
           "buildings": 24,
-          "props": 73
+          "props": 74
         },
         "rect": {
           "maxX": 384,
@@ -294,7 +293,7 @@ export const LEVEL_16 = {
         "file": "chunk-3-1.l14b",
         "id": "3_1",
         "objects": {
-          "props": 20
+          "props": 18
         },
         "rect": {
           "maxX": 384,
@@ -343,7 +342,7 @@ export const LEVEL_16 = {
         "id": "4_0",
         "objects": {
           "buildings": 29,
-          "props": 25
+          "props": 24
         },
         "rect": {
           "maxX": 640,
@@ -2768,6 +2767,44 @@ export const LEVEL_16 = {
             },
             {
               "x": -520,
+              "y": 0,
+              "z": -424
+            }
+          ],
+          "shoulder": 1,
+          "width": 6
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_spc_a",
+          "points": [
+            {
+              "x": -424,
+              "y": 0,
+              "z": -520
+            },
+            {
+              "x": -424,
+              "y": 0,
+              "z": -424
+            }
+          ],
+          "shoulder": 1,
+          "width": 6
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_spc_b",
+          "points": [
+            {
+              "x": -520,
+              "y": 0,
+              "z": -424
+            },
+            {
+              "x": -424,
               "y": 0,
               "z": -424
             }

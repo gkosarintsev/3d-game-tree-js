@@ -654,6 +654,57 @@ function generateTransport(ctx) {
     made++;
   }
 
+  // Try to connect two ground spurs from the same flat node into a local block (axis-aligned L via corner).
+  if (made >= 2) {
+    const spurSegs = segments.filter(s => /^tr_sp\d+_r$/.test(s.id) && s.from === 'tr_n_spawn');
+    if (spurSegs.length >= 2) {
+      const a = spurSegs[0], b = spurSegs[1];
+      const na = nodes.find(n => n.id === a.to), nb = nodes.find(n => n.id === b.to);
+      if (na && nb) {
+        const pa = { x: na.position[0], z: na.position[2] }, pb = { x: nb.position[0], z: nb.position[2] };
+        // corner candidates: (pa.x,pb.z) and (pb.x,pa.z)
+        const corners = [
+          { id: 'tr_spc1_n', x: pa.x, z: pb.z },
+          { id: 'tr_spc2_n', x: pb.x, z: pa.z },
+        ];
+        for (const c of corners) {
+          if (segments.some(s => s.id === 'tr_spc_a' || s.id === 'tr_spc_b')) break;
+          if (Math.abs(c.x) > half - 2 || Math.abs(c.z) > half - 2) continue;
+          if (Math.abs(sampler.heightAt(c.x, c.z) - groundY) > 0.05) continue;
+          const legs = [
+            [{ x: pa.x, z: pa.z }, { x: c.x, z: c.z }],
+            [{ x: pb.x, z: pb.z }, { x: c.x, z: c.z }],
+          ];
+          const validLeg = (pts) => {
+            if (!(Math.abs(pts[0].x - pts[1].x) < 0.01 || Math.abs(pts[0].z - pts[1].z) < 0.01)) return false;
+            if (segCrossesRiver(pts[0].x, pts[0].z, pts[1].x, pts[1].z, rivers)) return false;
+            if (Math.abs(sampler.heightAt(pts[1].x, pts[1].z) - groundY) > 0.05) return false;
+            const path = [
+              [Math.round(pts[0].x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(pts[0].z * 100) / 100],
+              [Math.round(pts[1].x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(pts[1].z * 100) / 100],
+            ];
+            return isAxisAlignedPath(path) && pathMaxSlope(path) <= 0.3005 && Math.hypot(pts[0].x - pts[1].x, pts[0].z - pts[1].z) > 2;
+          };
+          if (!validLeg(legs[0]) || !validLeg(legs[1])) continue;
+          // avoid duplicate node position
+          const cPos = [Math.round(c.x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(c.z * 100) / 100];
+          const existing = nodes.find(n => Math.hypot(n.position[0] - cPos[0], n.position[2] - cPos[2]) < 0.5);
+          const cornerNodeId = existing ? existing.id : c.id;
+          if (!existing) nodes.push({ id: cornerNodeId, position: cPos, layer: 'ground' });
+          const mk = (id, from, to, pts) => makeRoadSegment(id, from, to, [
+            [Math.round(pts[0].x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(pts[0].z * 100) / 100],
+            [Math.round(pts[1].x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(pts[1].z * 100) / 100],
+          ], Math.max(6, width - 2), 'local');
+          segments.push(mk('tr_spc_a', na.id, cornerNodeId, legs[0]));
+          segments.push(mk('tr_spc_b', nb.id, cornerNodeId, legs[1]));
+          made += 2;
+          ctx.report.diagnostics.push(info('transport_spur_loop', stageId, 'added local ground spur connector block near spawn', { corner: cornerNodeId }));
+          break;
+        }
+      }
+    }
+  }
+
   if (requested > 0 && made < requested) {
     ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${requested} procedural spur(s)`, { requested, made }));
   }

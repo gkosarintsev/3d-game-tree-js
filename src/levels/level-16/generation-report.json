@@ -229,8 +229,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 4,
-      "segments": 3,
+      "nodes": 5,
+      "segments": 5,
       "components": 1
     },
     {
@@ -238,14 +238,6 @@
       "code": "stage_ok",
       "stage": "2_transport",
       "message": "stage 2_transport completed"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branches_partial",
-      "stage": "2_transport",
-      "message": "added 2/3 procedural spur(s)",
-      "requested": 3,
-      "made": 2
     },
     {
       "severity": "info",
@@ -260,11 +252,18 @@
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 4,
-      "segments": 3,
+      "nodes": 5,
+      "segments": 5,
       "seed": 1865128548,
-      "branches": 2,
+      "branches": 4,
       "profiled": true
+    },
+    {
+      "severity": "info",
+      "code": "transport_spur_loop",
+      "stage": "2_transport",
+      "message": "added local ground spur connector block near spawn",
+      "corner": "tr_spc1_n"
     },
     {
       "severity": "info",
@@ -343,7 +342,7 @@
       "message": "generated district props",
       "count": 320,
       "budget": 320,
-      "attempts": 697
+      "attempts": 680
     },
     {
       "severity": "info",
