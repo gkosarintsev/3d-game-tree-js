@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 32,
+      "diagnostics": 36,
       "repairs": 0,
       "drops": 0
     },
@@ -197,8 +197,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 27,
-      "segments": 37,
+      "nodes": 30,
+      "segments": 41,
       "components": 1
     },
     {
@@ -477,13 +477,49 @@
     },
     {
       "severity": "info",
+      "code": "transport_edge_branch",
+      "stage": "2_transport",
+      "message": "added edge outreach branch",
+      "id": "tr_gb_38",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_28"
+    },
+    {
+      "severity": "info",
+      "code": "transport_edge_branch",
+      "stage": "2_transport",
+      "message": "added edge outreach branch",
+      "id": "tr_gb_39",
+      "from": "tr_sp4_n",
+      "to": "tr_gn_23"
+    },
+    {
+      "severity": "info",
+      "code": "transport_edge_branch",
+      "stage": "2_transport",
+      "message": "added edge outreach branch",
+      "id": "tr_gb_40",
+      "from": "tr_n_spawn",
+      "to": "tr_gn_29"
+    },
+    {
+      "severity": "info",
+      "code": "transport_edge_branch",
+      "stage": "2_transport",
+      "message": "added edge outreach branch",
+      "id": "tr_gb_41",
+      "from": "tr_n_m1",
+      "to": "tr_gn_30"
+    },
+    {
+      "severity": "info",
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 27,
-      "segments": 37,
+      "nodes": 30,
+      "segments": 41,
       "seed": 1865128548,
-      "branches": 34,
+      "branches": 38,
       "profiled": true
     },
     {
@@ -570,7 +606,7 @@
       "message": "generated district props",
       "count": 320,
       "budget": 320,
-      "attempts": 1081
+      "attempts": 1201
     },
     {
       "severity": "info",

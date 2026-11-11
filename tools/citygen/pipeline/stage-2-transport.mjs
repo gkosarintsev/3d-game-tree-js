@@ -1040,6 +1040,77 @@ function generateTransport(ctx) {
     }
   }
 
+  // Edge outreach: extend network toward map bounds where uncovered.
+  const edgeBudget = 8;
+  let edgeAdded = 0;
+  const edgeTargets = [
+    { dx: -1, dz: 0, edge: -half + 8, axis: 'x' },
+    { dx: 1, dz: 0, edge: half - 8, axis: 'x' },
+    { dx: 0, dz: -1, edge: -half + 8, axis: 'z' },
+    { dx: 0, dz: 1, edge: half - 8, axis: 'z' },
+  ];
+  for (const et of edgeTargets) {
+    if (edgeAdded >= edgeBudget) break;
+    const groundNodes = nodes.filter(n => n.layer !== 'elevated').slice().sort((a, b) => {
+      const av = et.axis === 'x' ? a.position[0] : a.position[2];
+      const bv = et.axis === 'x' ? b.position[0] : b.position[2];
+      return et.dx + et.dz < 0 ? (av - bv) : (bv - av);
+    });
+    for (const n of groundNodes.slice(0, 8)) {
+      if (edgeAdded >= edgeBudget) break;
+      const fx = n.position[0], fz = n.position[2];
+      const cur = et.axis === 'x' ? fx : fz;
+      if ((et.dx + et.dz < 0 && cur <= et.edge + 20) || (et.dx + et.dz > 0 && cur >= et.edge - 20)) continue;
+      const len = 96;
+      const tx = Math.round((fx + et.dx * len) * 100) / 100;
+      const tz = Math.round((fz + et.dz * len) * 100) / 100;
+      if (Math.abs(tx) > half - 2 || Math.abs(tz) > half - 2) continue;
+      // try straight, else L toward edge
+      let added = false;
+      const path = buildTerrainPath(fx, fz, tx, tz, 12);
+      if (isTerrainPathValid(path)) {
+        const end = path[path.length - 1];
+        if (Math.hypot(end[0] - fx, end[2] - fz) >= 8) {
+          let toNode = nodes.find(nn => Math.hypot(nn.position[0] - end[0], nn.position[2] - end[2]) < 0.5);
+          const edgeExists = toNode && segments.some(s => (s.from === n.id && s.to === toNode.id) || (s.from === toNode.id && s.to === n.id));
+          if (!edgeExists) {
+            if (!toNode) { toNode = { id: `tr_gn_${nodes.length + 1}`, position: end.slice(), layer: 'ground' }; nodes.push(toNode); }
+            const sid = `tr_gb_${segments.length + 1}`;
+            segments.push(makeRoadSegment(sid, n.id, toNode.id, path, Math.max(6, width - 2), 'local'));
+            made++; edgeAdded++; added = true;
+            ctx.report.diagnostics.push(info('transport_edge_branch', stageId, 'added edge outreach branch', { id: sid, from: n.id, to: toNode.id }));
+          }
+        }
+      }
+      if (!added && edgeAdded < edgeBudget) {
+        // try small L toward edge
+        const perp = et.axis === 'x' ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
+        for (const [px, pz] of perp) {
+          if (edgeAdded >= edgeBudget) break;
+          const cx = fx + et.dx * 64 + px * 48;
+          const cz = fz + et.dz * 64 + pz * 48;
+          if (Math.abs(cx) > half - 2 || Math.abs(cz) > half - 2) continue;
+          const pathA = buildTerrainPath(fx, fz, cx, cz, 12);
+          const pathB = buildTerrainPath(cx, cz, Math.round((cx + et.dx * 48) * 100) / 100, Math.round((cz + et.dz * 48) * 100) / 100, 12);
+          if (!isTerrainPathValid(pathA) || !isTerrainPathValid(pathB)) continue;
+          const cEnd = pathA[pathA.length - 1], tEnd = pathB[pathB.length - 1];
+          let cNode = nodes.find(nn => Math.hypot(nn.position[0] - cEnd[0], nn.position[2] - cEnd[2]) < 0.5);
+          let tNode = nodes.find(nn => Math.hypot(nn.position[0] - tEnd[0], nn.position[2] - tEnd[2]) < 0.5);
+          const edgeExists = (aId, bId) => segments.some(s => (s.from === aId && s.to === bId) || (s.from === bId && s.to === aId));
+          if (!cNode) { cNode = { id: `tr_gn_${nodes.length + 1}`, position: cEnd.slice(), layer: 'ground' }; nodes.push(cNode); }
+          if (!tNode) { tNode = { id: `tr_gn_${nodes.length + 1}`, position: tEnd.slice(), layer: 'ground' }; nodes.push(tNode); }
+          if (edgeExists(n.id, cNode.id) && edgeExists(cNode.id, tNode.id)) continue;
+          if (!edgeExists(n.id, cNode.id)) { segments.push(makeRoadSegment(`tr_gb_${segments.length + 1}`, n.id, cNode.id, pathA, Math.max(6, width - 2), 'local')); made++; edgeAdded++; }
+          if (edgeAdded < edgeBudget && !edgeExists(cNode.id, tNode.id)) { segments.push(makeRoadSegment(`tr_gb_${segments.length + 1}`, cNode.id, tNode.id, pathB, Math.max(6, width - 2), 'local')); made++; edgeAdded++; }
+          ctx.report.diagnostics.push(info('transport_edge_branch', stageId, 'added edge outreach L branch', { from: n.id, to: tNode.id }));
+          added = true;
+          break;
+        }
+      }
+      if (added) break; // one extension per edge direction per pass attempt
+    }
+  }
+
   if (requested > 0 && made < Math.min(requested, clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4))) {
     ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4)} procedural spur(s)`, { requested: clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4), made }));
   }
