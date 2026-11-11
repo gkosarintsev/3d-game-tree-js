@@ -243,7 +243,7 @@ export function makeStage4() {
       };
       const typeTarget = (t) => Math.max(4, Math.round(budget * (typeShare[t] ?? 0.08)));
 
-      const tryPlaceBuilding = (p, { relaxChunk = false } = {}) => {
+      const tryPlaceBuilding = (p, { relaxChunk = false, force = false } = {}) => {
         if (placed >= budget) return false;
         if (placedParcel.has(p)) return false;
         if (p?.reserved) return false;
@@ -319,7 +319,7 @@ export function makeStage4() {
         const cc = ck ? (placedPerChunk.get(ck) || 0) : 0;
         const hard = relaxChunk ? Math.ceil(chunkHard * 1.15) : chunkHard;
         const soft = relaxChunk ? Math.ceil(chunkSoft * 1.1) : chunkSoft;
-        if (Number.isFinite(idealPerChunk)) {
+        if (!force && Number.isFinite(idealPerChunk)) {
           if (cc >= hard) accessChance *= (relaxChunk ? 0.2 : 0.05);
           else if (cc >= soft) accessChance *= (relaxChunk ? 0.45 : 0.25);
           else if (cc >= Math.ceil(idealPerChunk * 1.15)) accessChance *= 0.7;
@@ -327,12 +327,16 @@ export function makeStage4() {
         // Balance across district types: penalize types that already reached their soft target share.
         const tcount = placedByType[p.type] || 0;
         const ttarget = typeTarget(p.type);
-        if (tcount >= ttarget) accessChance *= 0.4;
-        else if (tcount >= Math.floor(ttarget * 0.8)) accessChance *= 0.7;
-        // If budget is still open near the end, allow deficit types to catch up.
-        const remaining = budget - placed;
-        if (remaining < 60 && tcount < Math.floor(ttarget * 0.5)) accessChance = Math.min(0.98, accessChance * 1.2);
-        if (rng() > accessChance) return false;
+        if (!force) {
+          if (tcount >= ttarget) accessChance *= 0.4;
+          else if (tcount >= Math.floor(ttarget * 0.8)) accessChance *= 0.7;
+          // If budget is still open near the end, allow deficit types to catch up.
+          const remaining = budget - placed;
+          if (remaining < 60 && tcount < Math.floor(ttarget * 0.5)) accessChance = Math.min(0.98, accessChance * 1.2);
+        } else {
+          accessChance = 1.0;
+        }
+        if (!force && rng() > accessChance) return false;
 
         // District archetypes: parametric footprint/height/material (kind/shape seeded above).
         const maxFloors = Math.max(1, Number(profile.buildings?.maxFloors ?? (arch ? arch.floors[1] : 4)));
@@ -380,9 +384,40 @@ export function makeStage4() {
         for (const p of orderedParcels) {
           if (placed >= budget) break;
           if (placedParcel.has(p) || p?.reserved) continue;
-          // bypass chunk pressure by temporarily treating as relaxed+; handled via flag not available, so do a targeted attempt
-          // (reuse tryPlaceBuilding by monkeying? simpler: inline relaxed attempt by calling with relaxChunk and accepting higher cc effect already limited)
           tryPlaceBuilding(p, { relaxChunk: true });
+        }
+      }
+      // Ensure district representation: try to place at least one building in districts that have buildable kinds.
+      if (placed < budget) {
+        const placedByDistrict = new Map();
+        for (const b of out) {
+          const m = /^b_(.+)_\d+$/.exec(String(b.id || ''));
+          const did = m ? m[1] : null;
+          if (did) placedByDistrict.set(did, (placedByDistrict.get(did) || 0) + 1);
+        }
+        for (const d of (ctx.districts || [])) {
+          if (placed >= budget) break;
+          const profile = profiles[d.type] || profiles[d.profileId] || {};
+          const kinds = profile.buildings?.kinds ?? [];
+          if (!kinds.length) continue;
+          if ((placedByDistrict.get(d.id) || 0) > 0) continue;
+          const dp = orderedParcels.filter(p => p.districtId === d.id && !placedParcel.has(p) && !p?.reserved);
+          // prefer better road access first
+          dp.sort((a,b) => {
+            const ba = a.aabb, bb = b.aabb;
+            const acx = ba ? (ba.minX+ba.maxX)/2 : 0, acz = ba ? (ba.minZ+ba.maxZ)/2 : 0;
+            const bcx = bb ? (bb.minX+bb.maxX)/2 : 0, bcz = bb ? (bb.minZ+bb.maxZ)/2 : 0;
+            const ad = Number.isFinite(a?.access?.roadDist) ? a.access.roadDist : minDistanceToRoadSegments(acx,acz,roadSegments);
+            const bd = Number.isFinite(b?.access?.roadDist) ? b.access.roadDist : minDistanceToRoadSegments(bcx,bcz,roadSegments);
+            return (Number.isFinite(ad)?ad:1e9) - (Number.isFinite(bd)?bd:1e9);
+          });
+          for (const p of dp.slice(0, 40)) {
+            if (placed >= budget) break;
+            if (tryPlaceBuilding(p, { relaxChunk: true, force: true })) {
+              placedByDistrict.set(d.id, (placedByDistrict.get(d.id) || 0) + 1);
+              break;
+            }
+          }
         }
       }
       ctx.buildings = out;
