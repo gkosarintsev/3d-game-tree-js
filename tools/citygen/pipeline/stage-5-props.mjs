@@ -237,7 +237,7 @@ function generateProps(ctx, stageId, cfg) {
   };
 
   const size = ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256;
-  const budget = clamp(Number.isInteger(cfg.objectBudget) ? cfg.objectBudget : Math.round(size / 3), 40, 320);
+  const budget = clamp(Number.isInteger(cfg.objectBudget) ? cfg.objectBudget : Math.round(size / 2.8), 40, 360);
   const out = [];
   const placedPropIndex = createSpatialIndex(ctx.meta.worldBounds ?? { size }, 32);
   let attempts = 0;
@@ -277,7 +277,7 @@ function generateProps(ctx, stageId, cfg) {
   const districtById = new Map(districts.map(d => [d.id, d]));
 
   // Roadside elements along flat/ground road segments first (visual priority), spread along segments.
-  const roadsideCap = Math.min(36, Math.floor(budget * 0.12));
+  const roadsideCap = Math.min(48, Math.floor(budget * 0.14));
   for (const seg of roads) {
     if (out.length >= roadsideCap) break;
     const pts = pathPoints(seg); if (!pts) continue;
@@ -285,19 +285,20 @@ function generateProps(ctx, stageId, cfg) {
     for (let i = 0; i + 1 < pts.length && out.length < roadsideCap; i++) {
       const a = pts[i], b = pts[i + 1];
       const dx = b[0] - a[0], dz = b[2] - a[2];
-      const len = Math.hypot(dx, dz); if (len < 28) continue;
+      const len = Math.hypot(dx, dz); if (len < 24) continue;
       if (Math.abs((a[1] ?? baseYRoad) - baseYRoad) > 0.1 || Math.abs((b[1] ?? baseYRoad) - baseYRoad) > 0.1) continue;
-      const samples = len >= 90 ? [0.25, 0.5, 0.75] : [0.5];
+      const samples = len >= 90 ? [0.2, 0.5, 0.8] : (len >= 50 ? [0.33, 0.66] : [0.5]);
       for (const t of samples) {
         if (out.length >= roadsideCap) break;
         const x = a[0] + dx * t, z = a[2] + dz * t;
         const nx = -dz / len, nz = dx / len;
         const side = rng() < 0.5 ? -1 : 1;
-        const off = 6.6 + rng() * 0.8;
+        const off = 6.4 + rng() * 1.0;
         const r = rng();
-        if (r < 0.16) tryPlace('bollard', x + nx * side * off, baseYRoad, z + nz * side * off, 0, { x: 1, y: 1, z: 1 }, 3.2, 5);
-        else if (r < 0.24) tryPlace('bench', x + nx * side * off, baseYRoad, z + nz * side * off, Math.atan2(dx, dz) * 180 / Math.PI, { x: 1, y: 1, z: 1 }, 3.4, 5.5);
-        else if (r < 0.32) tryPlace('tree', x + nx * side * off, baseYRoad, z + nz * side * off, rng() * 360, { x: 0.85, y: 0.85, z: 0.85 }, 3.6, 5.5);
+        if (r < 0.14) tryPlace('bollard', x + nx * side * off, baseYRoad, z + nz * side * off, 0, { x: 1, y: 1, z: 1 }, 3.2, 4.8);
+        else if (r < 0.24) tryPlace('bench', x + nx * side * off, baseYRoad, z + nz * side * off, Math.atan2(dx, dz) * 180 / Math.PI, { x: 1, y: 1, z: 1 }, 3.4, 5.2);
+        else if (r < 0.34) tryPlace('tree', x + nx * side * off, baseYRoad, z + nz * side * off, rng() * 360, { x: 0.85, y: 0.85, z: 0.85 }, 3.6, 5.2);
+        else if (r < 0.4) tryPlace(pick(['barrier', 'water_tank', 'wire_spool'], rng), x + nx * side * off, baseYRoad, z + nz * side * off, rng() * 360, { x: 1, y: 1, z: 1 }, 3.8, 5.0);
       }
     }
   }
@@ -392,20 +393,21 @@ function generateProps(ctx, stageId, cfg) {
       if (type === 'office' && rng() < 0.22) placeDistrictProp(pick(['ac_unit', 'vent', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.25, (b.maxZ - b.minZ) * 0.25, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5, type);
       if (type === 'suburb' && rng() < 0.2) placeDistrictProp(pick(['barrier', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.28, (b.maxZ - b.minZ) * 0.28, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
     } else if (type === 'commercial') {
-      if (rng() < 0.45) placeDistrictProp(pick(['bench', 'tree', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.34, (b.maxZ - b.minZ) * 0.34, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
-      if (rng() < 0.35) placeDistrictProp(pick(['market_stall', 'ac_unit', 'vent'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.28, (b.maxZ - b.minZ) * 0.28, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
-      if (rng() < 0.18) placeDistrictProp(pick(['antenna', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.22, (b.maxZ - b.minZ) * 0.22, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5, type);
+      if (rng() < 0.55) placeDistrictProp(pick(['bench', 'tree', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.36, (b.maxZ - b.minZ) * 0.36, 5, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 3.0, type);
+      if (rng() < 0.4) placeDistrictProp(pick(['market_stall', 'ac_unit', 'vent'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 3.0, type);
+      if (rng() < 0.2) placeDistrictProp(pick(['antenna', 'water_tank', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.22, (b.maxZ - b.minZ) * 0.22, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.2, type);
     } else if (type === 'old_town') {
-      if (rng() < 0.55) placeDistrictProp(pick(['bench', 'tree', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.34, (b.maxZ - b.minZ) * 0.34, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.0, type);
-      if (rng() < 0.35) placeDistrictProp(pick(['market_stall', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.26, (b.maxZ - b.minZ) * 0.26, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.0, type);
+      if (rng() < 0.6) placeDistrictProp(pick(['bench', 'tree', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.36, (b.maxZ - b.minZ) * 0.36, 5, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 2.8, type);
+      if (rng() < 0.4) placeDistrictProp(pick(['market_stall', 'barrier', 'bench'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.28, (b.maxZ - b.minZ) * 0.28, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 2.8, type);
+      if (rng() < 0.15) placeDistrictProp(pick(['tree', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.22, (b.maxZ - b.minZ) * 0.22, 2, () => rng() * 360, { x: 0.9, y: 0.9, z: 0.9 }, 4.8, 3.0, type);
     } else if (type === 'campus') {
-      if (rng() < 0.6) placeDistrictProp('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.42, (b.maxZ - b.minZ) * 0.42, 4, () => rng() * 360, { x: 0.95, y: 0.95, z: 0.95 }, 5.0, 3.6, type);
-      if (rng() < 0.45) placeDistrictProp(pick(['bench', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.34, (b.maxZ - b.minZ) * 0.34, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.4, type);
-      if (rng() < 0.2) placeDistrictProp(pick(['av_pad', 'vent'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.22, (b.maxZ - b.minZ) * 0.22, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.6, type);
+      if (rng() < 0.65) placeDistrictProp('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.44, (b.maxZ - b.minZ) * 0.44, 5, () => rng() * 360, { x: 0.95, y: 0.95, z: 0.95 }, 5.0, 3.4, type);
+      if (rng() < 0.5) placeDistrictProp(pick(['bench', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.36, (b.maxZ - b.minZ) * 0.36, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.2, type);
+      if (rng() < 0.25) placeDistrictProp(pick(['av_pad', 'vent', 'bench'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.24, (b.maxZ - b.minZ) * 0.24, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.4, type);
     } else if (type === 'market') {
-      if (rng() < 0.6) placeDistrictProp(pick(['market_stall', 'container', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.34, (b.maxZ - b.minZ) * 0.34, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
-      if (rng() < 0.35) placeDistrictProp(pick(['bench', 'bollard', 'tree'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.28, (b.maxZ - b.minZ) * 0.28, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
-      if (rng() < 0.18) placeDistrictProp(pick(['wire_spool', 'water_tank'], rng), cx, cz, baseY, 10, 10, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5, type);
+      if (rng() < 0.7) placeDistrictProp(pick(['market_stall', 'container', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.36, (b.maxZ - b.minZ) * 0.36, 5, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.0, type);
+      if (rng() < 0.45) placeDistrictProp(pick(['bench', 'bollard', 'tree'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.0, type);
+      if (rng() < 0.22) placeDistrictProp(pick(['wire_spool', 'water_tank', 'barrier'], rng), cx, cz, baseY, 10, 10, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.2, type);
     } else if (type === 'industrial' || type === 'parking') {
       if (rng() < 0.55) placeDistrictProp(pick(['container', 'barrier', 'wire_spool', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 4, type);
       if (type === 'parking' && rng() < 0.45) placeDistrictProp(pick(['bollard', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.4, (b.maxZ - b.minZ) * 0.4, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.2, 3, type);

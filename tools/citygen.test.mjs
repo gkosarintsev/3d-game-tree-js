@@ -540,7 +540,7 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.equal(fin?.roadSegments, 134);
   assert.equal(fin?.roadNodes, 110);
   assert.equal(fin?.buildings, 401);
-  assert.equal(fin?.props, 320);
+  assert.equal(fin?.props, 360);
   assert.equal(fin?.lights, 8);
   // M1/M2 expansion: pilot should include expanded district/building variety and building coverage across buildable districts.
   const expectedNewTypes = ['commercial', 'suburb', 'old_town', 'campus', 'market'];
