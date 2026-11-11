@@ -17,7 +17,7 @@
     "exitRadius": 4,
     "enemies": { "count": 6 },
     "alienEnemies": { "count": 0 },
-    "cars": { "count": 1, "spots": [{ "x": -545, "z": -545, "yaw": 0 }] }
+    "cars": { "count": 1, "spots": [{ "x": -550, "z": -550, "yaw": 0 }] }
   },
   "stream": { "chunk": 256, "keep": 2, "aheadMin": 200, "aheadMax": 1200, "budgetMs": 80 },
   "cityforge": {

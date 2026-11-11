@@ -335,6 +335,8 @@ export function makeStage3() {
             let reserved = false;
             // Reserve parcels conflicting with river easement/corridor.
             if (parcelNearRiver(aabb)) reserved = true;
+            // Reserve parcels overlapping/too close to road corridors.
+            if (!reserved && Number.isFinite(rd) && rd < 7) reserved = true;
             // Reserve only very remote parcels in some road-dependent districts to keep access buffers without wiping sparse-network areas
             const hardReserveTypes = new Set(['parking', 'sports', 'industrial']);
             if (!reserved && hardReserveTypes.has(type) && Number.isFinite(rd) && rd > 300) reserved = true;
