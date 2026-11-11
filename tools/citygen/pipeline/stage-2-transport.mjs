@@ -877,6 +877,65 @@ function generateTransport(ctx) {
     return true;
   };
 
+  const tryAddTerrainL = (fromNode, dx, dz, tag) => {
+    if (made + 1 >= branchBudget) return false;
+    const fx = fromNode.position[0], fz = fromNode.position[2];
+    const tx = Math.round((fx + dx) * 100) / 100;
+    const tz = Math.round((fz + dz) * 100) / 100;
+    if (Math.abs(tx) > half - 2 || Math.abs(tz) > half - 2) return false;
+    if (Math.abs(dx) < 1 || Math.abs(dz) < 1) return false;
+    const corners = [
+      { x: tx, z: fz },
+      { x: fx, z: tz },
+    ];
+    for (const c of corners) {
+      if (made + 1 >= branchBudget) return false;
+      if (Math.abs(c.x) > half - 2 || Math.abs(c.z) > half - 2) continue;
+      const pathA = buildTerrainPath(fx, fz, c.x, c.z, 12);
+      const pathB = buildTerrainPath(c.x, c.z, tx, tz, 12);
+      if (!isTerrainPathValid(pathA) || !isTerrainPathValid(pathB)) continue;
+      const cEnd = pathA[pathA.length - 1];
+      const tEnd = pathB[pathB.length - 1];
+      if (Math.hypot(tEnd[0] - fx, tEnd[2] - fz) < 12) continue;
+      // avoid duplicate edges and close overlaps
+      let cNode = nodes.find(n => Math.hypot(n.position[0] - cEnd[0], n.position[2] - cEnd[2]) < 0.5);
+      let tNode = nodes.find(n => Math.hypot(n.position[0] - tEnd[0], n.position[2] - tEnd[2]) < 0.5);
+      const edgeExists = (aId, bId) => segments.some(s => (s.from === aId && s.to === bId) || (s.from === bId && s.to === aId));
+      if (cNode && tNode && (edgeExists(fromNode.id, cNode.id) || edgeExists(cNode.id, tNode.id))) continue;
+      const midx = (fx + tx) / 2, midz = (fz + tz) / 2;
+      const tooClose = segments.some(s => {
+        if (s.from === fromNode.id || s.to === fromNode.id) return false;
+        const sp = pathPoints(s); if (!sp) return false;
+        for (let i = 0; i + 1 < sp.length; i++) {
+          const ax = sp[i][0], az = sp[i][2], bx = sp[i + 1][0], bz = sp[i + 1][2];
+          const abx = bx - ax, abz = bz - az, apx = midx - ax, apz = midz - az;
+          const ab2 = abx * abx + abz * abz || 1e-12;
+          const tt = Math.max(0, Math.min(1, (apx * abx + apz * abz) / ab2));
+          const d = Math.hypot(midx - (ax + abx * tt), midz - (az + abz * tt));
+          if (d < 4.5) return true;
+        }
+        return false;
+      });
+      if (tooClose) continue;
+      if (!cNode) { cNode = { id: `tr_gn_${nodes.length + 1}`, position: cEnd.slice(), layer: 'ground' }; nodes.push(cNode); }
+      if (!tNode) { tNode = { id: `tr_gn_${nodes.length + 1}`, position: tEnd.slice(), layer: 'ground' }; nodes.push(tNode); }
+      if (!edgeExists(fromNode.id, cNode.id)) {
+        const sidA = `tr_gb_${segments.length + 1}`;
+        segments.push(makeRoadSegment(sidA, fromNode.id, cNode.id, pathA, Math.max(6, width - 2), 'local'));
+        made++;
+      }
+      if (made >= branchBudget) return true;
+      if (!edgeExists(cNode.id, tNode.id)) {
+        const sidB = `tr_gb_${segments.length + 1}`;
+        segments.push(makeRoadSegment(sidB, cNode.id, tNode.id, pathB, Math.max(6, width - 2), 'local'));
+        made++;
+      }
+      ctx.report.diagnostics.push(info('transport_branch_l', stageId, 'added connected terrain-following L branch', { from: fromNode.id, to: tNode.id, via: cNode.id, tag }));
+      return true;
+    }
+    return false;
+  };
+
   const stepLens = [80, 64, 48];
   const dirs4 = [[1,0],[-1,0],[0,1],[0,-1]];
   for (let pass = 0; pass < 4 && made < branchBudget; pass++) {
@@ -890,6 +949,15 @@ function generateTransport(ctx) {
         for (const [dx,dz] of dirs4) {
           if (made >= branchBudget) break;
           tryAddTerrainSeg(n, dx*len, dz*len, `p${pass}`);
+        }
+      }
+      // try L-branches to reach farther/diagonal areas
+      if (made >= branchBudget) break;
+      for (const len of [96, 128]) {
+        if (made >= branchBudget) break;
+        for (const [dx, dz] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
+          if (made >= branchBudget) break;
+          tryAddTerrainL(n, dx * len, dz * len, `lp${pass}`);
         }
       }
     }

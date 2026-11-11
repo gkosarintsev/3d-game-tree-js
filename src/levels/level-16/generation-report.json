@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 34,
+      "diagnostics": 32,
       "repairs": 0,
       "drops": 0
     },
@@ -332,70 +332,50 @@
       "code": "transport_branch",
       "stage": "2_transport",
       "message": "added connected terrain-following branch",
-      "id": "tr_gb_21",
-      "from": "tr_n_m1",
-      "to": "tr_gn_21",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected terrain-following branch",
-      "id": "tr_gb_22",
-      "from": "tr_n_m1",
-      "to": "tr_gn_22",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected terrain-following branch",
-      "id": "tr_gb_23",
-      "from": "tr_n_m1",
-      "to": "tr_gn_23",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected terrain-following branch",
-      "id": "tr_gb_24",
-      "from": "tr_n_m1",
-      "to": "tr_gn_24",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected terrain-following branch",
-      "id": "tr_gb_25",
-      "from": "tr_n_m1",
-      "to": "tr_gn_25",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected terrain-following branch",
-      "id": "tr_gb_26",
-      "from": "tr_n_m1",
-      "to": "tr_gn_26",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected terrain-following branch",
       "id": "tr_gb_27",
       "from": "tr_n_m1",
       "to": "tr_gn_27",
       "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch_l",
+      "stage": "2_transport",
+      "message": "added connected terrain-following L branch",
+      "from": "tr_n_exit",
+      "to": "tr_gn_22",
+      "via": "tr_gn_21",
+      "tag": "lp0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch_l",
+      "stage": "2_transport",
+      "message": "added connected terrain-following L branch",
+      "from": "tr_n_exit",
+      "to": "tr_gn_23",
+      "via": "tr_gn_21",
+      "tag": "lp0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch_l",
+      "stage": "2_transport",
+      "message": "added connected terrain-following L branch",
+      "from": "tr_n_exit",
+      "to": "tr_gn_25",
+      "via": "tr_gn_24",
+      "tag": "lp0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch_l",
+      "stage": "2_transport",
+      "message": "added connected terrain-following L branch",
+      "from": "tr_n_exit",
+      "to": "tr_gn_26",
+      "via": "tr_sp4_n",
+      "tag": "lp0"
     },
     {
       "severity": "info",
@@ -465,8 +445,8 @@
       "stage": "2_transport",
       "message": "added terrain-following connector between existing nodes",
       "id": "tr_gc_34",
-      "from": "tr_gn_11",
-      "to": "tr_gn_13"
+      "from": "tr_gn_10",
+      "to": "tr_gn_25"
     },
     {
       "severity": "info",
@@ -475,7 +455,7 @@
       "message": "added terrain-following connector between existing nodes",
       "id": "tr_gc_35",
       "from": "tr_gn_11",
-      "to": "tr_gn_14"
+      "to": "tr_gn_13"
     },
     {
       "severity": "info",
@@ -484,7 +464,7 @@
       "message": "added terrain-following connector between existing nodes",
       "id": "tr_gc_36",
       "from": "tr_gn_11",
-      "to": "tr_gn_17"
+      "to": "tr_gn_14"
     },
     {
       "severity": "info",
@@ -493,7 +473,7 @@
       "message": "added terrain-following connector between existing nodes",
       "id": "tr_gc_37",
       "from": "tr_gn_11",
-      "to": "tr_gn_18"
+      "to": "tr_gn_17"
     },
     {
       "severity": "info",
