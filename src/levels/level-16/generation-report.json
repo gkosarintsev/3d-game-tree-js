@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 14,
+      "diagnostics": 13,
       "repairs": 0,
       "drops": 0
     },
@@ -229,8 +229,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 14,
-      "segments": 14,
+      "nodes": 16,
+      "segments": 16,
       "components": 1
     },
     {
@@ -243,39 +243,9 @@
       "severity": "info",
       "code": "transport_branch",
       "stage": "2_transport",
-      "message": "added connected ground branch",
-      "id": "tr_gb_6",
-      "from": "tr_n_spawn",
-      "to": "tr_gn_6",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected ground branch",
-      "id": "tr_gb_7",
-      "from": "tr_n_spawn",
-      "to": "tr_gn_7",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected ground branch",
-      "id": "tr_gb_8",
-      "from": "tr_n_spawn",
-      "to": "tr_gn_8",
-      "tag": "p0"
-    },
-    {
-      "severity": "info",
-      "code": "transport_branch",
-      "stage": "2_transport",
-      "message": "added connected ground branch",
+      "message": "added connected terrain-following branch",
       "id": "tr_gb_9",
-      "from": "tr_n_spawn",
+      "from": "tr_n_exit",
       "to": "tr_gn_9",
       "tag": "p0"
     },
@@ -283,9 +253,9 @@
       "severity": "info",
       "code": "transport_branch",
       "stage": "2_transport",
-      "message": "added connected ground branch",
+      "message": "added connected terrain-following branch",
       "id": "tr_gb_10",
-      "from": "tr_n_spawn",
+      "from": "tr_n_exit",
       "to": "tr_gn_10",
       "tag": "p0"
     },
@@ -293,9 +263,9 @@
       "severity": "info",
       "code": "transport_branch",
       "stage": "2_transport",
-      "message": "added connected ground branch",
+      "message": "added connected terrain-following branch",
       "id": "tr_gb_11",
-      "from": "tr_n_spawn",
+      "from": "tr_n_exit",
       "to": "tr_gn_11",
       "tag": "p0"
     },
@@ -303,9 +273,9 @@
       "severity": "info",
       "code": "transport_branch",
       "stage": "2_transport",
-      "message": "added connected ground branch",
+      "message": "added connected terrain-following branch",
       "id": "tr_gb_12",
-      "from": "tr_n_spawn",
+      "from": "tr_n_exit",
       "to": "tr_gn_12",
       "tag": "p0"
     },
@@ -313,9 +283,9 @@
       "severity": "info",
       "code": "transport_branch",
       "stage": "2_transport",
-      "message": "added connected ground branch",
+      "message": "added connected terrain-following branch",
       "id": "tr_gb_13",
-      "from": "tr_n_spawn",
+      "from": "tr_n_exit",
       "to": "tr_gn_13",
       "tag": "p0"
     },
@@ -323,27 +293,47 @@
       "severity": "info",
       "code": "transport_branch",
       "stage": "2_transport",
-      "message": "added connected ground branch",
+      "message": "added connected terrain-following branch",
       "id": "tr_gb_14",
-      "from": "tr_n_spawn",
+      "from": "tr_n_exit",
       "to": "tr_gn_14",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_15",
+      "from": "tr_n_exit",
+      "to": "tr_gn_15",
+      "tag": "p0"
+    },
+    {
+      "severity": "info",
+      "code": "transport_branch",
+      "stage": "2_transport",
+      "message": "added connected terrain-following branch",
+      "id": "tr_gb_16",
+      "from": "tr_n_exit",
+      "to": "tr_gn_16",
       "tag": "p0"
     },
     {
       "severity": "info",
       "code": "transport_bridge_profiled",
       "stage": "2_transport",
-      "message": "segment crossing river 'river_1' bridged (deck 1.25m)",
+      "message": "segment crossing river 'river_1' bridged (deck 16.10m)",
       "river": "river_1",
-      "deckH": 1.25
+      "deckH": 16.1042810706148
     },
     {
       "severity": "info",
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 14,
-      "segments": 14,
+      "nodes": 16,
+      "segments": 16,
       "seed": 1865128548,
       "branches": 13,
       "profiled": true
@@ -352,7 +342,7 @@
       "severity": "info",
       "code": "transport_spur_loop",
       "stage": "2_transport",
-      "message": "added local ground spur connector block near spawn",
+      "message": "added local spur connector block",
       "corner": "tr_spc1_n"
     },
     {
@@ -415,9 +405,9 @@
       "code": "buildings_generated",
       "stage": "4_buildings_structures",
       "message": "generated buildings from parcels",
-      "count": 330,
+      "count": 400,
       "budget": 400,
-      "skippedConflict": 1079
+      "skippedConflict": 469
     },
     {
       "severity": "info",
@@ -432,7 +422,7 @@
       "message": "generated district props",
       "count": 320,
       "budget": 320,
-      "attempts": 747
+      "attempts": 738
     },
     {
       "severity": "info",
@@ -447,7 +437,7 @@
       "message": "generated street lights along roads",
       "count": 8,
       "budget": 8,
-      "skipped": 7
+      "skipped": 0
     },
     {
       "severity": "info",
@@ -460,40 +450,34 @@
       "code": "build_conflicting_buildings_dropped",
       "stage": "build",
       "message": "dropped buildings conflicting with compiled/normalized placement",
-      "count": 5,
+      "count": 4,
       "ids": [
-        "b_district_1_3_314",
-        "b_district_1_3_320",
-        "b_district_2_0_189",
-        "b_district_2_0_195",
-        "b_district_2_0_196"
+        "b_district_2_0_169",
+        "b_district_2_0_170",
+        "b_district_2_0_185",
+        "b_district_2_0_200"
       ]
     }
   ],
   "repairs": [
     {
       "stage": "build",
-      "id": "b_district_1_3_314",
+      "id": "b_district_2_0_169",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_1_3_320",
+      "id": "b_district_2_0_170",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_189",
+      "id": "b_district_2_0_185",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_2_0_195",
-      "code": "drop_conflicting_building"
-    },
-    {
-      "stage": "build",
-      "id": "b_district_2_0_196",
+      "id": "b_district_2_0_200",
       "code": "drop_conflicting_building"
     }
   ],
@@ -501,7 +485,7 @@
   "summary": {
     "errors": 0,
     "warnings": 5,
-    "repairs": 5,
+    "repairs": 4,
     "drops": 0
   }
 }

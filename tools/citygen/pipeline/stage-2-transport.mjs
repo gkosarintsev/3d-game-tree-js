@@ -512,17 +512,24 @@ function buildAxisRoutePath(pts2d, sampler, rivers, groundY, stageId, report) {
     // build key points along this leg
     const keys = [{ s: 0, y: yA }];
     for (const cr of crossings) {
-      const halfSpan = clamp((cr.river.width ?? 10) * 0.5 + 6, 8, Math.max(8, len * 0.45));
+      const halfSpan = clamp((cr.river.width ?? 10) * 0.5 + 30, 24, Math.max(24, len * 0.45));
       const ds = halfSpan / len;
       const s1 = clamp(cr.s - ds, 0.02, 0.98);
       const s2 = clamp(cr.s + ds, s1 + 0.02, 0.99);
-      // ramp up to deck
-      keys.push({ s: s1, y: Math.max(sampler.heightAt(a.x + dx*s1, a.z + dz*s1), groundY) });
-      keys.push({ s: (s1 + cr.s) / 2, y: cr.deckH });
-      keys.push({ s: cr.s, y: cr.deckH });
-      keys.push({ s: (cr.s + s2) / 2, y: cr.deckH });
-      keys.push({ s: s2, y: Math.max(sampler.heightAt(a.x + dx*s2, a.z + dz*s2), groundY) });
-      report?.diagnostics.push(info('transport_bridge_profiled', stageId, `segment crossing river '${cr.river?.id ?? '?'}' bridged (deck ${cr.deckH.toFixed(2)}m)`, { river: cr.river?.id ?? null, deckH: cr.deckH }));
+      // ensure deck clears local terrain and river (terrain-following landscape)
+      let maxTerrain = -Infinity;
+      const steps = Math.max(2, Math.ceil(((s2 - s1) * len) / 4));
+      for (let si = 0; si <= steps; si++) {
+        const ts = s1 + (s2 - s1) * (si / steps);
+        maxTerrain = Math.max(maxTerrain, sampler.heightAt(a.x + dx * ts, a.z + dz * ts));
+      }
+      const deckH = Math.max(cr.deckH, maxTerrain + BRIDGE_CLEARANCE, groundY + BRIDGE_DECK_MIN);
+      keys.push({ s: s1, y: sampler.heightAt(a.x + dx*s1, a.z + dz*s1) });
+      keys.push({ s: (s1 + cr.s) / 2, y: deckH });
+      keys.push({ s: cr.s, y: deckH });
+      keys.push({ s: (cr.s + s2) / 2, y: deckH });
+      keys.push({ s: s2, y: sampler.heightAt(a.x + dx*s2, a.z + dz*s2) });
+      report?.diagnostics.push(info('transport_bridge_profiled', stageId, `segment crossing river '${cr.river?.id ?? '?'}' bridged (deck ${deckH.toFixed(2)}m)`, { river: cr.river?.id ?? null, deckH }));
     }
     keys.push({ s: 1, y: yB });
     keys.sort((p,q)=>p.s-q.s);
@@ -592,14 +599,135 @@ function generateTransport(ctx) {
   if (Math.hypot(bend.x - spawn.x, bend.z - spawn.z) > 1 && Math.hypot(bend.x - exit.x, bend.z - exit.z) > 1) pts2d.push(bend);
   pts2d.push({ x: exit.x, z: exit.z });
 
-  const mainPath = buildAxisRoutePath(pts2d, sampler, rivers, groundY, stageId, ctx.report);
-  if (!mainPath || mainPath.length < 2) return;
+  const densifyTerrainFollowing = (path) => {
+    if (!Array.isArray(path) || path.length < 2) return path;
+    const out = [path[0].slice()];
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a = path[i], b = path[i + 1];
+      const dx = b[0] - a[0], dz = b[2] - a[2], dy = b[1] - a[1];
+      const len = Math.hypot(dx, dz);
+      if (len < 0.5) { out.push(b.slice()); continue; }
+      const ca = a[1] - sampler.heightAt(a[0], a[2]);
+      const cb = b[1] - sampler.heightAt(b[0], b[2]);
+      const isBridgeLike = ca >= 0.8 || cb >= 0.8;
+      if (isBridgeLike) {
+        // keep profiled bridge/ramp grade, but densify long segments for shape
+        const n = Math.max(1, Math.ceil(len / 20));
+        for (let k = 1; k <= n; k++) {
+          const t = k / n;
+          out.push([
+            Math.round((a[0] + dx * t) * 100) / 100,
+            Math.round((a[1] + dy * t) * 100) / 100,
+            Math.round((a[2] + dz * t) * 100) / 100,
+          ]);
+        }
+      } else {
+        // terrain-following ground: sample relief along path
+        const n = Math.max(1, Math.ceil(len / 12));
+        for (let k = 1; k <= n; k++) {
+          const t = k / n;
+          const x = a[0] + dx * t, z = a[2] + dz * t;
+          const y = sampler.heightAt(x, z);
+          out.push([Math.round(x * 100) / 100, Math.round(y * 100) / 100, Math.round(z * 100) / 100]);
+        }
+      }
+    }
+    const smoothed = enforceSlope(out, MAX_ROAD_SLOPE, stageId, 'tr_main_densified', null);
+    // preserve original endpoints
+    if (smoothed.length >= 2) {
+      smoothed[0] = path[0].slice();
+      smoothed[smoothed.length - 1] = path[path.length - 1].slice();
+    }
+    return smoothed;
+  };
 
+  let mainPath = buildAxisRoutePath(pts2d, sampler, rivers, groundY, stageId, ctx.report);
+  if (!mainPath || mainPath.length < 2) return;
+  mainPath = densifyTerrainFollowing(mainPath);
+
+  const splitMainSegments = (path) => {
+    if (!Array.isArray(path) || path.length < 2) return [{ bridge: false, path: path ?? [] }];
+    const terrainClear = (p) => p[1] - sampler.heightAt(p[0], p[2]);
+    const riverSpan = (p) => {
+      for (const rv of rivers ?? []) {
+        // include full channel-hole bounding influence conservatively so ground segments don't clip river bbox in validation
+        if (riverMinDistXZAt(p[0], p[2], [rv]).d <= (Number(rv.width) || 10) * 0.5 + 45) return true;
+      }
+      return false;
+    };
+    // Mark bridge spans: elevated above terrain, including ramp approaches near river crossings.
+    const mark = path.map((p, i) => {
+      const c = terrainClear(p);
+      if (c >= 0.9) return true;
+      if (riverSpan(p)) return true; // river crossing span (including ramps/approaches) must be bridge segment
+      if (c >= 0.35) return true;
+      return false;
+    });
+    // Expand to cover contiguous crossing ramps adjacent to marked span
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 1; i < path.length - 1; i++) {
+        if (mark[i]) continue;
+        if (!(mark[i - 1] || mark[i + 1])) continue;
+        const c = terrainClear(path[i]);
+        if (c >= 0.2 || riverSpan(path[i])) mark[i] = true;
+      }
+    }
+    const parts = [];
+    let cur = [path[0].slice()];
+    let curBridge = !!mark[0];
+    for (let i = 1; i < path.length; i++) {
+      const b = !!mark[i];
+      const p = path[i].slice();
+      if (b === curBridge) {
+        cur.push(p);
+      } else {
+        if (cur.length < 2) cur.push(p.slice());
+        parts.push({ bridge: curBridge, path: cur });
+        cur = [path[i - 1].slice(), p];
+        curBridge = b;
+      }
+    }
+    if (cur.length >= 2) parts.push({ bridge: curBridge, path: cur });
+    else if (parts.length) parts[parts.length - 1].path.push(path[path.length - 1].slice());
+    // merge tiny segments into neighbors
+    const merged = [];
+    const segLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
+    for (const part of parts) {
+      if (!merged.length) { merged.push(part); continue; }
+      const prev = merged[merged.length - 1];
+      if (part.bridge !== prev.bridge && segLen(part.path) < 6) {
+        prev.path.push(...part.path.slice(1));
+      } else merged.push(part);
+    }
+    return merged.length ? merged : [{ bridge: false, path: path.map(p=>p.slice()) }];
+  };
+
+  const mainParts = splitMainSegments(mainPath);
   const nodes = [
     { id: 'tr_n_spawn', position: mainPath[0].slice(), layer: 'ground' },
-    { id: 'tr_n_exit', position: mainPath[mainPath.length - 1].slice(), layer: 'ground' },
   ];
-  const segments = [makeRoadSegment('tr_main', 'tr_n_spawn', 'tr_n_exit', mainPath, width, 'arterial')];
+  const segments = [];
+  let exitNode = null;
+  for (let i = 0; i < mainParts.length; i++) {
+    const part = mainParts[i];
+    const fromId = i === 0 ? 'tr_n_spawn' : `tr_n_m${i}`;
+    let toId;
+    if (i === mainParts.length - 1) {
+      toId = 'tr_n_exit';
+      exitNode = { id: 'tr_n_exit', position: part.path[part.path.length - 1].slice(), layer: 'ground' };
+      nodes.push(exitNode);
+    } else {
+      toId = `tr_n_m${i + 1}`;
+      nodes.push({ id: toId, position: part.path[part.path.length - 1].slice(), layer: part.bridge ? 'elevated' : 'ground' });
+    }
+    const segId = mainParts.length === 1 ? 'tr_main' : (part.bridge ? `tr_main_br_${i + 1}` : `tr_main_g_${i + 1}`);
+    segments.push(makeRoadSegment(segId, fromId, toId, part.path.map(p => p.slice()), width, 'arterial'));
+  }
+  if (!exitNode) {
+    exitNode = { id: 'tr_n_exit', position: mainPath[mainPath.length - 1].slice(), layer: 'ground' };
+    nodes.push(exitNode);
+  }
+  const spawnNode = nodes.find(n => n.id === 'tr_n_spawn');
 
   const requested = clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4);
   let made = 0;
@@ -621,32 +749,48 @@ function generateTransport(ctx) {
     return true;
   };
 
-  // Simple deterministic ground spurs on flat ends (best-effort, gated by validity checks).
+  const buildTerrainPath = (ax, az, bx, bz, step = 12) => {
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz);
+    if (len < EPS) return null;
+    const n = Math.max(1, Math.ceil(len / step));
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = ax + dx * t, z = az + dz * t;
+      const y = sampler.heightAt(x, z);
+      pts.push([Math.round(x * 100) / 100, Math.round(y * 100) / 100, Math.round(z * 100) / 100]);
+    }
+    return enforceSlope(pts, MAX_ROAD_SLOPE, stageId, 'terrain_path', null);
+  };
+  const isTerrainPathValid = (path) => {
+    if (!Array.isArray(path) || path.length < 2) return false;
+    if (!isAxisAlignedPath(path)) return false;
+    if (pathMaxSlope(path) > 0.3005) return false;
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a = path[i], b = path[i + 1];
+      if (segCrossesRiver(a[0], a[2], b[0], b[2], rivers)) return false;
+    }
+    return true;
+  };
+
+  // Deterministic terrain-following spurs from route endpoints (best-effort, engine-valid).
   const half = (ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256) / 2;
   const spurLen = clamp(Math.round(half * 0.15), 50, 96);
-  const s0 = { x: mainPath[0][0], z: mainPath[0][2], y: mainPath[0][1] };
-  const s1 = { x: mainPath[mainPath.length - 1][0], z: mainPath[mainPath.length - 1][2], y: mainPath[mainPath.length - 1][1] };
+  const s0 = { x: spawnNode.position[0], z: spawnNode.position[2], y: spawnNode.position[1] };
+  const s1 = { x: exitNode.position[0], z: exitNode.position[2], y: exitNode.position[1] };
   const candSpurs = [
-    { base: 'tr_sp1', from: nodes[0], a: s0, b: { x: s0.x + Math.sign(0 - s0.x || 1) * spurLen, z: s0.z } },
-    { base: 'tr_sp2', from: nodes[0], a: s0, b: { x: s0.x, z: s0.z + Math.sign(0 - s0.z || 1) * spurLen } },
-    { base: 'tr_sp3', from: nodes[1], a: s1, b: { x: s1.x + Math.sign(0 - s1.x || 1) * spurLen, z: s1.z } },
-    { base: 'tr_sp4', from: nodes[1], a: s1, b: { x: s1.x, z: s1.z + Math.sign(0 - s1.z || 1) * spurLen } },
+    { base: 'tr_sp1', from: spawnNode, a: s0, b: { x: s0.x + Math.sign(0 - s0.x || 1) * spurLen, z: s0.z } },
+    { base: 'tr_sp2', from: spawnNode, a: s0, b: { x: s0.x, z: s0.z + Math.sign(0 - s0.z || 1) * spurLen } },
+    { base: 'tr_sp3', from: exitNode, a: s1, b: { x: s1.x + Math.sign(0 - s1.x || 1) * spurLen, z: s1.z } },
+    { base: 'tr_sp4', from: exitNode, a: s1, b: { x: s1.x, z: s1.z + Math.sign(0 - s1.z || 1) * spurLen } },
   ];
   for (let i = candSpurs.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [candSpurs[i], candSpurs[j]] = [candSpurs[j], candSpurs[i]]; }
   for (const c of candSpurs) {
     if (made >= requested) break;
-    // keep spurs ground-level and simple: reject if start elevated or river nearby
-    if (Math.abs((c.a.y ?? groundY) - groundY) > 0.05) continue;
-    if (segCrossesRiver(c.a.x, c.a.z, c.b.x, c.b.z, rivers)) continue;
-    const endY = sampler.heightAt(c.b.x, c.b.z);
-    if (Math.abs(endY - groundY) > 0.05) continue;
-    // avoid going outside world bounds
     if (Math.abs(c.b.x) > half - 2 || Math.abs(c.b.z) > half - 2) continue;
-    const path = [
-      [Math.round(c.a.x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(c.a.z * 100) / 100],
-      [Math.round(c.b.x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(c.b.z * 100) / 100],
-    ];
-    if (!isAxisAlignedPath(path) || pathMaxSlope(path) > 0.3005) continue;
+    const path = buildTerrainPath(c.a.x, c.a.z, c.b.x, c.b.z, 12);
+    if (!isTerrainPathValid(path)) continue;
     const toId = `${c.base}_n`;
     const segId = `${c.base}_r`;
     nodes.push({ id: toId, position: path[path.length - 1].slice(), layer: 'ground' });
@@ -654,7 +798,7 @@ function generateTransport(ctx) {
     made++;
   }
 
-  // Try to connect two ground spurs from the same flat node into a local block (axis-aligned L via corner).
+  // Try to connect two terrain-following spurs from the same node into a local block (axis-aligned L via corner).
   if (made >= 2) {
     const spurSegs = segments.filter(s => /^tr_sp\d+_r$/.test(s.id) && s.from === 'tr_n_spawn');
     if (spurSegs.length >= 2) {
@@ -662,7 +806,6 @@ function generateTransport(ctx) {
       const na = nodes.find(n => n.id === a.to), nb = nodes.find(n => n.id === b.to);
       if (na && nb) {
         const pa = { x: na.position[0], z: na.position[2] }, pb = { x: nb.position[0], z: nb.position[2] };
-        // corner candidates: (pa.x,pb.z) and (pb.x,pa.z)
         const corners = [
           { id: 'tr_spc1_n', x: pa.x, z: pb.z },
           { id: 'tr_spc2_n', x: pb.x, z: pa.z },
@@ -670,96 +813,73 @@ function generateTransport(ctx) {
         for (const c of corners) {
           if (segments.some(s => s.id === 'tr_spc_a' || s.id === 'tr_spc_b')) break;
           if (Math.abs(c.x) > half - 2 || Math.abs(c.z) > half - 2) continue;
-          if (Math.abs(sampler.heightAt(c.x, c.z) - groundY) > 0.05) continue;
           const legs = [
-            [{ x: pa.x, z: pa.z }, { x: c.x, z: c.z }],
-            [{ x: pb.x, z: pb.z }, { x: c.x, z: c.z }],
+            buildTerrainPath(pa.x, pa.z, c.x, c.z, 12),
+            buildTerrainPath(pb.x, pb.z, c.x, c.z, 12),
           ];
-          const validLeg = (pts) => {
-            if (!(Math.abs(pts[0].x - pts[1].x) < 0.01 || Math.abs(pts[0].z - pts[1].z) < 0.01)) return false;
-            if (segCrossesRiver(pts[0].x, pts[0].z, pts[1].x, pts[1].z, rivers)) return false;
-            if (Math.abs(sampler.heightAt(pts[1].x, pts[1].z) - groundY) > 0.05) return false;
-            const path = [
-              [Math.round(pts[0].x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(pts[0].z * 100) / 100],
-              [Math.round(pts[1].x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(pts[1].z * 100) / 100],
-            ];
-            return isAxisAlignedPath(path) && pathMaxSlope(path) <= 0.3005 && Math.hypot(pts[0].x - pts[1].x, pts[0].z - pts[1].z) > 2;
-          };
-          if (!validLeg(legs[0]) || !validLeg(legs[1])) continue;
-          // avoid duplicate node position
-          const cPos = [Math.round(c.x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(c.z * 100) / 100];
+          if (!isTerrainPathValid(legs[0]) || !isTerrainPathValid(legs[1])) continue;
+          const cPos = legs[0][legs[0].length - 1].slice();
           const existing = nodes.find(n => Math.hypot(n.position[0] - cPos[0], n.position[2] - cPos[2]) < 0.5);
           const cornerNodeId = existing ? existing.id : c.id;
           if (!existing) nodes.push({ id: cornerNodeId, position: cPos, layer: 'ground' });
-          const mk = (id, from, to, pts) => makeRoadSegment(id, from, to, [
-            [Math.round(pts[0].x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(pts[0].z * 100) / 100],
-            [Math.round(pts[1].x * 100) / 100, Math.round(groundY * 100) / 100, Math.round(pts[1].z * 100) / 100],
-          ], Math.max(6, width - 2), 'local');
+          const mk = (id, from, to, path) => makeRoadSegment(id, from, to, path, Math.max(6, width - 2), 'local');
           segments.push(mk('tr_spc_a', na.id, cornerNodeId, legs[0]));
           segments.push(mk('tr_spc_b', nb.id, cornerNodeId, legs[1]));
           made += 2;
-          ctx.report.diagnostics.push(info('transport_spur_loop', stageId, 'added local ground spur connector block near spawn', { corner: cornerNodeId }));
+          ctx.report.diagnostics.push(info('transport_spur_loop', stageId, 'added local spur connector block', { corner: cornerNodeId }));
           break;
         }
       }
     }
   }
 
-  // Expand connected ground network from existing flat nodes (deterministic, engine-valid only).
+  // Expand connected network with terrain-following branches from existing ground nodes.
   const branchBudget = Math.min(requested + 10, 18);
-  const tryAddGroundSeg = (fromNode, dx, dz, tag) => {
+  const tryAddTerrainSeg = (fromNode, dx, dz, tag) => {
     if (made >= branchBudget) return false;
-    const fx = fromNode.position[0], fy = fromNode.position[1], fz = fromNode.position[2];
-    if (Math.abs((fy ?? groundY) - groundY) > 0.05) return false;
+    const fx = fromNode.position[0], fz = fromNode.position[2];
     const tx = Math.round((fx + dx) * 100) / 100;
     const tz = Math.round((fz + dz) * 100) / 100;
     if (Math.abs(tx) > half - 2 || Math.abs(tz) > half - 2) return false;
-    if (Math.abs(sampler.heightAt(tx, tz) - groundY) > 0.05) return false;
-    if (segCrossesRiver(fx, fz, tx, tz, rivers)) return false;
-    const path = [
-      [Math.round(fx * 100) / 100, Math.round(groundY * 100) / 100, Math.round(fz * 100) / 100],
-      [Math.round(tx * 100) / 100, Math.round(groundY * 100) / 100, Math.round(tz * 100) / 100],
-    ];
-    if (!isAxisAlignedPath(path) || pathMaxSlope(path) > 0.3005) return false;
-    const len = Math.hypot(tx - fx, tz - fz);
-    if (len < 8) return false;
-    // avoid duplicate edge and close overlaps
-    if (segments.some(s => (s.from === fromNode.id && nodes.find(n=>n.id===s.to && Math.hypot(n.position[0]-tx,n.position[2]-tz)<0.5)) || (s.to === fromNode.id && nodes.find(n=>n.id===s.from && Math.hypot(n.position[0]-tx,n.position[2]-tz)<0.5)))) return false;
+    const path = buildTerrainPath(fx, fz, tx, tz, 12);
+    if (!isTerrainPathValid(path)) return false;
+    const end = path[path.length - 1];
+    if (Math.hypot(end[0] - fx, end[2] - fz) < 8) return false;
+    // avoid duplicate edge
+    let toNode = nodes.find(n => Math.hypot(n.position[0] - end[0], n.position[2] - end[2]) < 0.5);
+    if (toNode && segments.some(s => (s.from === fromNode.id && s.to === toNode.id) || (s.from === toNode.id && s.to === fromNode.id))) return false;
+    // avoid close overlaps with unrelated segments
     const segTooClose = segments.some(s => {
+      if (s.from === fromNode.id || s.to === fromNode.id) return false;
       const sp = pathPoints(s); if (!sp) return false;
       for (let i = 0; i + 1 < sp.length; i++) {
-        // simple midpoint distance check
-        const mx = (tx + fx) / 2, mz = (tz + fz) / 2;
+        const mx = (end[0] + fx) / 2, mz = (end[2] + fz) / 2;
         const ax = sp[i][0], az = sp[i][2], bx = sp[i+1][0], bz = sp[i+1][2];
         const abx = bx-ax, abz=bz-az, apx=mx-ax, apz=mz-az;
         const ab2 = abx*abx+abz*abz || 1e-12;
         const t = Math.max(0, Math.min(1, (apx*abx+apz*abz)/ab2));
         const d = Math.hypot(mx-(ax+abx*t), mz-(az+abz*t));
-        if (d < 5 && !(s.from===fromNode.id || s.to===fromNode.id)) return true;
+        if (d < 5) return true;
       }
       return false;
     });
     if (segTooClose) return false;
-    let toNode = nodes.find(n => Math.hypot(n.position[0] - tx, n.position[2] - tz) < 0.5 && Math.abs((n.position[1] ?? groundY) - groundY) <= 0.05);
     if (!toNode) {
       const nid = `tr_gn_${nodes.length + 1}`;
-      toNode = { id: nid, position: path[1].slice(), layer: 'ground' };
+      toNode = { id: nid, position: end.slice(), layer: 'ground' };
       nodes.push(toNode);
-    } else {
-      // if connecting to existing node, ensure edge not duplicate
-      if (segments.some(s => (s.from===fromNode.id && s.to===toNode.id) || (s.from===toNode.id && s.to===fromNode.id))) return false;
     }
     const sid = `tr_gb_${segments.length + 1}`;
     segments.push(makeRoadSegment(sid, fromNode.id, toNode.id, path, Math.max(6, width - 2), 'local'));
     made++;
-    ctx.report.diagnostics.push(info('transport_branch', stageId, 'added connected ground branch', { id: sid, from: fromNode.id, to: toNode.id, tag }));
+    ctx.report.diagnostics.push(info('transport_branch', stageId, 'added connected terrain-following branch', { id: sid, from: fromNode.id, to: toNode.id, tag }));
     return true;
   };
 
   const stepLens = [80, 64, 48];
   const dirs4 = [[1,0],[-1,0],[0,1],[0,-1]];
   for (let pass = 0; pass < 3 && made < branchBudget; pass++) {
-    const groundNodes = nodes.filter(n => Math.abs((n.position[1] ?? groundY) - groundY) <= 0.05 && n.layer !== 'elevated');
+    const groundNodes = nodes.filter(n => n.layer !== 'elevated');
     // stable order by id for determinism
     groundNodes.sort((a,b)=>String(a.id).localeCompare(String(b.id)));
     for (const n of groundNodes) {
@@ -768,7 +888,7 @@ function generateTransport(ctx) {
         if (made >= branchBudget) break;
         for (const [dx,dz] of dirs4) {
           if (made >= branchBudget) break;
-          tryAddGroundSeg(n, dx*len, dz*len, `p${pass}`);
+          tryAddTerrainSeg(n, dx*len, dz*len, `p${pass}`);
         }
       }
     }

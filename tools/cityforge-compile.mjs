@@ -14,6 +14,7 @@
  */
 
 import { CONFIG } from '../src/config.js';
+import { reliefOf } from '../src/relief.js';
 
 const J = CONFIG.jsonMap;
 
@@ -118,9 +119,31 @@ function compileHydrology(cf, groundY, warnings) {
  * источнике; нормализатор развернёт элементы в настилы. Тип определяется по
  * верхней отметке элементов.
  */
-function compileRoads(cf, groundY) {
+function compileRoads(cf, groundY, terrainHeightAt = null) {
   const roads = [];
   const segments = cf?.networks?.roads?.segments ?? [];
+  const roadType = (id, top, points, elements) => {
+    const base = (elements ? (top - groundY > J.bridgeMinHeight) : (top - groundY > J.bridgeMinHeight)) ? 'bridge' : 'ground';
+    // Terrain-following roads on hills should remain "ground" so relief roadCorridors/pre-leveling apply.
+    if (terrainHeightAt && Array.isArray(points) && points.length >= 2) {
+      let minClear = Infinity, maxClear = -Infinity;
+      for (const p of points) {
+        const ty = terrainHeightAt(p.x, p.z);
+        if (!Number.isFinite(ty)) continue;
+        const c = p.y - ty;
+        minClear = Math.min(minClear, c);
+        maxClear = Math.max(maxClear, c);
+      }
+      // Clearly elevated above local terrain along its whole span => bridge/overpass.
+      if (Number.isFinite(minClear) && minClear >= J.bridgeMinHeight) return 'bridge';
+      // Road follows terrain surface (possibly on hills) => ground, even if high above base groundY.
+      // Only correct base misclassification (road sits on terrain, not in a cut/tunnel below it).
+      if (base === 'bridge' && Number.isFinite(maxClear) && maxClear <= 0.9 && Number.isFinite(minClear) && minClear >= -0.6) return 'ground';
+      // Mixed/ambiguous: keep base classification.
+      return base;
+    }
+    return base;
+  };
   for (const s of segments) {
     if (Array.isArray(s.elements) && s.elements.length > 0) {
       let top = -Infinity;
@@ -130,7 +153,7 @@ function compileRoads(cf, groundY) {
       }
       roads.push({
         id: s.id,
-        type: top - groundY > J.bridgeMinHeight ? 'bridge' : 'ground',
+        type: roadType(s.id, top, null, s.elements),
         width: s.lanes?.[0]?.width ?? 8,
         elements: s.elements,
       });
@@ -147,7 +170,7 @@ function compileRoads(cf, groundY) {
     const top = Math.max(...points.map(p => p.y));
     roads.push({
       id: s.id,
-      type: top - groundY > J.bridgeMinHeight ? 'bridge' : 'ground',
+      type: roadType(s.id, top, points, null),
       width: s.lanes?.[0]?.width ?? 8,
       points,
     });
@@ -214,8 +237,16 @@ export function compileCityforge(raw) {
   // предупреждением, чтобы не терять молча, но не роняем сборку.
   if ((cf.structures?.bridges ?? []).length) warnings.push('cityforge.structures.bridges: формальные мосты не разворачиваются компилятором — используйте приподнятые road-сегменты (type/высота bridge)');
   const hills = compileHills(cf, errors);
-  const roads = compileRoads(cf, raw.ground?.y ?? 0);
-  const waterways = compileHydrology(cf, raw.ground?.y ?? 0, warnings);
+  const groundY = raw.ground?.y ?? 0;
+  let terrainHeightAt = null;
+  if (hills.length) {
+    try {
+      const relief = reliefOf({ baseY: groundY, hills, pads: [], rivers: [], roadCorridors: [] });
+      terrainHeightAt = (x, z) => relief.heightAt(x, z);
+    } catch { /* keep null */ }
+  }
+  const roads = compileRoads(cf, groundY, terrainHeightAt);
+  const waterways = compileHydrology(cf, groundY, warnings);
   const tunnels = compileTunnels(cf, roads, errors);
   if (errors.length) {
     const e = new Error(errors.join('\n'));
