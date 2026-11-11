@@ -152,14 +152,18 @@ export function makeStage3() {
         };
         const coords = [];
         for (let j = 0; j < grid; j++) for (let i = 0; i < grid; i++) coords.push({ i, j });
-        // deterministic shuffle of coords
-        for (let k = coords.length - 1; k > 0; k--) {
-          const r = Math.floor(rng() * (k + 1));
-          [coords[k], coords[r]] = [coords[r], coords[k]];
-        }
+        // Deterministic spread for required types: stride through scan order to distribute across grid.
+        const stride = Math.max(1, Math.floor(coords.length / Math.max(1, required.length)));
         const preassigned = new Map();
-        for (let k = 0; k < required.length && k < coords.length; k++) {
-          preassigned.set(`${coords[k].i},${coords[k].j}`, required[k]);
+        let cursor = 0;
+        for (let k = 0; k < required.length && preassigned.size < coords.length; k++) {
+          let idx = (cursor + k * stride) % coords.length;
+          let tries = 0;
+          while (preassigned.has(`${coords[idx].i},${coords[idx].j}`) && tries < coords.length) {
+            idx = (idx + 1) % coords.length;
+            tries++;
+          }
+          preassigned.set(`${coords[idx].i},${coords[idx].j}`, required[k]);
         }
 
         const typeCounts = Object.fromEntries(allTypeIds.map(t => [t, 0]));
