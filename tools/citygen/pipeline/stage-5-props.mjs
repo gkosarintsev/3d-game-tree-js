@@ -106,17 +106,32 @@ function generateLights(ctx, stageId, cfg) {
     }
   }
   for (let i = samples.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [samples[i], samples[j]] = [samples[j], samples[i]]; }
-  samples.sort((a, b) => b.w - a.w);
-
+  // Deterministic spatial spread: greedily pick samples maximizing distance to already placed lights.
+  const used = new Array(samples.length).fill(false);
   const lights = [];
   let skipped = 0;
-  for (const s of samples) {
-    if (lights.length >= budget) break;
+  const minSep = 18;
+  while (lights.length < budget) {
+    let bestIdx = -1;
+    let bestScore = -1;
+    for (let i = 0; i < samples.length; i++) {
+      if (used[i]) continue;
+      const s = samples[i];
+      // estimate both side candidates' feasibility roughly for scoring
+      let nearest = Infinity;
+      if (!lights.length) nearest = 1e9;
+      else for (const o of lights) nearest = Math.min(nearest, distXZ(o.position.x, o.position.z, s.x, s.z));
+      const score = nearest + s.w * 10; // spread first, slight center preference
+      if (score > bestScore) { bestScore = score; bestIdx = i; }
+    }
+    if (bestIdx < 0) break;
+    used[bestIdx] = true;
+    const s = samples[bestIdx];
     const side = (rng() < 0.5 ? -1 : 1);
     const lx = Math.round((s.x + s.nx * side * sideOffset) * 100) / 100;
     const lz = Math.round((s.z + s.nz * side * sideOffset) * 100) / 100;
     const ly = Math.round((s.y + height) * 100) / 100;
-    if (lights.some(o => distXZ(o.position.x, o.position.z, lx, lz) < 18)) { skipped++; continue; }
+    if (lights.some(o => distXZ(o.position.x, o.position.z, lx, lz) < minSep)) { skipped++; continue; }
     lights.push({ id: `sl_${lights.length + 1}`, type: 'point', position: { x: lx, y: ly, z: lz }, color: 0xffd8a8, intensity: 38, distance: 45 });
   }
   ctx.infrastructure.lights = lights;

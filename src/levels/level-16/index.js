@@ -88,6 +88,7 @@ export const LEVEL_16 = {
         "id": "0_1",
         "objects": {
           "buildings": 24,
+          "lights": 1,
           "props": 15,
           "roads": 1
         },
@@ -118,6 +119,7 @@ export const LEVEL_16 = {
         "id": "0_3",
         "objects": {
           "buildings": 2,
+          "lights": 1,
           "props": 15,
           "roads": 1
         },
@@ -201,6 +203,7 @@ export const LEVEL_16 = {
         "id": "1_4",
         "objects": {
           "buildings": 10,
+          "lights": 1,
           "props": 3,
           "roads": 2
         },
@@ -343,6 +346,7 @@ export const LEVEL_16 = {
         "id": "3_4",
         "objects": {
           "buildings": 146,
+          "lights": 1,
           "props": 14,
           "roads": 1
         },
@@ -411,7 +415,7 @@ export const LEVEL_16 = {
         "id": "4_4",
         "objects": {
           "buildings": 9,
-          "lights": 5,
+          "lights": 1,
           "props": 6,
           "roads": 32
         },
