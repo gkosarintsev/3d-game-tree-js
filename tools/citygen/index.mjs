@@ -10,6 +10,7 @@ import { makeStage1 } from './pipeline/stage-1-landscape.mjs';
 import { makeStage2 } from './pipeline/stage-2-transport.mjs';
 import { makeStage3 } from './pipeline/stage-3-districts.mjs';
 import { makeStage4 } from './pipeline/stage-4-buildings.mjs';
+import { makeStage5 } from './pipeline/stage-5-props.mjs';
 
 const STAGES = [
   stage('0_input_space', {}),
@@ -17,7 +18,7 @@ const STAGES = [
   makeStage2(),
   makeStage3(),
   makeStage4(),
-  stage('5_infrastructure_props', {}),
+  makeStage5(),
   stage('6_finalize_emit', {}),
 ];
 
@@ -25,9 +26,8 @@ export function runCitygen(raw) {
   const ctx = createContext(raw);
   // Allow generator.stages to disable/override in future; for now run all skeleton stages.
   for (const s of STAGES) runStage(s, ctx);
-  // Future: stages emit/transform ctx.engine into engine brief. For TASK-002 skeleton,
-  // preserve provided cityforge content so v4 briefs with embedded data compile as before.
-  ctx.engine = raw;
+  // Stages emit into ctx.input/ctx.engine; prefer transformed source for compilation.
+  if (!ctx.engine) ctx.engine = ctx.input ?? raw;
   finalizeReport(ctx.report);
   return { engine: ctx.engine, report: ctx.report, reportJson: reportToJson(ctx.report), ctx };
 }

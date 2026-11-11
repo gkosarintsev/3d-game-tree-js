@@ -44,7 +44,7 @@
     {
       "id": "5_infrastructure_props",
       "status": "ok",
-      "diagnostics": 1,
+      "diagnostics": 2,
       "repairs": 0,
       "drops": 0
     },
@@ -314,6 +314,15 @@
       "code": "stage_ok",
       "stage": "5_infrastructure_props",
       "message": "stage 5_infrastructure_props completed"
+    },
+    {
+      "severity": "info",
+      "code": "street_lights_generated",
+      "stage": "5_infrastructure_props",
+      "message": "generated street lights along roads",
+      "count": 3,
+      "budget": 8,
+      "skipped": 0
     },
     {
       "severity": "info",

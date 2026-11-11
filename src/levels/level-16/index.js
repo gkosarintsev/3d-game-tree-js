@@ -100,6 +100,7 @@ export const LEVEL_16 = {
         "id": "0_2",
         "objects": {
           "buildings": 17,
+          "lights": 1,
           "roads": 1
         },
         "rect": {
@@ -128,6 +129,7 @@ export const LEVEL_16 = {
         "id": "0_4",
         "objects": {
           "buildings": 5,
+          "lights": 1,
           "roads": 1
         },
         "rect": {
@@ -256,6 +258,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 5,
           "channels": 1,
+          "lights": 1,
           "roads": 1
         },
         "rect": {

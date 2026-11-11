@@ -332,7 +332,7 @@ export function compileCityforge(raw) {
     ],
     ...(waterways.length ? { waterways } : {}),
     tunnels,
-    lights: [],
+    lights: Array.isArray(raw.lights) ? raw.lights : [],
     gameplay: {
       goal: gp.goal ?? 'exit',
       spawn: { x: sx, z: sz },
