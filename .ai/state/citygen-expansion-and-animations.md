@@ -37,7 +37,8 @@
 - [~] C3: базовый каркас/состояния (частично) — процедурная визуальная анимация (dt, mesh-local, без влияния на симуляцию): human `Enemy` (idle/locomotion/attack lean, bob/sway, recoil/hit-flinch, reset при respawn/death) и `AlienEnemy` (bob/sway/lean, leap pose, hit-flinch от `hurt`, после `_syncMesh`, reset при death/respawn). Игрок-Чужой, приоритетный блендинг состояний и ассетный путь (GLB/`AnimationMixer`) не реализованы.
 
 ### M5 — Расширение и стабилизация
-- [ ] B4, C4–C5: тесты/perf/lifecycle/полировка (для анимаций — fallback/dispose/стриминг/визуальная проверка)
+- [~] C4 (частично): утилизация ресурсов в `dispose()`/смене уровня — добавлены `dispose()` для `Enemy`, `AlienEnemy`, `Enemies` (снятие со сцены, освобождение per-enemy материалов/геометрий UI). Fallback для отсутствующих клипов/ошибок загрузки (ассетный путь) — N/A, не реализован.
+- [ ] C5: проверки (визуальная ручная, отсутствие ошибок/утечек, совместимость со стримингом/lifecycle), B4, полировка
 
 ## Результаты M1/M2 (пилот гл.16, детерминированно, после M2 A3.2–A3.3)
 - Пересборка: `src/levels/level-16.json` → `src/levels/level-16/` + `generation-report.json`.
@@ -60,5 +61,6 @@
 - 2026-11-12: начат M2 — аудит баланса/деталей пилота гл.16, добавлен pass представительности районов в stage 4; выявлены `district_without_buildings` (campus/residential) из-за бюджетного насыщения и конфликтов easement-масок.
 - 2026-11-12: M2 A3.1/A3.2 (существенно) — нормализация бюджета/представительности (stage 4) и детерминированное распределение + гарантия всех типов/совместимости (stage 3) обеспечили в пилоте гл.16 **все 14 типов районов** (включая `suburb/market`) со зданиями и props, **0E/0W/13R/0D**, skeleton 1 компонента, luxury access **0.933**. Пилот/тесты/артефакты обновлены, node-gates зелёные.
 - 2026-11-12: M2 A3.3 (частично) — усилена детализация props (stage 5: budget 360, roadside/district-specific плотность и вариативность в существующих примитивах), пилот пересобран детерминированно. A3.4 perf-gate не выполнен (нет playwright/браузерного раннера).
-- 2026-11-12: M4 C1–C3 (частично) — аудит `src/enemies.js`/`src/alien.js`, черновик дизайна, процедурная визуальная анимация human `Enemy` и `AlienEnemy` (idle/locomotion/attack/leap, hit/recoil cues; mesh-local, после `_syncMesh`, без влияния на симуляцию/lifecycle). Остаются: C2/C3–C5 (игрок-Чужой, приоритеты/блендинг, ассетный путь GLB+`AnimationMixer`, fallback/dispose, проверки).
+- 2026-11-12: M4 C1–C3 (частично) — аудит `src/enemies.js`/`src/alien.js`, черновик дизайна, процедурная визуальная анимация human `Enemy` и `AlienEnemy` (idle/locomotion/attack/leap, hit/recoil cues; mesh-local, после `_syncMesh`, без влияния на симуляцию/lifecycle). Остаются: C2/C3–C5 (игрок-Чужой, приоритеты/блендинг, ассетный путь GLB+`AnimationMixer`, проверки).
+- 2026-11-12: M4 C4 (частично) — добавлены `dispose()` у `Enemy`/`AlienEnemy`/`Enemies` (lifecycle/освобождение ресурсов); fallback ассетных клипов N/A. C5 (ручные/стриминг/утечки проверки) не выполнялся.
 - 2026-11-12: M3 B1 (черновик) — спецификация прототипных шаблонов развязок (эстакада+пандусы, diamond/T-Y упрощ.), параметры/клиренсы/уклоны, интеграция stage 2 и валидация/repair/деградация. B2–B4 не начата (требует сложной реализации/валидации в stage 2/IR/nav). A3.4 perf-gate **blocked** (нет playwright/browser runner в среде).

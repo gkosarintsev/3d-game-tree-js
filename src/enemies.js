@@ -511,6 +511,19 @@ export class Enemy {
     const hit = this._ray.intersectSphere(this._sphere, this._hitPoint);
     if (hit && Math.random() < cfg.accuracy) player.takeDamage(cfg.damage);
   }
+
+  /** Освобождает ресурсы врага (смена уровня/пересоздание сцены). */
+  dispose() {
+    this.scene?.remove(this.group);
+    this.scene?.remove(this._hpBar);
+    if (this._hpBar) {
+      this._hpBar.traverse(o => {
+        if (o.geometry) o.geometry.dispose?.();
+        if (o.material) o.material.dispose?.();
+      });
+    }
+    this.mesh?.material?.dispose?.();
+  }
 }
 
 /**
@@ -772,6 +785,13 @@ export class AlienEnemy extends AlienBody {
     this._basis.makeBasis(this._xAxis, this.up, this._zAxis);
     this.group.quaternion.setFromRotationMatrix(this._basis);
   }
+
+  /** Освобождает ресурсы врага (смена уровня/пересоздание сцены). */
+  dispose() {
+    this.scene?.remove(this.group);
+    this.mesh?.material?.dispose?.();
+    this.material = null;
+  }
 }
 
 /**
@@ -918,5 +938,11 @@ export class Enemies {
   /** Живые враги в собранном районе — для миникарты. */
   forEachVisible(fn) {
     for (const enemy of this.items) if (!enemy.dead && !enemy.offstage) fn(enemy.position);
+  }
+
+  /** Снимает врагов со сцены и освобождает их ресурсы (перезагрузка/смена главы). */
+  dispose() {
+    for (const e of this.items) e.dispose?.();
+    this.items.length = 0;
   }
 }
