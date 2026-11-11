@@ -80,20 +80,58 @@ export function makeStage3() {
       if (!ctx.districts.length) {
         const grid = size >= 1024 ? 4 : 3; // coarse planning grid
         const cell = size / grid;
-        const typeIds = Object.keys(profiles);
+        const allTypeIds = Object.keys(profiles);
         const assigned = new Map(); // key "i,j" -> type
         const districts = [];
+
+        // Ensure a diverse baseline mix for MVP (>=6 target types when possible).
+        const preferred = ['office', 'residential', 'park', 'industrial', 'slums', 'forest', 'parking', 'sports', 'luxury']
+          .filter(t => profiles[t]);
+        const required = preferred.slice(0, Math.min(preferred.length, grid * grid));
+        const coords = [];
+        for (let j = 0; j < grid; j++) for (let i = 0; i < grid; i++) coords.push({ i, j });
+        // deterministic shuffle of coords
+        for (let k = coords.length - 1; k > 0; k--) {
+          const r = Math.floor(rng() * (k + 1));
+          [coords[k], coords[r]] = [coords[r], coords[k]];
+        }
+        const preassigned = new Map();
+        for (let k = 0; k < required.length && k < coords.length; k++) {
+          preassigned.set(`${coords[k].i},${coords[k].j}`, required[k]);
+        }
+
+        const typeCounts = Object.fromEntries(allTypeIds.map(t => [t, 0]));
         for (let j = 0; j < grid; j++) {
           for (let i = 0; i < grid; i++) {
+            const key = `${i},${j}`;
             const neighbors = [];
             if (i > 0) neighbors.push(assigned.get(`${i-1},${j}`));
             if (j > 0) neighbors.push(assigned.get(`${i},${j-1}`));
             const nTypes = neighbors.filter(Boolean);
             let candidates = compatibleTypes(nTypes, profiles);
-            if (!candidates.length) candidates = typeIds.slice();
-            // bias: place parking/office nearer spawn-ish edge, park/forest variety, keep distribution
-            const type = weightedPick(rng, candidates, profiles);
-            assigned.set(`${i},${j}`, type);
+            if (!candidates.length) candidates = allTypeIds.slice();
+
+            let type = preassigned.get(key);
+            if (!type || !profiles[type] || !candidates.includes(type)) {
+              // weighted pick with mild balancing: prefer underrepresented types
+              let total = 0;
+              const weights = candidates.map(id => {
+                const base = Math.max(0, Number(profiles[id]?.weight ?? 1));
+                const count = typeCounts[id] || 0;
+                const balance = 1 / (1 + count * 0.6);
+                const w = base * balance;
+                total += w;
+                return { id, w };
+              });
+              let r = rng() * (total || 1), picked = candidates[0];
+              for (const it of weights) { r -= it.w; if (r <= 0) { picked = it.id; break; } }
+              type = picked;
+            }
+            // if compatibility rejected preassigned, try to keep it by fallback search
+            if (!candidates.includes(type)) type = weightedPick(rng, candidates, profiles);
+
+            assigned.set(key, type);
+            typeCounts[type] = (typeCounts[type] || 0) + 1;
             const minX = -half + i * cell, maxX = minX + cell;
             const minZ = -half + j * cell, maxZ = minZ + cell;
             districts.push({
@@ -107,7 +145,7 @@ export function makeStage3() {
           }
         }
         ctx.districts = districts;
-        ctx.report.diagnostics.push(info('districts_generated', stageId, 'auto-generated district grid', { count: districts.length, grid, types: [...new Set(districts.map(d=>d.type))].sort() }));
+        ctx.report.diagnostics.push(info('districts_generated', stageId, 'auto-generated district grid', { count: districts.length, grid, types: [...new Set(districts.map(d=>d.type))].sort(), counts: typeCounts }));
       } else {
         // Normalize declared districts minimally
         ctx.districts = ctx.districts.map((d, idx) => ({ id: d.id ?? `district_${idx}`, type: d.type ?? d.profileId ?? 'office', profileId: d.profileId ?? d.type ?? 'office', priority: d.priority ?? 0, ...d }));
