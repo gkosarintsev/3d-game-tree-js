@@ -537,8 +537,15 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(fin?.propsByDistrictType && typeof fin.propsByDistrictType === 'object', 'pilot finalize_counts should include propsByDistrictType');
   assert.ok(fin?.roadAccessByType && typeof fin.roadAccessByType === 'object', 'pilot finalize_counts should include roadAccessByType');
   assert.equal(fin?.roadComponents, 1, 'pilot road graph should be connected');
-  assert.equal(fin?.roadSegments, 135);
-  assert.equal(fin?.roadNodes, 111);
+  assert.equal(fin?.roadSegments, 134);
+  assert.equal(fin?.roadNodes, 110);
+  assert.equal(fin?.buildings, 400);
+  assert.equal(fin?.props, 320);
+  assert.equal(fin?.lights, 8);
+  // M1 expansion: pilot should include newly added district/building variety.
+  assert.ok(Array.isArray(fin?.districtTypes) && fin.districtTypes.includes('commercial') && fin.districtTypes.includes('campus') && fin.districtTypes.includes('market') && fin.districtTypes.includes('old_town'));
+  assert.ok(fin?.propsByDistrictType?.commercial > 0 && fin?.propsByDistrictType?.campus > 0 && fin?.propsByDistrictType?.market > 0 && fin?.propsByDistrictType?.old_town > 0);
+  assert.ok(fin?.buildingsByDistrictType?.commercial > 0 && fin?.buildingsByDistrictType?.market > 0 && fin?.buildingsByDistrictType?.old_town > 0);
 });
 
 test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {

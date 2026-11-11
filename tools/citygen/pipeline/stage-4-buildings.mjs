@@ -118,11 +118,61 @@ function footprintNearAnchors(fp, anchors = [], margin = 8) {
   return false;
 }
 
-function materialFor(profile, rng) {
+function materialFor(profile, kind, rng) {
+  const ARCH_MATS = {
+    office_tower: ['glass_and_concrete', 'concrete'],
+    office_mid: ['glass_and_concrete', 'concrete', 'painted_brick'],
+    apartment_block: ['painted_brick', 'concrete'],
+    residential_low: ['painted_brick', 'stone_base'],
+    residential_mid: ['painted_brick', 'concrete'],
+    townhouse: ['painted_brick', 'stone_base'],
+    cottage: ['painted_brick', 'stone_base'],
+    villa: ['stone_base', 'glass_and_concrete', 'painted_brick'],
+    historic_block: ['stone_base', 'painted_brick'],
+    shop_row: ['painted_brick', 'concrete', 'glass_and_concrete'],
+    mall: ['concrete', 'glass_and_concrete'],
+    market_hall: ['painted_brick', 'rusted_metal', 'concrete'],
+    warehouse: ['concrete', 'rusted_metal'],
+    factory: ['concrete', 'rusted_metal'],
+    workshop: ['concrete', 'rusted_metal', 'painted_brick'],
+    sports_hall: ['concrete', 'glass_and_concrete'],
+    pavilion: ['painted_brick', 'concrete'],
+    campus_hall: ['concrete', 'painted_brick', 'glass_and_concrete'],
+    shack: ['rusted_metal', 'painted_brick'],
+    booth: ['concrete', 'painted_brick'],
+  };
+  const km = ARCH_MATS[kind];
+  if (Array.isArray(km) && km.length) return pick(km, rng);
   const mats = profile?.buildings?.materials;
   if (Array.isArray(mats) && mats.length) return pick(mats, rng);
   return 'concrete';
 }
+
+const ARCHETYPES = {
+  office_tower:    { floors: [10, 20], floorHeight: [3.5, 3.8], scale: [0.45, 0.62], aspect: [0.7, 1.3] },
+  office_mid:      { floors: [4, 9],   floorHeight: [3.4, 3.7], scale: [0.5, 0.72],  aspect: [0.75, 1.35] },
+  apartment_block: { floors: [4, 9],   floorHeight: [3.1, 3.4], scale: [0.58, 0.78], aspect: [1.2, 2.1] },
+  residential_low: { floors: [1, 3],   floorHeight: [3.0, 3.3], scale: [0.45, 0.68], aspect: [0.8, 1.4] },
+  residential_mid: { floors: [3, 7],   floorHeight: [3.1, 3.4], scale: [0.5, 0.72],  aspect: [0.85, 1.5] },
+  townhouse:       { floors: [2, 4],   floorHeight: [3.0, 3.3], scale: [0.42, 0.62], aspect: [0.55, 0.95] },
+  cottage:         { floors: [1, 2],   floorHeight: [3.0, 3.3], scale: [0.38, 0.58], aspect: [0.75, 1.35] },
+  villa:           { floors: [1, 3],   floorHeight: [3.2, 3.6], scale: [0.4, 0.6],   aspect: [0.8, 1.25] },
+  historic_block:  { floors: [2, 5],   floorHeight: [3.2, 3.5], scale: [0.52, 0.72], aspect: [0.7, 1.2] },
+  shop_row:        { floors: [1, 3],   floorHeight: [3.4, 3.8], scale: [0.55, 0.78], aspect: [1.4, 2.4] },
+  mall:            { floors: [1, 3],   floorHeight: [4.0, 5.0], scale: [0.68, 0.86], aspect: [0.9, 1.6] },
+  market_hall:     { floors: [1, 2],   floorHeight: [3.8, 4.6], scale: [0.58, 0.8],  aspect: [0.9, 1.5] },
+  warehouse:       { floors: [1, 2],   floorHeight: [4.5, 6.0], scale: [0.65, 0.86], aspect: [1.0, 1.8] },
+  factory:         { floors: [1, 3],   floorHeight: [4.5, 6.5], scale: [0.66, 0.86], aspect: [1.0, 1.9] },
+  workshop:        { floors: [1, 2],   floorHeight: [3.8, 4.8], scale: [0.5, 0.74],  aspect: [0.8, 1.5] },
+  sports_hall:     { floors: [1, 2],   floorHeight: [5.0, 7.0], scale: [0.62, 0.84], aspect: [0.9, 1.5] },
+  pavilion:        { floors: [1, 1],   floorHeight: [3.2, 4.0], scale: [0.35, 0.55], aspect: [0.8, 1.3] },
+  campus_hall:     { floors: [2, 5],   floorHeight: [3.6, 4.2], scale: [0.58, 0.8],  aspect: [0.9, 1.7] },
+  shack:           { floors: [1, 2],   floorHeight: [2.8, 3.2], scale: [0.38, 0.58], aspect: [0.7, 1.5] },
+  booth:           { floors: [1, 1],   floorHeight: [2.8, 3.2], scale: [0.18, 0.32], aspect: [0.7, 1.4] },
+};
+
+function rangePick([a, b], rng) { return a + rng() * (b - a); }
+function rangePickInt([a, b], rng) { return a + Math.floor(rng() * (b - a + 1)); }
 
 export function makeStage4() {
   return {
@@ -187,8 +237,9 @@ export function makeStage4() {
       const placedByType = Object.create(null);
       // Soft per-type budget shares to avoid one district type consuming the whole building budget.
       const typeShare = {
-        office: 0.16, residential: 0.2, luxury: 0.14, industrial: 0.1, slums: 0.14,
-        parking: 0.08, sports: 0.08, park: 0.06, forest: 0.04,
+        office: 0.11, residential: 0.14, luxury: 0.1, industrial: 0.08, slums: 0.08,
+        parking: 0.06, sports: 0.06, park: 0.05, forest: 0.04,
+        commercial: 0.08, suburb: 0.08, old_town: 0.05, campus: 0.04, market: 0.05,
       };
       const typeTarget = (t) => Math.max(4, Math.round(budget * (typeShare[t] ?? 0.08)));
 
@@ -212,15 +263,28 @@ export function makeStage4() {
         // Road-access metrics used by archetype, scale and placement chance.
         const roadDist = Number.isFinite(p?.access?.roadDist) ? p.access.roadDist : minDistanceToRoadSegments(cx, cz, roadSegments);
         const nearRoad = Number.isFinite(roadDist) && roadDist < 70;
-        let scaleBase = kinds.length ? (0.55 + rng() * 0.35) : 0.4;
-        if (p.type === 'industrial') scaleBase = 0.65 + rng() * 0.28;
-        else if (p.type === 'office') scaleBase = nearRoad ? (0.58 + rng() * 0.3) : (0.5 + rng() * 0.28);
-        else if (p.type === 'slums') scaleBase = 0.45 + rng() * 0.35;
-        else if (p.type === 'park' || p.type === 'forest') scaleBase = 0.35 + rng() * 0.25;
+        // RNG: consume kind/shape seeds deterministically per eligible attempt before conflict checks.
+        const kind = kinds.length ? pick(kinds, rng) : 'generic';
+        const arch = ARCHETYPES[kind] || null;
+        let scaleBase = arch ? rangePick(arch.scale, rng) : (kinds.length ? (0.55 + rng() * 0.35) : 0.4);
+        if (!arch) {
+          if (p.type === 'industrial') scaleBase = 0.65 + rng() * 0.28;
+          else if (p.type === 'office') scaleBase = nearRoad ? (0.58 + rng() * 0.3) : (0.5 + rng() * 0.28);
+          else if (p.type === 'slums') scaleBase = 0.45 + rng() * 0.35;
+          else if (p.type === 'park' || p.type === 'forest') scaleBase = 0.35 + rng() * 0.25;
+          else if (p.type === 'suburb') scaleBase = 0.4 + rng() * 0.22;
+          else if (p.type === 'commercial' || p.type === 'market') scaleBase = 0.56 + rng() * 0.28;
+          else if (p.type === 'campus' || p.type === 'old_town') scaleBase = 0.5 + rng() * 0.28;
+        }
+        const aspect = arch ? rangePick(arch.aspect, rng) : (0.8 + rng() * 0.6);
         let footprint = null;
         for (const scaleMul of [1, 0.82, 0.68]) {
-          const w = clamp(maxW * scaleBase * scaleMul, 4, maxW);
-          const d = clamp(maxD * scaleBase * scaleMul, 4, maxD);
+          const s = scaleBase * scaleMul;
+          let w = clamp(maxW * s * Math.sqrt(Math.max(0.4, aspect)), 4, maxW);
+          let d = clamp(maxD * s / Math.sqrt(Math.max(0.4, aspect)), 4, maxD);
+          // If aspect pushes out of bounds, rebalance.
+          if (w >= maxW - 0.01) d = clamp(maxD * s * s / (w / maxW || 1), 4, maxD);
+          if (d >= maxD - 0.01) w = clamp(maxW * s * s / (d / maxD || 1), 4, maxW);
           const fp = footprintRect(cx, cz, w, d);
           const riverIndex = (rivers === (ctx.hydrology?.rivers ?? null) || rivers === (ctx.masks?.easement?.rivers ?? null)) ? (ctx.spatial?.riverSegments ?? null) : null;
           if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers, riverIndex) || footprintIntersectsRoad(fp, roads, roadSegments, ctx.spatial?.roadEasements)) continue;
@@ -235,7 +299,7 @@ export function makeStage4() {
         // Road-access bias: prefer parcels closer to emitted road network for built-up districts.
         let accessChance = chance;
         if (Number.isFinite(roadDist) && roadDist !== Infinity) {
-          const needsAccess = ['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports'].includes(p.type);
+          const needsAccess = ['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports', 'commercial', 'old_town', 'campus', 'market'].includes(p.type);
           if (needsAccess) {
             if (roadDist < 60) accessChance = Math.min(0.97, chance + 0.2);
             else if (roadDist < 140) accessChance = Math.min(0.85, chance + 0.08);
@@ -243,6 +307,11 @@ export function makeStage4() {
           } else if (p.type === 'park' || p.type === 'forest') {
             if (roadDist > 120) accessChance = Math.min(0.92, chance + 0.06);
             if (roadDist < 50 && rng() < 0.5) accessChance *= 0.5; // keep parks/forest more open near roads
+          } else if (p.type === 'suburb') {
+            // low-density, prefers some setback but still reachable
+            if (roadDist < 70) accessChance = Math.min(0.8, chance + 0.08);
+            else if (roadDist < 180) accessChance = Math.min(0.65, chance + 0.02);
+            else accessChance = Math.max(0.08, chance - 0.1);
           }
         }
         // Chunk load balancing (TASK-006/008): discourage concentration in a single stream chunk.
@@ -265,31 +334,16 @@ export function makeStage4() {
         if (remaining < 60 && tcount < Math.floor(ttarget * 0.5)) accessChance = Math.min(0.98, accessChance * 1.2);
         if (rng() > accessChance) return false;
 
-        // District archetypes: height/density by type and road proximity.
-        const maxFloors = Math.max(1, Number(profile.buildings?.maxFloors ?? 4));
-        let floors = 1;
-        if (p.type === 'office') {
-          floors = nearRoad ? (6 + Math.floor(rng() * Math.max(1, maxFloors - 5))) : (3 + Math.floor(rng() * 6));
-          if (rng() < 0.2) floors = Math.max(floors, Math.min(maxFloors, 10 + Math.floor(rng() * 8)));
-        } else if (p.type === 'luxury') {
-          floors = nearRoad ? (4 + Math.floor(rng() * 7)) : (2 + Math.floor(rng() * 5));
-        } else if (p.type === 'residential') {
-          floors = nearRoad ? (2 + Math.floor(rng() * 5)) : (1 + Math.floor(rng() * 4));
-        } else if (p.type === 'industrial') {
-          floors = 1 + Math.floor(rng() * Math.min(maxFloors, 3));
-        } else if (p.type === 'slums') {
-          floors = 1 + Math.floor(rng() * Math.min(maxFloors, 3));
-        } else if (p.type === 'sports') {
-          floors = 1 + Math.floor(rng() * Math.min(maxFloors, 2));
-        } else if (p.type === 'parking') {
-          floors = rng() < 0.15 ? 2 : 1;
-        } else if (p.type === 'park' || p.type === 'forest') {
-          floors = 1;
-        } else {
-          floors = 1 + Math.floor(rng() * Math.min(maxFloors, 4));
-        }
+        // District archetypes: parametric footprint/height/material (kind/shape seeded above).
+        const maxFloors = Math.max(1, Number(profile.buildings?.maxFloors ?? (arch ? arch.floors[1] : 4)));
+        let floors = arch ? rangePickInt(arch.floors, rng) : (1 + Math.floor(rng() * Math.min(maxFloors, 4)));
+        if (p.type === 'office' && nearRoad) floors = Math.max(floors, Math.min(maxFloors, 6 + Math.floor(rng() * 6)));
+        if (p.type === 'office' && rng() < 0.12) floors = Math.max(floors, Math.min(maxFloors, 12 + Math.floor(rng() * 8)));
+        if ((p.type === 'park' || p.type === 'forest') && kinds.length) floors = Math.min(floors, 2);
         floors = clamp(floors, 1, maxFloors);
-        const floorHeight = p.type === 'industrial' ? 4.5 : (p.type === 'office' ? 3.6 : 3.3);
+        let floorHeight = arch ? +rangePick(arch.floorHeight, rng).toFixed(2) : 3.3;
+        if (p.type === 'industrial' && floorHeight < 4.2) floorHeight = +(4.2 + rng() * 1.2).toFixed(2);
+        if ((p.type === 'sports' || p.type === 'campus') && floorHeight < 3.8) floorHeight = +(3.8 + rng() * 1.4).toFixed(2);
         const id = `b_${p.districtId}_${placed + 1}`;
         out.push({
           id,
@@ -298,7 +352,7 @@ export function makeStage4() {
           floorsCount: floors,
           floorHeight,
           foundation: 'terrain',
-          facadeMaterial: materialFor(profile, rng),
+          facadeMaterial: materialFor(profile, kind, rng),
           footprint,
           rooms: [],
           stairs: [],

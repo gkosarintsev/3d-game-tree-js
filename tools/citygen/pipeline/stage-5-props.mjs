@@ -318,7 +318,11 @@ function generateProps(ctx, stageId, cfg) {
   const totalParcels = Math.max(1, parcelOrder.length);
   const districtBudget = Math.max(0, budget - out.length);
   // Type weights bias greenery/sports/public areas a bit while keeping parcel-proportional balance.
-  const typeWeight = (t) => ({ park: 1.35, forest: 1.2, sports: 1.15, residential: 1.0, luxury: 1.0, office: 0.95, slums: 0.95, industrial: 0.8, parking: 0.75 }[t] ?? 1.0);
+  const typeWeight = (t) => ({
+    park: 1.35, forest: 1.2, sports: 1.15, campus: 1.1, commercial: 1.05, market: 1.05,
+    residential: 1.0, luxury: 1.0, suburb: 1.0, old_town: 1.0,
+    office: 0.95, slums: 0.95, industrial: 0.8, parking: 0.75,
+  }[t] ?? 1.0);
   const typeQuota = new Map();
   let quotaSum = 0;
   for (const [t, n] of parcelsByType.entries()) {
@@ -380,12 +384,28 @@ function generateProps(ctx, stageId, cfg) {
       if (type === 'park' && rng() < 0.5) placeDistrictProp('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.48, (b.maxZ - b.minZ) * 0.48, 4, () => rng() * 360, () => { const s = 0.8 + rng() * 0.45; return { x: s, y: s, z: s }; }, 5.2, 3.2, type);
       if (type === 'park' && rng() < 0.25) placeDistrictProp(pick(['bollard', 'bench'], rng), cx, cz, baseY, 10, 10, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 5.0, 3.2, type);
       if (type === 'forest' && rng() < 0.35) placeDistrictProp(pick(['wire_spool', 'barrier', 'tree'], rng), cx, cz, baseY, 12, 12, 3, () => rng() * 360, () => { const s = 0.75 + rng() * 0.4; return { x: s, y: s, z: s }; }, 5.0, 3.0, type);
-    } else if (type === 'residential' || type === 'luxury' || type === 'office') {
-      if (rng() < 0.5) placeDistrictProp('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.38, (b.maxZ - b.minZ) * 0.38, 4, () => rng() * 360, { x: 0.9, y: 0.9, z: 0.9 }, 4.8, 3.8, type);
-      if (rng() < 0.4) placeDistrictProp('bench', cx, cz, baseY, (b.maxX - b.minX) * 0.32, (b.maxZ - b.minZ) * 0.32, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.2, type);
+    } else if (type === 'residential' || type === 'luxury' || type === 'office' || type === 'suburb') {
+      if (rng() < (type === 'suburb' ? 0.7 : 0.5)) placeDistrictProp('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.38, (b.maxZ - b.minZ) * 0.38, 4, () => rng() * 360, { x: 0.9, y: 0.9, z: 0.9 }, 4.8, 3.8, type);
+      if (rng() < (type === 'suburb' ? 0.45 : 0.4)) placeDistrictProp('bench', cx, cz, baseY, (b.maxX - b.minX) * 0.32, (b.maxZ - b.minZ) * 0.32, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.2, type);
       if ((type === 'office' || type === 'luxury') && rng() < 0.3) placeDistrictProp(pick(['bollard', 'ac_unit', 'vent'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.5, 3, type);
       if (type === 'luxury' && rng() < 0.22) placeDistrictProp(pick(['antenna', 'av_pad'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.25, (b.maxZ - b.minZ) * 0.25, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5, type);
       if (type === 'office' && rng() < 0.22) placeDistrictProp(pick(['ac_unit', 'vent', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.25, (b.maxZ - b.minZ) * 0.25, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5, type);
+      if (type === 'suburb' && rng() < 0.2) placeDistrictProp(pick(['barrier', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.28, (b.maxZ - b.minZ) * 0.28, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
+    } else if (type === 'commercial') {
+      if (rng() < 0.45) placeDistrictProp(pick(['bench', 'tree', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.34, (b.maxZ - b.minZ) * 0.34, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
+      if (rng() < 0.35) placeDistrictProp(pick(['market_stall', 'ac_unit', 'vent'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.28, (b.maxZ - b.minZ) * 0.28, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
+      if (rng() < 0.18) placeDistrictProp(pick(['antenna', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.22, (b.maxZ - b.minZ) * 0.22, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5, type);
+    } else if (type === 'old_town') {
+      if (rng() < 0.55) placeDistrictProp(pick(['bench', 'tree', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.34, (b.maxZ - b.minZ) * 0.34, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.0, type);
+      if (rng() < 0.35) placeDistrictProp(pick(['market_stall', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.26, (b.maxZ - b.minZ) * 0.26, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.0, type);
+    } else if (type === 'campus') {
+      if (rng() < 0.6) placeDistrictProp('tree', cx, cz, baseY, (b.maxX - b.minX) * 0.42, (b.maxZ - b.minZ) * 0.42, 4, () => rng() * 360, { x: 0.95, y: 0.95, z: 0.95 }, 5.0, 3.6, type);
+      if (rng() < 0.45) placeDistrictProp(pick(['bench', 'bollard'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.34, (b.maxZ - b.minZ) * 0.34, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.4, type);
+      if (rng() < 0.2) placeDistrictProp(pick(['av_pad', 'vent'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.22, (b.maxZ - b.minZ) * 0.22, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.6, type);
+    } else if (type === 'market') {
+      if (rng() < 0.6) placeDistrictProp(pick(['market_stall', 'container', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.34, (b.maxZ - b.minZ) * 0.34, 4, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
+      if (rng() < 0.35) placeDistrictProp(pick(['bench', 'bollard', 'tree'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.28, (b.maxZ - b.minZ) * 0.28, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.6, 3.2, type);
+      if (rng() < 0.18) placeDistrictProp(pick(['wire_spool', 'water_tank'], rng), cx, cz, baseY, 10, 10, 2, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 3.5, type);
     } else if (type === 'industrial' || type === 'parking') {
       if (rng() < 0.55) placeDistrictProp(pick(['container', 'barrier', 'wire_spool', 'water_tank'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.3, (b.maxZ - b.minZ) * 0.3, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.8, 4, type);
       if (type === 'parking' && rng() < 0.45) placeDistrictProp(pick(['bollard', 'barrier'], rng), cx, cz, baseY, (b.maxX - b.minX) * 0.4, (b.maxZ - b.minZ) * 0.4, 3, () => rng() * 360, { x: 1, y: 1, z: 1 }, 4.2, 3, type);

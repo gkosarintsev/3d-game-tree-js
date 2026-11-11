@@ -30,37 +30,52 @@ function minRoadDist(x, z, segments = []) {
 export const DEFAULT_PROFILES = {
   office: { id: 'office', label: 'Офисный', weight: 1.1, parcels: { min: 18, max: 42, coverage: 0.55 }, buildings: { kinds: ['office_tower', 'office_mid'], maxFloors: 20, materials: ['glass_and_concrete', 'concrete'] } },
   park: { id: 'park', label: 'Парк', weight: 0.9, parcels: { min: 24, max: 64, coverage: 0.12 }, buildings: { kinds: ['pavilion'], maxFloors: 2, materials: ['painted_brick', 'concrete'] } },
-  industrial: { id: 'industrial', label: 'Промышленный', weight: 1.0, parcels: { min: 24, max: 56, coverage: 0.45 }, buildings: { kinds: ['warehouse', 'factory'], maxFloors: 5, materials: ['concrete', 'rusted_metal'] } },
+  industrial: { id: 'industrial', label: 'Промышленный', weight: 1.0, parcels: { min: 24, max: 56, coverage: 0.45 }, buildings: { kinds: ['warehouse', 'factory', 'workshop'], maxFloors: 5, materials: ['concrete', 'rusted_metal'] } },
   luxury: { id: 'luxury', label: 'Лакшери', weight: 0.8, parcels: { min: 18, max: 38, coverage: 0.38 }, buildings: { kinds: ['residential_mid', 'villa'], maxFloors: 14, materials: ['stone_base', 'glass_and_concrete'] } },
-  residential: { id: 'residential', label: 'Жилой', weight: 1.0, parcels: { min: 14, max: 30, coverage: 0.42 }, buildings: { kinds: ['residential_low', 'residential_mid'], maxFloors: 9, materials: ['painted_brick', 'concrete'] } },
+  residential: { id: 'residential', label: 'Жилой', weight: 1.0, parcels: { min: 14, max: 30, coverage: 0.42 }, buildings: { kinds: ['residential_low', 'residential_mid', 'apartment_block'], maxFloors: 9, materials: ['painted_brick', 'concrete'] } },
   slums: { id: 'slums', label: 'Трущобы', weight: 0.7, parcels: { min: 10, max: 22, coverage: 0.5 }, buildings: { kinds: ['shack', 'residential_low'], maxFloors: 3, materials: ['rusted_metal', 'painted_brick'] } },
   forest: { id: 'forest', label: 'Лес/поле', weight: 0.8, parcels: { min: 30, max: 80, coverage: 0.04 }, buildings: { kinds: [], maxFloors: 1, materials: [] } },
   parking: { id: 'parking', label: 'Парковки', weight: 0.8, parcels: { min: 22, max: 56, coverage: 0.08 }, buildings: { kinds: ['booth'], maxFloors: 2, materials: ['concrete'] } },
   sports: { id: 'sports', label: 'Спорт', weight: 0.6, parcels: { min: 26, max: 60, coverage: 0.2 }, buildings: { kinds: ['sports_hall', 'pavilion'], maxFloors: 3, materials: ['concrete', 'glass_and_concrete'] } },
+  commercial: { id: 'commercial', label: 'Коммерческий', weight: 0.9, parcels: { min: 16, max: 36, coverage: 0.48 }, buildings: { kinds: ['mall', 'shop_row', 'office_mid'], maxFloors: 8, materials: ['glass_and_concrete', 'painted_brick', 'concrete'] } },
+  suburb: { id: 'suburb', label: 'Пригород', weight: 0.9, parcels: { min: 18, max: 40, coverage: 0.28 }, buildings: { kinds: ['cottage', 'townhouse', 'residential_low'], maxFloors: 3, materials: ['painted_brick', 'stone_base'] } },
+  old_town: { id: 'old_town', label: 'Старый город', weight: 0.7, parcels: { min: 12, max: 26, coverage: 0.5 }, buildings: { kinds: ['townhouse', 'historic_block', 'shop_row'], maxFloors: 5, materials: ['stone_base', 'painted_brick'] } },
+  campus: { id: 'campus', label: 'Кампус', weight: 0.6, parcels: { min: 28, max: 64, coverage: 0.22 }, buildings: { kinds: ['campus_hall', 'pavilion', 'office_mid'], maxFloors: 5, materials: ['concrete', 'glass_and_concrete', 'painted_brick'] } },
+  market: { id: 'market', label: 'Рынок', weight: 0.7, parcels: { min: 14, max: 32, coverage: 0.42 }, buildings: { kinds: ['market_hall', 'shop_row', 'shack'], maxFloors: 3, materials: ['painted_brick', 'rusted_metal', 'concrete'] } },
 };
 
 const COMPAT = {
-  office: new Set(['office', 'parking', 'luxury', 'residential', 'park', 'industrial', 'sports']),
-  park: new Set(['park', 'luxury', 'residential', 'office', 'forest', 'sports', 'parking']),
-  industrial: new Set(['industrial', 'parking', 'office', 'slums', 'forest']),
-  luxury: new Set(['luxury', 'park', 'office', 'residential', 'parking', 'sports']),
-  residential: new Set(['residential', 'luxury', 'park', 'office', 'parking', 'sports', 'slums', 'forest']),
-  slums: new Set(['slums', 'industrial', 'residential', 'parking', 'forest']),
-  forest: new Set(['forest', 'park', 'residential', 'industrial', 'slums', 'parking', 'sports', 'office', 'luxury']),
-  parking: new Set(['parking', 'office', 'industrial', 'luxury', 'park', 'residential', 'slums', 'sports', 'forest']),
-  sports: new Set(['sports', 'park', 'residential', 'office', 'luxury', 'parking', 'forest']),
+  office: new Set(['office', 'parking', 'luxury', 'residential', 'park', 'industrial', 'sports', 'commercial', 'campus', 'downtown']),
+  park: new Set(['park', 'luxury', 'residential', 'office', 'forest', 'sports', 'parking', 'suburb', 'campus', 'old_town']),
+  industrial: new Set(['industrial', 'parking', 'office', 'slums', 'forest', 'commercial', 'market']),
+  luxury: new Set(['luxury', 'park', 'office', 'residential', 'parking', 'sports', 'commercial', 'campus']),
+  residential: new Set(['residential', 'luxury', 'park', 'office', 'parking', 'sports', 'slums', 'forest', 'suburb', 'old_town', 'commercial', 'campus', 'market']),
+  slums: new Set(['slums', 'industrial', 'residential', 'parking', 'forest', 'market', 'old_town']),
+  forest: new Set(['forest', 'park', 'residential', 'industrial', 'slums', 'parking', 'sports', 'office', 'luxury', 'suburb', 'campus']),
+  parking: new Set(['parking', 'office', 'industrial', 'luxury', 'park', 'residential', 'slums', 'sports', 'forest', 'commercial', 'campus', 'market']),
+  sports: new Set(['sports', 'park', 'residential', 'office', 'luxury', 'parking', 'forest', 'campus', 'suburb']),
+  commercial: new Set(['commercial', 'office', 'residential', 'parking', 'luxury', 'industrial', 'market', 'old_town', 'campus']),
+  suburb: new Set(['suburb', 'residential', 'park', 'forest', 'sports', 'campus', 'old_town']),
+  old_town: new Set(['old_town', 'residential', 'commercial', 'market', 'park', 'suburb', 'slums', 'campus']),
+  campus: new Set(['campus', 'park', 'residential', 'office', 'sports', 'parking', 'suburb', 'commercial', 'luxury', 'forest', 'old_town']),
+  market: new Set(['market', 'commercial', 'residential', 'slums', 'industrial', 'parking', 'old_town']),
 };
 
 const FALLBACK_CHAINS = {
-  office: ['office', 'residential', 'luxury', 'parking', 'industrial', 'park'],
-  residential: ['residential', 'park', 'luxury', 'office', 'slums', 'parking', 'forest'],
-  park: ['park', 'forest', 'residential', 'sports', 'luxury', 'office', 'parking'],
-  industrial: ['industrial', 'parking', 'office', 'slums', 'forest'],
-  luxury: ['luxury', 'residential', 'park', 'office', 'parking', 'sports'],
-  slums: ['slums', 'residential', 'industrial', 'parking', 'forest'],
-  forest: ['forest', 'park', 'residential', 'sports', 'parking', 'industrial', 'slums', 'luxury', 'office'],
-  parking: ['parking', 'industrial', 'office', 'residential', 'sports', 'park', 'slums', 'forest'],
-  sports: ['sports', 'park', 'residential', 'office', 'luxury', 'parking', 'forest'],
+  office: ['office', 'commercial', 'residential', 'luxury', 'parking', 'industrial', 'park'],
+  residential: ['residential', 'suburb', 'park', 'luxury', 'office', 'old_town', 'slums', 'parking', 'forest'],
+  park: ['park', 'forest', 'residential', 'sports', 'suburb', 'luxury', 'office', 'campus', 'parking'],
+  industrial: ['industrial', 'parking', 'office', 'commercial', 'slums', 'forest'],
+  luxury: ['luxury', 'residential', 'park', 'office', 'commercial', 'parking', 'sports'],
+  slums: ['slums', 'market', 'residential', 'old_town', 'industrial', 'parking', 'forest'],
+  forest: ['forest', 'park', 'suburb', 'residential', 'sports', 'parking', 'industrial', 'slums', 'luxury', 'office'],
+  parking: ['parking', 'industrial', 'office', 'commercial', 'residential', 'sports', 'park', 'slums', 'forest'],
+  sports: ['sports', 'park', 'campus', 'residential', 'office', 'luxury', 'parking', 'suburb', 'forest'],
+  commercial: ['commercial', 'office', 'market', 'residential', 'old_town', 'parking', 'industrial', 'luxury'],
+  suburb: ['suburb', 'residential', 'park', 'forest', 'old_town', 'sports', 'campus'],
+  old_town: ['old_town', 'residential', 'commercial', 'market', 'suburb', 'park', 'slums'],
+  campus: ['campus', 'park', 'office', 'residential', 'sports', 'commercial', 'suburb', 'luxury'],
+  market: ['market', 'commercial', 'old_town', 'slums', 'residential', 'industrial', 'parking'],
 };
 
 function pickWithFallback(desired, candidates, profiles) {
@@ -123,16 +138,17 @@ export function makeStage3() {
         const assigned = new Map(); // key "i,j" -> type
         const districts = [];
 
-        // Ensure a diverse baseline mix for MVP (>=6 target types when possible).
-        const core = ['office', 'residential', 'park', 'industrial', 'slums', 'forest', 'parking', 'sports', 'luxury'];
+        // Ensure a diverse baseline mix (core + expansion types) when possible.
+        const core = ['office', 'residential', 'park', 'industrial', 'slums', 'forest', 'parking', 'sports', 'luxury', 'commercial', 'suburb', 'old_town', 'campus', 'market'];
         const preferred = core.filter(t => profiles[t]);
-        // Guarantee a broad core set first, then fill remaining slots from preferred.
+        // Guarantee a broad baseline set first, then fill remaining slots from preferred.
         const requiredSet = new Set();
-        for (const t of ['office', 'residential', 'park', 'industrial', 'slums', 'forest']) if (profiles[t]) requiredSet.add(t);
+        for (const t of ['office', 'residential', 'park', 'industrial', 'slums', 'forest', 'commercial', 'suburb']) if (profiles[t]) requiredSet.add(t);
         for (const t of preferred) { if (requiredSet.size >= Math.min(preferred.length, grid * grid)) break; requiredSet.add(t); }
         const required = [...requiredSet];
         const targetCounts = {
-          office: 2, residential: 2, park: 2, industrial: 2, slums: 1, forest: 1, parking: 2, sports: 2, luxury: 2,
+          office: 1, residential: 2, park: 1, industrial: 1, slums: 1, forest: 1, parking: 1, sports: 1, luxury: 1,
+          commercial: 1, suburb: 2, old_town: 1, campus: 1, market: 1,
         };
         const coords = [];
         for (let j = 0; j < grid; j++) for (let i = 0; i < grid; i++) coords.push({ i, j });
@@ -148,8 +164,8 @@ export function makeStage3() {
 
         const typeCounts = Object.fromEntries(allTypeIds.map(t => [t, 0]));
         const roadSegments = ctx.networks?.roads?.segments ?? [];
-        const roadNeedy = new Set(['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports']);
-        const roadAverse = new Set(['forest', 'park']);
+        const roadNeedy = new Set(['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports', 'commercial', 'old_town', 'campus', 'market']);
+        const roadAverse = new Set(['forest', 'park', 'suburb']);
         for (let j = 0; j < grid; j++) {
           for (let i = 0; i < grid; i++) {
             const key = `${i},${j}`;
@@ -277,7 +293,7 @@ export function makeStage3() {
       // Generate parcels per district (simple subdivision of rect geometry/cells)
       const parcels = [];
       const roadSegments = ctx.networks?.roads?.segments ?? [];
-      const roadNeedyTypes = new Set(['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports']);
+      const roadNeedyTypes = new Set(['office', 'residential', 'luxury', 'industrial', 'slums', 'parking', 'sports', 'commercial', 'old_town', 'campus', 'market']);
       const rivers = [
         ...(ctx.hydrology?.rivers ?? []),
         ...(ctx.input?.cityforge?.hydrology?.rivers ?? []),
