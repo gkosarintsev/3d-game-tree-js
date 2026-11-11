@@ -301,19 +301,39 @@ function generateCityforge(raw, sourceName, opts = {}) {
       out = null;
       continue;
     }
-    // Drop generated landscapeObjects that normalize warns about (support mismatch, hidden, etc.)
-    // so committed pilot stays parser-warning-free.
+    // Repair generated landscapeObjects warned by normalize (support mismatch, hidden, etc.)
+    // so committed pilot stays parser-warning-free. Prefer snapping y for "position.y ... не совпадает с опорой";
+    // drop only when not safely fixable.
+    const snapY = new Map(); // id -> snapped y
     const badProps = new Set();
     for (const msg of out.warnings ?? []) {
-      const m = String(msg).match(/^landscapeObjects\s+\(([^)]+)\):/);
+      const s = String(msg);
+      let m = s.match(/^landscapeObjects\s+\(([^)]+)\):\s*position\.y\s+[-\d.]+\s+не совпадает с опорой\s+([-\d.]+)/);
+      if (m) { snapY.set(m[1], Number(m[2])); continue; }
+      m = s.match(/^landscapeObjects\s+\(([^)]+)\):/);
       if (m) badProps.add(m[1]);
     }
-    if (!badProps.size || !Array.isArray(engine?.landscapeObjects) || engine.landscapeObjects.length === 0) break;
-    const beforeProps = engine.landscapeObjects.length;
-    engine = { ...engine, landscapeObjects: engine.landscapeObjects.filter(o => !badProps.has(o?.id)) };
-    const removedProps = beforeProps - engine.landscapeObjects.length;
-    if (removedProps <= 0) break;
-    droppedProps.push(...badProps);
+    if ((!snapY.size && !badProps.size) || !Array.isArray(engine?.landscapeObjects) || engine.landscapeObjects.length === 0) break;
+    let changed = false;
+    let nextObjects = engine.landscapeObjects;
+    if (snapY.size) {
+      nextObjects = nextObjects.map(o => {
+        if (!o || !snapY.has(o.id)) return o;
+        const y = snapY.get(o.id);
+        if (!Number.isFinite(y)) { badProps.add(o.id); return o; }
+        const pos = { ...(o.position ?? {}), y: +y.toFixed(3) };
+        changed = true;
+        return { ...o, position: pos };
+      });
+    }
+    if (badProps.size) {
+      const beforeProps = nextObjects.length;
+      nextObjects = nextObjects.filter(o => !badProps.has(o?.id));
+      if (nextObjects.length !== beforeProps) changed = true;
+      droppedProps.push(...badProps);
+    }
+    if (!changed) break;
+    engine = { ...engine, landscapeObjects: nextObjects };
     out = null;
   }
   if (!out) throw new ValidationError(['generateCatalog: не удалось собрать каталог после repair попыток'], v3w);

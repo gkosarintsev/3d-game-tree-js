@@ -377,25 +377,6 @@
         "b_district_2_0_173",
         "b_district_2_0_178"
       ]
-    },
-    {
-      "severity": "warning",
-      "code": "build_conflicting_props_dropped",
-      "stage": "build",
-      "message": "dropped landscapeObjects with parser warnings",
-      "count": 10,
-      "ids": [
-        "prop_231",
-        "prop_233",
-        "prop_241",
-        "prop_250",
-        "prop_251",
-        "prop_252",
-        "prop_262",
-        "prop_263",
-        "prop_279",
-        "prop_280"
-      ]
     }
   ],
   "repairs": [
@@ -413,63 +394,13 @@
       "stage": "build",
       "id": "b_district_2_0_178",
       "code": "drop_conflicting_building"
-    },
-    {
-      "stage": "build",
-      "id": "prop_231",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_233",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_241",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_250",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_251",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_252",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_262",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_263",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_279",
-      "code": "drop_conflicting_prop"
-    },
-    {
-      "stage": "build",
-      "id": "prop_280",
-      "code": "drop_conflicting_prop"
     }
   ],
   "drops": [],
   "summary": {
     "errors": 0,
-    "warnings": 6,
-    "repairs": 13,
+    "warnings": 5,
+    "repairs": 3,
     "drops": 0
   }
 }

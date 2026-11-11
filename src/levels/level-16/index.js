@@ -211,7 +211,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 10,
           "channels": 1,
-          "props": 33
+          "props": 39
         },
         "rect": {
           "maxX": 128,
@@ -225,7 +225,7 @@ export const LEVEL_16 = {
         "id": "2_1",
         "objects": {
           "channels": 1,
-          "props": 5
+          "props": 9
         },
         "rect": {
           "maxX": 128,
