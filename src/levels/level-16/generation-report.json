@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 123,
+      "diagnostics": 126,
       "repairs": 0,
       "drops": 0
     },
@@ -223,6 +223,20 @@
       "id": "tr_gb_88"
     },
     {
+      "severity": "warn",
+      "code": "segment_self_intersection",
+      "stage": "2_transport",
+      "message": "segment 'tr_gb_90' has self-intersecting path",
+      "id": "tr_gb_90"
+    },
+    {
+      "severity": "warn",
+      "code": "segment_self_intersection",
+      "stage": "2_transport",
+      "message": "segment 'tr_spc_b' has self-intersecting path",
+      "id": "tr_spc_b"
+    },
+    {
       "severity": "info",
       "code": "stage_ok",
       "stage": "0_input_space",
@@ -248,8 +262,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 101,
-      "segments": 128,
+      "nodes": 104,
+      "segments": 132,
       "components": 1
     },
     {
@@ -1427,8 +1441,8 @@
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 101,
-      "segments": 128,
+      "nodes": 104,
+      "segments": 132,
       "seed": 1865128548,
       "branches": 113,
       "profiled": true
@@ -1492,6 +1506,26 @@
       "clearance": 1.7,
       "rampDist": 20,
       "kind": "cross4"
+    },
+    {
+      "severity": "info",
+      "code": "transport_interchange_junction",
+      "stage": "2_transport",
+      "message": "applied junction grade-separation interchange prototype",
+      "nodeId": "tr_spc1_n",
+      "elevatedPair": [
+        "tr_spc_b",
+        "tr_gb_90"
+      ],
+      "ramps": [
+        "tr_jr_tr_spc1_n_a",
+        "tr_jr_tr_spc1_n_b"
+      ],
+      "elevatedNode": "tr_jn_tr_spc1_n_up",
+      "deckY": 2,
+      "clearance": 2,
+      "rampDist": 20,
+      "kind": "tee3"
     },
     {
       "severity": "info",
@@ -1642,22 +1676,22 @@
       "message": "generated district props",
       "count": 360,
       "budget": 360,
-      "attempts": 956,
+      "attempts": 996,
       "byDistrictType": {
-        "slums": 57,
-        "old_town": 48,
-        "luxury": 38,
-        "campus": 9,
-        "residential": 71,
-        "industrial": 8,
-        "park": 17,
-        "commercial": 9,
-        "suburb": 29,
-        "office": 19,
-        "parking": 8,
-        "market": 29,
-        "forest": 13,
-        "sports": 5
+        "luxury": 39,
+        "suburb": 27,
+        "old_town": 46,
+        "commercial": 14,
+        "industrial": 6,
+        "slums": 58,
+        "market": 30,
+        "sports": 9,
+        "parking": 10,
+        "residential": 68,
+        "park": 16,
+        "office": 18,
+        "campus": 10,
+        "forest": 8
       }
     },
     {
@@ -1701,13 +1735,13 @@
         "grid": 5,
         "total": 25
       },
-      "roadNodes": 119,
-      "roadSegments": 146,
+      "roadNodes": 122,
+      "roadSegments": 150,
       "roadComponents": 1,
-      "roadGraphNodes": 119,
+      "roadGraphNodes": 122,
       "interchanges": {
-        "segments": 11,
-        "junctions": 3,
+        "segments": 13,
+        "junctions": 4,
         "overpasses": 5
       },
       "districts": 16,
@@ -1825,25 +1859,25 @@
       "lights": 8,
       "props": 360,
       "propsByDistrictType": {
-        "slums": 57,
-        "old_town": 48,
-        "luxury": 38,
-        "campus": 9,
-        "residential": 71,
-        "industrial": 8,
-        "park": 17,
-        "commercial": 9,
-        "suburb": 29,
-        "office": 19,
-        "parking": 8,
-        "market": 29,
-        "forest": 13,
-        "sports": 5
+        "luxury": 39,
+        "suburb": 27,
+        "old_town": 46,
+        "commercial": 14,
+        "industrial": 6,
+        "slums": 58,
+        "market": 30,
+        "sports": 9,
+        "parking": 10,
+        "residential": 68,
+        "park": 16,
+        "office": 18,
+        "campus": 10,
+        "forest": 8
       },
       "chunkLoad": {
         "nonEmptyChunks": 25,
         "maxBuildings": 31,
-        "maxProps": 37,
+        "maxProps": 34,
         "maxLights": 1,
         "avgBuildings": 16.04,
         "avgProps": 14.4
@@ -1861,7 +1895,7 @@
       "code": "interchange_validated",
       "stage": "6_finalize_emit",
       "message": "validated interchange/overpass segments",
-      "count": 11
+      "count": 13
     },
     {
       "severity": "info",
@@ -1980,7 +2014,7 @@
   "drops": [],
   "summary": {
     "errors": 0,
-    "warnings": 6,
+    "warnings": 8,
     "repairs": 15,
     "drops": 0
   }

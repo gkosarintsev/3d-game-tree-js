@@ -1627,7 +1627,7 @@ function generateTransport(ctx) {
       return null;
     };
 
-    const JUNCTION_INTERCHANGE_LIMIT = 3;
+    const JUNCTION_INTERCHANGE_LIMIT = 4;
     let appliedTotal = 0;
     const appliedJunctionNodeIds = new Set();
     for (let pass = 0; pass < JUNCTION_INTERCHANGE_LIMIT; pass++) {
