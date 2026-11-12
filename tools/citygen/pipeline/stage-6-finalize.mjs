@@ -620,6 +620,7 @@ export function makeStage6() {
           fin.roadSegments = segments.length;
           fin.roadComponents = rg.components;
           fin.roadGraphNodes = rg.graphNodes;
+          if (fin.interchanges) fin.interchanges.segments = segments.filter(s => s?.interchange && s?.layer === 'elevated').length;
         }
       }
 
