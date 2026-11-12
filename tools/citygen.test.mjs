@@ -539,8 +539,8 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(fin?.propsByDistrictType && typeof fin.propsByDistrictType === 'object', 'pilot finalize_counts should include propsByDistrictType');
   assert.ok(fin?.roadAccessByType && typeof fin.roadAccessByType === 'object', 'pilot finalize_counts should include roadAccessByType');
   assert.equal(fin?.roadComponents, 1, 'pilot road graph should be connected');
-  assert.equal(fin?.roadSegments, 134);
-  assert.equal(fin?.roadNodes, 110);
+  assert.equal(fin?.roadSegments, 138);
+  assert.equal(fin?.roadNodes, 113);
   assert.equal(fin?.buildings, 401);
   assert.equal(fin?.props, 360);
   assert.equal(fin?.lights, 8);
@@ -560,35 +560,53 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.equal(overpass.segmentId, 'tr_sp1_r');
   assert.ok(Number.isFinite(overpass.deckH) && overpass.deckH > 0);
   assert.ok(Number.isFinite(overpass.rampLen) && overpass.rampLen > 0);
-  assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 1), 'pilot finalize should validate interchange segments');
+  assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 3), 'pilot finalize should validate interchange segments (overpass + junction ramps)');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_clearance_low' && d.stage === '6_finalize_emit' && d.segmentId === 'tr_sp1_r'),
     'pilot interchange should meet required clearance (no interchange_clearance_low for prototype segment)');
+
+  // M3 B2/B4: junction grade-separation prototype on pilot (deterministic, with ground connectors).
+  const junction = report.diagnostics.find(d => d.code === 'transport_interchange_junction' && d.stage === '2_transport');
+  assert.ok(junction, 'pilot should apply deterministic junction grade-separation prototype');
+  assert.equal(junction.nodeId, 'tr_gn_63');
+  assert.deepEqual(junction.elevatedPair, ['tr_gb_87', 'tr_gb_111']);
+  assert.deepEqual(junction.ramps, ['tr_jr_tr_gn_63_a', 'tr_jr_tr_gn_63_b']);
+  assert.ok(Number.isFinite(junction.clearance) && junction.clearance >= 1.5, 'junction interchange should have sufficient clearance');
 
   // M3 B4: interchange segment invariants in generated road network (deterministic).
   const { ctx } = runCitygen(structuredClone(raw));
   const roads = ctx.networks?.roads;
   assert.ok(roads && Array.isArray(roads.segments) && Array.isArray(roads.nodes), 'pilot should produce road network');
-  const seg = roads.segments.find(s => s.id === 'tr_sp1_r');
-  assert.ok(seg, 'pilot interchange segment tr_sp1_r should exist in road network');
-  assert.equal(seg.bridge, true);
-  assert.equal(seg.layer, 'elevated');
-  assert.equal(seg.interchange, 'overpass');
-  assert.ok(Array.isArray(seg.path) && seg.path.length >= 4, 'interchange segment should have profiled path');
-  const nFrom = roads.nodes.find(n => n.id === seg.from);
-  const nTo = roads.nodes.find(n => n.id === seg.to);
-  assert.ok(nFrom && nTo, 'interchange segment endpoints should reference existing nodes');
-  const p0 = seg.path[0], pN = seg.path[seg.path.length - 1];
-  assert.ok(Math.abs(p0[0] - nFrom.position[0]) < 1e-6 && Math.abs(p0[1] - nFrom.position[1]) < 1e-6 && Math.abs(p0[2] - nFrom.position[2]) < 1e-6, 'interchange path start should match from-node position');
-  assert.ok(Math.abs(pN[0] - nTo.position[0]) < 1e-6 && Math.abs(pN[1] - nTo.position[1]) < 1e-6 && Math.abs(pN[2] - nTo.position[2]) < 1e-6, 'interchange path end should match to-node position');
-  const endMaxY = Math.max(p0[1] ?? 0, pN[1] ?? 0);
-  const midMaxY = seg.path.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
-  assert.ok(midMaxY > endMaxY + 1.0, 'interchange path should be elevated above endpoints');
-  const maxSlope = seg.path.slice(1).reduce((m, p, i) => {
-    const a = seg.path[i], dx = (p[0]-a[0]), dz = (p[2]-a[2]), dy = (p[1]-a[1]);
-    const run = Math.hypot(dx,dz);
-    return Math.max(m, run > 1e-9 ? Math.abs(dy)/run : 0);
-  }, 0);
-  assert.ok(maxSlope <= 0.31, 'interchange segment slope should be within validated limit');
+  const byNodeId = new Map(roads.nodes.map(n => [n.id, n]));
+  const checkInterchangeSeg = (segId, expect) => {
+    const seg = roads.segments.find(s => s.id === segId);
+    assert.ok(seg, `interchange segment ${segId} should exist`);
+    assert.equal(seg.bridge, true);
+    assert.equal(seg.layer, 'elevated');
+    assert.equal(seg.interchange, expect.interchange);
+    assert.ok(Array.isArray(seg.path) && seg.path.length >= 2, 'interchange segment should have path');
+    const nFrom = byNodeId.get(seg.from), nTo = byNodeId.get(seg.to);
+    assert.ok(nFrom && nTo, 'interchange endpoints should reference existing nodes');
+    const p0 = seg.path[0], pN = seg.path[seg.path.length - 1];
+    assert.ok(Math.abs(p0[0] - nFrom.position[0]) < 1e-6 && Math.abs(p0[1] - nFrom.position[1]) < 1e-6 && Math.abs(p0[2] - nFrom.position[2]) < 1e-6, `${segId} start should match from-node`);
+    assert.ok(Math.abs(pN[0] - nTo.position[0]) < 1e-6 && Math.abs(pN[1] - nTo.position[1]) < 1e-6 && Math.abs(pN[2] - nTo.position[2]) < 1e-6, `${segId} end should match to-node`);
+    const maxSlope = seg.path.slice(1).reduce((m, p, i) => {
+      const a = seg.path[i], dx = (p[0]-a[0]), dz = (p[2]-a[2]), dy = (p[1]-a[1]);
+      const run = Math.hypot(dx,dz);
+      return Math.max(m, run > 1e-9 ? Math.abs(dy)/run : 0);
+    }, 0);
+    assert.ok(maxSlope <= 0.31, `${segId} slope should be within validated limit`);
+    return seg;
+  };
+  const segOver = checkInterchangeSeg('tr_sp1_r', { interchange: 'overpass' });
+  const endMaxY = Math.max(segOver.path[0][1] ?? 0, segOver.path.at(-1)[1] ?? 0);
+  const midMaxY = segOver.path.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
+  assert.ok(midMaxY > endMaxY + 1.0, 'overpass path should be elevated above endpoints');
+
+  checkInterchangeSeg('tr_jr_tr_gn_63_a', { interchange: 'junction_ramp' });
+  checkInterchangeSeg('tr_jr_tr_gn_63_b', { interchange: 'junction_ramp' });
+  // Ground connectors preserve connectivity at junction interchange.
+  assert.ok(roads.segments.some(s => s.id === 'tr_jc_tr_gn_63_a' && s.layer === 'ground'), 'junction ground connector A should exist');
+  assert.ok(roads.segments.some(s => s.id === 'tr_jc_tr_gn_63_b' && s.layer === 'ground'), 'junction ground connector B should exist');
 });
 
 test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {

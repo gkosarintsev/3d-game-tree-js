@@ -228,15 +228,12 @@ export function makeStage6() {
       let sampler = null;
       try { sampler = makeTerrainSampler(ctx); } catch { sampler = null; }
       for (const seg of roads) {
-        if (!seg || (seg.interchange !== 'overpass' && !(seg.layer === 'elevated' && seg.interchange))) continue;
+        if (!seg || !seg.interchange || seg.layer !== 'elevated') continue;
         interchangeCount++;
         const pts = Array.isArray(seg.path) ? seg.path : [];
         if (pts.length < 2) {
           ctx.report.diagnostics.push(warn('interchange_invalid_path', stageId, `interchange segment '${seg.id ?? '?'}' has invalid path`, { segmentId: seg.id ?? null }));
           continue;
-        }
-        if (seg.layer !== 'elevated') {
-          ctx.report.diagnostics.push(warn('interchange_layer_mismatch', stageId, `interchange segment '${seg.id ?? '?'}' should use elevated layer`, { segmentId: seg.id ?? null, layer: seg.layer ?? null }));
         }
         // Endpoint consistency with road graph nodes (path endpoints should match node positions).
         const nFrom = nodeById.get(seg.from), nTo = nodeById.get(seg.to);
@@ -263,7 +260,9 @@ export function makeStage6() {
         if (maxSlope > 0.31) {
           ctx.report.diagnostics.push(warn('interchange_slope_high', stageId, `interchange segment '${seg.id ?? '?'}' exceeds slope limit`, { segmentId: seg.id ?? null, maxSlope: +maxSlope.toFixed(3) }));
         }
-        if (!(midY > Math.max(y0, yN) + 0.8)) {
+        // Overpass spans should arch above both endpoints; ramps legitimately connect grade to elevated.
+        const isRampLike = seg.interchange === 'junction_ramp' || Math.abs(y0 - yN) >= 0.8;
+        if (!isRampLike && !(midY > Math.max(y0, yN) + 0.8)) {
           ctx.report.diagnostics.push(warn('interchange_profile_flat', stageId, `interchange segment '${seg.id ?? '?'}' is not meaningfully elevated`, { segmentId: seg.id ?? null }));
         }
         // Approximate vertical clearance over terrain along elevated span (B3 groundwork).

@@ -1573,6 +1573,262 @@ function generateTransport(ctx) {
     }
   }
 
+  // M3 B2/B4 prototype: minimal local junction grade separation (intersection interchange).
+  // Elevates one through-road pair over a clean perpendicular 4-way ground junction by splitting
+  // the pair near the junction, inserting short ramps and an elevated crossing node, while keeping
+  // the cross pair at grade on the original junction node. Deterministic, best-effort: no-op if no
+  // feasible candidate (slope/clearance/profile). Preserves graph connectivity of all arms.
+  if (!segments.some(s => s?.interchange === 'junction_overpass' || s?.interchange === 'junction_ramp')) {
+    const byNode = new Map(nodes.map(n => [n.id, n]));
+    const incByNode = new Map();
+    for (const s of segments) {
+      if (!s) continue;
+      if (s.from) { if (!incByNode.has(s.from)) incByNode.set(s.from, []); incByNode.get(s.from).push(s); }
+      if (s.to) { if (!incByNode.has(s.to)) incByNode.set(s.to, []); incByNode.get(s.to).push(s); }
+    }
+    const dirAt = (seg, nid) => {
+      const n = byNode.get(nid); if (!n || !Array.isArray(seg?.path) || seg.path.length < 2) return null;
+      const atFrom = seg.from === nid;
+      const p = atFrom ? seg.path[0] : seg.path[seg.path.length - 1];
+      const q = atFrom ? seg.path[1] : seg.path[seg.path.length - 2];
+      const dx = (q[0] ?? 0) - (p[0] ?? 0), dz = (q[2] ?? 0) - (p[2] ?? 0);
+      const l = Math.hypot(dx, dz) || 1;
+      return { dx: dx / l, dz: dz / l, other: atFrom ? seg.to : seg.from, seg, atFrom };
+    };
+    const pathLen = (path) => {
+      let l = 0; for (let i = 1; i < (path?.length ?? 0); i++) l += Math.hypot((path[i][0]-path[i-1][0]), (path[i][2]-path[i-1][2]));
+      return l;
+    };
+    const straightNear = (seg, nid, dist = 10) => {
+      const atFrom = seg.from === nid; const path = seg.path;
+      if (!Array.isArray(path) || path.length < 2) return false;
+      const pts = atFrom ? path : [...path].reverse();
+      const p0 = pts[0], p1 = pts[1];
+      const dx = p1[0] - p0[0], dz = p1[2] - p0[2]; const len = Math.hypot(dx, dz) || 1; const ux = dx / len, uz = dz / len;
+      let dacc = 0;
+      for (let i = 1; i < pts.length && dacc < dist + 1e-6; i++) {
+        const vx = pts[i][0] - p0[0], vz = pts[i][2] - p0[2];
+        const along = vx * ux + vz * uz; const perp = Math.abs(vx * uz - vz * ux);
+        if (perp > 0.8) return false;
+        dacc = along;
+      }
+      return dacc >= Math.min(dist, pathLen(path) - 0.1);
+    };
+    const splitAtDistanceFromEnd = (path, fromStart, dist) => {
+      // returns { idx, point, prefix, suffix } splitting so that segment from chosen end to point has length ~dist along path
+      if (!Array.isArray(path) || path.length < 2) return null;
+      const pts = fromStart ? path.map(p => p.slice()) : [...path].map(p => p.slice()).reverse();
+      let acc = 0;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const a = pts[i], b = pts[i + 1];
+        const segL = Math.hypot(b[0]-a[0], b[2]-a[2], b[1]-a[1]);
+        if (acc + segL >= dist - 1e-6) {
+          const t = segL > 1e-9 ? clamp((dist - acc) / segL, 0.02, 0.98) : 0.5;
+          const p = [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t].map(v => Math.round(v*100)/100);
+          const prefix = pts.slice(0, i + 1).concat([p.slice()]);
+          const suffix = [p.slice()].concat(pts.slice(i + 1));
+          if (fromStart) return { point: p, prefix, suffix };
+          return { point: p, prefix: [...suffix].reverse(), suffix: [...prefix].reverse() };
+        }
+        acc += segL;
+      }
+      return null;
+    };
+
+    let appliedJ = false;
+    const nodeIds = Array.from(incByNode.keys()).sort();
+    for (const nid of nodeIds) {
+      if (appliedJ) break;
+      const inc = incByNode.get(nid) || [];
+      if (inc.length !== 4) continue;
+      if (inc.some(s => s?.interchange || s?.layer === 'elevated' || s?.type === 'arterial')) continue;
+      const jn = byNode.get(nid); if (!jn || !Array.isArray(jn.position)) continue;
+      const dirs = inc.map(s => dirAt(s, nid)).filter(Boolean);
+      if (dirs.length !== 4) continue;
+      const used = new Set(); const pairs = [];
+      for (let i = 0; i < 4; i++) {
+        if (used.has(i)) continue;
+        let bestJ = -1, bestDot = -0.8;
+        for (let j = i + 1; j < 4; j++) {
+          if (used.has(j)) continue;
+          const dot = dirs[i].dx * dirs[j].dx + dirs[i].dz * dirs[j].dz;
+          if (dot < bestDot) { bestDot = dot; bestJ = j; }
+        }
+        if (bestJ >= 0) { pairs.push([i, bestJ, bestDot]); used.add(i); used.add(bestJ); }
+      }
+      if (pairs.length !== 2) continue;
+      const p1a = dirs[pairs[0][0]], p2a = dirs[pairs[1][0]];
+      const perp = Math.abs(p1a.dx * p2a.dx + p1a.dz * p2a.dz);
+      if (perp > 0.2) continue; // require roughly perpendicular crossing
+      if (!dirs.every(d => straightNear(d.seg, nid, 10))) continue;
+
+      const pairCands = pairs.map(p => {
+        const d0 = dirs[p[0]], d1 = dirs[p[1]];
+        const total = pathLen(d0.seg.path) + pathLen(d1.seg.path);
+        return { p, total };
+      }).sort((a,b) => b.total - a.total);
+
+      for (const pc of pairCands) {
+        if (appliedJ) break;
+        const [i0, i1] = pc.p;
+        const dA = dirs[i0], dB = dirs[i1];
+        const sA = dA.seg, sB = dB.seg;
+        // ramp distance limited by local straight length
+        const rampDist = 20;
+        if (pathLen(sA.path) < rampDist + 6 || pathLen(sB.path) < rampDist + 6) continue;
+        const splitA = splitAtDistanceFromEnd(sA.path, dA.atFrom, rampDist);
+        const splitB = splitAtDistanceFromEnd(sB.path, dB.atFrom, rampDist);
+        if (!splitA || !splitB) continue;
+
+        const jY = jn.position[1] ?? sampler.heightAt(jn.position[0], jn.position[2]);
+        const aBaseY = splitA.point[1];
+        const bBaseY = splitB.point[1];
+        // deck height: sufficient clearance above junction/cross road, but reachable by ramps
+        let deckY = Math.max(jY + 2.0, aBaseY + 0.8, bBaseY + 0.8, jY + 1.6);
+        const maxRampSlope = 0.13;
+        const riseA = Math.max(deckY - aBaseY, 0), riseB = Math.max(deckY - bBaseY, 0);
+        if (riseA / Math.max(rampDist, 1e-6) > maxRampSlope + 1e-6) deckY = Math.min(deckY, aBaseY + maxRampSlope * rampDist);
+        if (riseB / Math.max(rampDist, 1e-6) > maxRampSlope + 1e-6) deckY = Math.min(deckY, bBaseY + maxRampSlope * rampDist);
+        deckY = Math.max(deckY, jY + 1.6);
+        const finalRiseA = deckY - aBaseY, finalRiseB = deckY - bBaseY;
+        if (finalRiseA / Math.max(rampDist, 1e-6) > maxRampSlope + 1e-6) continue;
+        if (finalRiseB / Math.max(rampDist, 1e-6) > maxRampSlope + 1e-6) continue;
+        const minClear = deckY - jY;
+        if (!(minClear >= 1.5)) continue;
+
+        const nRampAId = `tr_jn_${nid}_a`;
+        const nRampBId = `tr_jn_${nid}_b`;
+        const nUpId = `tr_jn_${nid}_up`;
+        const usedIds = new Set(nodes.map(n => n.id).concat(segments.map(s => s.id)));
+        const uniq = (base) => { let id = base, k = 2; while (usedIds.has(id)) { id = `${base}_${k++}`; } usedIds.add(id); return id; };
+        const rampAIdNode = uniq(nRampAId);
+        const rampBIdNode = uniq(nRampBId);
+        const upIdNode = uniq(nUpId);
+
+        const pA = [splitA.point[0], Math.round(aBaseY*100)/100, splitA.point[2]];
+        const pB = [splitB.point[0], Math.round(bBaseY*100)/100, splitB.point[2]];
+        const pUp = [Math.round(jn.position[0]*100)/100, Math.round(deckY*100)/100, Math.round(jn.position[2]*100)/100];
+
+        // Build ramp paths (2-point, enforce slope)
+        const rampPathA = enforceSlope([[pA[0], pA[1], pA[2]], [pUp[0], pUp[1], pUp[2]]], maxRampSlope, stageId, 'tr_junction_ramp', null);
+        const rampPathB = enforceSlope([[pUp[0], pUp[1], pUp[2]], [pB[0], pB[1], pB[2]]], maxRampSlope, stageId, 'tr_junction_ramp', null);
+        if (!rampPathA || rampPathA.length < 2 || !rampPathB || rampPathB.length < 2) continue;
+        rampPathA[0] = pA.slice(); rampPathA[rampPathA.length - 1] = pUp.slice();
+        rampPathB[0] = pUp.slice(); rampPathB[rampPathB.length - 1] = pB.slice();
+        if (pathMaxSlope(rampPathA) > maxRampSlope + 0.02 || pathMaxSlope(rampPathB) > maxRampSlope + 0.02) continue;
+
+        // Prepare modified segments: keep far ends connected, split at ramp nodes
+        const segAFarToRamp = dA.atFrom ? splitA.suffix : splitA.prefix; // path from ramp node toward far end? depends
+        const segANearToJ = dA.atFrom ? splitA.prefix : splitA.suffix;   // path from far-end side? need to be careful
+        // Easier: rebuild by halves relative to junction side.
+        // splitA.prefix/suffix in original orientation when fromStart==dA.atFrom: prefix ends at split point (near start side), suffix starts at split point.
+        // If dA.atFrom (path[0] at junction), we want ground segment from far end (path[last]) to split point, and ramp from split point to up node.
+        let groundPathA, rampSegPathA, groundFromA, groundToA, rampFromA, rampToA;
+        let groundPathB, rampSegPathB, groundFromB, groundToB, rampFromB, rampToB;
+
+        if (dA.atFrom) {
+          // junction at start of sA.path: suffix goes split->...->far end
+          groundPathA = [...splitA.suffix].map(p=>p.slice()); // split -> far
+          groundFromA = rampAIdNode; groundToA = sA.to; // reversed? no, keep original far endpoint id
+          // but path direction must match from->to
+          // original: from=nid(junction), to=other(far). New ground: from=rampA, to=other
+          groundPathA = [...splitA.suffix].map(p=>p.slice()); // starts at split, ends at far
+          rampSegPathA = rampPathA.map(p=>p.slice()); // pA -> pUp
+          rampFromA = rampAIdNode; rampToA = upIdNode;
+        } else {
+          // junction at end of sA.path: prefix goes far -> ... -> split
+          groundPathA = [...splitA.prefix].map(p=>p.slice());
+          groundFromA = sA.from; groundToA = rampAIdNode;
+          rampSegPathA = [...rampPathA].reverse().map(p=>p.slice()); // pUp -> pA to go down toward ramp node? want ramp node -> up
+          rampSegPathA = rampPathA.map(p=>p.slice()); // pA -> pUp
+          rampFromA = rampAIdNode; rampToA = upIdNode;
+        }
+        if (dB.atFrom) {
+          groundPathB = [...splitB.suffix].map(p=>p.slice()); // split -> far
+          groundFromB = rampBIdNode; groundToB = sB.to;
+          rampSegPathB = rampPathB.map(p=>p.slice()); // pUp -> pB? rampPathB built as up->pB
+          rampFromB = upIdNode; rampToB = rampBIdNode;
+        } else {
+          groundPathB = [...splitB.prefix].map(p=>p.slice()); // far -> split
+          groundFromB = sB.from; groundToB = rampBIdNode;
+          rampSegPathB = [...rampPathB].reverse().map(p=>p.slice()); // pB -> pUp
+          rampFromB = rampBIdNode; rampToB = upIdNode;
+        }
+
+        // Ensure path endpoints match node positions/ids semantics
+        groundPathA[0] = pA.slice(); groundPathA[groundPathA.length - 1] = groundPathA[groundPathA.length - 1].slice();
+        groundPathB[groundPathB.length - 1] = pB.slice();
+
+        // Apply: add nodes
+        const nodeA = { id: rampAIdNode, position: pA.slice(), layer: 'ground' };
+        const nodeB = { id: rampBIdNode, position: pB.slice(), layer: 'ground' };
+        const nodeUp = { id: upIdNode, position: pUp.slice(), layer: 'elevated' };
+        nodes.push(nodeA, nodeB, nodeUp);
+        byNode.set(nodeA.id, nodeA); byNode.set(nodeB.id, nodeB); byNode.set(nodeUp.id, nodeUp);
+
+        // Modify existing through segments to become ground stubs to ramp nodes (keep ids/types/lanes)
+        sA.from = groundFromA; sA.to = groundToA; sA.path = groundPathA.map(p=>p.slice()); sA.layer = 'ground'; sA.bridge = false; delete sA.interchange;
+        sB.from = groundFromB; sB.to = groundToB; sB.path = groundPathB.map(p=>p.slice()); sB.layer = 'ground'; sB.bridge = false; delete sB.interchange;
+        // fix endpoints of modified ground stubs to ramp node positions
+        if (dA.atFrom) { sA.path[0] = pA.slice(); } else { sA.path[sA.path.length - 1] = pA.slice(); }
+        if (dB.atFrom) { sB.path[0] = pB.slice(); } else { sB.path[sB.path.length - 1] = pB.slice(); }
+
+        // Add elevated ramp segments forming continuous through route over junction
+        const baseSeg = sA;
+        const mkRampSeg = (id, from, to, path, interchangeType = 'junction_ramp') => ({
+          id,
+          from, to,
+          type: baseSeg.type || 'local',
+          layer: 'elevated',
+          bridge: true,
+          interchange: interchangeType,
+          path: path.map(p => p.slice()),
+          lanes: Array.isArray(baseSeg.lanes) ? JSON.parse(JSON.stringify(baseSeg.lanes)) : [],
+          ...(Number.isFinite(baseSeg.shoulderWidth) ? { shoulderWidth: baseSeg.shoulderWidth } : {}),
+          ...(baseSeg.sidewalk === true ? { sidewalk: true } : {}),
+          ...(baseSeg.surface ? { surface: baseSeg.surface } : {}),
+        });
+        const rampSegIdA = uniq(`tr_jr_${nid}_a`);
+        const rampSegIdB = uniq(`tr_jr_${nid}_b`);
+        segments.push(mkRampSeg(rampSegIdA, rampFromA, rampToA, rampSegPathA, 'junction_ramp'));
+        segments.push(mkRampSeg(rampSegIdB, rampFromB, rampToB, rampSegPathB, 'junction_ramp'));
+
+        // Ground connectors restore graph connectivity/access between cross-road junction and ramp bases
+        // (kept at grade; elevated through passes above the junction area).
+        const mkGroundConn = (id, from, to, path) => ({
+          id,
+          from, to,
+          type: baseSeg.type || 'local',
+          layer: 'ground',
+          path: path.map(p => p.slice()),
+          lanes: Array.isArray(baseSeg.lanes) ? JSON.parse(JSON.stringify(baseSeg.lanes)) : [],
+          ...(Number.isFinite(baseSeg.shoulderWidth) ? { shoulderWidth: baseSeg.shoulderWidth } : {}),
+          ...(baseSeg.sidewalk === true ? { sidewalk: true } : {}),
+          ...(baseSeg.surface ? { surface: baseSeg.surface } : {}),
+        });
+        const connPathA = dA.atFrom ? [...splitA.prefix].map(p=>p.slice()) : [...splitA.suffix].map(p=>p.slice()); // junction -> split point
+        const connPathB = dB.atFrom ? [...splitB.prefix].map(p=>p.slice()) : [...splitB.suffix].map(p=>p.slice());
+        // ensure endpoints match junction and ramp nodes
+        if (connPathA.length >= 2) {
+          connPathA[0] = [jn.position[0], jn.position[1], jn.position[2]].map(v=>Math.round(v*100)/100);
+          connPathA[connPathA.length - 1] = pA.slice();
+        }
+        if (connPathB.length >= 2) {
+          connPathB[0] = [jn.position[0], jn.position[1], jn.position[2]].map(v=>Math.round(v*100)/100);
+          connPathB[connPathB.length - 1] = pB.slice();
+        }
+        if (connPathA.length >= 2) segments.push(mkGroundConn(uniq(`tr_jc_${nid}_a`), nid, rampAIdNode, connPathA));
+        if (connPathB.length >= 2) segments.push(mkGroundConn(uniq(`tr_jc_${nid}_b`), nid, rampBIdNode, connPathB));
+
+        ctx.report.diagnostics.push(info('transport_interchange_junction', stageId, 'applied junction grade-separation interchange prototype', {
+          nodeId: nid, elevatedPair: [sA.id, sB.id], ramps: [rampSegIdA, rampSegIdB], elevatedNode: upIdNode,
+          deckY: +pUp[1].toFixed(2), clearance: +minClear.toFixed(3), rampDist,
+        }));
+        appliedJ = true;
+      }
+    }
+  }
+
   ctx.networks.roads.nodes = nodes;
   ctx.networks.roads.segments = segments;
   ctx.networks.roads.junctions = [];
