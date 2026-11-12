@@ -607,6 +607,16 @@ export function makeStage6() {
         networks.nodes = nodes;
         networks.segments = segments;
         if (ctx.input?.cityforge?.networks) ctx.input.cityforge.networks.roads = networks;
+
+        // keep finalize summary counts consistent with post-repair network
+        const fin = (ctx.report?.diagnostics ?? []).find(d => d.code === 'finalize_counts' && d.stage === stageId);
+        if (fin) {
+          const rg = roadComponents(nodes, segments);
+          fin.roadNodes = nodes.length;
+          fin.roadSegments = segments.length;
+          fin.roadComponents = rg.components;
+          fin.roadGraphNodes = rg.graphNodes;
+        }
       }
 
       ctx.engine = ctx.input;
