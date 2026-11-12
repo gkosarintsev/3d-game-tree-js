@@ -1494,6 +1494,58 @@ async function testEngineChapter() {
  * на середине. Без `_collectTunnels` в `collectPass` стриминги-ветка молча
  * не собирала туннели: мир из брифа это давало, стрим — нет.
  */
+
+/**
+ * M3 B4 (runtime/nav): многоуровневая развязка в гл.16 (junction tr_gn_63) должна
+ * давать связный навграф через рампы/эстакаду в загруженном окне. Проверяем, что
+ * deck-узлы обоих ramp-сегментов построены и существует маршрут между точками на
+ * противоположных съездах через верхний стык (позиционно совпадающие концы цепочек).
+ * Пропускается, если гл.16 отсутствует или не выбрана фильтром.
+ */
+async function testLevel16InterchangeNav() {
+  const filter = parseLevelFilter();
+  const indices = selectedIndices(filter);
+  const candidates = indices ?? LEVELS.map((_, i) => i);
+  const idx = candidates.find((i) => LEVELS[i]?.name === 'Глава 16. Районы города (v4, pilot)' || String(LEVELS[i]?.map?.catalog || '').includes('level-16'));
+  if (idx == null) return { name: 'гл.16: навграф многоуровневой развязки (junction ramps) связен в загруженном окне', passed: true, info: 'пропуск: гл.16 не в выборке' };
+  const level = LEVELS[idx];
+  if (!level?.map?.catalog) return { name: 'гл.16: навграф многоуровневой развязки (junction ramps) связен в загруженном окне', passed: true, info: 'пропуск: не open/catalog' };
+  const scene = new THREE.Scene();
+  const map = new WorldMap(level.map);
+  map.build(scene);
+  const tx = 216, tz = -408;
+  const budget = CONFIG.jsonMap.pump.frameBudgetMs ?? 120;
+  for (let i = 0; i < 900; i++) {
+    map.streamStep(budget, tx, tz, 0);
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  const built = map.isBuiltAt(tx, tz);
+  const rampAKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_jr_tr_gn_63_a:'));
+  const rampBKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_jr_tr_gn_63_b:'));
+  const hasDecks = rampAKeys.length > 0 && rampBKeys.length > 0;
+  const from = { x: 216, y: 21.2, z: -390 };
+  const to = { x: 216, y: 20.2, z: -426 };
+  const route = (built && hasDecks) ? map.findPath(from, to) : null;
+  const pathOk = Array.isArray(route) && route.length >= 2;
+  let topLinked = false;
+  if (hasDecks) {
+    const findTop = (keys) => keys.find((k) => { const p = map.nav.pos[map.nav.byKey.get(k)]; return Math.abs(p.y - 22.61) < 0.2 && Math.abs(p.z + 408) < 1; });
+    const ka = findTop(rampAKeys), kb = findTop(rampBKeys);
+    if (ka && kb) {
+      const ia = map.nav.byKey.get(ka), ib = map.nav.byKey.get(kb);
+      topLinked = (ia != null && ib != null) && (map.nav.adj[ia]?.includes(ib) || ia === ib);
+    }
+  }
+  map.dispose();
+  scene.clear();
+  const passed = built && hasDecks && pathOk && topLinked;
+  return {
+    name: 'гл.16: навграф многоуровневой развязки (junction ramps) связен в загруженном окне',
+    passed,
+    info: 'built=' + built + ', rampA=' + rampAKeys.length + ', rampB=' + rampBKeys.length + ', path=' + (pathOk ? route.length : 'нет') + ', topLinked=' + topLinked,
+  };
+}
+
 async function testStreamedTunnel() {
   const world = await makeWorld();
   const id = world.map.spawnCell().id;
@@ -1543,8 +1595,9 @@ export async function runOpenWorldTests(arg) {
     testStreamedTunnel,
   ];
   // OPEN_600 — probe-фикстура, не пронумерованная глава реестра. При фильтре по
-  // главе гоняем только движковый тест той открытой главы, что попала в фильтр.
-  const tests = filter ? [testEngineChapter] : [...probeTests, testEngineChapter];
+  // главе гоняем только движковый тест той открытой главы, что попала в фильтр,
+  // плюс целевые регрессии открытых глав (пропускаются, если не в выборке).
+  const tests = filter ? [testEngineChapter, testLevel16InterchangeNav] : [...probeTests, testEngineChapter, testLevel16InterchangeNav];
   const results = [];
   for (const fn of tests) {
     const t = performance.now();
