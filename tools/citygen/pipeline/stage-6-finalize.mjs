@@ -531,27 +531,37 @@ export function makeStage6() {
           continue;
         }
 
-        // Shared junction must have one position; prefer Y that stays on si's profile (deterministic)
-        // and re-validate after forcing all connecting endpoints to that node position.
-        const nodePos = splitI.point.slice();
-        const si1 = cloneSeg(si, { id: uniqSeg(`${si.id}_a`), to: null, path: splitI.left });
-        const si2 = cloneSeg(si, { id: uniqSeg(`${si.id}_b`), from: null, path: splitI.right });
-        const sj1 = cloneSeg(sj, { id: uniqSeg(`${sj.id}_a`), to: null, path: splitJ.left });
-        const sj2 = cloneSeg(sj, { id: uniqSeg(`${sj.id}_b`), from: null, path: splitJ.right });
-        // force junction endpoints to shared node position for validation and application
-        si1.path[si1.path.length - 1] = nodePos.slice();
-        si2.path[0] = nodePos.slice();
-        sj1.path[sj1.path.length - 1] = nodePos.slice();
-        sj2.path[0] = nodePos.slice();
-
-        // Degrade safely: skip this conflict if split would create invalid/too-steep segments.
-        const slopeOk = [si1, si2, sj1, sj2].every(s => maxSlope(s.path) <= 0.3 + 1e-6);
-        if (!slopeOk) {
-          usedSegIds.delete(si1.id); usedSegIds.delete(si2.id); usedSegIds.delete(sj1.id); usedSegIds.delete(sj2.id);
+        // Shared junction must have one position; try both segment-profile Y values deterministically
+        // (si first) and choose the one that keeps all resulting segments within slope limits.
+        const tryNodePos = (basePoint) => {
+          const np = basePoint.slice();
+          const a1 = cloneSeg(si, { id: null, to: null, path: splitI.left });
+          const a2 = cloneSeg(si, { id: null, from: null, path: splitI.right });
+          const b1 = cloneSeg(sj, { id: null, to: null, path: splitJ.left });
+          const b2 = cloneSeg(sj, { id: null, from: null, path: splitJ.right });
+          a1.path[a1.path.length - 1] = np.slice(); a2.path[0] = np.slice();
+          b1.path[b1.path.length - 1] = np.slice(); b2.path[0] = np.slice();
+          const ok = [a1, a2, b1, b2].every(s => maxSlope(s.path) <= 0.3 + 1e-6);
+          const worst = [a1, a2, b1, b2].reduce((m, s) => Math.max(m, maxSlope(s.path)), 0);
+          return { ok, worst, np, a1, a2, b1, b2 };
+        };
+        const candA = tryNodePos(splitI.point);
+        const candB = tryNodePos(splitJ.point);
+        let chosen = null;
+        if (candA.ok && candB.ok) chosen = (candA.worst <= candB.worst + 1e-12) ? candA : candB;
+        else if (candA.ok) chosen = candA;
+        else if (candB.ok) chosen = candB;
+        if (!chosen) {
           unrepairable.add(found.pairKey);
           ctx.report.diagnostics.push(warn('road_crossing_repair_skipped', stageId, `skipped crossing repair for '${si.id}' x '${sj.id}' (would violate slope/geometry constraints)`, { segments: [si.id, sj.id] }));
           continue;
         }
+
+        const si1 = cloneSeg(si, { id: uniqSeg(`${si.id}_a`), to: null, path: chosen.a1.path });
+        const si2 = cloneSeg(si, { id: uniqSeg(`${si.id}_b`), from: null, path: chosen.a2.path });
+        const sj1 = cloneSeg(sj, { id: uniqSeg(`${sj.id}_a`), to: null, path: chosen.b1.path });
+        const sj2 = cloneSeg(sj, { id: uniqSeg(`${sj.id}_b`), from: null, path: chosen.b2.path });
+        const nodePos = chosen.np;
 
         const nodeId = uniqNode('tr_x');
         const n = { id: nodeId, position: nodePos.slice(), layer: segLayer(si) };
