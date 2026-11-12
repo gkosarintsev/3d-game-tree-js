@@ -51,7 +51,7 @@
     {
       "id": "6_finalize_emit",
       "status": "ok",
-      "diagnostics": 4,
+      "diagnostics": 5,
       "repairs": 0,
       "drops": 0
     }
@@ -187,6 +187,14 @@
     }
   ],
   "diagnostics": [
+    {
+      "severity": "warn",
+      "code": "interchange_clearance_low",
+      "stage": "6_finalize_emit",
+      "message": "interchange segment 'tr_sp1_r' has low clearance over terrain",
+      "segmentId": "tr_sp1_r",
+      "minClearance": 1.267
+    },
     {
       "severity": "info",
       "code": "stage_ok",
@@ -1815,7 +1823,7 @@
   "drops": [],
   "summary": {
     "errors": 0,
-    "warnings": 1,
+    "warnings": 2,
     "repairs": 13,
     "drops": 0
   }

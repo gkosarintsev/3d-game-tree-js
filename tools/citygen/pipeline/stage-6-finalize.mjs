@@ -5,6 +5,7 @@
  * shared build pipeline after compilation.
  */
 import { info, warn } from '../diagnostics.mjs';
+import { makeTerrainSampler } from './stage-2-transport.mjs';
 
 function distXZ(ax, az, bx, bz) { return Math.hypot(ax - bx, az - bz); }
 
@@ -224,6 +225,8 @@ export function makeStage6() {
       // M3 B3 groundwork: basic validation for interchange/overpass segments.
       let interchangeCount = 0;
       const nodeById = new Map(nodes.map(n => [n?.id, n]));
+      let sampler = null;
+      try { sampler = makeTerrainSampler(ctx); } catch { sampler = null; }
       for (const seg of roads) {
         if (!seg || (seg.interchange !== 'overpass' && !(seg.layer === 'elevated' && seg.interchange))) continue;
         interchangeCount++;
@@ -262,6 +265,30 @@ export function makeStage6() {
         }
         if (!(midY > Math.max(y0, yN) + 0.8)) {
           ctx.report.diagnostics.push(warn('interchange_profile_flat', stageId, `interchange segment '${seg.id ?? '?'}' is not meaningfully elevated`, { segmentId: seg.id ?? null }));
+        }
+        // Approximate vertical clearance over terrain along elevated span (B3 groundwork).
+        if (sampler) {
+          let minClear = Infinity;
+          let checked = 0;
+          const endMaxY = Math.max(y0, yN);
+          for (let i = 0; i + 1 < pts.length; i++) {
+            const a = pts[i], b = pts[i + 1]; if (!a || !b) continue;
+            const dx = (b[0] ?? 0) - (a[0] ?? 0), dz = (b[2] ?? 0) - (a[2] ?? 0);
+            const segLen = Math.hypot(dx, dz);
+            const steps = Math.max(1, Math.ceil(segLen / 6));
+            for (let s = 0; s <= steps; s++) {
+              const t = s / steps;
+              const x = (a[0] ?? 0) + dx * t, z = (a[2] ?? 0) + dz * t;
+              const y = (a[1] ?? 0) + ((b[1] ?? 0) - (a[1] ?? 0)) * t;
+              if (y <= endMaxY + 1.0) continue; // skip ramps/touchdown near grade
+              const gy = sampler.heightAt(x, z);
+              minClear = Math.min(minClear, y - gy);
+              checked++;
+            }
+          }
+          if (checked > 0 && Number.isFinite(minClear) && minClear < 1.5) {
+            ctx.report.diagnostics.push(warn('interchange_clearance_low', stageId, `interchange segment '${seg.id ?? '?'}' has low clearance over terrain`, { segmentId: seg.id ?? null, minClearance: +minClear.toFixed(3) }));
+          }
         }
       }
       if (interchangeCount > 0) {
