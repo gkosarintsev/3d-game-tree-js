@@ -476,10 +476,12 @@ export class Enemy {
     const hitLean = this.animHit * 0.18;
     const recoilKick = this.animRecoil * 0.06;
     const lean = attackLean + (0.01 + 0.04 * move01) * locomotionW * (1 - attackW * 0.25) + hitLean - recoilKick;
+    const aimSway = Math.sin(this.animTime * 1.5 + this.animPhase) * (0.006 + 0.01 * (1 - move01)) * locomotionW * (0.4 + 0.6 * attackW);
     this.mesh.position.y = bob - this.animHit * 0.02;
     this.mesh.position.z = this.animRecoil * 0.03; // отдача (локально, визуал)
     this.mesh.rotation.z = sway + Math.sin(this.animTime * 18) * this.animHit * 0.03;
     this.mesh.rotation.x = -lean;
+    this.mesh.rotation.y = aimSway;
     this.group.position.y = this.feetY;
 
     // --- огонь по игроку ---
@@ -788,9 +790,11 @@ export class AlienEnemy extends AlienBody {
     const groundLean = (0.02 + 0.05 * move01) * locomotionW;
     const leapLean = -0.18;
     const lean = groundLean * (1 - leapW) + leapLean * leapW + this.animHit * 0.12;
+    const huntSway = Math.sin(this.animTime * 1.7 + this.animPhase) * (0.012 + 0.03 * move01) * locomotionW * (1 - leapW * 0.5);
     this.mesh.position.y = this._baseMeshY + bob;
     this.mesh.position.z = -leapW * 0.02;
     this.mesh.rotation.x = lean;
+    this.mesh.rotation.y = huntSway;
     this.mesh.rotation.z = sway;
   }
 
