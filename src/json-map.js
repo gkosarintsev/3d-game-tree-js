@@ -1187,6 +1187,7 @@ export class JsonMap extends SurfaceField {
    */
   _navDecks(nav) {
     const step = J.navStep;
+    const deckEnds = [];
     for (const road of this.roads) {
       if (road.type === 'ground') continue;
       let prevEnd, firstEnd;
@@ -1204,11 +1205,27 @@ export class JsonMap extends SurfaceField {
         if (prevEnd !== undefined) this._link(nav, prevEnd, first);
         prevEnd = last;
       }
-      // сход с настила и подъём на него — к решётке земли; середина цепочки
-      // сама ведёт вверх по ступеням пластин
       for (const id of [firstEnd, prevEnd]) {
-        if (id !== undefined) this._linkClosest(nav, id, step * 1.8, 2);
+        if (id !== undefined) deckEnds.push(id);
       }
+    }
+    // Совпадающие концы разных не-ground сегментов (многоуровневые развязки:
+    // стык рамп/эстакад в одной точке) связываются напрямую до эвристики, чтобы
+    // связь не зависела от порядка дорог, радиуса и лимита _linkClosest.
+    for (const id of deckEnds) {
+      const p = nav.pos[id];
+      for (const j of nav.nearby(p.x, p.z, 0.15)) {
+        if (j === id) continue;
+        const q = nav.pos[j];
+        if (Math.abs(q.x - p.x) < 0.05 && Math.abs(q.y - p.y) < 0.05 && Math.abs(q.z - p.z) < 0.05) {
+          nav.link(id, j);
+        }
+      }
+    }
+    // Сход с настила и подъём на него — к решётке земли; середина цепочки
+    // сама ведёт вверх по ступеням пластин.
+    for (const id of deckEnds) {
+      this._linkClosest(nav, id, step * 1.8, 2);
     }
   }
 
