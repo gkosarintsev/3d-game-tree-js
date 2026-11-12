@@ -822,3 +822,25 @@ test('citygen stage 2 helpers: axis-aligned terrain path rejects diagonal and ri
   assert.ok(Array.isArray(nearRiver));
   assert.equal(isValidAxisAlignedTerrainPath(nearRiver, river), false, 'path crossing/near river corridor must be rejected');
 });
+
+test('citygen stage 6: detects same-layer road crossing conflicts without shared junction', () => {
+  const raw = v4Base();
+  raw.gameplay.spawn = { x: -80, z: -80 };
+  raw.gameplay.exit = { x: 80, z: 80 };
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'a1', position: [-40, 0, 0], layer: 'ground' },
+      { id: 'a2', position: [40, 0, 0], layer: 'ground' },
+      { id: 'b1', position: [0, 0, -40], layer: 'ground' },
+      { id: 'b2', position: [0, 0, 40], layer: 'ground' },
+    ],
+    segments: [
+      { id: 'sx', from: 'a1', to: 'a2', type: 'local', layer: 'ground', path: [[-40, 0, 0], [40, 0, 0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+      { id: 'sz', from: 'b1', to: 'b2', type: 'local', layer: 'ground', path: [[0, 0, -40], [0, 0, 40]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'road_same_level_conflict' && d.stage === '6_finalize_emit'), 'crossing without shared junction should be detected');
+  assert.ok(!out.report.diagnostics.some(d => d.code === 'road_conflicts_none' && d.stage === '6_finalize_emit'));
+});
