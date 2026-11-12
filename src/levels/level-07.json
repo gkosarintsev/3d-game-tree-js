@@ -48,9 +48,9 @@
   },
   "stream": {
     "chunk": 256,
-    "keep": 2,
+    "keep": 1,
     "aheadMin": 200,
-    "aheadMax": 700,
+    "aheadMax": 600,
     "budgetMs": 60
   },
   "cityforge": {

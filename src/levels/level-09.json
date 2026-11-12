@@ -43,9 +43,9 @@
   },
   "stream": {
     "chunk": 256,
-    "keep": 2,
+    "keep": 1,
     "aheadMin": 200,
-    "aheadMax": 1200,
+    "aheadMax": 900,
     "budgetMs": 100
   },
   "buildings": [

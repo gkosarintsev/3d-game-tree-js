@@ -1443,11 +1443,11 @@ export const LEVEL_15 = {
       "z": 160
     },
     "stream": {
-      "aheadMax": 1200,
+      "aheadMax": 900,
       "aheadMin": 200,
       "budgetMs": 120,
       "chunk": 256,
-      "keep": 2,
+      "keep": 1,
       "overlap": 1.175
     },
     "units": "meters",

@@ -184,24 +184,62 @@ function compileRoads(cf, groundY, terrainHeightAt = null) {
   const roads = [];
   const segments = cf?.networks?.roads?.segments ?? [];
   const roadType = (id, top, points, elements) => {
-    const base = (elements ? (top - groundY > J.bridgeMinHeight) : (top - groundY > J.bridgeMinHeight)) ? 'bridge' : 'ground';
+    const base = (top - groundY > J.bridgeMinHeight) ? 'bridge' : 'ground';
     // Terrain-following roads on hills should remain "ground" so relief roadCorridors/pre-leveling apply.
-    if (terrainHeightAt && Array.isArray(points) && points.length >= 2) {
+    if (terrainHeightAt) {
       let minClear = Infinity, maxClear = -Infinity;
-      for (const p of points) {
-        const ty = terrainHeightAt(p.x, p.z);
-        if (!Number.isFinite(ty)) continue;
-        const c = p.y - ty;
-        minClear = Math.min(minClear, c);
-        maxClear = Math.max(maxClear, c);
+      if (Array.isArray(points) && points.length >= 2) {
+        for (const p of points) {
+          const ty = terrainHeightAt(p.x, p.z);
+          if (!Number.isFinite(ty)) continue;
+          const c = p.y - ty;
+          minClear = Math.min(minClear, c);
+          maxClear = Math.max(maxClear, c);
+        }
+      } else if (Array.isArray(elements) && elements.length > 0) {
+        const deg2rad = (d) => d * Math.PI / 180;
+        for (const el of elements) {
+          if (el.arc) {
+            const a = el.arc;
+            const y0 = Number(a.y?.[0] ?? 0), y1 = Number(a.y?.[1] ?? y0);
+            const from = Number(a.from ?? 0), to = Number(a.to ?? 0), span = to - from;
+            const steps = 6;
+            for (let i = 0; i <= steps; i++) {
+              const t = i / steps;
+              const ang = from + span * t;
+              const x = a.cx + Math.cos(deg2rad(ang)) * a.radius;
+              const z = a.cz + Math.sin(deg2rad(ang)) * a.radius;
+              const y = y0 + (y1 - y0) * t;
+              const ty = terrainHeightAt(x, z);
+              if (!Number.isFinite(ty)) continue;
+              const c = y - ty;
+              minClear = Math.min(minClear, c);
+              maxClear = Math.max(maxClear, c);
+            }
+          } else if (el.plate) {
+            // best-effort: sample plate endpoints by y/rise if center not explicit
+            const p = el.plate;
+            const py = Number(p.y ?? 0);
+            const pts = [[p.x ?? p.cx ?? 0, p.z ?? p.cz ?? 0, py], [p.x ?? p.cx ?? 0, p.z ?? p.cz ?? 0, py + Number(p.rise ?? 0)]];
+            for (const [x, z, y] of pts) {
+              const ty = terrainHeightAt(x, z);
+              if (!Number.isFinite(ty)) continue;
+              const c = y - ty;
+              minClear = Math.min(minClear, c);
+              maxClear = Math.max(maxClear, c);
+            }
+          }
+        }
       }
-      // Clearly elevated above local terrain along its whole span => bridge/overpass.
-      if (Number.isFinite(minClear) && minClear >= J.bridgeMinHeight) return 'bridge';
-      // Road follows terrain surface (possibly on hills) => ground, even if high above base groundY.
-      // Only correct base misclassification (road sits on terrain, not in a cut/tunnel below it).
-      if (base === 'bridge' && Number.isFinite(maxClear) && maxClear <= 0.9 && Number.isFinite(minClear) && minClear >= -0.6) return 'ground';
-      // Mixed/ambiguous: keep base classification.
-      return base;
+      if (Number.isFinite(minClear) || Number.isFinite(maxClear)) {
+        // Clearly elevated above local terrain along its whole span => bridge/overpass.
+        if (Number.isFinite(minClear) && minClear >= J.bridgeMinHeight) return 'bridge';
+        // Road follows terrain surface (possibly on hills) => ground, even if high above base groundY.
+        // Only correct base misclassification (road sits on terrain, not in a cut/tunnel below it).
+        if (base === 'bridge' && Number.isFinite(maxClear) && maxClear <= 0.9 && Number.isFinite(minClear) && minClear >= -0.6) return 'ground';
+        // Mixed/ambiguous: keep base classification.
+        return base;
+      }
     }
     return base;
   };
@@ -229,12 +267,15 @@ function compileRoads(cf, groundY, terrainHeightAt = null) {
     }
     if (points.length < 2) continue;
     const top = Math.max(...points.map(p => p.y));
-    roads.push({
+    const roadOut = {
       id: s.id,
       type: roadType(s.id, top, points, null),
       width: s.lanes?.[0]?.width ?? 8,
       points,
-    });
+    };
+    const fr = s.filletRadius ?? s.fillet;
+    if (Number.isFinite(Number(fr)) && Number(fr) > 0.01) roadOut.filletRadius = Number(fr);
+    roads.push(roadOut);
   }
   return roads;
 }
@@ -453,17 +494,59 @@ export function compileCityforge(raw) {
     // следует рельефу (отметка берётся с оси природного поля), поперёк под
     // полотном склон выровнен, чтобы поперечное сечение дороги было горизонтальным.
     // Переход к склону узкий — ландшафт вокруг дороги меняется минимально.
-    // Берём все наземные точечные дороги движка (включая площадки), кроме мостов.
-    const roadCorridors = (roads ?? [])
-      .filter(r => r.type === 'ground' && Array.isArray(r.points) && r.points.length >= 2)
-      .map(r => ({
-        id: r.id,
-        width: r.width ?? 8,
-        shoulder: 1,
-        blend: 5,
-        crossLevel: true,
-        points: r.points.map(p => ({ x: p.x, y: p.y ?? 0, z: p.z })),
-      }));
+    // Берём все наземные дороги движка (включая площадки и дуговые/element-дороги), кроме мостов.
+    const sampleArcPoints = (arc) => {
+      const deg2rad = (d) => d * Math.PI / 180;
+      const from = Number(arc.from ?? 0), to = Number(arc.to ?? 0);
+      const span = to - from;
+      const y0 = Number(arc.y?.[0] ?? 0), y1 = Number(arc.y?.[1] ?? y0);
+      const steps = Math.max(4, Math.ceil(Math.abs(span) / 15));
+      const pts = [];
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const ang = from + span * t;
+        pts.push({
+          x: arc.cx + Math.cos(deg2rad(ang)) * arc.radius,
+          y: y0 + (y1 - y0) * t,
+          z: arc.cz + Math.sin(deg2rad(ang)) * arc.radius,
+        });
+      }
+      return pts;
+    };
+    const roadCorridors = [];
+    for (const r of (roads ?? [])) {
+      if (r.type !== 'ground') continue;
+      if (Array.isArray(r.points) && r.points.length >= 2) {
+        roadCorridors.push({
+          id: r.id,
+          width: r.width ?? 8,
+          shoulder: 1,
+          blend: 5,
+          crossLevel: true,
+          points: r.points.map(p => ({ x: p.x, y: p.y ?? 0, z: p.z })),
+        });
+        continue;
+      }
+      if (Array.isArray(r.elements) && r.elements.length > 0) {
+        for (let ei = 0; ei < r.elements.length; ei++) {
+          const el = r.elements[ei];
+          if (el?.arc) {
+            const pts = sampleArcPoints(el.arc);
+            if (pts.length >= 2) {
+              roadCorridors.push({
+                id: `${r.id}${r.elements.length > 1 ? `:e${ei}` : ''}`,
+                width: el.arc.width ?? r.width ?? 8,
+                shoulder: 1,
+                blend: 5,
+                crossLevel: true,
+                points: pts,
+              });
+            }
+          }
+          // plate elements could be added similarly if needed
+        }
+      }
+    }
     engine.relief = {
       baseY: ground.y ?? 0,
       hillMaxSlope,

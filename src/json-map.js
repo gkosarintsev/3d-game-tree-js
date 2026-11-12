@@ -869,9 +869,11 @@ export class JsonMap extends SurfaceField {
    * между прежними (ключ — координаты клетки, поэтому совпадающие точки не
    * дублируются) и связываются и друг с другом, и с живыми грубыми клетками.
    */
-  _navRooms(nav, rstep) {
+  _navRooms(nav, rstep, rect = null) {
     for (const b of this.buildings) {
+      if (rect && !this._rectsTouch(b.bounds, rect)) continue;
       for (const room of b.rooms) {
+        if (rect && !this._rectsTouch(room.rect, rect)) continue;
         if (this._roomGrid(nav, b, room, rstep, false) <= 2) {
           this._roomGrid(nav, b, room, rstep / 2, true);
         }
@@ -993,7 +995,7 @@ export class JsonMap extends SurfaceField {
    * проёмом отбракует `_edgeSupported`, и марш останется единственной дорогой
    * через него.
    */
-  _navRoofs(nav) {
+  _navRoofs(nav, rect = null) {
     if (!this.roofPlates.length) return;
     const step = J.navStep;
     // тот же отступ, что и у пола комнаты: парапет — фасадная стена той же
@@ -1005,6 +1007,7 @@ export class JsonMap extends SurfaceField {
     const r = CONFIG.radius + J.wallThickness / 2 + 0.05;
     for (const b of this.buildings) {
       if (b.roof?.walkable !== true) continue;
+      if (rect && !this._rectsTouch(b.bounds, rect)) continue;
       const nx = Math.floor((b.bounds.maxX - b.bounds.minX) / step);
       const nz = Math.floor((b.bounds.maxZ - b.bounds.minZ) / step);
       const lat = [];
@@ -1038,8 +1041,9 @@ export class JsonMap extends SurfaceField {
   }
 
   /** Цепочка проступей марша + посадки у его начала и конца. */
-  _navStairs(nav, rstep) {
+  _navStairs(nav, rstep, rect = null) {
     for (const b of this.buildings) {
+      if (rect && !this._rectsTouch(b.bounds, rect)) continue;
       for (const s of b.stairs) {
         // верх марша на кровле ищет соседей по решётке кровли (шаг J.navStep), а
         // не по сетке пола (J.navRoomStep): иначе радиус в 3,6 м не дотянет до
@@ -1098,6 +1102,12 @@ export class JsonMap extends SurfaceField {
    *
    * @returns {number|undefined} индекс узла графа
    */
+  /** Пересечение двух AABB в плане (включая касание). */
+  _rectsTouch(a, b) {
+    if (!a || !b) return false;
+    return !(a.maxX < b.minX || a.minX > b.maxX || a.maxZ < b.minZ || a.minZ > b.maxZ);
+  }
+
   _landing(nav, b, s, sign) {
     const tread = sign > 0 ? s.top : s.bottom;
     const level = sign > 0 ? s.y1 : s.y0;
@@ -1185,11 +1195,16 @@ export class JsonMap extends SurfaceField {
    * .deckChain` — тот же обход берёт и скелет парсера), связи внутри цепочки и
    * между элементами дороги, а концы выходят на решётку земли.
    */
-  _navDecks(nav) {
+  _navDecks(nav, rect = null) {
     const step = J.navStep;
     const deckEnds = [];
     for (const road of this.roads) {
       if (road.type === 'ground') continue;
+      if (rect) {
+        let hit = false;
+        for (const d of road.decks ?? []) { if (this._rectsTouch(d, rect)) { hit = true; break; } }
+        if (!hit) continue;
+      }
       let prevEnd, firstEnd;
       for (const [di, d] of road.decks.entries()) {
         const chain = this.deckChain(d, step);
@@ -1239,9 +1254,15 @@ export class JsonMap extends SurfaceField {
    * идемпотентен и у открытого мира безопасен при пересборке окна. Концы
    * связываются с ближайшей сетью (решётка/площадки порталов), как концы настила.
    */
-  _navTunnels(nav) {
+  _navTunnels(nav, rect = null) {
     const step = J.navStep;
     for (const t of (this.tunnels ?? [])) {
+      if (rect) {
+        const pts = t.points ?? [];
+        let hit = false;
+        for (const p of pts) { if (p.x >= rect.minX && p.x <= rect.maxX && p.z >= rect.minZ && p.z <= rect.maxZ) { hit = true; break; } }
+        if (!hit) continue;
+      }
       const pts = t.points ?? [];
       const from = pts[0], to = pts[pts.length - 1];
       if (!from || !to) continue;
@@ -1280,9 +1301,14 @@ export class JsonMap extends SurfaceField {
    * рёбра отбраковывает блокер дна, и русло остаётся сухой границей между
    * берегами.
    */
-  _navWater(nav) {
+  _navWater(nav, rect = null) {
     const step = J.navStep;
     for (const d of this.descents) {
+      if (rect) {
+        // грубая проверка по опорным точкам схода
+        const bb = d.bounds ?? d.rect ?? (d.strip ? { minX: Math.min(d.x0??0,d.x1??0)-10, maxX: Math.max(d.x0??0,d.x1??0)+10, minZ: Math.min(d.z0??0,d.z1??0)-10, maxZ: Math.max(d.z0??0,d.z1??0)+10 } : null);
+        if (bb && !this._rectsTouch(bb, rect)) continue;
+      }
       const chain = this.descentChain(d, step);
       if (!chain) continue;
       let first, prev;
@@ -1298,8 +1324,9 @@ export class JsonMap extends SurfaceField {
   }
 
   /** Пара узлов в проёме двери + связи с полом комнаты снаружи и с решёткой улицы. */
-  _navDoors(nav, rstep) {
+  _navDoors(nav, rstep, rect = null) {
     for (const b of this.buildings) {
+      if (rect && !this._rectsTouch(b.bounds, rect)) continue;
       for (const d of b.doors) {
         const iy = this.groundHeightAt(d.inside.x, d.inside.z, d.y);
         const inId = nav.add(d.inside.x, iy, d.inside.z, `e:${d.id}:i`);

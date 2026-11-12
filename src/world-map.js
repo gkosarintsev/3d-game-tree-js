@@ -500,6 +500,11 @@ export class WorldMap extends JsonMap {
     slices.push({ label: 'commit', run: () => {
       this.loaded.set(id, entry);
       this._rebuildWorld();
+      // Якоря (openPositions) клетки: собираются один раз при достройке против
+      // актуального мирового набора/индексов и кешируются, чтобы перестройка мира
+      // при следующих загрузках/выгрузках не пересчитывала их для всех клеток.
+      entry.anchors = super._collectAnchors(cell.rect);
+      this._rebuildAnchors();
     } });
     // Спавн в тоннеле: зоны тоннелей известны после commit. reach (последний срез)
     // ищет стартовый узел графа от spawn — если оставить spawn.y=0 из данных при
@@ -524,7 +529,7 @@ export class WorldMap extends JsonMap {
 
     // 4. фазы связывания — по одной на срез (худшая из мерявшихся, `_navRooms`,
     //    стоит 6,7 мс на заполненном окне)
-    slices.push(...this._navPassSlices());
+    slices.push(...this._navPassSlices(cell.rect));
 
     // 5. картинка в два среза, потому что это **два** естественных атома: сбор
     //    геометрии владельцев (`collectPass` с `geo`) и сборка мешей
@@ -591,17 +596,17 @@ export class WorldMap extends JsonMap {
    * узлам и `add` их не растит: пропущенный `seal` оставил бы BFS гонять
    * очередь по кругу.
    */
-  _navPassSlices() {
+  _navPassSlices(rect = null) {
     const nav = this.nav;
     const rstep = J.navRoomStep;
     return [
-      { label: 'rooms', run: () => this._navRooms(nav, rstep) },
-      { label: 'roofs', run: () => this._navRoofs(nav) },
-      { label: 'stairs', run: () => this._navStairs(nav, rstep) },
-      { label: 'decks', run: () => this._navDecks(nav) },
-      { label: 'tunnels', run: () => this._navTunnels(nav) },
-      { label: 'water', run: () => this._navWater(nav) },
-      { label: 'doors', run: () => this._navDoors(nav, rstep) },
+      { label: 'rooms', run: () => this._navRooms(nav, rstep, rect) },
+      { label: 'roofs', run: () => this._navRoofs(nav, rect) },
+      { label: 'stairs', run: () => this._navStairs(nav, rstep, rect) },
+      { label: 'decks', run: () => this._navDecks(nav, rect) },
+      { label: 'tunnels', run: () => this._navTunnels(nav, rect) },
+      { label: 'water', run: () => this._navWater(nav, rect) },
+      { label: 'doors', run: () => this._navDoors(nav, rstep, rect) },
       { label: 'seal', run: () => nav.seal() },
     ];
   }
@@ -1058,14 +1063,19 @@ export class WorldMap extends JsonMap {
 
     const b = this._boundsOf(order);
     this._bounds = b ?? this.spec.bounds;
+    // Якоря кешируются на запись клетки (см. commit-срез), здесь — только склейка.
+    this._rebuildAnchors();
+  }
 
-    // Якоря (`openPositions`) считаются по загруженным клеткам, а не по плите:
-    // решётка опоры ∝ площадь, и на 1,4 км² это 13 689 проб на каждую достройку.
-    // Пересборка всего списка — цена детерминизма: та же точка в той же клетке
-    // обязана отдавать тот же якорь, в каком бы порядке клетки ни строились.
-    const anchors = [];
-    for (const id of order) anchors.push(...super._collectAnchors(this.loaded.get(id).cell.rect));
-    this.anchors = anchors;
+  /** Склейка кешированных якорей загруженных клеток в каноническом порядке. */
+  _rebuildAnchors() {
+    if (!this.loaded) { this.anchors = []; return; }
+    const out = [];
+    for (const id of this._order()) {
+      const a = this.loaded.get(id)?.anchors;
+      if (a) out.push(...a);
+    }
+    this.anchors = out;
   }
 
   /** Объединение прямоугольников загруженных клеток (null — ничего не загружено). */

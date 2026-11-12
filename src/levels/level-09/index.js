@@ -708,11 +708,11 @@ export const LEVEL_09 = {
       "z": -480
     },
     "stream": {
-      "aheadMax": 1200,
+      "aheadMax": 900,
       "aheadMin": 200,
       "budgetMs": 100,
       "chunk": 256,
-      "keep": 2,
+      "keep": 1,
       "overlap": 1.175
     },
     "units": "meters",

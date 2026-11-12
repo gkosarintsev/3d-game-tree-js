@@ -551,13 +551,13 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(fin?.propsByDistrictType && typeof fin.propsByDistrictType === 'object', 'pilot finalize_counts should include propsByDistrictType');
   assert.ok(fin?.roadAccessByType && typeof fin.roadAccessByType === 'object', 'pilot finalize_counts should include roadAccessByType');
   assert.equal(fin?.roadComponents, 1, 'pilot road graph should be connected');
-  assert.equal(fin?.roadSegments, 163);
-  assert.equal(fin?.roadNodes, 133);
+  assert.equal(fin?.roadSegments, 171);
+  assert.equal(fin?.roadNodes, 141);
   assert.equal(fin?.buildings, 401);
   assert.equal(fin?.props, 360);
   assert.equal(fin?.lights, 8);
   assert.equal(fin?.turnarounds, 1, 'pilot should include configured turnaround');
-  // v4: axis-aligned roundabout (круговое движение) in hilly area, connected to network
+  // v4: curved roundabout (круговое движение, arc elements) in hilly area, connected to network
   assert.ok(report.diagnostics.some(d => d.code === 'transport_roundabout' && d.stage === '2_transport'), 'pilot should include roundabout ring');
   assert.ok(report.diagnostics.some(d => d.code === 'transport_roundabout_connected' && d.stage === '2_transport'), 'pilot roundabout should be connected to road network');
   // M1/M2 expansion: pilot should include expanded district/building variety and building coverage across buildable districts.
@@ -1009,7 +1009,7 @@ test('citygen M3 B2: optional dead-end turnarounds are deterministic and valid (
   }
 });
 
-test('citygen M3 B2: level-16 roundabout (v4 json) is deterministic, axis-aligned and connected', () => {
+test('citygen M3 B2: level-16 roundabout (v4 json) is deterministic, curved arc elements and connected', () => {
   const raw = JSON.parse(readFileSync(resolve('src/levels/level-16.json'), 'utf8'));
   const a = runCitygen(structuredClone(raw));
   const b = runCitygen(structuredClone(raw));
@@ -1020,23 +1020,29 @@ test('citygen M3 B2: level-16 roundabout (v4 json) is deterministic, axis-aligne
   assert.ok(roads && Array.isArray(roads.segments) && Array.isArray(roads.nodes), 'roads network should exist');
   const rbSegs = roads.segments.filter(s => String(s.id).startsWith('tr_rb_360_360_'));
   const rbConn = roads.segments.filter(s => String(s.id).startsWith('tr_rbc_360_360'));
-  assert.equal(rbSegs.length, 4, 'should add 4 roundabout ring segments');
+  assert.ok(rbSegs.length >= 4, 'should add curved roundabout ring arc segments');
   assert.ok(rbConn.length >= 1, 'should add roundabout connector segment');
   const byNode = new Map(roads.nodes.map(n => [n.id, n]));
-  for (const s of [...rbSegs, ...rbConn]) {
-    assert.ok(Array.isArray(s.path) && s.path.length >= 2, `roundabout segment ${s.id} should have path`);
+  for (const s of rbSegs) {
+    assert.ok(Array.isArray(s.elements) && s.elements.length >= 1, `roundabout ring segment ${s.id} should have arc elements`);
+    const arc = s.elements[0]?.arc;
+    assert.ok(arc, `roundabout ring segment ${s.id} should be an arc element`);
+    assert.equal(arc.cx, 360);
+    assert.equal(arc.cz, 360);
+    assert.equal(arc.radius, 24);
+    assert.ok(Number.isFinite(arc.from) && Number.isFinite(arc.to) && Math.abs(arc.to - arc.from) > 1e-6, `arc ${s.id} should have valid span`);
+    assert.ok(Array.isArray(arc.y) && arc.y.length === 2, `arc ${s.id} should have y endpoints`);
+    const arcLen = arc.radius * Math.abs((arc.to - arc.from) * Math.PI / 180);
+    assert.ok(arcLen > 1e-6, `arc ${s.id} should have positive length`);
+    assert.ok(Math.abs(arc.y[1] - arc.y[0]) / arcLen <= 0.301, `arc ${s.id} slope should be within limit`);
     assert.ok(byNode.has(s.from) && byNode.has(s.to), `roundabout segment ${s.id} should have valid endpoints`);
-    for (let i = 0; i + 1 < s.path.length; i++) {
-      const p = s.path[i], q = s.path[i + 1];
-      const dx = Math.abs((q[0] ?? 0) - (p[0] ?? 0));
-      const dz = Math.abs((q[2] ?? 0) - (p[2] ?? 0));
-      assert.ok(dx < 1e-6 || dz < 1e-6, `roundabout segment ${s.id} must be axis-aligned`);
-      const h = Math.hypot((q[0] ?? 0) - (p[0] ?? 0), (q[2] ?? 0) - (p[2] ?? 0));
-      if (h > 1e-6) {
-        const slope = Math.abs((q[1] ?? 0) - (p[1] ?? 0)) / h;
-        assert.ok(slope <= 0.301, `roundabout segment ${s.id} slope should be within limit`);
-      }
-    }
+  }
+  // ring continuity: arcs form a closed chain
+  const toFrom = new Set(rbSegs.map(s => `${s.from}->${s.to}`));
+  assert.equal(toFrom.size, rbSegs.length, 'ring segments should form a unique chain');
+  for (const s of rbConn) {
+    assert.ok(Array.isArray(s.path) && s.path.length >= 2, `roundabout connector ${s.id} should have path`);
+    assert.ok(byNode.has(s.from) && byNode.has(s.to), `roundabout connector ${s.id} should have valid endpoints`);
   }
   assert.ok(!a.report.diagnostics.some(d => d.code === 'road_conflicts_unresolved' && d.stage === '6_finalize_emit'), 'roundabout should not introduce unresolved road conflicts');
   const fin = a.report.diagnostics.find(d => d.code === 'finalize_counts' && d.stage === '6_finalize_emit');

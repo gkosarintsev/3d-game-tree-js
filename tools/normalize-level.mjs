@@ -675,6 +675,150 @@ function toWorld(rect, rotation, cx, cz, L, W) {
 
 // ------------------------------------------------------------------- дороги
 
+/**
+ * Автоматическое скругление поворотов path-дороги дуговыми филетами (в плане XZ).
+ * Возвращает дорогу с `elements` (plate/arc) или null, если скруглить нельзя/не нужно.
+ *
+ * Для каждого внутреннего угла ломаной строится круговая дуга радиуса `R`, касательная
+ * к прилегающим сегментам; прямые участки становятся plate-элементами. Высота (y)
+ * интерполируется по длине пути. Углы/филеты считаются в 2D (XZ), что соответствует
+ * скруглению поворотов на дороге.
+ */
+function filletPathRoad(road, R, ground, tunnels) {
+  const ptsIn = road.points ?? [];
+  if (ptsIn.length < 3) return null;
+  // подготовка точек как у normalizeRoad: подъём к рельефу (без drape-разбиения, чтобы не
+  // порождать лишние микро-углы) — геометрия филета строится по опорным точкам пути
+  const lift = (p) => {
+    if (road.type !== 'ground' && road.type !== 'bridge') return { ...p };
+    if (inTunnel(p.x, p.z, p.y, tunnels)) return { ...p };
+    if (!ground.land) return { ...p };
+    const land = ground.land(p.x, p.z);
+    return { ...p, y: Math.max(p.y, r3(land + J.streetRise)) };
+  };
+  const pts = ptsIn.map(lift);
+  const n = pts.length;
+
+  const segLen = (a, b) => Math.hypot(b.x - a.x, b.z - a.z);
+  // накопленная длина по ломаной для интерполяции y
+  const cum = [0];
+  for (let i = 1; i < n; i++) cum.push(cum[i - 1] + segLen(pts[i - 1], pts[i]));
+
+  const yAtS = (s) => {
+    if (s <= 0) return pts[0].y;
+    if (s >= cum[n - 1]) return pts[n - 1].y;
+    let i = 1;
+    while (i < n && cum[i] < s - 1e-9) i++;
+    const a = pts[i - 1], b = pts[i];
+    const ds = cum[i] - cum[i - 1];
+    const t = ds > 1e-9 ? (s - cum[i - 1]) / ds : 0;
+    return a.y + (b.y - a.y) * t;
+  };
+
+  const norm2 = (vx, vz) => { const l = Math.hypot(vx, vz); return l > 1e-9 ? [vx / l, vz / l, l] : [0, 0, 0]; };
+  const angDeg = (vx, vz) => Math.atan2(vz, vx) * 180 / Math.PI;
+  const normAng = (a) => { let x = a; while (x > 360) x -= 360; while (x < -360) x += 360; return x; };
+  // кратчайшая дуга от a0 к a1 в заданном направлении (sign>0 CCW/увеличение, sign<0 CW)
+  const sweepTo = (a0, a1, sign) => {
+    let d = a1 - a0;
+    if (sign > 0) { while (d <= 0) d += 360; while (d > 360) d -= 360; }
+    else { while (d >= 0) d -= 360; while (d < -360) d += 360; }
+    return d;
+  };
+
+  // trim расстояние на каждом сегменте у его концов (из-за филетов)
+  const trimL = Array(n).fill(0), trimR = Array(n).fill(0);
+  const fillets = Array(n).fill(null);
+
+  for (let i = 1; i < n - 1; i++) {
+    const p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1];
+    const [u0x, u0z, l0] = norm2(p1.x - p0.x, p1.z - p0.z); // входящий (к углу)
+    const [u1x, u1z, l1] = norm2(p2.x - p1.x, p2.z - p1.z); // исходящий (от угла)
+    if (l0 < 1e-6 || l1 < 1e-6) continue;
+    // cross в 2D (x,z): u0 x u1 = u0x*u1z - u0z*u1x; >0 => поворот "влево" (CCW)
+    const cross = u0x * u1z - u0z * u1x;
+    const dot = Math.max(-1, Math.min(1, u0x * u1x + u0z * u1z));
+    const turn = Math.abs(Math.atan2(cross, dot)); // 0..pi, 0 = прямо
+    if (turn < 1e-3 || Math.abs(Math.PI - turn) < 1e-3) continue; // нет угла или разворот
+    const tOff = R / Math.tan(turn / 2);
+    if (!Number.isFinite(tOff) || tOff <= 1e-6) continue;
+    // нужно место на прилегающих сегментах с учётом соседних филетов (грубая проверка позже тоже)
+    const avail0 = l0 - trimR[i - 1];
+    const avail1 = l1 - trimL[i + 1];
+    if (tOff > avail0 - 0.05 || tOff > avail1 - 0.05) continue;
+
+    // точки касания
+    const t1x = p1.x - u0x * tOff, t1z = p1.z - u0z * tOff;
+    const t2x = p1.x + u1x * tOff, t2z = p1.z + u1z * tOff;
+    // центр дуги: по нормали внутрь поворота на R
+    const sgn = cross > 0 ? 1 : -1; // +1 = левый поворот
+    // левая нормаль к направлению (dx,dz): (-dz, dx)
+    const n0x = -u0z * sgn, n0z = u0x * sgn;
+    const cx = t1x + n0x * R, cz = t1z + n0z * R;
+    // углы точек касания относительно центра
+    const a1 = angDeg(t1x - cx, t1z - cz);
+    const a2 = angDeg(t2x - cx, t2z - cz);
+    const span = sweepTo(a1, a2, sgn);
+
+    // параметры вдоль исходной ломаной (для y)
+    const sT1 = cum[i] - tOff;
+    const sT2 = cum[i] + tOff;
+    fillets[i] = { cx, cz, R, from: a1, to: a1 + span, y0: yAtS(sT1), y1: yAtS(sT2), t1x, t1z, t2x, t2z, sT1, sT2 };
+    trimR[i - 1] = Math.max(trimR[i - 1], tOff);
+    trimL[i + 1] = Math.max(trimL[i + 1], tOff);
+  }
+
+  // финальная проверка: прямые остатки сегментов не отрицательные
+  for (let i = 0; i < n - 1; i++) {
+    const l = segLen(pts[i], pts[i + 1]);
+    if (l - trimR[i] - trimL[i + 1] < -0.05) return null;
+  }
+
+  // Есть ли хоть один филет?
+  if (!fillets.some(Boolean)) return null;
+
+  const elements = [];
+  const W = r3(road.width ?? 8);
+  const rails = !!road.rails;
+  let cur = { x: pts[0].x, z: pts[0].z, y: pts[0].y, s: 0 };
+
+  const pushPlate = (ax, az, ay, bx, bz, by) => {
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.2) return;
+    const yaw = Math.atan2(dx, dz) * 180 / Math.PI; // локальная ось пластины вдоль длины; согласуем ниже
+    // В normalizeRoadElements: локальная ось вдоль length это ось X пластины, повёрнутая на yaw.
+    // frameAt/rotatePoint: x' = cx + dx*c - dz*s => направление локального +X в мире = (cos(yaw), sin(yaw)).
+    // Значит yaw = atan2(worldDirZ, worldDirX)? Wait: (c,s)=(cos(rad),sin(rad)) of yaw deg. Local +X maps to (c,s).
+    // So yaw = atan2(dz, dx) in our dx,dz along segment.
+    const yaw2 = Math.atan2(dz, dx) * 180 / Math.PI;
+    elements.push({ plate: { x: r3((ax + bx) / 2), z: r3((az + bz) / 2), yaw: r3(yaw2), length: r3(len), width: W, y: r3(ay), rise: r3(by - ay), ...(rails ? { rails: true } : {}) } });
+  };
+
+  for (let i = 1; i < n; i++) {
+    const prevFillet = fillets[i - 1];
+    const nextFillet = fillets[i];
+    const startPt = prevFillet ? { x: prevFillet.t2x, z: prevFillet.t2z, y: prevFillet.y1, s: prevFillet.sT2 } : cur;
+    const endPt = nextFillet ? { x: nextFillet.t1x, z: nextFillet.t1z, y: nextFillet.y0, s: nextFillet.sT1 } : { x: pts[i].x, z: pts[i].z, y: pts[i].y, s: cum[i] };
+    // прямой участок до угла i (если есть)
+    if (segLen(startPt, endPt) > 0.2) pushPlate(startPt.x, startPt.z, startPt.y, endPt.x, endPt.z, endPt.y);
+    // дуга в угле i
+    if (nextFillet) {
+      elements.push({ arc: { cx: r3(nextFillet.cx), cz: r3(nextFillet.cz), radius: r3(nextFillet.R), from: r3(normAng(nextFillet.from)), to: r3(normAng(nextFillet.to)), width: W, y: [r3(nextFillet.y0), r3(nextFillet.y1)], ...(rails ? { rails: true } : {}) } });
+      cur = { x: nextFillet.t2x, z: nextFillet.t2z, y: nextFillet.y1, s: nextFillet.sT2 };
+    } else {
+      cur = endPt;
+    }
+  }
+
+  if (!elements.length) return null;
+  return {
+    ...road,
+    elements,
+    // path убираем: element-дорога
+  };
+}
+
 /** true, если точка (x,z,y) находится внутри коридора прямого туннеля (прорубленный рельеф). */
 function inTunnel(x, z, y, tunnels) {
   for (const t of (tunnels ?? [])) {
@@ -707,6 +851,15 @@ function inTunnel(x, z, y, tunnels) {
  */
 function normalizeRoad(road, ground, tunnels) {
   if (road.elements) return normalizeRoadElements(road);
+  // Автоматическое скругление поворотов (филеты): замена острых углов path-дороги
+  // дуговыми элементами радиуса `filletRadius`/`fillet` (м). Применяется в плане XZ;
+  // высота на дуге интерполируется по длине (как у прочих элементов). При успешном
+  // построении дорога превращается в element-дорогу (plate+arc), иначе — обычный путь.
+  const filletR = Number(road.filletRadius ?? road.fillet);
+  if (Number.isFinite(filletR) && filletR > 0.01 && Array.isArray(road.points) && road.points.length >= 3) {
+    const filleted = filletPathRoad(road, filletR, ground, tunnels);
+    if (filleted) return normalizeRoadElements(filleted);
+  }
   const halfW = road.width / 2;
   // Дорога не может быть ниже ландшафта: поднимаем точку до рельефа + streetRise
   // (иначе полотно зарывается в склон или мерцает вровень с плоскостью земли).

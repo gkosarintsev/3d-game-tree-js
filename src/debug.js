@@ -100,69 +100,181 @@ function makeLabel(text, x, y, z) {
 }
 
 /**
- * Метки id объектов в мире. Точки берёт у карты через необязательный член
- * контракта `debugIds()` (его держит карта из брифа, где у каждого объекта данных
- * есть свой id), поэтому панель не знает ни схемы уровня, ни номеров глав.
+ * Отладочные метки id и координатная сетка на поверхности.
  *
- * Набор живёт, только пока метки включены: при выключении каждая текстура и
- * материал `dispose()`-нятся (это объекты сцены — то же требование, что к пулу
- * огней), а при смене главы перестраиваются, потому что `_buildLevel` создаёт
- * новую сцену и старый набор в ней остаться не может.
+ * Метки берёт у карты через необязательный член контракта `debugIds()` (панель не
+ * знает схемы уровня и номеров глав). Чтобы не терять производительность, при
+ * включении показываются только id ближайших к камере объектов (а не весь мир), и
+ * набор обновляется по мере перемещения камеры/игрока.
+ *
+ * Вместе с метками включается сетка карты на поверхности с подписью координат
+ * (x, z) в узлах — по ней можно понять, где стоят объекты, и ссылаться на
+ * координаты. Сетка следует рельефу (высота узлов берётся из `groundHeightAt`).
+ *
+ * Набор живёт, только пока включён: при выключении/перестройке все текстуры,
+ * материалы и геометрии `dispose()`-нятся (объекты сцены — требование AGENTS).
+ * При смене главы перестраивается, т.к. `_buildLevel` создаёт новую сцену.
  */
 function createIdLabels(game, onChange) {
-  let group = null;
+  let labelsGroup = null;
+  let gridGroup = null;
   let shownMap = null;
   let enabled = false;
+  let lastCx = NaN, lastCz = NaN;
+
+  const MAX_LABELS = 250;
+  const MAX_LABEL_DIST = 350;
+  const GRID_STEP = 50;
+  const GRID_RADIUS = 200; // от центра камеры, в метрах
+
+  const disposeObject = (obj) => {
+    obj.traverse?.((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m => { m.map?.dispose(); m.dispose(); });
+        else { child.material.map?.dispose(); child.material.dispose(); }
+      }
+    });
+  };
+
+  const clearGroup = (g) => {
+    if (!g) return null;
+    for (const child of [...g.children]) disposeObject(child);
+    g.clear();
+    g.removeFromParent();
+    return null;
+  };
 
   const clear = () => {
-    if (!group) return;
-    for (const sp of group.children) {
-      sp.material.map?.dispose();
-      sp.material.dispose();
-    }
-    group.clear();
-    group.removeFromParent();
-    group = null;
+    labelsGroup = clearGroup(labelsGroup);
+    gridGroup = clearGroup(gridGroup);
     shownMap = null;
+    lastCx = NaN; lastCz = NaN;
   };
 
-  const build = () => {
+  const focusPos = () => {
+    // в debug-обзоре камера свободна; позиция камеры — лучший ориентир
+    const cam = game.camera?.position;
+    if (cam) return { x: cam.x, z: cam.z, y: cam.y };
+    const p = game.player?.position;
+    return { x: p?.x ?? 0, z: p?.z ?? 0, y: (p?.y ?? 0) };
+  };
+
+  const groundYAt = (map, x, z, hintY) => {
+    if (!map || typeof map.groundHeightAt !== 'function') return (map?.groundY ?? 0);
+    const y = map.groundHeightAt(x, z, hintY);
+    return Number.isFinite(y) ? y : (map?.groundY ?? 0);
+  };
+
+  const makeGrid = (map, cx, cz, hintY) => {
+    const g = new THREE.Group();
+    g.name = 'debugGrid';
+    const baseY = hintY ?? groundYAt(map, cx, cz, hintY);
+    const minX = Math.floor((cx - GRID_RADIUS) / GRID_STEP) * GRID_STEP;
+    const maxX = Math.ceil((cx + GRID_RADIUS) / GRID_STEP) * GRID_STEP;
+    const minZ = Math.floor((cz - GRID_RADIUS) / GRID_STEP) * GRID_STEP;
+    const maxZ = Math.ceil((cz + GRID_RADIUS) / GRID_STEP) * GRID_STEP;
+
+    const yAt = (x, z) => groundYAt(map, x, z, baseY) + 0.05;
+
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x4aa3ff, transparent: true, opacity: 0.45, depthTest: false, toneMapped: false });
+    const axisXMat = new THREE.LineBasicMaterial({ color: 0xff6b6b, transparent: true, opacity: 0.7, depthTest: false, toneMapped: false });
+    const axisZMat = new THREE.LineBasicMaterial({ color: 0x6bff8a, transparent: true, opacity: 0.7, depthTest: false, toneMapped: false });
+
+    const addLine = (pts, mat) => {
+      if (pts.length < 2) return;
+      const geom = new THREE.BufferGeometry().setFromPoints(pts);
+      const line = new THREE.Line(geom, mat);
+      line.renderOrder = 998;
+      g.add(line);
+    };
+
+    // линии сетки вдоль X и Z, с высотой по рельефу
+    for (let x = minX; x <= maxX + 1e-6; x += GRID_STEP) {
+      const pts = [];
+      for (let z = minZ; z <= maxZ + 1e-6; z += GRID_STEP) pts.push(new THREE.Vector3(x, yAt(x, z), z));
+      addLine(pts, Math.abs(x) < 1e-6 ? axisZMat : lineMat);
+    }
+    for (let z = minZ; z <= maxZ + 1e-6; z += GRID_STEP) {
+      const pts = [];
+      for (let x = minX; x <= maxX + 1e-6; x += GRID_STEP) pts.push(new THREE.Vector3(x, yAt(x, z), z));
+      addLine(pts, Math.abs(z) < 1e-6 ? axisXMat : lineMat);
+    }
+
+    // подписи координат в узлах (кратно GRID_STEP)
+    for (let x = minX; x <= maxX + 1e-6; x += GRID_STEP) {
+      for (let z = minZ; z <= maxZ + 1e-6; z += GRID_STEP) {
+        const d2 = (x - cx) * (x - cx) + (z - cz) * (z - cz);
+        if (d2 > (GRID_RADIUS + GRID_STEP) * (GRID_RADIUS + GRID_STEP)) continue;
+        const label = makeLabel(`${Math.round(x)}, ${Math.round(z)}`, x, yAt(x, z) + 0.35, z);
+        label.renderOrder = 998;
+        g.add(label);
+      }
+    }
+    return g;
+  };
+
+  const refresh = (force = false) => {
     const map = game.map;
-    clear();
-    if (!map || typeof map.debugIds !== 'function') return false;
-    group = new THREE.Group();
-    group.name = 'debugIds';
-    for (const p of map.debugIds()) group.add(makeLabel(p.text, p.x, p.y, p.z));
-    shownMap = map;
-    game.scene.add(group);
-    return true;
+    if (!enabled || !map || typeof map.debugIds !== 'function') {
+      if (enabled) { clear(); onChange?.(); }
+      return;
+    }
+    if (map !== shownMap) {
+      clear();
+      shownMap = map;
+    }
+    const pos = focusPos();
+    const moved = !Number.isFinite(lastCx) || (pos.x - lastCx) ** 2 + (pos.z - lastCz) ** 2 > 25 * 25;
+    if (!force && !moved && labelsGroup && gridGroup) return;
+    lastCx = pos.x; lastCz = pos.z;
+
+    // ближайшие id объектов к камере/игроку (ограничение для производительности)
+    const all = map.debugIds();
+    const withD = all.map(p => ({ p, d2: (p.x - pos.x) ** 2 + (p.z - pos.z) ** 2 }));
+    withD.sort((a, b) => a.d2 - b.d2);
+    const picked = [];
+    const maxD2 = MAX_LABEL_DIST * MAX_LABEL_DIST;
+    for (const it of withD) {
+      if (picked.length >= MAX_LABELS) break;
+      if (it.d2 > maxD2 && picked.length >= 80) break; // дальние — только если совсем пусто рядом
+      picked.push(it.p);
+    }
+
+    labelsGroup = clearGroup(labelsGroup);
+    labelsGroup = new THREE.Group();
+    labelsGroup.name = 'debugIds';
+    for (const p of picked) labelsGroup.add(makeLabel(p.text, p.x, p.y, p.z));
+    game.scene.add(labelsGroup);
+
+    gridGroup = clearGroup(gridGroup);
+    gridGroup = makeGrid(map, pos.x, pos.z, pos.y);
+    game.scene.add(gridGroup);
+
+    onChange?.();
   };
 
-  // Перестройка — по окончанию загрузки главы, а не опросом `game.map` каждый
-  // кадр: загрузка уже единственная точка, где карта и сцена меняются все сразу
-  // (её зовут и кнопка панели, и смерть, и переход к следующей главе), а wrap
-  // instance-метода ловит и отложенные вызовы из hud.
+  // Перестройка после загрузки главы: `_buildLevel` создаёт новую сцену и карта
+  // меняется целиком (кнопка панели, смерть, переход к следующей главе).
   const original = game._loadLevel.bind(game);
   game._loadLevel = async (index) => {
     const r = await original(index);
-    if (enabled && game.map !== shownMap) {
-      build();
-      // главу без `debugIds` перестройка гасит, а подпись под кнопкой станет
-      // правдой, а не застывшим числом прошлой главы
-      onChange?.();
-    }
+    if (enabled) refresh(true);
     return r;
   };
 
   return {
-    /** Включить/выключить метки. Состояние переживает смену главы: иначе
-     *  включённые метки молча не появились бы после перехода в главу из брифа. */
+    /** Включить/выключить метки и координатную сетку. Состояние переживает смену главы. */
     set(on) {
       enabled = on;
-      if (on) build();
+      if (on) refresh(true);
       else clear();
     },
-    count: () => (group ? group.children.length : 0),
+    /** Обновить ближайшие метки/сетку при перемещении камеры (дёшево пропускает, если далеко не ушли). */
+    update() { if (enabled) refresh(false); },
+    count: () => (labelsGroup ? labelsGroup.children.length : 0),
+    /** Включено ли отображение (для подписи/логики панели). */
+    isEnabled: () => enabled,
   };
 }
 
@@ -221,7 +333,9 @@ export function mountDebug(game) {
     }
     const n = idLabels.count();
     idsBtn.textContent = `Скрыть id объектов (${n})`;
-    idsNote.textContent = n ? '' : 'меток нет: главе нечего подписывать';
+    idsNote.textContent = n
+      ? 'показаны ближайшие id и сетка координат (x,z) на поверхности'
+      : 'меток нет: главе нечего подписывать';
   };
 
   const idLabels = createIdLabels(game, syncIdsBtn);
@@ -408,15 +522,16 @@ export function mountDebug(game) {
   render();
   document.body.appendChild(panel);
 
-  // Числа помпы меняются срезами, а не пикселями, поэтому обновление — четыре
-  // раза в секунду. Цепочка кадров кончается сама, когда панель снята с
-  // документа: отдельного слушателя на window она не оставляет.
-  let lastStream = 0;
+  // Числа помпы и позиция камеры (для ближайших меток/сетки) меняются во времени,
+  // поэтому обновление — четыре раза в секунду. Цепочка кадров кончается сама, когда
+  // панель снята с документа: отдельного слушателя на window она не оставляет.
+  let lastTick = 0;
   const watchStream = (now) => {
     if (!panel.isConnected) return;
-    if (now - lastStream >= 250) {
-      lastStream = now;
+    if (now - lastTick >= 250) {
+      lastTick = now;
       syncStream();
+      if (idsOn) idLabels.update();
     }
     requestAnimationFrame(watchStream);
   };

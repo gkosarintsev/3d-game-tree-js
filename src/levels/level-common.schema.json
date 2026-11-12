@@ -1202,6 +1202,16 @@
         "speedLimit": {
           "type": "number",
           "minimum": 0
+        },
+        "filletRadius": {
+          "type": "number",
+          "minimum": 0,
+          "description": "м: радиус автоматического скругления поворотов path-дороги (филет дугой). 0/отсутствие — без скругления."
+        },
+        "fillet": {
+          "type": "number",
+          "minimum": 0,
+          "description": "м: то же, что filletRadius (псевдоним)."
         }
       },
       "required": [

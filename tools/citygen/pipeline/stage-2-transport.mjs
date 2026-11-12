@@ -114,6 +114,51 @@ function shouldGenerateTransport(ctx) {
   return !has;
 }
 
+/**
+ * Селективное скругление прямых углов у сгенерированных path-дорог (v4 generator.transport.cornerFillet).
+ * Помечает подходящие сегменты полем `filletRadius`; фактическая геометрия (plate+arc) строится
+ * в нормализации (`tools/normalize-level.mjs`). Не трогает element-сегменты и пути без внутреннего угла.
+ */
+function applyCornerFillets(ctx) {
+  const tc = ctx.input?.generator?.transport || {};
+  const cf = tc.cornerFillet;
+  if (!cf || typeof cf !== 'object') return;
+  const radius = Number(cf.radius ?? cf.filletRadius ?? cf.fillet);
+  if (!Number.isFinite(radius) || radius <= 0.01) return;
+  const segs = ctx.networks?.roads?.segments ?? [];
+  const types = Array.isArray(cf.segmentTypes) ? cf.segmentTypes.map(String) : null;
+  const includeIds = new Set(Array.isArray(cf.includeSegmentIds) ? cf.includeSegmentIds.map(String) : []);
+  const excludeIds = new Set(Array.isArray(cf.excludeSegmentIds) ? cf.excludeSegmentIds.map(String) : []);
+  let tagged = 0;
+  for (const seg of segs) {
+    if (!seg || typeof seg !== 'object') continue;
+    if (excludeIds.has(String(seg.id))) continue;
+    if (Array.isArray(seg.elements) && seg.elements.length) continue; // уже element/дуговой
+    const pts = Array.isArray(seg.path) ? seg.path : [];
+    if (pts.length < 3) continue; // нужен внутренний угол
+    const byType = !types || types.length === 0 || types.includes(String(seg.type));
+    const byId = includeIds.has(String(seg.id));
+    if (!byType && !byId) continue;
+    // только если есть заметный поворот в плане (избегаем "скругления" почти прямой линии)
+    let hasTurn = false;
+    for (let i = 1; i < pts.length - 1 && !hasTurn; i++) {
+      const a = pts[i - 1], b = pts[i], c = pts[i + 1];
+      const v1x = b[0] - a[0], v1z = b[2] - a[2];
+      const v2x = c[0] - b[0], v2z = c[2] - b[2];
+      const l1 = Math.hypot(v1x, v1z), l2 = Math.hypot(v2x, v2z);
+      if (l1 < 1e-6 || l2 < 1e-6) continue;
+      const cross = Math.abs(v1x * v2z - v1z * v2x) / (l1 * l2);
+      if (cross > 0.05) hasTurn = true; // ~>3°
+    }
+    if (!hasTurn) continue;
+    seg.filletRadius = radius;
+    tagged++;
+  }
+  if (tagged > 0) {
+    ctx.report.diagnostics.push(info('transport_corner_fillet', '2_transport', `tagged ${tagged} road segments for corner filleting`, { radius, tagged }));
+  }
+}
+
 function modifiersToHills(mods = [], groundY = 0) {
   const hills = [];
   mods.forEach((m, i) => {
@@ -2175,7 +2220,8 @@ export function addAxisAlignedAccessRoadsForParcels(ctx) {
   return { added };
 }
 
-// M3: axis-aligned rectangular "roundabout" (ring road / кольцевое движение), hilly-friendly, from v4 generator.transport.roundabouts
+// M3: roundabout (кольцевое движение) from v4 generator.transport.roundabouts.
+// Ring road on the circle is described by curved arc elements (not straight segments).
 function addAxisAlignedRoundabouts(ctx) {
   const stageId = '2_transport';
   const tc = ctx.input?.generator?.transport || {};
@@ -2189,84 +2235,141 @@ function addAxisAlignedRoundabouts(ctx) {
   const usedSegIds = new Set(segments.map(s => s.id));
   const uniqNode = (base) => { let id = base; let k = 2; while (usedNodeIds.has(id)) { id = `${base}_${k++}`; } usedNodeIds.add(id); return id; };
   const uniqSeg = (base) => { let id = base; let k = 2; while (usedSegIds.has(id)) { id = `${base}_${k++}`; } usedSegIds.add(id); return id; };
+  const deg2rad = (d) => d * Math.PI / 180;
+  const ptAt = (cx, cz, r, deg) => [cx + Math.cos(deg2rad(deg)) * r, cz + Math.sin(deg2rad(deg)) * r];
 
   for (const rb of rbs) {
     try {
-      const cx = Number(rb.center?.[0] ?? rb.x ?? 0);
-      const cz = Number(rb.center?.[1] ?? rb.z ?? 0);
-      const size = Math.max(16, Number(rb.size) || 30);
+      const cx = Math.round((Number(rb.center?.[0] ?? rb.x ?? 0)) * 10) / 10;
+      const cz = Math.round((Number(rb.center?.[1] ?? rb.z ?? 0)) * 10) / 10;
+      const radius = Math.max(12, Number(rb.radius ?? rb.size ?? 24));
       const width = Math.max(6, Number(rb.width) || 8);
-      const x1 = Math.round((cx - size) * 10) / 10, x2 = Math.round((cx + size) * 10) / 10;
-      const z1 = Math.round((cz - size) * 10) / 10, z2 = Math.round((cz + size) * 10) / 10;
-      if (Math.max(Math.abs(x1), Math.abs(x2), Math.abs(z1), Math.abs(z2)) > half - 2) continue;
-      const corners = [
-        [x1, sampler.heightAt(x1, z1), z1],
-        [x2, sampler.heightAt(x2, z1), z1],
-        [x2, sampler.heightAt(x2, z2), z2],
-        [x1, sampler.heightAt(x1, z2), z2],
-      ];
+      if (Math.abs(cx) + radius > half - 2 || Math.abs(cz) + radius > half - 2) continue;
+
+      // Full circle as curved arc elements (8 segments for better terrain fit)
+      const arcCount = 8;
+      const stepDeg = 360 / arcCount;
+      const angles = Array.from({ length: arcCount + 1 }, (_, i) => i * stepDeg);
+      const ringPos = angles.slice(0, arcCount).map(a => {
+        const [x, z] = ptAt(cx, cz, radius, a);
+        const rx = Math.round(x * 100) / 100, rz = Math.round(z * 100) / 100;
+        const ry = Math.round(sampler.heightAt(rx, rz) * 100) / 100;
+        return [rx, ry, rz, a];
+      });
+
       let riverBad = false;
-      for (let i = 0; i < 4; i++) {
-        const a = corners[i], b = corners[(i + 1) % 4];
-        if (segCrossesRiver(a[0], a[2], b[0], b[2], rivers)) { riverBad = true; break; }
+      for (let i = 0; i < arcCount; i++) {
+        const a0 = angles[i], a1 = angles[i + 1];
+        for (let s = 0; s <= 6; s++) {
+          const a = a0 + (a1 - a0) * (s / 6);
+          const [x, z] = ptAt(cx, cz, radius, a);
+          const near = riverMinDistXZAt(x, z, rivers);
+          if (near.river && near.d < ((near.river.width ?? 10) * 0.5 + 4)) { riverBad = true; break; }
+        }
+        if (riverBad) break;
       }
       if (riverBad) continue;
 
-      // snap corners to nearby existing ground nodes to integrate with network (avoid disconnected component)
+      // snap ring nodes to nearby existing ground nodes for network integration
       const cornerNodeIds = [];
-      for (let i = 0; i < 4; i++) {
-        const c = corners[i];
+      for (let i = 0; i < arcCount; i++) {
+        const p = ringPos[i];
         let snap = null;
         for (const n of nodes) {
           if (!n?.position || n.layer === 'elevated') continue;
-          if (Math.hypot(n.position[0] - c[0], n.position[2] - c[2]) < 1.5) { snap = n; break; }
+          if (Math.hypot(n.position[0] - p[0], n.position[2] - p[2]) < 1.5) { snap = n; break; }
         }
         if (snap) {
           cornerNodeIds.push(snap.id);
-          // adjust corner height to existing node to avoid vertical mismatch at shared point
-          c[1] = Number(snap.position[1]) || c[1];
+          p[1] = Number(snap.position[1]) || p[1];
         } else {
           const id = uniqNode(`tr_rn_${Math.round(cx)}_${Math.round(cz)}_${i+1}`);
-          nodes.push({ id, position: [c[0], c[1], c[2]], layer: 'ground' });
+          nodes.push({ id, position: [p[0], p[1], p[2]], layer: 'ground' });
           cornerNodeIds.push(id);
         }
       }
+      // lift arc chords to stay at/above sampled terrain (arc element has linear y profile)
+      const cornerY = ringPos.map(p => Number(p[1]));
+      const arcLen = radius * Math.abs(stepDeg * Math.PI / 180);
+      if (arcLen > 1e-6) {
+        // per-arc uniform lift so linear chord clears terrain
+        const lifts = Array(arcCount).fill(0);
+        for (let i = 0; i < arcCount; i++) {
+          const y0 = cornerY[i], y1 = cornerY[(i + 1) % arcCount];
+          let lift = 0;
+          for (let s = 1; s < 6; s++) {
+            const t = s / 6;
+            const ang = angles[i] + (angles[i + 1] - angles[i]) * t;
+            const [x, z] = ptAt(cx, cz, radius, ang);
+            const ty = sampler.heightAt(x, z);
+            const yl = y0 + (y1 - y0) * t;
+            lift = Math.max(lift, ty - yl);
+          }
+          lifts[i] = Math.max(0, lift);
+        }
+        // apply lifts to corners (shared corners take max lift of adjacent arcs)
+        for (let i = 0; i < arcCount; i++) {
+          cornerY[i] += Math.max(lifts[i], lifts[(i - 1 + arcCount) % arcCount]);
+        }
+      }
+      for (let i = 0; i < arcCount; i++) {
+        cornerY[i] = Math.round(cornerY[i] * 100) / 100;
+        ringPos[i][1] = cornerY[i];
+        const n = nodes.find(x => x.id === cornerNodeIds[i]);
+        if (n?.position) n.position[1] = cornerY[i];
+      }
 
       const addedSegs = [];
-      for (let i = 0; i < 4; i++) {
-        const a = corners[i], b = corners[(i + 1) % 4];
-        let path = [[a[0], a[1], a[2]], [b[0], b[1], b[2]]];
-        path = enforceSlope(path, 0.25, stageId, `tr_rb_${Math.round(cx)}_${Math.round(cz)}`, null) || path;
-        path[0] = [a[0], a[1], a[2]];
-        path[path.length - 1] = [b[0], b[1], b[2]];
-        path = enforceSlope(path, 0.25, stageId, `tr_rb_${Math.round(cx)}_${Math.round(cz)}`, null) || path;
-        path[0] = [a[0], a[1], a[2]];
-        path[path.length - 1] = [b[0], b[1], b[2]];
-        if (!isAxisAlignedPath(path)) continue;
-        if (pathMaxSlope(path) > 0.3005) continue;
-        let badRiver = false;
-        for (let j = 0; j + 1 < path.length; j++) {
-          if (segCrossesRiver(path[j][0], path[j][2], path[j+1][0], path[j+1][2], rivers)) { badRiver = true; break; }
-        }
-        if (badRiver) continue;
-        const seg = makeRoadSegment(uniqSeg(`tr_rb_${Math.round(cx)}_${Math.round(cz)}_${i+1}`), cornerNodeIds[i], cornerNodeIds[(i+1)%4], path, width, 'local', 'ground');
+      for (let i = 0; i < arcCount; i++) {
+        const y0 = cornerY[i], y1 = cornerY[(i + 1) % arcCount];
+        if (arcLen > 1e-6 && Math.abs(y1 - y0) / arcLen > 0.3) continue;
+        const arc = { cx, cz, radius, from: angles[i], to: angles[i + 1], width, y: [y0, y1] };
+        const seg = {
+          id: uniqSeg(`tr_rb_${Math.round(cx)}_${Math.round(cz)}_${i+1}`),
+          from: cornerNodeIds[i],
+          to: cornerNodeIds[(i + 1) % arcCount],
+          type: 'local',
+          layer: 'ground',
+          elements: [{ arc }],
+          lanes: [{ id: `tr_rb_${Math.round(cx)}_${Math.round(cz)}_${i+1}_lane`, direction: 'forward', width, type: 'vehicle' }],
+        };
         segments.push(seg);
         addedSegs.push(seg.id);
       }
-      // connect ring to nearest existing ground node with axis-aligned path (avoid disconnected component / invalid repair)
-      if (addedSegs.length >= 4) {
+
+      // connect ring to nearest existing ground node with axis-aligned path
+      let connectorId = null;
+      if (addedSegs.length === arcCount) {
         const ringNodeIds = new Set(cornerNodeIds);
         let best = null;
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < arcCount; i++) {
           const nId = cornerNodeIds[i];
           const n = nodes.find(x => x.id === nId);
           if (!n?.position) continue;
           for (const m of nodes) {
             if (!m?.position || m.layer === 'elevated') continue;
             if (ringNodeIds.has(m.id)) continue;
+            // prefer connecting to main network, not to other roundabout ring nodes
+            if (String(m.id).startsWith('tr_rn_')) continue;
             const d = Math.hypot(n.position[0] - m.position[0], n.position[2] - m.position[2]);
             if (!best || d < best.d - 1e-9 || (Math.abs(d - best.d) <= 1e-9 && String(m.id) < String(best.m.id))) {
               best = { ringNode: n, m, d, cornerIdx: i };
+            }
+          }
+        }
+        // fallback: allow connection to any non-ring ground node if no main-network node found
+        if (!best || best.d > 80) {
+          for (let i = 0; i < arcCount; i++) {
+            const nId = cornerNodeIds[i];
+            const n = nodes.find(x => x.id === nId);
+            if (!n?.position) continue;
+            for (const m of nodes) {
+              if (!m?.position || m.layer === 'elevated') continue;
+              if (ringNodeIds.has(m.id)) continue;
+              const d = Math.hypot(n.position[0] - m.position[0], n.position[2] - m.position[2]);
+              if (!best || d < best.d - 1e-9 || (Math.abs(d - best.d) <= 1e-9 && String(m.id) < String(best.m.id))) {
+                best = { ringNode: n, m, d, cornerIdx: i };
+              }
             }
           }
         }
@@ -2281,7 +2384,6 @@ function addAxisAlignedRoundabouts(ctx) {
             path[path.length - 1] = [b[0], b[1], b[2]];
           }
           if (!path || !isAxisAlignedPath(path) || pathMaxSlope(path) > 0.3005) {
-            // fallback: simple axis-aligned L paths
             const candidates = [
               [[a[0], a[1], a[2]], [b[0], sampler.heightAt(b[0], a[2]), a[2]], [b[0], b[1], b[2]]],
               [[a[0], a[1], a[2]], [a[0], sampler.heightAt(a[0], b[2]), b[2]], [b[0], b[1], b[2]]],
@@ -2310,16 +2412,17 @@ function addAxisAlignedRoundabouts(ctx) {
           if (okConn) {
             const cseg = makeRoadSegment(uniqSeg(`tr_rbc_${Math.round(cx)}_${Math.round(cz)}`), best.ringNode.id, best.m.id, path, width, 'local', 'ground');
             segments.push(cseg);
-            addedSegs.push(cseg.id);
+            connectorId = cseg.id;
             ctx.report.diagnostics.push(info('transport_roundabout_connected', stageId, 'connected roundabout ring to road network', { to: best.m.id, dist: +best.d.toFixed(2) }));
           }
         }
       }
 
-      if (addedSegs.length >= 4) {
-        ctx.report.diagnostics.push(info('transport_roundabout', stageId, 'added axis-aligned roundabout (ring) in hilly area', { center: [cx, cz], size, segments: addedSegs }));
+      if (addedSegs.length === arcCount) {
+        const ringSegs = connectorId ? [...addedSegs, connectorId] : [...addedSegs];
+        ctx.report.diagnostics.push(info('transport_roundabout', stageId, 'added curved roundabout (arc ring) in hilly area', { center: [cx, cz], radius, segments: ringSegs }));
       } else {
-        ctx.report.diagnostics.push(warn('transport_roundabout_partial', stageId, 'roundabout ring incomplete due to constraints', { center: [cx, cz], added: addedSegs.length }));
+        ctx.report.diagnostics.push(warn('transport_roundabout_partial', stageId, 'roundabout ring incomplete due to constraints', { center: [cx, cz], added: addedSegs.length, expected: arcCount }));
       }
     } catch (e) {
       ctx.report.diagnostics.push(warn('transport_roundabout_failed', stageId, `roundabout generation failed: ${String(e?.message ?? e)}`));
@@ -2348,13 +2451,46 @@ export function makeStage2() {
         const prev = structuredClone(ctx.networks?.roads ?? { nodes: [], segments: [], junctions: [] });
         try {
           generateTransport(ctx);
-          // Gate: emit only if every generated road segment is axis-aligned and within slope limit.
+          // Селективное скругление прямых поворотов (если задано в generator.transport.cornerFillet)
+          try { applyCornerFillets(ctx); } catch (e) {
+            ctx.report.diagnostics.push(warn('transport_corner_fillet_failed', stageId, `corner fillet tagging failed: ${String(e?.message ?? e)}`));
+          }
+          // Gate: emit only if every generated road segment is valid.
+          // Axis-aligned path segments: must be axis-aligned and within slope limit.
+          // Element segments (arc/plate): validated by element fields/slope (curved roads are allowed).
           const segs = ctx.networks?.roads?.segments ?? [];
           let bad = 0;
           for (const s of segs) {
-            const pts = pathPoints(s); if (!pts) { bad++; continue; }
-            if (!isAxisAlignedPath(pts)) { bad++; continue; }
-            if (pathMaxSlope(pts) > 0.3005) { bad++; continue; }
+            const pts = pathPoints(s);
+            const hasElements = Array.isArray(s.elements) && s.elements.length > 0;
+            if (!pts && !hasElements) { bad++; continue; }
+            if (pts) {
+              // помеченные на филет сегменты станут element-дорогами при нормализации; не требуем axis-aligned формы после скругления
+              if (!Number.isFinite(Number(s.filletRadius ?? s.fillet)) || Number(s.filletRadius ?? s.fillet) <= 0.01) {
+                if (!isAxisAlignedPath(pts)) { bad++; continue; }
+              }
+              if (pathMaxSlope(pts) > 0.3005) { bad++; continue; }
+            }
+            if (!pts && hasElements) {
+              let ok = true;
+              for (const el of s.elements) {
+                if (el?.arc) {
+                  const a = el.arc;
+                  if (!(Number.isFinite(a.cx) && Number.isFinite(a.cz) && Number.isFinite(a.radius) && a.radius >= 2)) ok = false;
+                  if (!(Number.isFinite(a.from) && Number.isFinite(a.to))) ok = false;
+                  if (!Array.isArray(a.y) || a.y.length !== 2) ok = false;
+                  const span = Math.abs((Number(a.to) - Number(a.from)) * Math.PI / 180);
+                  const len = (Number(a.radius) || 0) * span;
+                  if (len > 1e-6 && Array.isArray(a.y) && Math.abs(Number(a.y[1]) - Number(a.y[0])) / len > 0.31) ok = false;
+                  if (!Number.isFinite(a.width) || Number(a.width) < 2) ok = false;
+                } else if (el?.plate) {
+                  // plate elements allowed
+                } else {
+                  ok = false;
+                }
+              }
+              if (!ok) { bad++; continue; }
+            }
           }
           if (bad > 0 || segs.length === 0) {
             ctx.networks.roads = prev;

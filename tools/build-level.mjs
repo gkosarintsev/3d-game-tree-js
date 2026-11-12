@@ -236,6 +236,68 @@ function generateCityforge(raw, sourceName, opts = {}) {
           .map(d => `[${d.stage ?? 'citygen'}] ${d.code}: ${d.message}`);
         throw new ValidationError(errs.length ? errs : ['citygen: generation failed with errors'], v3w);
       }
+      // Demo (level-16): расширяющаяся сверху вниз дорожная спираль из дуговых элементов
+      // на опорах — плавный подъём/спуск по окружности (кривой вираж/рампа на pillars).
+      if (/level-16/i.test(String(sourceName ?? '')) && source?.cityforge) {
+        try {
+          const cf = source.cityforge;
+          const net = cf.networks ?? (cf.networks = {});
+          const roads = net.roads ?? (net.roads = { nodes: [], segments: [], junctions: [] });
+          roads.nodes = Array.isArray(roads.nodes) ? roads.nodes : [];
+          roads.segments = Array.isArray(roads.segments) ? roads.segments : [];
+          // Нормализация углов дуги в допустимый диапазон схемы [-360,360] с сохранением span.
+          const normArcAngles = (from, to) => {
+            let a = from, b = to;
+            const span = b - a;
+            while (a > 360 || b > 360) { a -= 360; b -= 360; }
+            while (a < -360 || b < -360) { a += 360; b += 360; }
+            // если всё ещё вне (редко), сдвигаем в [-180,180] эквивалентно
+            if (a > 360 || a < -360) { const k = Math.round(a / 360) * 360; a -= k; b = a + span; }
+            return [Math.round(a * 1000) / 1000, Math.round(b * 1000) / 1000];
+          };
+          // Параметры спирали: снизу широкий диаметр, к верху сужается; плавный подъём.
+          const sx = -350, sz = 350;
+          const segs = 24; // 3 витка
+          const span = 45;
+          const RBottom = 90; // большой радиус внизу (диаметр ~180 м)
+          const RTop = 30;    // меньший радиус вверху (расширение сверху вниз)
+          const yBase = 18;   // нижний уровень (эстакада на опорах)
+          const risePerSeg = 1.4;
+          let x = sx, z = sz, y = yBase, angle = 0;
+          const arcs = [];
+          for (let i = 0; i < segs; i++) {
+            const t = segs > 1 ? i / (segs - 1) : 0;
+            const R = RBottom - (RBottom - RTop) * t; // вниз (i=0) шире, вверх (i->end) уже
+            const ar = angle * Math.PI / 180;
+            const cx = x - R * Math.cos(ar);
+            const cz = z - R * Math.sin(ar);
+            const y1 = y + risePerSeg;
+            const [af, at] = normArcAngles(angle, angle + span);
+            arcs.push({ arc: { cx: Math.round(cx * 1000) / 1000, cz: Math.round(cz * 1000) / 1000, radius: Math.round(R * 1000) / 1000, from: af, to: at, width: 8, y: [Math.round(y * 1000) / 1000, Math.round(y1 * 1000) / 1000], rails: true } });
+            const ar2 = (angle + span) * Math.PI / 180;
+            x = cx + R * Math.cos(ar2);
+            z = cz + R * Math.sin(ar2);
+            angle = angle + span;
+            y = y1;
+          }
+          const startPt = [Math.round((arcs[0].arc.cx + arcs[0].arc.radius * Math.cos(arcs[0].arc.from * Math.PI / 180)) * 1000) / 1000, Math.round(yBase * 1000) / 1000, Math.round((arcs[0].arc.cz + arcs[0].arc.radius * Math.sin(arcs[0].arc.from * Math.PI / 180)) * 1000) / 1000];
+          const last = arcs[arcs.length - 1].arc;
+          const endPt = [Math.round((last.cx + last.radius * Math.cos(last.to * Math.PI / 180)) * 1000) / 1000, Math.round(y * 1000) / 1000, Math.round((last.cz + last.radius * Math.sin(last.to * Math.PI / 180)) * 1000) / 1000];
+          if (!roads.nodes.some(n => n.id === 'demo_spiral_a')) roads.nodes.push({ id: 'demo_spiral_a', position: startPt, layer: 'elevated' });
+          if (!roads.nodes.some(n => n.id === 'demo_spiral_b')) roads.nodes.push({ id: 'demo_spiral_b', position: endPt, layer: 'elevated' });
+          if (!roads.segments.some(s => s.id === 'demo_spiral_ramp')) {
+            roads.segments.push({
+              id: 'demo_spiral_ramp',
+              from: 'demo_spiral_a',
+              to: 'demo_spiral_b',
+              type: 'ramp',
+              layer: 'bridge',
+              elements: arcs,
+              lanes: [{ id: 'demo_spiral_lane', direction: 'forward', width: 8, type: 'vehicle' }],
+            });
+          }
+        } catch { /* demo injection best-effort */ }
+      }
     } catch (e) {
       if (e instanceof ValidationError) throw e;
       throw new ValidationError([String(e?.message ?? e)], v3w);

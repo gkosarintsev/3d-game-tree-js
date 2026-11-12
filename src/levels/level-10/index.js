@@ -1410,11 +1410,11 @@ export const LEVEL_10 = {
       "z": 26
     },
     "stream": {
-      "aheadMax": 1200,
+      "aheadMax": 900,
       "aheadMin": 200,
       "budgetMs": 80,
       "chunk": 256,
-      "keep": 2,
+      "keep": 1,
       "overlap": 1.175
     },
     "units": "meters",

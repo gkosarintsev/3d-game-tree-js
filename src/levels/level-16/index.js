@@ -71,9 +71,9 @@ export const LEVEL_16 = {
         "file": "chunk-0-0.l14b",
         "id": "0_0",
         "objects": {
-          "buildings": 29,
+          "buildings": 28,
           "lights": 1,
-          "props": 15,
+          "props": 20,
           "roads": 13
         },
         "rect": {
@@ -87,8 +87,8 @@ export const LEVEL_16 = {
         "file": "chunk-0-1.l14b",
         "id": "0_1",
         "objects": {
-          "buildings": 17,
-          "props": 9,
+          "buildings": 20,
+          "props": 6,
           "roads": 1
         },
         "rect": {
@@ -102,8 +102,8 @@ export const LEVEL_16 = {
         "file": "chunk-0-2.l14b",
         "id": "0_2",
         "objects": {
-          "buildings": 12,
-          "props": 7,
+          "buildings": 6,
+          "props": 11,
           "roads": 1
         },
         "rect": {
@@ -117,10 +117,10 @@ export const LEVEL_16 = {
         "file": "chunk-0-3.l14b",
         "id": "0_3",
         "objects": {
-          "buildings": 9,
+          "buildings": 11,
           "lights": 1,
-          "props": 5,
-          "roads": 1
+          "props": 92,
+          "roads": 2
         },
         "rect": {
           "maxX": -384,
@@ -134,8 +134,8 @@ export const LEVEL_16 = {
         "id": "0_4",
         "objects": {
           "buildings": 10,
-          "props": 4,
-          "roads": 1
+          "props": 68,
+          "roads": 2
         },
         "rect": {
           "maxX": -384,
@@ -148,8 +148,8 @@ export const LEVEL_16 = {
         "file": "chunk-1-0.l14b",
         "id": "1_0",
         "objects": {
-          "buildings": 3,
-          "props": 15,
+          "buildings": 9,
+          "props": 6,
           "roads": 4
         },
         "rect": {
@@ -163,8 +163,7 @@ export const LEVEL_16 = {
         "file": "chunk-1-1.l14b",
         "id": "1_1",
         "objects": {
-          "lights": 1,
-          "props": 5,
+          "props": 3,
           "roads": 9
         },
         "rect": {
@@ -178,7 +177,8 @@ export const LEVEL_16 = {
         "file": "chunk-1-2.l14b",
         "id": "1_2",
         "objects": {
-          "props": 7,
+          "lights": 1,
+          "props": 6,
           "roads": 3
         },
         "rect": {
@@ -193,8 +193,8 @@ export const LEVEL_16 = {
         "id": "1_3",
         "objects": {
           "buildings": 1,
-          "props": 17,
-          "roads": 7
+          "props": 30,
+          "roads": 8
         },
         "rect": {
           "maxX": -128,
@@ -207,9 +207,9 @@ export const LEVEL_16 = {
         "file": "chunk-1-4.l14b",
         "id": "1_4",
         "objects": {
-          "buildings": 22,
-          "props": 19,
-          "roads": 4
+          "buildings": 19,
+          "props": 27,
+          "roads": 5
         },
         "rect": {
           "maxX": -128,
@@ -224,7 +224,6 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 2,
           "channels": 1,
-          "lights": 1,
           "props": 12,
           "roads": 1
         },
@@ -241,7 +240,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 8,
           "channels": 1,
-          "props": 15,
+          "props": 14,
           "roads": 1
         },
         "rect": {
@@ -255,7 +254,7 @@ export const LEVEL_16 = {
         "file": "chunk-2-2.l14b",
         "id": "2_2",
         "objects": {
-          "buildings": 10,
+          "buildings": 12,
           "channels": 1,
           "props": 14
         },
@@ -270,10 +269,10 @@ export const LEVEL_16 = {
         "file": "chunk-2-3.l14b",
         "id": "2_3",
         "objects": {
-          "buildings": 19,
+          "buildings": 12,
           "channels": 1,
-          "props": 11,
-          "roads": 4
+          "props": 14,
+          "roads": 2
         },
         "rect": {
           "maxX": 128,
@@ -286,10 +285,10 @@ export const LEVEL_16 = {
         "file": "chunk-2-4.l14b",
         "id": "2_4",
         "objects": {
-          "buildings": 17,
+          "buildings": 20,
           "channels": 1,
           "lights": 1,
-          "props": 15,
+          "props": 14,
           "roads": 4
         },
         "rect": {
@@ -303,8 +302,8 @@ export const LEVEL_16 = {
         "file": "chunk-3-0.l14b",
         "id": "3_0",
         "objects": {
-          "buildings": 19,
-          "props": 17,
+          "buildings": 20,
+          "props": 19,
           "roads": 13
         },
         "rect": {
@@ -318,8 +317,9 @@ export const LEVEL_16 = {
         "file": "chunk-3-1.l14b",
         "id": "3_1",
         "objects": {
-          "buildings": 32,
-          "props": 19,
+          "buildings": 31,
+          "lights": 1,
+          "props": 21,
           "roads": 12
         },
         "rect": {
@@ -333,10 +333,9 @@ export const LEVEL_16 = {
         "file": "chunk-3-2.l14b",
         "id": "3_2",
         "objects": {
-          "buildings": 34,
-          "lights": 1,
-          "props": 19,
-          "roads": 12
+          "buildings": 26,
+          "props": 24,
+          "roads": 10
         },
         "rect": {
           "maxX": 384,
@@ -349,9 +348,9 @@ export const LEVEL_16 = {
         "file": "chunk-3-3.l14b",
         "id": "3_3",
         "objects": {
-          "buildings": 22,
-          "props": 17,
-          "roads": 8
+          "buildings": 26,
+          "props": 10,
+          "roads": 15
         },
         "rect": {
           "maxX": 384,
@@ -364,9 +363,9 @@ export const LEVEL_16 = {
         "file": "chunk-3-4.l14b",
         "id": "3_4",
         "objects": {
-          "buildings": 33,
-          "props": 17,
-          "roads": 5
+          "buildings": 29,
+          "props": 19,
+          "roads": 3
         },
         "rect": {
           "maxX": 384,
@@ -379,9 +378,9 @@ export const LEVEL_16 = {
         "file": "chunk-4-0.l14b",
         "id": "4_0",
         "objects": {
-          "buildings": 30,
+          "buildings": 29,
           "lights": 1,
-          "props": 34,
+          "props": 27,
           "roads": 3
         },
         "rect": {
@@ -395,8 +394,8 @@ export const LEVEL_16 = {
         "file": "chunk-4-1.l14b",
         "id": "4_1",
         "objects": {
-          "buildings": 34,
-          "props": 33,
+          "buildings": 36,
+          "props": 40,
           "roads": 1
         },
         "rect": {
@@ -411,7 +410,8 @@ export const LEVEL_16 = {
         "id": "4_2",
         "objects": {
           "buildings": 30,
-          "props": 29,
+          "lights": 1,
+          "props": 33,
           "roads": 11
         },
         "rect": {
@@ -425,9 +425,9 @@ export const LEVEL_16 = {
         "file": "chunk-4-3.l14b",
         "id": "4_3",
         "objects": {
-          "buildings": 31,
-          "props": 16,
-          "roads": 13
+          "buildings": 33,
+          "props": 19,
+          "roads": 16
         },
         "rect": {
           "maxX": 640,
@@ -440,10 +440,10 @@ export const LEVEL_16 = {
         "file": "chunk-4-4.l14b",
         "id": "4_4",
         "objects": {
-          "buildings": 20,
+          "buildings": 18,
           "lights": 1,
-          "props": 22,
-          "roads": 73
+          "props": 23,
+          "roads": 72
         },
         "rect": {
           "maxX": 640,
@@ -559,259 +559,286 @@ export const LEVEL_16 = {
       "pads": [
         {
           "blend": 14,
+          "id": "b_district_0_0_5:площадка",
+          "maxX": -503.371,
+          "maxZ": -590.652,
+          "minX": -514.81,
+          "minZ": -602.075,
+          "y": 0
+        },
+        {
+          "blend": 14,
           "id": "b_district_0_0_6:площадка",
-          "maxX": -503.745,
-          "maxZ": -590.511,
-          "minX": -514.437,
-          "minZ": -602.216,
+          "maxX": -503.901,
+          "maxZ": -562.711,
+          "minX": -514.281,
+          "minZ": -571.834,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_0_7:площадка",
-          "maxX": -503.992,
-          "maxZ": -562.047,
-          "minX": -514.189,
-          "minZ": -572.498,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_8:площадка",
-          "maxX": -589.496,
-          "maxZ": -503.696,
-          "minX": -603.232,
-          "minZ": -514.486,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_9:площадка",
-          "maxX": -561.189,
-          "maxZ": -503.977,
-          "minX": -573.357,
-          "minZ": -514.205,
+          "maxX": -590.949,
+          "maxZ": -503.281,
+          "minX": -601.778,
+          "minZ": -514.901,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_0_23:площадка",
-          "maxX": -620.709,
-          "maxZ": -503.066,
-          "minX": -630.2,
-          "minZ": -515.115,
+          "maxX": -503.743,
+          "maxZ": -620.431,
+          "minX": -514.439,
+          "minZ": -630.478,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_33:площадка",
-          "maxX": 506.683,
-          "maxZ": -165.862,
-          "minX": 501.317,
-          "minZ": -170.138,
+          "maxX": 506.649,
+          "maxZ": -165.259,
+          "minX": 501.351,
+          "minZ": -170.741,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_34:площадка",
-          "maxX": 507.66,
-          "maxZ": -149.241,
-          "minX": 500.34,
-          "minZ": -154.759,
+          "maxX": 506.979,
+          "maxZ": -149.862,
+          "minX": 501.021,
+          "minZ": -154.138,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_35:площадка",
-          "maxX": 539.123,
-          "maxZ": -149.32,
-          "minX": 532.877,
-          "minZ": -154.68,
+          "maxX": 538.775,
+          "maxZ": -149.759,
+          "minX": 533.225,
+          "minZ": -154.241,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_36:площадка",
-          "maxX": 507.307,
-          "maxZ": -133.618,
-          "minX": 500.693,
-          "minZ": -138.382,
+          "maxX": 539.113,
+          "maxZ": -133.761,
+          "minX": 532.887,
+          "minZ": -138.239,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_37:площадка",
-          "maxX": 538.876,
-          "maxZ": -133.368,
-          "minX": 533.124,
-          "minZ": -138.632,
+          "maxX": 507.168,
+          "maxZ": -117.036,
+          "minX": 500.832,
+          "minZ": -122.964,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_38:площадка",
-          "maxX": 507.511,
-          "maxZ": -117.245,
-          "minX": 500.489,
-          "minZ": -122.755,
+          "maxX": 540.227,
+          "maxZ": -116.958,
+          "minX": 531.773,
+          "minZ": -123.042,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_39:площадка",
-          "maxX": 506.942,
-          "maxZ": -101.697,
-          "minX": 501.058,
-          "minZ": -106.303,
+          "maxX": 507.238,
+          "maxZ": -100.237,
+          "minX": 500.762,
+          "minZ": -107.763,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_40:площадка",
-          "maxX": 539.777,
-          "maxZ": -101.112,
-          "minX": 532.223,
-          "minZ": -106.888,
+          "maxX": 506.678,
+          "maxZ": -85.399,
+          "minX": 501.322,
+          "minZ": -90.601,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_41:площадка",
-          "maxX": 507.021,
-          "maxZ": -85.645,
-          "minX": 500.979,
-          "minZ": -90.355,
+          "maxX": 538.704,
+          "maxZ": -86,
+          "minX": 533.296,
+          "minZ": -90,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_42:площадка",
-          "maxX": 507.046,
-          "maxZ": -69.004,
-          "minX": 500.954,
-          "minZ": -74.996,
+          "maxX": 507.285,
+          "maxZ": -68.898,
+          "minX": 500.715,
+          "minZ": -75.102,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_43:площадка",
-          "maxX": 538.767,
-          "maxZ": -69.679,
-          "minX": 533.233,
-          "minZ": -74.321,
+          "maxX": 538.634,
+          "maxZ": -68.427,
+          "minX": 533.366,
+          "minZ": -75.573,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_44:площадка",
-          "maxX": 538.577,
-          "maxZ": -53.611,
-          "minX": 533.423,
-          "minZ": -58.389,
+          "maxX": 506.682,
+          "maxZ": -52.899,
+          "minX": 501.318,
+          "minZ": -59.101,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_45:площадка",
-          "maxX": 507.144,
-          "maxZ": -37.039,
-          "minX": 500.856,
-          "minZ": -42.961,
+          "maxX": 538.37,
+          "maxZ": -53.773,
+          "minX": 533.63,
+          "minZ": -58.227,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_46:площадка",
-          "maxX": 506.649,
-          "maxZ": -21.13,
-          "minX": 501.351,
-          "minZ": -26.87,
+          "maxX": 506,
+          "maxZ": -37.522,
+          "minX": 502,
+          "minZ": -42.478,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_47:площадка",
-          "maxX": 539.102,
-          "maxZ": -20.682,
-          "minX": 532.898,
-          "minZ": -27.318,
+          "maxX": 539.678,
+          "maxZ": -37.456,
+          "minX": 532.322,
+          "minZ": -42.544,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_48:площадка",
-          "maxX": 363.994,
-          "maxZ": -4.584,
-          "minX": 356.006,
-          "minZ": -11.416,
+          "maxX": 507.575,
+          "maxZ": -21.236,
+          "minX": 500.425,
+          "minZ": -26.764,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_49:площадка",
-          "maxX": 410.98,
-          "maxZ": -4.753,
-          "minX": 405.02,
-          "minZ": -11.247,
+          "maxX": 539.41,
+          "maxZ": -21.01,
+          "minX": 532.59,
+          "minZ": -26.99,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_50:площадка",
-          "maxX": 443.497,
-          "maxZ": -5.343,
-          "minX": 436.503,
-          "minZ": -10.657,
+          "maxX": 362.337,
+          "maxZ": -6,
+          "minX": 357.663,
+          "minZ": -10,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_51:площадка",
-          "maxX": 459.756,
-          "maxZ": -4.596,
-          "minX": 452.244,
-          "minZ": -11.404,
+          "maxX": 379.826,
+          "maxZ": -5.422,
+          "minX": 372.174,
+          "minZ": -10.578,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_52:площадка",
-          "maxX": 474.939,
-          "maxZ": -4.682,
-          "minX": 469.061,
-          "minZ": -11.318,
+          "maxX": 394.91,
+          "maxZ": -5.92,
+          "minX": 389.09,
+          "minZ": -10.08,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_53:площадка",
-          "maxX": 491.493,
-          "maxZ": -5.348,
-          "minX": 484.507,
-          "minZ": -10.652,
+          "maxX": 411.497,
+          "maxZ": -5.343,
+          "minX": 404.503,
+          "minZ": -10.657,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_54:площадка",
-          "maxX": 507.154,
-          "maxZ": -5.619,
-          "minX": 500.846,
-          "minZ": -10.381,
+          "maxX": 427.756,
+          "maxZ": -4.596,
+          "minX": 420.244,
+          "minZ": -11.404,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_1_55:площадка",
-          "maxX": 539.106,
+          "maxX": 442.939,
+          "maxZ": -4.682,
+          "minX": 437.061,
+          "minZ": -11.318,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_3_1_56:площадка",
+          "maxX": 459.493,
+          "maxZ": -5.348,
+          "minX": 452.507,
+          "minZ": -10.652,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_3_1_57:площадка",
+          "maxX": 475.154,
+          "maxZ": -5.619,
+          "minX": 468.846,
+          "minZ": -10.381,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_3_1_58:площадка",
+          "maxX": 491.106,
           "maxZ": -5.036,
-          "minX": 532.894,
+          "minX": 484.894,
           "minZ": -10.964,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_65:площадка",
+          "id": "b_district_3_1_59:площадка",
+          "maxX": 506.081,
+          "maxZ": -5.235,
+          "minX": 501.919,
+          "minZ": -10.765,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_0_0_64:площадка",
           "maxX": -530.581,
           "maxZ": -590.584,
           "minX": -545.782,
@@ -820,7 +847,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_66:площадка",
+          "id": "b_district_0_0_65:площадка",
           "maxX": -590.222,
           "maxZ": -532.125,
           "minX": -602.506,
@@ -829,7 +856,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_67:площадка",
+          "id": "b_district_0_0_66:площадка",
           "maxX": -559.287,
           "maxZ": -530.166,
           "minX": -575.259,
@@ -838,7 +865,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_68:площадка",
+          "id": "b_district_0_0_67:площадка",
           "maxX": -472.925,
           "maxZ": -530.878,
           "minX": -487.075,
@@ -847,7 +874,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_69:площадка",
+          "id": "b_district_0_0_68:площадка",
           "maxX": -445.135,
           "maxZ": -532.791,
           "minX": -456.684,
@@ -856,7 +883,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_70:площадка",
+          "id": "b_district_0_0_69:площадка",
           "maxX": -530.452,
           "maxZ": -444.246,
           "minX": -545.912,
@@ -865,7 +892,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_71:площадка",
+          "id": "b_district_0_0_70:площадка",
           "maxX": -531.448,
           "maxZ": -415.898,
           "minX": -544.916,
@@ -874,7 +901,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_72:площадка",
+          "id": "b_district_0_0_71:площадка",
           "maxX": -531.125,
           "maxZ": -387.001,
           "minX": -545.239,
@@ -883,7 +910,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_73:площадка",
+          "id": "b_district_0_0_72:площадка",
           "maxX": -530.355,
           "maxZ": -356.851,
           "minX": -546.008,
@@ -892,7 +919,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_74:площадка",
+          "id": "b_district_0_0_73:площадка",
           "maxX": -529.401,
           "maxZ": -327.445,
           "minX": -546.963,
@@ -901,7 +928,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_81:площадка",
+          "id": "b_district_0_0_80:площадка",
           "maxX": -414.958,
           "maxZ": -532.098,
           "minX": -428.679,
@@ -910,7 +937,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_82:площадка",
+          "id": "b_district_3_2_81:площадка",
           "maxX": 507.697,
           "maxZ": 36.832,
           "minX": 494.97,
@@ -919,97 +946,61 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
+          "id": "b_district_3_2_82:площадка",
+          "maxX": 508.338,
+          "maxZ": 165.115,
+          "minX": 494.329,
+          "minZ": 154.885,
+          "y": 0
+        },
+        {
+          "blend": 14,
           "id": "b_district_3_2_83:площадка",
-          "maxX": 506.064,
-          "maxZ": 58.002,
-          "minX": 496.603,
-          "minZ": 48.665,
+          "maxX": 507.198,
+          "maxZ": 185.532,
+          "minX": 495.468,
+          "minZ": 177.135,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_84:площадка",
-          "maxX": 506.32,
-          "maxZ": 79.946,
-          "minX": 496.346,
-          "minZ": 69.387,
+          "maxX": 506.473,
+          "maxZ": 228.287,
+          "minX": 496.193,
+          "minZ": 219.713,
+          "y": 0.026
+        },
+        {
+          "blend": 14,
+          "id": "b_district_0_1_92:площадка",
+          "maxX": -526.011,
+          "maxZ": -288.764,
+          "minX": -553.989,
+          "minZ": -311.236,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_85:площадка",
-          "maxX": 508.565,
-          "maxZ": 142.497,
-          "minX": 494.101,
-          "minZ": 134.836,
+          "id": "b_district_0_1_93:площадка",
+          "maxX": -527.025,
+          "maxZ": -248.159,
+          "minX": -552.975,
+          "minZ": -271.841,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_86:площадка",
-          "maxX": 508.049,
-          "maxZ": 163.977,
-          "minX": 494.618,
-          "minZ": 156.023,
+          "id": "b_district_0_1_94:площадка",
+          "maxX": -526.316,
+          "maxZ": -207.632,
+          "minX": -553.684,
+          "minZ": -232.368,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_87:площадка",
-          "maxX": 508.252,
-          "maxZ": 186.98,
-          "minX": 494.415,
-          "minZ": 175.687,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_88:площадка",
-          "maxX": 508.621,
-          "maxZ": 208.066,
-          "minX": 494.045,
-          "minZ": 197.267,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_89:площадка",
-          "maxX": 506.558,
-          "maxZ": 229.253,
-          "minX": 496.108,
-          "minZ": 218.747,
-          "y": 0.046
-        },
-        {
-          "blend": 14,
-          "id": "b_district_2_1_95:площадка",
-          "maxX": 315.823,
-          "maxZ": -7.215,
-          "minX": 301.32,
-          "minZ": -15.642,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_96:площадка",
-          "maxX": -527.093,
-          "maxZ": -292.883,
-          "minX": -552.907,
-          "minZ": -307.117,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_97:площадка",
-          "maxX": -526.671,
-          "maxZ": -249.333,
-          "minX": -553.329,
-          "minZ": -270.667,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_98:площадка",
+          "id": "b_district_0_1_95:площадка",
           "maxX": -528.465,
           "maxZ": -171.542,
           "minX": -551.535,
@@ -1018,7 +1009,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_99:площадка",
+          "id": "b_district_0_1_96:площадка",
           "maxX": -527.967,
           "maxZ": -129.973,
           "minX": -552.033,
@@ -1027,7 +1018,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_100:площадка",
+          "id": "b_district_0_1_97:площадка",
           "maxX": -528.195,
           "maxZ": -90.385,
           "minX": -551.805,
@@ -1036,7 +1027,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_101:площадка",
+          "id": "b_district_0_1_98:площадка",
           "maxX": -527.328,
           "maxZ": -51.276,
           "minX": -552.672,
@@ -1045,7 +1036,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_102:площадка",
+          "id": "b_district_0_2_99:площадка",
           "maxX": -534.932,
           "maxZ": 144.631,
           "minX": -545.068,
@@ -1054,7 +1045,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_103:площадка",
+          "id": "b_district_0_2_100:площадка",
           "maxX": -534.644,
           "maxZ": 184.022,
           "minX": -545.356,
@@ -1063,803 +1054,794 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_106:площадка",
-          "maxX": -620.116,
-          "maxZ": -531.214,
-          "minX": -630.793,
-          "minZ": -545.15,
+          "id": "b_district_0_0_103:площадка",
+          "maxX": -532.843,
+          "maxZ": -618.487,
+          "minX": -543.521,
+          "minZ": -632.422,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_3_116:площадка",
-          "maxX": 394.672,
-          "maxZ": 606.608,
-          "minX": 378.661,
-          "minZ": 593.392,
+          "id": "b_district_3_3_111:площадка",
+          "maxX": 396.034,
+          "maxZ": 605.003,
+          "minX": 377.299,
+          "minZ": 594.997,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_3_117:площадка",
-          "maxX": 395.435,
-          "maxZ": 631.418,
-          "minX": 377.898,
-          "minZ": 621.915,
+          "id": "b_district_3_3_112:площадка",
+          "maxX": 393.683,
+          "maxZ": 634.02,
+          "minX": 379.65,
+          "minZ": 619.314,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_3_132:площадка",
-          "maxX": 634.567,
-          "maxZ": 393.546,
-          "minX": 618.767,
-          "minZ": 379.787,
+          "id": "b_district_3_3_127:площадка",
+          "maxX": 635.116,
+          "maxZ": 393.31,
+          "minX": 618.217,
+          "minZ": 380.023,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_136:площадка",
-          "maxX": 506.627,
-          "maxZ": -181.607,
-          "minX": 501.373,
-          "minZ": -186.393,
+          "id": "b_district_3_2_140:площадка",
+          "maxX": 337.297,
+          "maxZ": 36.116,
+          "minX": 324.037,
+          "minZ": 27.884,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_3_2_141:площадка",
+          "maxX": 379.269,
+          "maxZ": 36.077,
+          "minX": 367.398,
+          "minZ": 27.923,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_3_2_142:площадка",
+          "maxX": 551.692,
+          "maxZ": 100.586,
+          "minX": 536.308,
+          "minZ": 91.414,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_143:площадка",
-          "maxX": 336.661,
-          "maxZ": 36.479,
-          "minX": 324.673,
-          "minZ": 27.521,
+          "maxX": 549.789,
+          "maxZ": 143.561,
+          "minX": 538.211,
+          "minZ": 133.772,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_144:площадка",
-          "maxX": 380.15,
-          "maxZ": 36.798,
-          "minX": 366.517,
-          "minZ": 27.202,
+          "maxX": 549.667,
+          "maxZ": 207.156,
+          "minX": 538.333,
+          "minZ": 198.177,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_145:площадка",
-          "maxX": 398.725,
-          "maxZ": 36.838,
-          "minX": 390.609,
-          "minZ": 27.162,
+          "maxX": 549.893,
+          "maxZ": 228.125,
+          "minX": 538.107,
+          "minZ": 219.875,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_146:площадка",
-          "maxX": 423.191,
-          "maxZ": 35.938,
-          "minX": 408.809,
-          "minZ": 28.062,
+          "maxX": 550.146,
+          "maxZ": 249.789,
+          "minX": 537.854,
+          "minZ": 240.877,
+          "y": 0.001
+        },
+        {
+          "blend": 14,
+          "id": "b_district_1_3_155:площадка",
+          "maxX": -109.207,
+          "maxZ": 548.083,
+          "minX": -125.46,
+          "minZ": 539.917,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_147:площадка",
-          "maxX": 548.9,
-          "maxZ": 35.766,
-          "minX": 539.1,
-          "minZ": 28.234,
+          "id": "b_district_2_1_183:площадка",
+          "maxX": 312.869,
+          "maxZ": -52.135,
+          "minX": 304.274,
+          "minZ": -62.151,
+          "y": 0.007
+        },
+        {
+          "blend": 14,
+          "id": "b_district_3_1_189:площадка",
+          "maxX": 490.996,
+          "maxZ": -165.074,
+          "minX": 485.004,
+          "minZ": -170.926,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_148:площадка",
-          "maxX": 550.419,
-          "maxZ": 99.632,
-          "minX": 537.581,
-          "minZ": 92.368,
+          "id": "b_district_3_1_190:площадка",
+          "maxX": 554.532,
+          "maxZ": -164.719,
+          "minX": 549.468,
+          "minZ": -171.281,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_149:площадка",
-          "maxX": 548.295,
-          "maxZ": 143.3,
-          "minX": 539.705,
-          "minZ": 134.033,
+          "id": "b_district_3_1_191:площадка",
+          "maxX": 490.56,
+          "maxZ": -149.088,
+          "minX": 485.44,
+          "minZ": -154.912,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_150:площадка",
-          "maxX": 552.167,
-          "maxZ": 207.626,
-          "minX": 535.833,
-          "minZ": 197.707,
+          "id": "b_district_3_1_192:площадка",
+          "maxX": 491.061,
+          "maxZ": -133.574,
+          "minX": 484.939,
+          "minZ": -138.426,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_151:площадка",
-          "maxX": 548.751,
-          "maxZ": 249.703,
-          "minX": 539.249,
-          "minZ": 240.964,
+          "id": "b_district_3_1_193:площадка",
+          "maxX": 411.138,
+          "maxZ": -21.779,
+          "minX": 404.862,
+          "minZ": -26.221,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_1_3_159:площадка",
-          "maxX": -133.339,
-          "maxZ": 549.157,
-          "minX": -143.994,
-          "minZ": 538.843,
+          "id": "b_district_3_1_194:площадка",
+          "maxX": 427.532,
+          "maxZ": -21.254,
+          "minX": 420.468,
+          "minZ": -26.746,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_185:площадка",
-          "maxX": 380.75,
-          "maxZ": 56.937,
-          "minX": 365.917,
-          "minZ": 49.729,
+          "id": "b_district_0_0_200:площадка",
+          "maxX": -387.182,
+          "maxZ": -532.77,
+          "minX": -398.272,
+          "minZ": -543.593,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_2_1_187:площадка",
-          "maxX": 315.801,
-          "maxZ": -29.35,
-          "minX": 301.341,
-          "minZ": -39.222,
+          "id": "b_district_0_0_206:площадка",
+          "maxX": -471.078,
+          "maxZ": -588.55,
+          "minX": -488.922,
+          "minZ": -604.177,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_203:площадка",
-          "maxX": 522.743,
-          "maxZ": -197.249,
-          "minX": 517.257,
-          "minZ": -202.751,
+          "id": "b_district_0_0_207:площадка",
+          "maxX": -473.514,
+          "maxZ": -559.894,
+          "minX": -486.486,
+          "minZ": -574.651,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_204:площадка",
-          "maxX": 491.493,
-          "maxZ": -165.281,
-          "minX": 484.507,
-          "minZ": -170.719,
+          "id": "b_district_0_0_208:площадка",
+          "maxX": -561.672,
+          "maxZ": -474.626,
+          "minX": -572.873,
+          "minZ": -485.374,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_205:площадка",
-          "maxX": 554.855,
-          "maxZ": -166,
-          "minX": 549.145,
-          "minZ": -170,
+          "id": "b_district_3_2_209:площадка",
+          "maxX": 487.088,
+          "maxZ": 56.936,
+          "minX": 472.912,
+          "minZ": 49.73,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_206:площадка",
-          "maxX": 491.532,
-          "maxZ": -133.254,
-          "minX": 484.468,
-          "minZ": -138.746,
+          "id": "b_district_3_2_210:площадка",
+          "maxX": 484.303,
+          "maxZ": 121.776,
+          "minX": 475.697,
+          "minZ": 112.891,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_207:площадка",
-          "maxX": 554.543,
-          "maxZ": -133.564,
-          "minX": 549.457,
-          "minZ": -138.436,
+          "id": "b_district_3_2_211:площадка",
+          "maxX": 485.861,
+          "maxZ": 144.208,
+          "minX": 474.139,
+          "minZ": 133.126,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_208:площадка",
-          "maxX": 362.556,
-          "maxZ": -21.69,
-          "minX": 357.444,
-          "minZ": -26.31,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_209:площадка",
-          "maxX": 394.88,
-          "maxZ": -21.782,
-          "minX": 389.12,
-          "minZ": -26.218,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_210:площадка",
-          "maxX": 491.102,
-          "maxZ": -20.638,
-          "minX": 484.898,
-          "minZ": -27.362,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_221:площадка",
-          "maxX": 539.115,
-          "maxZ": -197.564,
-          "minX": 532.885,
-          "minZ": -202.436,
-          "y": 0
+          "id": "b_district_3_2_212:площадка",
+          "maxX": 487.389,
+          "maxZ": 185.691,
+          "minX": 472.611,
+          "minZ": 176.975,
+          "y": 0.024
         },
         {
           "blend": 14,
           "id": "b_district_0_0_223:площадка",
-          "maxX": -385.631,
-          "maxZ": -531.115,
-          "minX": -399.823,
-          "minZ": -545.249,
+          "maxX": -474.433,
+          "maxZ": -619.622,
+          "minX": -485.567,
+          "minZ": -631.287,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_227:площадка",
-          "maxX": -474.303,
-          "maxZ": -591.012,
-          "minX": -485.697,
-          "minZ": -601.715,
+          "id": "b_district_3_2_234:площадка",
+          "maxX": 571.012,
+          "maxZ": 36.692,
+          "minX": 559.655,
+          "minZ": 27.308,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_228:площадка",
-          "maxX": -471.356,
-          "maxZ": -560.592,
-          "minX": -488.644,
-          "minZ": -573.954,
+          "id": "b_district_3_2_235:площадка",
+          "maxX": 570.009,
+          "maxZ": 164.174,
+          "minX": 560.657,
+          "minZ": 155.826,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_229:площадка",
-          "maxX": -589.497,
-          "maxZ": -473.562,
-          "minX": -603.23,
-          "minZ": -486.438,
+          "id": "b_district_3_2_237:площадка",
+          "maxX": 570.021,
+          "maxZ": 228.354,
+          "minX": 560.645,
+          "minZ": 219.646,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_230:площадка",
-          "maxX": -562.701,
-          "maxZ": -473.483,
-          "minX": -571.844,
-          "minZ": -486.517,
+          "id": "b_district_3_2_238:площадка",
+          "maxX": 569.922,
+          "maxZ": 271.809,
+          "minX": 560.745,
+          "minZ": 261.524,
+          "y": 0.008
+        },
+        {
+          "blend": 14,
+          "id": "b_district_1_3_244:площадка",
+          "maxX": -133.847,
+          "maxZ": 570.911,
+          "minX": -143.487,
+          "minZ": 559.755,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_231:площадка",
-          "maxX": 484.525,
-          "maxZ": 142.641,
-          "minX": 475.475,
-          "minZ": 134.693,
+          "id": "b_district_0_0_254:площадка",
+          "maxX": -561.332,
+          "maxZ": -590.635,
+          "minX": -573.214,
+          "minZ": -602.092,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_242:площадка",
-          "maxX": -619.672,
-          "maxZ": -472.838,
-          "minX": -631.237,
-          "minZ": -487.162,
+          "id": "b_district_0_0_255:площадка",
+          "maxX": -590.908,
+          "maxZ": -560.35,
+          "minX": -601.819,
+          "minZ": -574.195,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_244:площадка",
-          "maxX": 400.337,
-          "maxZ": 79.195,
-          "minX": 388.997,
-          "minZ": 70.138,
+          "id": "b_district_0_0_256:площадка",
+          "maxX": -557.404,
+          "maxZ": -559.658,
+          "minX": -577.141,
+          "minZ": -574.888,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_253:площадка",
-          "maxX": 554.249,
-          "maxZ": -197.279,
-          "minX": 549.751,
-          "minZ": -202.721,
+          "id": "b_district_0_0_257:площадка",
+          "maxX": -445.111,
+          "maxZ": -559.851,
+          "minX": -456.707,
+          "minZ": -574.695,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_254:площадка",
-          "maxX": 571.07,
-          "maxZ": 249.497,
-          "minX": 559.597,
-          "minZ": 241.17,
+          "id": "b_district_0_0_258:площадка",
+          "maxX": -559.356,
+          "maxZ": -386.193,
+          "minX": -575.189,
+          "minZ": -399.262,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_1_3_263:площадка",
-          "maxX": -133.48,
-          "maxZ": 569.05,
-          "minX": -143.854,
-          "minZ": 561.617,
+          "id": "b_district_0_0_259:площадка",
+          "maxX": -559.263,
+          "maxZ": -327.692,
+          "minX": -575.282,
+          "minZ": -341.399,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_269:площадка",
-          "maxX": -557.637,
-          "maxZ": -589.031,
-          "minX": -576.909,
-          "minZ": -603.696,
+          "id": "b_district_0_0_264:площадка",
+          "maxX": -415.724,
+          "maxZ": -559.577,
+          "minX": -427.912,
+          "minZ": -574.968,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_270:площадка",
-          "maxX": -560.48,
-          "maxZ": -445.563,
-          "minX": -574.065,
-          "minZ": -456.255,
+          "id": "b_district_3_1_269:площадка",
+          "maxX": 570.762,
+          "maxZ": -133.018,
+          "minX": 565.238,
+          "minZ": -138.982,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_271:площадка",
-          "maxX": -560.698,
-          "maxZ": -415.609,
-          "minX": -573.847,
-          "minZ": -428.027,
+          "id": "b_district_3_3_272:площадка",
+          "maxX": 368.793,
+          "maxZ": 636.237,
+          "minX": 351.207,
+          "minZ": 617.097,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_272:площадка",
-          "maxX": -559.845,
-          "maxZ": -356.618,
-          "minX": -574.7,
-          "minZ": -370.654,
+          "id": "b_district_0_0_289:площадка",
+          "maxX": -386.265,
+          "maxZ": -561.347,
+          "minX": -399.19,
+          "minZ": -573.198,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_273:площадка",
-          "maxX": -560.719,
-          "maxZ": -326.197,
-          "minX": -573.826,
-          "minZ": -342.894,
+          "id": "b_district_3_1_293:площадка",
+          "maxX": 554.969,
+          "maxZ": -213.665,
+          "minX": 549.031,
+          "minZ": -218.335,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_277:площадка",
-          "maxX": 571.703,
-          "maxZ": -164.999,
-          "minX": 564.297,
-          "minZ": -171.001,
+          "id": "b_district_3_1_294:площадка",
+          "maxX": 571.447,
+          "maxZ": -196.419,
+          "minX": 564.553,
+          "minZ": -203.581,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_278:площадка",
-          "maxX": 474.826,
-          "maxZ": -133.572,
-          "minX": 469.174,
-          "minZ": -138.428,
+          "id": "b_district_0_1_295:площадка",
+          "maxX": -566.512,
+          "maxZ": -249.166,
+          "minX": -593.488,
+          "minZ": -270.834,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_285:площадка",
-          "maxX": 570.674,
-          "maxZ": -180.242,
-          "minX": 565.326,
-          "minZ": -187.758,
+          "id": "b_district_0_1_296:площадка",
+          "maxX": -562.964,
+          "maxZ": -207.341,
+          "minX": -597.036,
+          "minZ": -232.659,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_303:площадка",
-          "maxX": -569.552,
-          "maxZ": -207.497,
-          "minX": -590.448,
-          "minZ": -232.503,
+          "id": "b_district_0_1_297:площадка",
+          "maxX": -564.769,
+          "maxZ": -170.146,
+          "minX": -595.231,
+          "minZ": -189.854,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_304:площадка",
-          "maxX": -564.271,
-          "maxZ": -165.864,
-          "minX": -595.729,
-          "minZ": -194.136,
+          "id": "b_district_0_1_298:площадка",
+          "maxX": -567.768,
+          "maxZ": -131.405,
+          "minX": -592.232,
+          "minZ": -148.595,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_305:площадка",
-          "maxX": -565.421,
-          "maxZ": -129.881,
-          "minX": -594.579,
-          "minZ": -150.119,
+          "id": "b_district_0_1_299:площадка",
+          "maxX": -562.58,
+          "maxZ": -88.804,
+          "minX": -597.42,
+          "minZ": -111.196,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_306:площадка",
-          "maxX": -565.2,
-          "maxZ": -88.397,
-          "minX": -594.8,
-          "minZ": -111.603,
+          "id": "b_district_0_1_300:площадка",
+          "maxX": -563.72,
+          "maxZ": -50.302,
+          "minX": -596.28,
+          "minZ": -69.698,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_307:площадка",
-          "maxX": -568.371,
-          "maxZ": -7.896,
-          "minX": -591.629,
-          "minZ": -32.104,
+          "id": "b_district_0_1_301:площадка",
+          "maxX": -562.931,
+          "maxZ": -7.572,
+          "minX": -597.069,
+          "minZ": -32.428,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_308:площадка",
-          "maxX": -575.166,
-          "maxZ": 24.004,
-          "minX": -584.834,
-          "minZ": 15.996,
+          "id": "b_district_0_2_302:площадка",
+          "maxX": -574.589,
+          "maxZ": 184.606,
+          "minX": -585.411,
+          "minZ": 175.394,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_309:площадка",
-          "maxX": -576.746,
-          "maxZ": 103.711,
-          "minX": -583.254,
-          "minZ": 96.289,
+          "id": "b_district_3_2_304:площадка",
+          "maxX": 465.823,
+          "maxZ": 101.531,
+          "minX": 451.511,
+          "minZ": 90.469,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_311:площадка",
-          "maxX": 463.111,
-          "maxZ": 122.508,
-          "minX": 454.223,
-          "minZ": 112.159,
+          "id": "b_district_0_0_307:площадка",
+          "maxX": -356.962,
+          "maxZ": -531.28,
+          "minX": -370.311,
+          "minZ": -545.083,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_321:площадка",
-          "maxX": 587.385,
-          "maxZ": -165.097,
-          "minX": 580.615,
-          "minZ": -170.903,
+          "id": "b_district_3_1_308:площадка",
+          "maxX": 458,
+          "maxZ": -133.427,
+          "minX": 454,
+          "minZ": -138.573,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_322:площадка",
-          "maxX": 459.316,
-          "maxZ": -68.059,
-          "minX": 452.684,
-          "minZ": -75.941,
+          "id": "b_district_3_1_312:площадка",
+          "maxX": 346.936,
+          "maxZ": -68.892,
+          "minX": 341.064,
+          "minZ": -75.108,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_323:площадка",
-          "maxX": 378.539,
-          "maxZ": -52.954,
-          "minX": 373.461,
-          "minZ": -59.046,
+          "id": "b_district_3_2_313:площадка",
+          "maxX": 592.976,
+          "maxZ": 80.043,
+          "minX": 580.358,
+          "minZ": 69.291,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_324:площадка",
-          "maxX": 586.528,
-          "maxZ": -52.962,
-          "minX": 581.472,
-          "minZ": -59.038,
+          "id": "b_district_3_2_314:площадка",
+          "maxX": 593.182,
+          "maxZ": 143.471,
+          "minX": 580.152,
+          "minZ": 133.862,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_325:площадка",
-          "maxX": 347.307,
-          "maxZ": -68.989,
-          "minX": 340.693,
-          "minZ": -75.011,
+          "id": "b_district_1_3_317:площадка",
+          "maxX": -133.069,
+          "maxZ": 590.43,
+          "minX": -144.264,
+          "minZ": 582.903,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_326:площадка",
-          "maxX": 592.036,
-          "maxZ": 186.3,
-          "minX": 581.297,
-          "minZ": 176.366,
+          "id": "b_district_1_3_318:площадка",
+          "maxX": -110.9,
+          "maxZ": 591.481,
+          "minX": -123.767,
+          "minZ": 581.852,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_1_3_328:площадка",
-          "maxX": -151.833,
-          "maxZ": 591.539,
-          "minX": -168.167,
-          "minZ": 581.794,
-          "y": 0.004
+          "id": "b_district_0_0_328:площадка",
+          "maxX": -590.556,
+          "maxZ": -356.35,
+          "minX": -602.172,
+          "minZ": -370.923,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_0_0_329:площадка",
+          "maxX": -589.852,
+          "maxZ": -328.179,
+          "minX": -602.875,
+          "minZ": -340.912,
+          "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_0_332:площадка",
-          "maxX": -444.202,
-          "maxZ": -619.018,
-          "minX": -457.617,
-          "minZ": -631.891,
+          "maxX": -356.926,
+          "maxZ": -559.619,
+          "minX": -370.346,
+          "minZ": -574.927,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_0_333:площадка",
-          "maxX": -619.58,
-          "maxZ": -443.872,
-          "minX": -631.329,
-          "minZ": -457.946,
+          "maxX": -589.8,
+          "maxZ": -619.115,
+          "minX": -602.927,
+          "minZ": -631.794,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_341:площадка",
-          "maxX": -589.247,
-          "maxZ": -414.636,
-          "minX": -603.48,
-          "minZ": -429.001,
+          "id": "b_district_1_3_342:площадка",
+          "maxX": -175.549,
+          "maxZ": 613.939,
+          "minX": -187.117,
+          "minZ": 602.061,
+          "y": 0.033
+        },
+        {
+          "blend": 14,
+          "id": "b_district_1_3_343:площадка",
+          "maxX": -155.044,
+          "maxZ": 612.277,
+          "minX": -164.956,
+          "minZ": 603.723,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_342:площадка",
-          "maxX": -590.472,
-          "maxZ": -387.445,
-          "minX": -602.256,
-          "minZ": -398.009,
+          "id": "b_district_1_3_344:площадка",
+          "maxX": -109.167,
+          "maxZ": 612.575,
+          "minX": -125.5,
+          "minZ": 603.425,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_343:площадка",
-          "maxX": -588.192,
-          "maxZ": -356.904,
-          "minX": -604.536,
-          "minZ": -370.369,
+          "id": "b_district_3_0_346:площадка",
+          "maxX": 598.417,
+          "maxZ": -439.704,
+          "minX": 587.465,
+          "minZ": -445.002,
+          "y": 0.011
+        },
+        {
+          "blend": 14,
+          "id": "b_district_3_0_347:площадка",
+          "maxX": 596.891,
+          "maxZ": -419.441,
+          "minX": 588.991,
+          "minZ": -427.618,
+          "y": 0.026
+        },
+        {
+          "blend": 14,
+          "id": "b_district_0_0_359:площадка",
+          "maxX": -356.614,
+          "maxZ": -588.794,
+          "minX": -370.659,
+          "minZ": -603.933,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_345:площадка",
-          "maxX": -357.661,
-          "maxZ": -561.815,
-          "minX": -369.612,
-          "minZ": -572.73,
+          "id": "b_district_0_0_361:площадка",
+          "maxX": -619.847,
+          "maxZ": -416.395,
+          "minX": -631.062,
+          "minZ": -427.242,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_347:площадка",
-          "maxX": -590.4,
-          "maxZ": -620.476,
-          "minX": -602.327,
-          "minZ": -630.433,
+          "id": "b_district_0_1_364:площадка",
+          "maxX": -604.229,
+          "maxZ": -291.129,
+          "minX": -635.771,
+          "minZ": -308.871,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_350:площадка",
-          "maxX": 571.613,
-          "maxZ": -229.354,
-          "minX": 564.387,
-          "minZ": -234.646,
+          "id": "b_district_0_1_365:площадка",
+          "maxX": -606.082,
+          "maxZ": -249.327,
+          "minX": -633.918,
+          "minZ": -270.673,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_351:площадка",
-          "maxX": 603.37,
-          "maxZ": -165.592,
-          "minX": 596.63,
-          "minZ": -170.408,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_1_3_360:площадка",
-          "maxX": -69.041,
-          "maxZ": 612.962,
-          "minX": -80.292,
-          "minZ": 603.038,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_365:площадка",
-          "maxX": 618.66,
-          "maxZ": -165.12,
-          "minX": 613.34,
-          "minZ": -170.88,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_369:площадка",
-          "maxX": -356.946,
-          "maxZ": -589.255,
-          "minX": -370.327,
-          "minZ": -603.472,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_0_370:площадка",
-          "maxX": 597.445,
-          "maxZ": -361.797,
-          "minX": 588.437,
-          "minZ": -372.32,
-          "y": 0.046
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_373:площадка",
-          "maxX": -608.144,
-          "maxZ": -288.847,
-          "minX": -631.856,
-          "minZ": -311.153,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_374:площадка",
-          "maxX": -610.31,
-          "maxZ": -251.637,
-          "minX": -629.69,
-          "minZ": -268.363,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_375:площадка",
-          "maxX": -610.124,
-          "maxZ": -209.872,
-          "minX": -629.876,
-          "minZ": -230.128,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_376:площадка",
+          "id": "b_district_0_1_366:площадка",
           "maxX": -602.5,
-          "maxZ": -167.167,
+          "maxZ": -209.121,
           "minX": -637.5,
-          "minZ": -192.833,
+          "minZ": -230.879,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_377:площадка",
-          "maxX": -605.154,
-          "maxZ": -128.101,
-          "minX": -634.846,
-          "minZ": -151.899,
+          "id": "b_district_0_1_367:площадка",
+          "maxX": -604.086,
+          "maxZ": -169.075,
+          "minX": -635.914,
+          "minZ": -190.925,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_378:площадка",
-          "maxX": -604.096,
-          "maxZ": -86.979,
-          "minX": -635.904,
-          "minZ": -113.021,
+          "id": "b_district_0_1_368:площадка",
+          "maxX": -608.254,
+          "maxZ": -127.142,
+          "minX": -631.746,
+          "minZ": -152.858,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_379:площадка",
-          "maxX": -602.512,
-          "maxZ": -47.086,
-          "minX": -637.488,
-          "minZ": -72.914,
+          "id": "b_district_0_2_369:площадка",
+          "maxX": -614.84,
+          "maxZ": 224.423,
+          "minX": -625.16,
+          "minZ": 215.577,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_380:площадка",
-          "maxX": -602.5,
-          "maxZ": -8.761,
-          "minX": -637.5,
-          "minZ": -31.239,
+          "id": "b_district_0_2_370:площадка",
+          "maxX": -615.117,
+          "maxZ": 266.052,
+          "minX": -624.883,
+          "minZ": 253.948,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_381:площадка",
-          "maxX": -613.808,
-          "maxZ": 65.04,
-          "minX": -626.192,
-          "minZ": 54.96,
+          "id": "b_district_0_2_371:площадка",
+          "maxX": -615.226,
+          "maxZ": 303.575,
+          "minX": -624.774,
+          "minZ": 296.425,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_382:площадка",
-          "maxX": -616.339,
-          "maxZ": 102.729,
-          "minX": -623.661,
-          "minZ": 97.271,
+          "id": "b_district_0_0_375:площадка",
+          "maxX": -618.291,
+          "maxZ": -357.674,
+          "minX": -632.618,
+          "minZ": -369.599,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_383:площадка",
-          "maxX": -615.221,
-          "maxZ": 226.045,
-          "minX": -624.779,
-          "minZ": 213.955,
+          "id": "b_district_3_0_379:площадка",
+          "maxX": 618.187,
+          "maxZ": -476.58,
+          "minX": 605.342,
+          "minZ": -483.42,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_384:площадка",
-          "maxX": -614.125,
-          "maxZ": 264.204,
-          "minX": -625.875,
-          "minZ": 255.796,
+          "id": "b_district_1_3_382:площадка",
+          "maxX": -46.687,
+          "maxZ": 634.252,
+          "minX": -59.98,
+          "minZ": 624.414,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_2_385:площадка",
-          "maxX": -613.794,
-          "maxZ": 304.928,
-          "minX": -626.206,
-          "minZ": 295.072,
+          "id": "b_district_3_1_386:площадка",
+          "maxX": 587.53,
+          "maxZ": -261.174,
+          "minX": 580.47,
+          "minZ": -266.826,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_389:площадка",
-          "maxX": 633.831,
-          "maxZ": 250.264,
-          "minX": 624.836,
-          "minZ": 240.402,
+          "id": "b_district_0_0_391:площадка",
+          "maxX": -358.952,
+          "maxZ": -619.088,
+          "minX": -368.321,
+          "minZ": -631.821,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_2_0_395:площадка",
-          "maxX": 123.153,
-          "maxZ": -564.197,
-          "minX": 105.418,
-          "minZ": -578.66,
+          "id": "b_district_3_0_396:площадка",
+          "maxX": 614.542,
+          "maxZ": -325.42,
+          "minX": 608.987,
+          "minZ": -333.403,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_397:площадка",
-          "maxX": 379.53,
-          "maxZ": -117.174,
-          "minX": 372.47,
-          "minZ": -122.826,
+          "id": "b_district_0_3_398:площадка",
+          "maxX": -609.366,
+          "maxZ": 623.749,
+          "minX": -624.92,
+          "minZ": 610.536,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_0_0_399:площадка",
+          "maxX": -328.292,
+          "maxZ": -619.592,
+          "minX": -340.799,
+          "minZ": -631.317,
           "y": 0
         }
       ],
@@ -8761,14 +8743,29 @@ export const LEVEL_16 = {
           "id": "tr_rb_360_360_1",
           "points": [
             {
-              "x": 336,
-              "y": 26.71,
-              "z": 336
+              "x": 384,
+              "y": 38.78,
+              "z": 360
             },
             {
-              "x": 384,
-              "y": 33.175,
-              "z": 336
+              "x": 383.539,
+              "y": 39.063,
+              "z": 364.682
+            },
+            {
+              "x": 382.173,
+              "y": 39.345,
+              "z": 369.184
+            },
+            {
+              "x": 379.955,
+              "y": 39.628,
+              "z": 373.334
+            },
+            {
+              "x": 376.971,
+              "y": 39.91,
+              "z": 376.971
             }
           ],
           "shoulder": 1,
@@ -8780,13 +8777,28 @@ export const LEVEL_16 = {
           "id": "tr_rb_360_360_2",
           "points": [
             {
-              "x": 384,
-              "y": 33.175,
-              "z": 336
+              "x": 376.971,
+              "y": 39.91,
+              "z": 376.971
             },
             {
-              "x": 384,
-              "y": 40.828,
+              "x": 373.334,
+              "y": 39.2,
+              "z": 379.955
+            },
+            {
+              "x": 369.184,
+              "y": 38.49,
+              "z": 382.173
+            },
+            {
+              "x": 364.682,
+              "y": 37.78,
+              "z": 383.539
+            },
+            {
+              "x": 360,
+              "y": 37.07,
               "z": 384
             }
           ],
@@ -8799,14 +8811,29 @@ export const LEVEL_16 = {
           "id": "tr_rb_360_360_3",
           "points": [
             {
-              "x": 384,
-              "y": 40.828,
+              "x": 360,
+              "y": 37.07,
               "z": 384
             },
             {
-              "x": 336,
-              "y": 31.464,
-              "z": 384
+              "x": 355.318,
+              "y": 36.013,
+              "z": 383.539
+            },
+            {
+              "x": 350.816,
+              "y": 34.955,
+              "z": 382.173
+            },
+            {
+              "x": 346.666,
+              "y": 33.898,
+              "z": 379.955
+            },
+            {
+              "x": 343.029,
+              "y": 32.84,
+              "z": 376.971
             }
           ],
           "shoulder": 1,
@@ -8818,14 +8845,165 @@ export const LEVEL_16 = {
           "id": "tr_rb_360_360_4",
           "points": [
             {
-              "x": 336,
-              "y": 31.464,
-              "z": 384
+              "x": 343.029,
+              "y": 32.84,
+              "z": 376.971
+            },
+            {
+              "x": 340.045,
+              "y": 32.143,
+              "z": 373.334
+            },
+            {
+              "x": 337.827,
+              "y": 31.445,
+              "z": 369.184
+            },
+            {
+              "x": 336.461,
+              "y": 30.748,
+              "z": 364.682
             },
             {
               "x": 336,
-              "y": 26.71,
+              "y": 30.05,
+              "z": 360
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_rb_360_360_5",
+          "points": [
+            {
+              "x": 336,
+              "y": 30.05,
+              "z": 360
+            },
+            {
+              "x": 336.461,
+              "y": 29.81,
+              "z": 355.318
+            },
+            {
+              "x": 337.827,
+              "y": 29.57,
+              "z": 350.816
+            },
+            {
+              "x": 340.045,
+              "y": 29.33,
+              "z": 346.666
+            },
+            {
+              "x": 343.029,
+              "y": 29.09,
+              "z": 343.029
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_rb_360_360_6",
+          "points": [
+            {
+              "x": 343.029,
+              "y": 29.09,
+              "z": 343.029
+            },
+            {
+              "x": 346.666,
+              "y": 29.428,
+              "z": 340.045
+            },
+            {
+              "x": 350.816,
+              "y": 29.765,
+              "z": 337.827
+            },
+            {
+              "x": 355.318,
+              "y": 30.103,
+              "z": 336.461
+            },
+            {
+              "x": 360,
+              "y": 30.44,
               "z": 336
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_rb_360_360_7",
+          "points": [
+            {
+              "x": 360,
+              "y": 30.44,
+              "z": 336
+            },
+            {
+              "x": 364.682,
+              "y": 31.41,
+              "z": 336.461
+            },
+            {
+              "x": 369.184,
+              "y": 32.38,
+              "z": 337.827
+            },
+            {
+              "x": 373.334,
+              "y": 33.35,
+              "z": 340.045
+            },
+            {
+              "x": 376.971,
+              "y": 34.32,
+              "z": 343.029
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_rb_360_360_8",
+          "points": [
+            {
+              "x": 376.971,
+              "y": 34.32,
+              "z": 343.029
+            },
+            {
+              "x": 379.955,
+              "y": 35.435,
+              "z": 346.666
+            },
+            {
+              "x": 382.173,
+              "y": 36.55,
+              "z": 350.816
+            },
+            {
+              "x": 383.539,
+              "y": 37.665,
+              "z": 355.318
+            },
+            {
+              "x": 384,
+              "y": 38.78,
+              "z": 360
             }
           ],
           "shoulder": 1,
@@ -8837,14 +9015,14 @@ export const LEVEL_16 = {
           "id": "tr_rbc_360_360",
           "points": [
             {
-              "x": 384,
-              "y": 40.828,
-              "z": 384
+              "x": 376.97,
+              "y": 39.91,
+              "z": 376.97
             },
             {
               "x": 398,
-              "y": 42.33,
-              "z": 384
+              "y": 41.81,
+              "z": 376.97
             },
             {
               "x": 398,
@@ -8861,14 +9039,29 @@ export const LEVEL_16 = {
           "id": "tr_rb_440_360_1",
           "points": [
             {
-              "x": 420,
-              "y": 34.937,
-              "z": 340
+              "x": 460,
+              "y": 34.03,
+              "z": 360
             },
             {
-              "x": 460,
-              "y": 29.641,
-              "z": 340
+              "x": 459.616,
+              "y": 34.93,
+              "z": 363.902
+            },
+            {
+              "x": 458.478,
+              "y": 35.83,
+              "z": 367.654
+            },
+            {
+              "x": 456.629,
+              "y": 36.73,
+              "z": 371.111
+            },
+            {
+              "x": 454.142,
+              "y": 37.63,
+              "z": 374.142
             }
           ],
           "shoulder": 1,
@@ -8880,13 +9073,28 @@ export const LEVEL_16 = {
           "id": "tr_rb_440_360_2",
           "points": [
             {
-              "x": 460,
-              "y": 29.641,
-              "z": 340
+              "x": 454.142,
+              "y": 37.63,
+              "z": 374.142
             },
             {
-              "x": 460,
-              "y": 36.74,
+              "x": 451.111,
+              "y": 38.478,
+              "z": 376.629
+            },
+            {
+              "x": 447.654,
+              "y": 39.325,
+              "z": 378.478
+            },
+            {
+              "x": 443.902,
+              "y": 40.173,
+              "z": 379.616
+            },
+            {
+              "x": 440,
+              "y": 41.02,
               "z": 380
             }
           ],
@@ -8899,14 +9107,29 @@ export const LEVEL_16 = {
           "id": "tr_rb_440_360_3",
           "points": [
             {
-              "x": 460,
-              "y": 36.74,
+              "x": 440,
+              "y": 41.02,
               "z": 380
             },
             {
-              "x": 420,
-              "y": 42.536,
-              "z": 380
+              "x": 436.098,
+              "y": 41.253,
+              "z": 379.616
+            },
+            {
+              "x": 432.346,
+              "y": 41.485,
+              "z": 378.478
+            },
+            {
+              "x": 428.889,
+              "y": 41.718,
+              "z": 376.629
+            },
+            {
+              "x": 425.858,
+              "y": 41.95,
+              "z": 374.142
             }
           ],
           "shoulder": 1,
@@ -8918,14 +9141,165 @@ export const LEVEL_16 = {
           "id": "tr_rb_440_360_4",
           "points": [
             {
-              "x": 420,
-              "y": 42.536,
-              "z": 380
+              "x": 425.858,
+              "y": 41.95,
+              "z": 374.142
+            },
+            {
+              "x": 423.371,
+              "y": 41.448,
+              "z": 371.111
+            },
+            {
+              "x": 421.522,
+              "y": 40.945,
+              "z": 367.654
+            },
+            {
+              "x": 420.384,
+              "y": 40.442,
+              "z": 363.902
             },
             {
               "x": 420,
-              "y": 34.937,
+              "y": 39.94,
+              "z": 360
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_rb_440_360_5",
+          "points": [
+            {
+              "x": 420,
+              "y": 39.94,
+              "z": 360
+            },
+            {
+              "x": 420.384,
+              "y": 39,
+              "z": 356.098
+            },
+            {
+              "x": 421.522,
+              "y": 38.06,
+              "z": 352.346
+            },
+            {
+              "x": 423.371,
+              "y": 37.12,
+              "z": 348.889
+            },
+            {
+              "x": 425.858,
+              "y": 36.18,
+              "z": 345.858
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_rb_440_360_6",
+          "points": [
+            {
+              "x": 425.858,
+              "y": 36.18,
+              "z": 345.858
+            },
+            {
+              "x": 428.889,
+              "y": 35.403,
+              "z": 343.371
+            },
+            {
+              "x": 432.346,
+              "y": 34.625,
+              "z": 341.522
+            },
+            {
+              "x": 436.098,
+              "y": 33.848,
+              "z": 340.384
+            },
+            {
+              "x": 440,
+              "y": 33.07,
               "z": 340
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_rb_440_360_7",
+          "points": [
+            {
+              "x": 440,
+              "y": 33.07,
+              "z": 340
+            },
+            {
+              "x": 443.902,
+              "y": 32.865,
+              "z": 340.384
+            },
+            {
+              "x": 447.654,
+              "y": 32.66,
+              "z": 341.522
+            },
+            {
+              "x": 451.111,
+              "y": 32.455,
+              "z": 343.371
+            },
+            {
+              "x": 454.142,
+              "y": 32.25,
+              "z": 345.858
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_rb_440_360_8",
+          "points": [
+            {
+              "x": 454.142,
+              "y": 32.25,
+              "z": 345.858
+            },
+            {
+              "x": 456.629,
+              "y": 32.695,
+              "z": 348.889
+            },
+            {
+              "x": 458.478,
+              "y": 33.14,
+              "z": 352.346
+            },
+            {
+              "x": 459.616,
+              "y": 33.585,
+              "z": 356.098
+            },
+            {
+              "x": 460,
+              "y": 34.03,
+              "z": 360
             }
           ],
           "shoulder": 1,
@@ -8937,14 +9311,14 @@ export const LEVEL_16 = {
           "id": "tr_rbc_440_360",
           "points": [
             {
-              "x": 420,
-              "y": 42.536,
-              "z": 380
+              "x": 425.86,
+              "y": 41.95,
+              "z": 374.14
             },
             {
               "x": 398,
-              "y": 42.07,
-              "z": 380
+              "y": 41.52,
+              "z": 374.14
             },
             {
               "x": 398,
@@ -8959,6 +9333,79 @@ export const LEVEL_16 = {
           "blend": 5,
           "crossLevel": true,
           "id": "tr_acc_1_1",
+          "points": [
+            {
+              "x": 360,
+              "y": 30.44,
+              "z": 336
+            },
+            {
+              "x": 350.22,
+              "y": 29,
+              "z": 336
+            },
+            {
+              "x": 340.45,
+              "y": 27.44,
+              "z": 336
+            },
+            {
+              "x": 330.67,
+              "y": 25.83,
+              "z": 336
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_acc_1_1_2",
+          "points": [
+            {
+              "x": 330.67,
+              "y": 25.83,
+              "z": 336
+            },
+            {
+              "x": 330.67,
+              "y": 23.75,
+              "z": 324
+            },
+            {
+              "x": 330.67,
+              "y": 21.47,
+              "z": 312
+            },
+            {
+              "x": 330.67,
+              "y": 19.08,
+              "z": 300
+            },
+            {
+              "x": 330.67,
+              "y": 16.7,
+              "z": 288
+            },
+            {
+              "x": 330.67,
+              "y": 14.45,
+              "z": 276
+            },
+            {
+              "x": 330.67,
+              "y": 12.46,
+              "z": 264
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_acc_1_3",
           "points": [
             {
               "x": -156.56,
@@ -8987,7 +9434,7 @@ export const LEVEL_16 = {
         {
           "blend": 5,
           "crossLevel": true,
-          "id": "tr_acc_1_1_2",
+          "id": "tr_acc_1_3_2",
           "points": [
             {
               "x": -156.56,
@@ -9023,94 +9470,6 @@ export const LEVEL_16 = {
               "x": -228.56,
               "y": 13.54,
               "z": 330.67
-            }
-          ],
-          "shoulder": 1,
-          "width": 8
-        },
-        {
-          "blend": 5,
-          "crossLevel": true,
-          "id": "tr_acc_1_3",
-          "points": [
-            {
-              "x": 280,
-              "y": 0.91,
-              "z": 72
-            },
-            {
-              "x": 292,
-              "y": 0.76,
-              "z": 72
-            },
-            {
-              "x": 304,
-              "y": 0.61,
-              "z": 72
-            },
-            {
-              "x": 316,
-              "y": 0.46,
-              "z": 72
-            },
-            {
-              "x": 328,
-              "y": 0.32,
-              "z": 72
-            },
-            {
-              "x": 340,
-              "y": 0.19,
-              "z": 72
-            },
-            {
-              "x": 352,
-              "y": 0.09,
-              "z": 72
-            }
-          ],
-          "shoulder": 1,
-          "width": 8
-        },
-        {
-          "blend": 5,
-          "crossLevel": true,
-          "id": "tr_acc_1_3_2",
-          "points": [
-            {
-              "x": 352,
-              "y": 0.09,
-              "z": 72
-            },
-            {
-              "x": 352,
-              "y": 0.3,
-              "z": 84
-            },
-            {
-              "x": 352,
-              "y": 0.62,
-              "z": 96
-            },
-            {
-              "x": 352,
-              "y": 1.03,
-              "z": 108
-            },
-            {
-              "x": 352,
-              "y": 1.52,
-              "z": 120
-            },
-            {
-              "x": 352,
-              "y": 2.08,
-              "z": 132
-            },
-            {
-              "x": 352,
-              "y": 2.7,
-              "z": 144
             }
           ],
           "shoulder": 1,
@@ -9420,6 +9779,74 @@ export const LEVEL_16 = {
           "id": "tr_acc_1_13",
           "points": [
             {
+              "x": 330.67,
+              "y": 12.46,
+              "z": 264
+            },
+            {
+              "x": 318.67,
+              "y": 12.62,
+              "z": 264
+            },
+            {
+              "x": 306.67,
+              "y": 13.02,
+              "z": 264
+            },
+            {
+              "x": 294.67,
+              "y": 13.74,
+              "z": 264
+            },
+            {
+              "x": 282.67,
+              "y": 14.53,
+              "z": 264
+            },
+            {
+              "x": 270.67,
+              "y": 15.24,
+              "z": 264
+            },
+            {
+              "x": 258.67,
+              "y": 15.85,
+              "z": 264
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_acc_1_13_2",
+          "points": [
+            {
+              "x": 258.67,
+              "y": 15.85,
+              "z": 264
+            },
+            {
+              "x": 258.67,
+              "y": 16.2,
+              "z": 270.18
+            },
+            {
+              "x": 258.67,
+              "y": 16.53,
+              "z": 276.36
+            }
+          ],
+          "shoulder": 1,
+          "width": 8
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_acc_1_15",
+          "points": [
+            {
               "x": 216,
               "y": 1.85,
               "z": 72
@@ -9461,7 +9888,7 @@ export const LEVEL_16 = {
         {
           "blend": 5,
           "crossLevel": true,
-          "id": "tr_acc_1_13_2",
+          "id": "tr_acc_1_15_2",
           "points": [
             {
               "x": 144,
@@ -9505,7 +9932,7 @@ export const LEVEL_16 = {
         {
           "blend": 5,
           "crossLevel": true,
-          "id": "tr_acc_1_15",
+          "id": "tr_acc_1_17",
           "points": [
             {
               "x": 144,
@@ -9549,7 +9976,7 @@ export const LEVEL_16 = {
         {
           "blend": 5,
           "crossLevel": true,
-          "id": "tr_acc_1_15_2",
+          "id": "tr_acc_1_17_2",
           "points": [
             {
               "x": 72,
@@ -9589,79 +10016,6 @@ export const LEVEL_16 = {
           ],
           "shoulder": 1,
           "width": 8
-        },
-        {
-          "blend": 5,
-          "crossLevel": true,
-          "id": "tr_acc_1_17",
-          "points": [
-            {
-              "x": 72,
-              "y": 21.1,
-              "z": 216
-            },
-            {
-              "x": 62.55,
-              "y": 19.49,
-              "z": 216
-            },
-            {
-              "x": 53.09,
-              "y": 17.58,
-              "z": 216
-            },
-            {
-              "x": 43.64,
-              "y": 15.44,
-              "z": 216
-            }
-          ],
-          "shoulder": 1,
-          "width": 8
-        },
-        {
-          "blend": 5,
-          "crossLevel": true,
-          "id": "tr_acc_1_17_2",
-          "points": [
-            {
-              "x": 43.64,
-              "y": 15.44,
-              "z": 216
-            },
-            {
-              "x": 43.64,
-              "y": 14.56,
-              "z": 228
-            },
-            {
-              "x": 43.64,
-              "y": 14.03,
-              "z": 240
-            },
-            {
-              "x": 43.64,
-              "y": 14.01,
-              "z": 252
-            },
-            {
-              "x": 43.64,
-              "y": 14.61,
-              "z": 264
-            },
-            {
-              "x": 43.64,
-              "y": 15.97,
-              "z": 276
-            },
-            {
-              "x": 43.64,
-              "y": 18.07,
-              "z": 288
-            }
-          ],
-          "shoulder": 1,
-          "width": 8
         }
       ]
     },
@@ -9670,11 +10024,11 @@ export const LEVEL_16 = {
       "z": -520
     },
     "stream": {
-      "aheadMax": 1200,
+      "aheadMax": 900,
       "aheadMin": 200,
       "budgetMs": 120,
       "chunk": 256,
-      "keep": 2,
+      "keep": 1,
       "overlap": 1.175
     },
     "units": "meters",

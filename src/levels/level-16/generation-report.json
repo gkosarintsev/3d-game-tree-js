@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 131,
+      "diagnostics": 132,
       "repairs": 0,
       "drops": 0
     },
@@ -183,7 +183,7 @@
       "profileId": "commercial",
       "cells": 1,
       "parcels": 144,
-      "reservedParcels": 69
+      "reservedParcels": 56
     }
   ],
   "diagnostics": [
@@ -262,8 +262,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 115,
-      "segments": 145,
+      "nodes": 123,
+      "segments": 153,
       "components": 1
     },
     {
@@ -845,6 +845,14 @@
       "id": "tr_gc_70",
       "from": "tr_gn_11",
       "to": "tr_gn_37"
+    },
+    {
+      "severity": "info",
+      "code": "transport_corner_fillet",
+      "stage": "2_transport",
+      "message": "tagged 24 road segments for corner filleting",
+      "radius": 8,
+      "tagged": 24
     },
     {
       "severity": "info",
@@ -1441,8 +1449,8 @@
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 115,
-      "segments": 145,
+      "nodes": 123,
+      "segments": 153,
       "seed": 1865128548,
       "branches": 113,
       "profiled": true
@@ -1581,17 +1589,21 @@
       "severity": "info",
       "code": "transport_roundabout",
       "stage": "2_transport",
-      "message": "added axis-aligned roundabout (ring) in hilly area",
+      "message": "added curved roundabout (arc ring) in hilly area",
       "center": [
         360,
         360
       ],
-      "size": 24,
+      "radius": 24,
       "segments": [
         "tr_rb_360_360_1",
         "tr_rb_360_360_2",
         "tr_rb_360_360_3",
         "tr_rb_360_360_4",
+        "tr_rb_360_360_5",
+        "tr_rb_360_360_6",
+        "tr_rb_360_360_7",
+        "tr_rb_360_360_8",
         "tr_rbc_360_360"
       ]
     },
@@ -1599,17 +1611,21 @@
       "severity": "info",
       "code": "transport_roundabout",
       "stage": "2_transport",
-      "message": "added axis-aligned roundabout (ring) in hilly area",
+      "message": "added curved roundabout (arc ring) in hilly area",
       "center": [
         440,
         360
       ],
-      "size": 20,
+      "radius": 20,
       "segments": [
         "tr_rb_440_360_1",
         "tr_rb_440_360_2",
         "tr_rb_440_360_3",
         "tr_rb_440_360_4",
+        "tr_rb_440_360_5",
+        "tr_rb_440_360_6",
+        "tr_rb_440_360_7",
+        "tr_rb_440_360_8",
         "tr_rbc_440_360"
       ]
     },
@@ -1619,7 +1635,7 @@
       "stage": "2_transport",
       "message": "connected roundabout ring to road network",
       "to": "tr_ta_1_r",
-      "dist": 21.26
+      "dist": 31.19
     },
     {
       "severity": "info",
@@ -1627,7 +1643,7 @@
       "stage": "2_transport",
       "message": "connected roundabout ring to road network",
       "to": "tr_ta_1_r",
-      "dist": 29.73
+      "dist": 38.01
     },
     {
       "severity": "info",
@@ -1720,7 +1736,7 @@
       "message": "generated buildings from parcels",
       "count": 401,
       "budget": 420,
-      "skippedConflict": 372
+      "skippedConflict": 385
     },
     {
       "severity": "info",
@@ -1735,22 +1751,22 @@
       "message": "generated district props",
       "count": 360,
       "budget": 360,
-      "attempts": 1037,
+      "attempts": 941,
       "byDistrictType": {
         "luxury": 38,
-        "suburb": 27,
-        "old_town": 47,
-        "commercial": 15,
+        "suburb": 19,
+        "old_town": 39,
+        "commercial": 14,
         "industrial": 8,
-        "slums": 48,
+        "slums": 61,
         "market": 32,
-        "sports": 9,
+        "sports": 8,
         "parking": 9,
-        "residential": 74,
-        "park": 13,
+        "residential": 71,
+        "park": 19,
         "office": 20,
-        "campus": 9,
-        "forest": 10
+        "campus": 10,
+        "forest": 11
       }
     },
     {
@@ -1785,19 +1801,19 @@
       "groundSize": 1280,
       "stream": {
         "chunk": 256,
-        "keep": 2,
+        "keep": 1,
         "aheadMin": 200,
-        "aheadMax": 1200,
+        "aheadMax": 900,
         "budgetMs": 120
       },
       "chunks": {
         "grid": 5,
         "total": 25
       },
-      "roadNodes": 133,
-      "roadSegments": 163,
+      "roadNodes": 141,
+      "roadSegments": 171,
       "roadComponents": 1,
-      "roadGraphNodes": 133,
+      "roadGraphNodes": 141,
       "interchanges": {
         "segments": 13,
         "junctions": 4,
@@ -1822,11 +1838,11 @@
         "suburb"
       ],
       "parcels": 2274,
-      "reservedParcels": 299,
+      "reservedParcels": 286,
       "parcelAccess": {
-        "near": 1107,
-        "mid": 1012,
-        "far": 155
+        "near": 1085,
+        "mid": 1029,
+        "far": 160
       },
       "roadAccessByType": {
         "industrial": {
@@ -1842,12 +1858,12 @@
         "luxury": {
           "parcels": 242,
           "unreserved": 225,
-          "good": 116,
-          "mid": 106,
-          "far": 3,
+          "good": 115,
+          "mid": 105,
+          "far": 5,
           "reserved": 17,
-          "goodOrMid": 222,
-          "accessibleRatio": 0.987
+          "goodOrMid": 220,
+          "accessibleRatio": 0.978
         },
         "office": {
           "parcels": 121,
@@ -1872,12 +1888,12 @@
         "residential": {
           "parcels": 450,
           "unreserved": 374,
-          "good": 201,
-          "mid": 173,
-          "far": 0,
+          "good": 181,
+          "mid": 191,
+          "far": 2,
           "reserved": 76,
-          "goodOrMid": 374,
-          "accessibleRatio": 1
+          "goodOrMid": 372,
+          "accessibleRatio": 0.995
         },
         "slums": {
           "parcels": 400,
@@ -1902,42 +1918,42 @@
       },
       "buildings": 401,
       "buildingsByDistrictType": {
-        "old_town": 51,
-        "commercial": 33,
-        "office": 37,
-        "luxury": 63,
-        "slums": 54,
-        "residential": 75,
-        "market": 40,
+        "old_town": 55,
+        "office": 40,
+        "luxury": 62,
+        "commercial": 35,
+        "slums": 53,
+        "residential": 70,
         "park": 5,
+        "market": 33,
         "industrial": 19,
-        "parking": 11,
-        "campus": 11,
-        "suburb": 1,
+        "parking": 8,
+        "campus": 14,
+        "suburb": 6,
         "sports": 1
       },
       "lights": 8,
       "props": 360,
       "propsByDistrictType": {
         "luxury": 38,
-        "suburb": 27,
-        "old_town": 47,
-        "commercial": 15,
+        "suburb": 19,
+        "old_town": 39,
+        "commercial": 14,
         "industrial": 8,
-        "slums": 48,
+        "slums": 61,
         "market": 32,
-        "sports": 9,
+        "sports": 8,
         "parking": 9,
-        "residential": 74,
-        "park": 13,
+        "residential": 71,
+        "park": 19,
         "office": 20,
-        "campus": 9,
-        "forest": 10
+        "campus": 10,
+        "forest": 11
       },
       "chunkLoad": {
         "nonEmptyChunks": 25,
-        "maxBuildings": 30,
-        "maxProps": 33,
+        "maxBuildings": 31,
+        "maxProps": 39,
         "maxLights": 1,
         "avgBuildings": 16.04,
         "avgProps": 14.4
@@ -1974,10 +1990,16 @@
       "code": "build_conflicting_buildings_dropped",
       "stage": "build",
       "message": "dropped buildings conflicting with compiled/normalized placement",
-      "count": 2,
+      "count": 8,
       "ids": [
-        "b_district_1_3_161",
-        "b_district_1_3_162"
+        "b_district_1_0_400",
+        "b_district_1_3_157",
+        "b_district_1_3_246",
+        "b_district_2_3_360",
+        "b_district_3_3_158",
+        "b_district_3_3_22",
+        "b_district_3_3_228",
+        "b_district_3_3_91"
       ]
     }
   ],
@@ -1986,13 +2008,13 @@
       "stage": "2_transport_access",
       "code": "access_roads_added",
       "id": "tr_acc_1_1,tr_acc_1_1_2",
-      "target": "district_1_3_p1"
+      "target": "district_3_2_p151"
     },
     {
       "stage": "2_transport_access",
       "code": "access_roads_added",
       "id": "tr_acc_1_3,tr_acc_1_3_2",
-      "target": "district_3_2_p123"
+      "target": "district_1_3_p1"
     },
     {
       "stage": "2_transport_access",
@@ -2028,22 +2050,52 @@
       "stage": "2_transport_access",
       "code": "access_roads_added",
       "id": "tr_acc_1_15,tr_acc_1_15_2",
-      "target": "district_2_2_p101"
+      "target": "district_2_2_p68"
     },
     {
       "stage": "2_transport_access",
       "code": "access_roads_added",
       "id": "tr_acc_1_17,tr_acc_1_17_2",
-      "target": "district_2_3_p2"
+      "target": "district_2_2_p101"
     },
     {
       "stage": "build",
-      "id": "b_district_1_3_161",
+      "id": "b_district_1_0_400",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_1_3_162",
+      "id": "b_district_1_3_157",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_1_3_246",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_2_3_360",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_3_3_158",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_3_3_22",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_3_3_228",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_3_3_91",
       "code": "drop_conflicting_building"
     }
   ],
@@ -2051,7 +2103,7 @@
   "summary": {
     "errors": 0,
     "warnings": 8,
-    "repairs": 11,
+    "repairs": 17,
     "drops": 0
   }
 }
