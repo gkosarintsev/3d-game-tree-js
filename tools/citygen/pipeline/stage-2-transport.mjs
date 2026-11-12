@@ -1439,129 +1439,131 @@ function generateTransport(ctx) {
     ctx.report.diagnostics.push(info('transport_branches_partial', stageId, `added ${made}/${clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4)} procedural spur(s)`, { requested: clamp(Number.isInteger(tc.branches) ? tc.branches : 2, 0, 4), made }));
   }
 
-  // M3 B2 prototype fallback: try to convert one suitable existing ground segment
-  // into an overpass if main-route prototype was not applied. Picks best feasible
-  // candidate deterministically (prefer sufficient clearance, else highest clearance).
+  // M3 B2 prototype fallback: try to convert suitable existing ground segments
+  // into overpasses if main-route prototype was not applied. Picks best feasible
+  // candidate deterministically per pass (prefer sufficient clearance, else highest clearance).
   if (!mainParts.some(p => p && p.interchange === 'overpass')) {
+    const OVERPASS_FALLBACK_LIMIT = 2;
     const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
     const INTERCHANGE_CLEARANCE = 3.8;
     const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.13); // prototype ramp limit (validated < 0.31)
-    let chosen = null;
-    for (let si = 0; si < segments.length; si++) {
-      const seg = segments[si];
-      if (!seg || seg.layer === 'elevated' || seg.type === 'arterial') continue; // keep main arterial profile stable unless prototype targeted it
-      const path = Array.isArray(seg.path) ? seg.path : null;
-      if (!path || path.length < 2) continue;
-      const len = totalLen(path);
-      if (len < 64) continue;
-      // axis-aligned straight check (tolerant)
-      const dxSpan = Math.abs(path[path.length - 1][0] - path[0][0]);
-      const dzSpan = Math.abs(path[path.length - 1][2] - path[0][2]);
-      if (dxSpan > 1.0 && dzSpan > 1.0) continue;
-      let straight = true;
-      for (let i = 1; i < path.length; i++) {
-        if (dxSpan <= dzSpan) { if (Math.abs(path[i][0] - path[0][0]) > 1.0) { straight = false; break; } }
-        else { if (Math.abs(path[i][2] - path[0][2]) > 1.0) { straight = false; break; } }
-      }
-      if (!straight) continue;
-      const a = path[0].slice(), b = path[path.length - 1].slice();
-      const run = Math.hypot(b[0] - a[0], b[2] - a[2]);
-      if (run < 64) continue;
-      const ux = (b[0] - a[0]) / run, uz = (b[2] - a[2]) / run;
-      let nearRiver = false;
-      for (let i = 0; i + 1 < path.length && !nearRiver; i++) {
-        if (segCrossesRiver(path[i][0], path[i][2], path[i+1][0], path[i+1][2], rivers)) nearRiver = true;
-      }
-      if (nearRiver) continue;
-      const aY = a[1] ?? sampler.heightAt(a[0], a[2]);
-      const bY = b[1] ?? sampler.heightAt(b[0], b[2]);
-      if (Math.abs(aY - bY) > 2.5) continue;
-      const endMaxY = Math.max(aY, bY);
-      let midTerrain = -Infinity;
-      const steps = Math.max(8, Math.ceil(run / 8));
-      for (let s = 0; s <= steps; s++) {
-        const t = s / steps;
-        midTerrain = Math.max(midTerrain, sampler.heightAt(a[0] + (b[0]-a[0])*t, a[2] + (b[2]-a[2])*t));
-      }
-      if (!Number.isFinite(midTerrain)) midTerrain = sampler.groundY;
-      let deckH = Math.max(midTerrain + INTERCHANGE_CLEARANCE, endMaxY + 2.2, sampler.groundY + BRIDGE_DECK_MIN);
-      let applied = null;
-      let best = null;
-      for (let iter = 0; iter < 6; iter++) {
-        const riseNeedA = Math.max(deckH - aY, 0);
-        const riseNeedB = Math.max(deckH - bY, 0);
-        const baseA = clamp(Math.max(18, riseNeedA / Math.max(RAMP_SLOPE, 0.05)), 18, run * 0.36);
-        const baseB = clamp(Math.max(18, riseNeedB / Math.max(RAMP_SLOPE, 0.05)), 18, run * 0.36);
-        const shiftMax = Math.min(12, run * 0.12);
-        const shifts = [0, -4, 4, -8, 8, -12, 12].filter(d => Math.abs(d) <= shiftMax + 1e-9);
-        for (const shift of shifts) {
-          let rampLenA = clamp(baseA + shift, 18, run * 0.4);
-          let rampLenB = clamp(baseB - shift, 18, run * 0.4);
-          if (run - rampLenA - rampLenB < 14) continue;
-          // ensure ramps can reach deck height within slope
-          if ((deckH - aY) > RAMP_SLOPE * rampLenA + 1e-6) rampLenA = clamp((deckH - aY) / Math.max(RAMP_SLOPE, 0.05), 18, run * 0.4);
-          if ((deckH - bY) > RAMP_SLOPE * rampLenB + 1e-6) rampLenB = clamp((deckH - bY) / Math.max(RAMP_SLOPE, 0.05), 18, run * 0.4);
-          if (run - rampLenA - rampLenB < 14) continue;
-          if ((deckH - aY) / Math.max(rampLenA, 1e-6) > RAMP_SLOPE + 1e-6) continue;
-          if ((deckH - bY) / Math.max(rampLenB, 1e-6) > RAMP_SLOPE + 1e-6) continue;
-          const r1 = [a[0] + ux * rampLenA, a[2] + uz * rampLenA];
-          const r2 = [b[0] - ux * rampLenB, b[2] - uz * rampLenB];
-          const yR1 = aY + Math.sign(deckH - aY) * Math.min(Math.abs(deckH - aY), RAMP_SLOPE * rampLenA);
-          const yR2 = bY + Math.sign(deckH - bY) * Math.min(Math.abs(deckH - bY), RAMP_SLOPE * rampLenB);
-          const pts = [
-            [a[0], aY, a[2]],
-            [Math.round(r1[0]*100)/100, Math.round(yR1*100)/100, Math.round(r1[1]*100)/100],
-            [Math.round(((r1[0]+r2[0])/2)*100)/100, Math.round(deckH*100)/100, Math.round(((r1[1]+r2[1])/2)*100)/100],
-            [Math.round(r2[0]*100)/100, Math.round(yR2*100)/100, Math.round(r2[1]*100)/100],
-            [b[0], bY, b[2]],
-          ];
-          let prof = enforceSlope(pts.map(p => p.slice()), RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
-          prof = pinEndpoints(prof, [a[0], aY, a[2]], [b[0], bY, b[2]], RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
-          if (!Array.isArray(prof) || prof.length < 2) continue;
-          if (pathMaxSlope(prof) > RAMP_SLOPE + 0.02) continue;
-          const midProfY = prof.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
-          if (!(midProfY > endMaxY + 1.0)) continue;
-
-          let minClear = Infinity, checked = 0;
-          for (let i = 0; i + 1 < prof.length; i++) {
-            const pa = prof[i], pb = prof[i + 1];
-            const dxs = (pb[0] ?? 0) - (pa[0] ?? 0), dzs = (pb[2] ?? 0) - (pa[2] ?? 0);
-            const segLen = Math.hypot(dxs, dzs);
-            const st = Math.max(1, Math.ceil(segLen / 6));
-            for (let ss = 0; ss <= st; ss++) {
-              const tt = ss / st;
-              const sx = (pa[0] ?? 0) + dxs * tt, sz = (pa[2] ?? 0) + dzs * tt;
-              const sy = (pa[1] ?? 0) + ((pb[1] ?? 0) - (pa[1] ?? 0)) * tt;
-              if (sy <= endMaxY + 1.0) continue;
-              minClear = Math.min(minClear, sy - sampler.heightAt(sx, sz));
-              checked++;
-            }
-          }
-          const candProf = {
-            prof,
-            deckH: midProfY,
-            rampLen: +(Math.max(rampLenA, rampLenB).toFixed(2)),
-            minClear: (checked > 0 && Number.isFinite(minClear)) ? minClear : Infinity,
-          };
-          if (!best || candProf.minClear > best.minClear + 1e-6) best = candProf;
-          if (candProf.minClear >= 1.5) { applied = candProf; break; }
+    for (let overpassPass = 0; overpassPass < OVERPASS_FALLBACK_LIMIT; overpassPass++) {
+      let chosen = null;
+      for (let si = 0; si < segments.length; si++) {
+        const seg = segments[si];
+        if (!seg || seg.layer === 'elevated' || seg.type === 'arterial' || seg.interchange) continue; // keep main arterial profile stable unless prototype targeted it
+        const path = Array.isArray(seg.path) ? seg.path : null;
+        if (!path || path.length < 2) continue;
+        const len = totalLen(path);
+        if (len < 64) continue;
+        // axis-aligned straight check (tolerant)
+        const dxSpan = Math.abs(path[path.length - 1][0] - path[0][0]);
+        const dzSpan = Math.abs(path[path.length - 1][2] - path[0][2]);
+        if (dxSpan > 1.0 && dzSpan > 1.0) continue;
+        let straight = true;
+        for (let i = 1; i < path.length; i++) {
+          if (dxSpan <= dzSpan) { if (Math.abs(path[i][0] - path[0][0]) > 1.0) { straight = false; break; } }
+          else { if (Math.abs(path[i][2] - path[0][2]) > 1.0) { straight = false; break; } }
         }
-        if (applied) break;
-        if (!best) break;
-        const nextDeck = Math.round((deckH + Math.max(0.2, 1.5 - best.minClear)) * 100) / 100;
-        if (nextDeck <= deckH + 1e-9) break;
-        deckH = nextDeck;
+        if (!straight) continue;
+        const a = path[0].slice(), b = path[path.length - 1].slice();
+        const run = Math.hypot(b[0] - a[0], b[2] - a[2]);
+        if (run < 64) continue;
+        const ux = (b[0] - a[0]) / run, uz = (b[2] - a[2]) / run;
+        let nearRiver = false;
+        for (let i = 0; i + 1 < path.length && !nearRiver; i++) {
+          if (segCrossesRiver(path[i][0], path[i][2], path[i+1][0], path[i+1][2], rivers)) nearRiver = true;
+        }
+        if (nearRiver) continue;
+        const aY = a[1] ?? sampler.heightAt(a[0], a[2]);
+        const bY = b[1] ?? sampler.heightAt(b[0], b[2]);
+        if (Math.abs(aY - bY) > 2.5) continue;
+        const endMaxY = Math.max(aY, bY);
+        let midTerrain = -Infinity;
+        const steps = Math.max(8, Math.ceil(run / 8));
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          midTerrain = Math.max(midTerrain, sampler.heightAt(a[0] + (b[0]-a[0])*t, a[2] + (b[2]-a[2])*t));
+        }
+        if (!Number.isFinite(midTerrain)) midTerrain = sampler.groundY;
+        let deckH = Math.max(midTerrain + INTERCHANGE_CLEARANCE, endMaxY + 2.2, sampler.groundY + BRIDGE_DECK_MIN);
+        let applied = null;
+        let best = null;
+        for (let iter = 0; iter < 6; iter++) {
+          const riseNeedA = Math.max(deckH - aY, 0);
+          const riseNeedB = Math.max(deckH - bY, 0);
+          const baseA = clamp(Math.max(18, riseNeedA / Math.max(RAMP_SLOPE, 0.05)), 18, run * 0.36);
+          const baseB = clamp(Math.max(18, riseNeedB / Math.max(RAMP_SLOPE, 0.05)), 18, run * 0.36);
+          const shiftMax = Math.min(12, run * 0.12);
+          const shifts = [0, -4, 4, -8, 8, -12, 12].filter(d => Math.abs(d) <= shiftMax + 1e-9);
+          for (const shift of shifts) {
+            let rampLenA = clamp(baseA + shift, 18, run * 0.4);
+            let rampLenB = clamp(baseB - shift, 18, run * 0.4);
+            if (run - rampLenA - rampLenB < 14) continue;
+            // ensure ramps can reach deck height within slope
+            if ((deckH - aY) > RAMP_SLOPE * rampLenA + 1e-6) rampLenA = clamp((deckH - aY) / Math.max(RAMP_SLOPE, 0.05), 18, run * 0.4);
+            if ((deckH - bY) > RAMP_SLOPE * rampLenB + 1e-6) rampLenB = clamp((deckH - bY) / Math.max(RAMP_SLOPE, 0.05), 18, run * 0.4);
+            if (run - rampLenA - rampLenB < 14) continue;
+            if ((deckH - aY) / Math.max(rampLenA, 1e-6) > RAMP_SLOPE + 1e-6) continue;
+            if ((deckH - bY) / Math.max(rampLenB, 1e-6) > RAMP_SLOPE + 1e-6) continue;
+            const r1 = [a[0] + ux * rampLenA, a[2] + uz * rampLenA];
+            const r2 = [b[0] - ux * rampLenB, b[2] - uz * rampLenB];
+            const yR1 = aY + Math.sign(deckH - aY) * Math.min(Math.abs(deckH - aY), RAMP_SLOPE * rampLenA);
+            const yR2 = bY + Math.sign(deckH - bY) * Math.min(Math.abs(deckH - bY), RAMP_SLOPE * rampLenB);
+            const pts = [
+              [a[0], aY, a[2]],
+              [Math.round(r1[0]*100)/100, Math.round(yR1*100)/100, Math.round(r1[1]*100)/100],
+              [Math.round(((r1[0]+r2[0])/2)*100)/100, Math.round(deckH*100)/100, Math.round(((r1[1]+r2[1])/2)*100)/100],
+              [Math.round(r2[0]*100)/100, Math.round(yR2*100)/100, Math.round(r2[1]*100)/100],
+              [b[0], bY, b[2]],
+            ];
+            let prof = enforceSlope(pts.map(p => p.slice()), RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+            prof = pinEndpoints(prof, [a[0], aY, a[2]], [b[0], bY, b[2]], RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+            if (!Array.isArray(prof) || prof.length < 2) continue;
+            if (pathMaxSlope(prof) > RAMP_SLOPE + 0.02) continue;
+            const midProfY = prof.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
+            if (!(midProfY > endMaxY + 1.0)) continue;
+
+            let minClear = Infinity, checked = 0;
+            for (let i = 0; i + 1 < prof.length; i++) {
+              const pa = prof[i], pb = prof[i + 1];
+              const dxs = (pb[0] ?? 0) - (pa[0] ?? 0), dzs = (pb[2] ?? 0) - (pa[2] ?? 0);
+              const segLen = Math.hypot(dxs, dzs);
+              const st = Math.max(1, Math.ceil(segLen / 6));
+              for (let ss = 0; ss <= st; ss++) {
+                const tt = ss / st;
+                const sx = (pa[0] ?? 0) + dxs * tt, sz = (pa[2] ?? 0) + dzs * tt;
+                const sy = (pa[1] ?? 0) + ((pb[1] ?? 0) - (pa[1] ?? 0)) * tt;
+                if (sy <= endMaxY + 1.0) continue;
+                minClear = Math.min(minClear, sy - sampler.heightAt(sx, sz));
+                checked++;
+              }
+            }
+            const candProf = {
+              prof,
+              deckH: midProfY,
+              rampLen: +(Math.max(rampLenA, rampLenB).toFixed(2)),
+              minClear: (checked > 0 && Number.isFinite(minClear)) ? minClear : Infinity,
+            };
+            if (!best || candProf.minClear > best.minClear + 1e-6) best = candProf;
+            if (candProf.minClear >= 1.5) { applied = candProf; break; }
+          }
+          if (applied) break;
+          if (!best) break;
+          const nextDeck = Math.round((deckH + Math.max(0.2, 1.5 - best.minClear)) * 100) / 100;
+          if (nextDeck <= deckH + 1e-9) break;
+          deckH = nextDeck;
+        }
+        if (!applied) applied = best;
+        if (!applied) continue;
+        const cand = { si, seg, applied, run };
+        if (!chosen
+          || (cand.applied.minClear >= 1.5 && !(chosen.applied.minClear >= 1.5))
+          || ((cand.applied.minClear >= 1.5) === (chosen.applied.minClear >= 1.5) && cand.applied.minClear > chosen.applied.minClear + 1e-6)) {
+          chosen = cand;
+        }
       }
-      if (!applied) applied = best;
-      if (!applied) continue;
-      const cand = { si, seg, applied, run };
-      if (!chosen
-        || (cand.applied.minClear >= 1.5 && !(chosen.applied.minClear >= 1.5))
-        || ((cand.applied.minClear >= 1.5) === (chosen.applied.minClear >= 1.5) && cand.applied.minClear > chosen.applied.minClear + 1e-6)) {
-        chosen = cand;
-      }
-    }
-    if (chosen) {
+      if (!chosen) break;
       const { seg, applied, run } = chosen;
       seg.path = applied.prof.map(p => p.slice());
       seg.bridge = true;
