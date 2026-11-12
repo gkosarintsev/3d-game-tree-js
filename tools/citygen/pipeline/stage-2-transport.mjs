@@ -1867,6 +1867,79 @@ function generateTransport(ctx) {
 
   ctx.networks.roads.nodes = nodes;
   ctx.networks.roads.segments = segments;
+
+  // v4: optional dead-end turnarounds (generator.transport.turnarounds), deterministic
+  try {
+    const ta = tc.turnarounds;
+    const taEnabled = ta === true || (ta && typeof ta === 'object' && ta.enabled !== false);
+    if (taEnabled && ta) {
+      const taCount = clamp(Number.isInteger(ta?.count) ? ta.count : (ta === true ? 2 : 0), 0, 8);
+      if (taCount > 0) {
+        const deg = new Map();
+        for (const s of segments) { for (const e of [s.from, s.to]) if (e) deg.set(e, (deg.get(e) || 0) + 1); }
+        const byId = new Map(nodes.map(n => [n.id, n]));
+        const ends = [...deg.entries()].filter(([id,d]) => d === 1).map(([id]) => byId.get(id)).filter(n => n && n.layer !== 'elevated' && Array.isArray(n.position)).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+        let added = 0;
+        const existingNodeIds = new Set(nodes.map(n=>n.id));
+        const existingSegIds = new Set(segments.map(s=>s.id));
+        for (const endNode of ends) {
+          if (added >= taCount) break;
+          const seg = segments.find(s => s.from === endNode.id || s.to === endNode.id);
+          if (!seg || !Array.isArray(seg.path) || seg.path.length < 2) continue;
+          const atFrom = seg.from === endNode.id;
+          const p = atFrom ? seg.path[0] : seg.path[seg.path.length - 1];
+          const q = atFrom ? seg.path[1] : seg.path[seg.path.length - 2];
+          const dx = (q[0]-p[0]), dz = (q[2]-p[2]); const l = Math.hypot(dx,dz)||1;
+          const ux = dx/l, uz = dz/l; // direction along road toward interior
+          // turnaround stub: extend outward then add small perpendicular arms forming a T-hammerhead
+          const ox = -ux, oz = -uz;
+          // prefer axis-aligned extension
+          let eox = ox, eoz = oz;
+          if (Math.abs(ox) >= Math.abs(oz)) { eox = Math.sign(ox)||1; eoz = 0; } else { eox = 0; eoz = Math.sign(oz)||1; }
+          const ex = Math.round((p[0] + eox * 10) * 100) / 100;
+          const ez = Math.round((p[2] + eoz * 10) * 100) / 100;
+          if (Math.abs(ex) > half - 2 || Math.abs(ez) > half - 2) continue;
+          if (riverMinDistXZAt(ex,ez,rivers).d < 6) continue;
+          // perpendicular (axis-aligned)
+          let pxv, pzv;
+          if (eox !== 0) { pxv = 0; pzv = 1; } else { pxv = 1; pzv = 0; }
+          const lx = Math.round((ex + pxv * 8) * 100) / 100, lz = Math.round((ez + pzv * 8) * 100) / 100;
+          const rx = Math.round((ex - pxv * 8) * 100) / 100, rz = Math.round((ez - pzv * 8) * 100) / 100;
+          if (Math.abs(lx)>half-2||Math.abs(lz)>half-2||Math.abs(rx)>half-2||Math.abs(rz)>half-2) continue;
+          if (riverMinDistXZAt(lx,lz,rivers).d < 6 || riverMinDistXZAt(rx,rz,rivers).d < 6) continue;
+          const baseId = `tr_ta_${added+1}`;
+          const nE = `${baseId}_e`, nL = `${baseId}_l`, nR = `${baseId}_r`;
+          if ([nE,nL,nR].some(id=>existingNodeIds.has(id))) continue;
+          const s1 = `${baseId}_1`, s2 = `${baseId}_2`, s3 = `${baseId}_3`;
+          if ([s1,s2,s3].some(id=>existingSegIds.has(id))) continue;
+          const mkNode = (id,x,z)=>({id, position:[x, Math.round(sampler.heightAt(x,z)*100)/100, z], layer:'ground'});
+          const nEN=mkNode(nE,ex,ez), nLN=mkNode(nL,lx,lz), nRN=mkNode(nR,rx,rz);
+          const trySeg=(id,a,b)=>{
+            const path=buildProfiledSegment(ctx,id,{x:a.position[0],z:a.position[2]},{x:b.position[0],z:b.position[2]},width,null);
+            if(!path||path.length<2||!isAxisAlignedPath(path)||pathMaxSlope(path)>0.3005) return null;
+            for(let i=0;i+1<path.length;i++){ if(segCrossesRiver(path[i][0],path[i][2],path[i+1][0],path[i+1][2],rivers)) return null; }
+            return path;
+          };
+          // temp add mid nodes for profiling
+          nodes.push(nEN,nLN,nRN); existingNodeIds.add(nE); existingNodeIds.add(nL); existingNodeIds.add(nR);
+          const p1=trySeg(s1,endNode,nEN), p2=p1?trySeg(s2,nEN,nLN):null, p3=p2?trySeg(s3,nEN,nRN):null;
+          if(!p1||!p2||!p3){
+            for(const id of [nE,nL,nR]){ const idx=nodes.findIndex(n=>n.id===id); if(idx>=0) nodes.splice(idx,1); existingNodeIds.delete(id); }
+            continue;
+          }
+          segments.push(makeRoadSegment(s1,endNode.id,nE,p1,width,'local'));
+          segments.push(makeRoadSegment(s2,nE,nL,p2,width,'local'));
+          segments.push(makeRoadSegment(s3,nE,nR,p3,width,'local'));
+          existingSegIds.add(s1); existingSegIds.add(s2); existingSegIds.add(s3);
+          added++;
+        }
+        if (added>0) ctx.report.diagnostics.push(info('transport_turnarounds', stageId, 'added dead-end turnarounds', {count:added}));
+      }
+    }
+  } catch(e) {
+    ctx.report.diagnostics.push(warn('transport_turnarounds_failed', stageId, `turnaround generation failed: ${String(e?.message ?? e)}`));
+  }
+
   ctx.networks.roads.junctions = [];
   ctx.report.diagnostics.push(info('transport_generated', stageId, 'stage 2 generated road network', { nodes: nodes.length, segments: segments.length, seed, branches: made, profiled: true }));
 }
