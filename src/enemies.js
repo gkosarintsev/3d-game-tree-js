@@ -176,6 +176,7 @@ export class Enemy {
     this.animPhase = Math.random() * Math.PI * 2; // визуальный разброс, не влияет на симуляцию
     this.animRecoil = 0;
     this.animHit = 0;
+    this.animAttack = 0; // сглаженный вес атаки для визуального блендинга (без влияния на симуляцию)
 
     // рабочие векторы, чтобы не создавать мусор в игровом цикле
     this._eyeVec = new THREE.Vector3();
@@ -264,6 +265,7 @@ export class Enemy {
     this.animTime = 0;
     this.animRecoil = 0;
     this.animHit = 0;
+    this.animAttack = 0;
     this.mesh.material.emissive.setHex(0x000000); // сброс подсветки попадания
     this._hpBar.visible = false;
     this._updateHealthBar();
@@ -375,6 +377,9 @@ export class Enemy {
     }
     this.animRecoil = Math.max(0, this.animRecoil - dt * 3.5);
     this.animHit = Math.max(0, this.animHit - dt * 4.0);
+    const attackTarget = this.state === 'attack' ? 1 : 0;
+    const ak = 1 - Math.exp(-10 * dt);
+    this.animAttack += (attackTarget - this.animAttack) * ak;
 
     const cfg = this.cfg;
     const pos = this.position;
@@ -463,13 +468,14 @@ export class Enemy {
     const walkCycle = this.animTime * (6.5 + move01 * 5.5) + this.animPhase;
     const hitW = Math.min(1, this.animHit * 1.5);
     const locomotionW = 1 - hitW * 0.65;
+    const attackW = Math.max(0, Math.min(1, this.animAttack));
     const idleBreath = Math.sin(this.animTime * 2.2 + this.animPhase) * 0.008 * (1 - move01) * locomotionW;
     const bob = Math.sin(walkCycle * 2) * (0.02 + 0.03 * move01) * locomotionW + idleBreath;
     const sway = Math.sin(walkCycle) * (0.015 + 0.03 * move01) * locomotionW;
-    const attackLean = this.state === 'attack' ? 0.03 : 0;
+    const attackLean = attackW * (0.035 + 0.01 * (1 - move01));
     const hitLean = this.animHit * 0.18;
     const recoilKick = this.animRecoil * 0.06;
-    const lean = attackLean + (0.01 + 0.04 * move01) * locomotionW + hitLean - recoilKick;
+    const lean = attackLean + (0.01 + 0.04 * move01) * locomotionW * (1 - attackW * 0.25) + hitLean - recoilKick;
     this.mesh.position.y = bob - this.animHit * 0.02;
     this.mesh.position.z = this.animRecoil * 0.03; // отдача (локально, визуал)
     this.mesh.rotation.z = sway + Math.sin(this.animTime * 18) * this.animHit * 0.03;
