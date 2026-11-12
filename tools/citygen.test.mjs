@@ -576,8 +576,8 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   const nTo = roads.nodes.find(n => n.id === seg.to);
   assert.ok(nFrom && nTo, 'interchange segment endpoints should reference existing nodes');
   const p0 = seg.path[0], pN = seg.path[seg.path.length - 1];
-  assert.ok(Math.abs(p0[0] - nFrom.position[0]) < 1e-6 && Math.abs(p0[2] - nFrom.position[2]) < 1e-6, 'interchange path start should match from-node position');
-  assert.ok(Math.abs(pN[0] - nTo.position[0]) < 1e-6 && Math.abs(pN[2] - nTo.position[2]) < 1e-6, 'interchange path end should match to-node position');
+  assert.ok(Math.abs(p0[0] - nFrom.position[0]) < 1e-6 && Math.abs(p0[1] - nFrom.position[1]) < 1e-6 && Math.abs(p0[2] - nFrom.position[2]) < 1e-6, 'interchange path start should match from-node position');
+  assert.ok(Math.abs(pN[0] - nTo.position[0]) < 1e-6 && Math.abs(pN[1] - nTo.position[1]) < 1e-6 && Math.abs(pN[2] - nTo.position[2]) < 1e-6, 'interchange path end should match to-node position');
   const endMaxY = Math.max(p0[1] ?? 0, pN[1] ?? 0);
   const midMaxY = seg.path.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
   assert.ok(midMaxY > endMaxY + 1.0, 'interchange path should be elevated above endpoints');
