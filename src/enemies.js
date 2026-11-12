@@ -588,6 +588,7 @@ export class AlienEnemy extends AlienBody {
     this.animTime = 0;
     this.animPhase = Math.random() * Math.PI * 2; // визуальный разброс, не влияет на симуляцию
     this.animHit = 0;
+    this.animLeap = 0; // сглаженный вес прыжка для визуального блендинга (без влияния на симуляцию)
 
     // цель прыжка — сам игрок: при контакте в полёте он получает урон.
     // (имя _leapTarget, а не _target: _target в AlienBody занят буфером нормали)
@@ -737,6 +738,7 @@ export class AlienEnemy extends AlienBody {
     this.offstage = false;
     this.animTime = 0;
     this.animHit = 0;
+    this.animLeap = 0;
     this.mesh.rotation.set(0, 0, 0);
     this.mesh.position.y = this._baseMeshY ?? -this.cfg.radius;
     this.group.visible = true;
@@ -774,15 +776,20 @@ export class AlienEnemy extends AlienBody {
     if (this.hurt > 0.01) this.animHit = Math.max(this.animHit, this.hurt);
     const spd = Math.hypot(this.vel.x, this.vel.y, this.vel.z);
     const move01 = Math.min(1, spd / Math.max(0.001, (this.cfg?.speed?.run ?? 6)));
-    const inLeap = this.leapTimer > 0;
+    const leapTarget = this.leapTimer > 0 ? 1 : 0;
+    const lk = 1 - Math.exp(-12 * dt);
+    this.animLeap += (leapTarget - this.animLeap) * lk;
+    const leapW = Math.max(0, Math.min(1, this.animLeap));
     const cycle = this.animTime * (7.5 + move01 * 6.5) + this.animPhase;
     const hitW = Math.min(1, this.animHit * 1.4);
-    const locomotionW = (inLeap ? 0.35 : 1) * (1 - hitW * 0.6);
-    const bob = Math.sin(cycle * 2) * (0.012 + 0.03 * move01) * locomotionW + (inLeap ? 0.03 : 0) - this.animHit * 0.02;
+    const locomotionW = (1 - leapW * 0.65) * (1 - hitW * 0.6);
+    const bob = Math.sin(cycle * 2) * (0.012 + 0.03 * move01) * locomotionW + leapW * 0.03 - this.animHit * 0.02;
     const sway = Math.sin(cycle) * (0.01 + 0.025 * move01) * locomotionW + Math.sin(this.animTime * 20) * this.animHit * 0.03;
-    const lean = (inLeap ? -0.18 : (0.02 + 0.05 * move01) * locomotionW) + this.animHit * 0.12;
+    const groundLean = (0.02 + 0.05 * move01) * locomotionW;
+    const leapLean = -0.18;
+    const lean = groundLean * (1 - leapW) + leapLean * leapW + this.animHit * 0.12;
     this.mesh.position.y = this._baseMeshY + bob;
-    this.mesh.position.z = inLeap ? -0.02 : 0;
+    this.mesh.position.z = -leapW * 0.02;
     this.mesh.rotation.x = lean;
     this.mesh.rotation.z = sway;
   }
