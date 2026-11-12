@@ -275,6 +275,17 @@ test('citygen v4 end-to-end: generated landscape+transport compiles to open cata
   const out2 = generateOutput(structuredClone(raw), 'src/levels/v4-gen.json');
   assert.equal(out.generationReport, out2.generationReport);
   assert.deepEqual(out.files.map(f => f.path), out2.files.map(f => f.path));
+  const report = JSON.parse(out.generationReport);
+  // Crossing conflicts in generated transport should be detected and handled safely (repaired or degraded).
+  assert.ok(report.diagnostics.some(d => d.code === 'road_same_level_conflict' && d.stage === '6_finalize_emit'));
+  assert.ok(
+    report.diagnostics.some(d => (d.code === 'road_crossing_repaired' || d.code === 'road_crossing_repair_skipped') && d.stage === '6_finalize_emit'),
+    'expected safe crossing repair or skip diagnostics in generated e2e case'
+  );
+  assert.ok(
+    report.diagnostics.some(d => (d.code === 'road_conflicts_resolved' || d.code === 'road_conflicts_unresolved') && d.stage === '6_finalize_emit'),
+    'expected post-repair crossing conflict summary diagnostic'
+  );
 });
 
 test('citygen stage 5: generates capped street lights and deterministic district props with provided roads', () => {
