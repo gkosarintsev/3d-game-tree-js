@@ -1,11 +1,13 @@
 /**
  * Stage 6: finalize and cross-stage checks (TASK-008).
- * Emits deterministic summary diagnostics (counts/connectivity hints) without
- * mutating generated geometry. Chunking/skeleton emission is handled by the
- * shared build pipeline after compilation.
+ * Emits summary diagnostics (counts/connectivity hints) and can apply minimal,
+ * deterministic safe repairs (e.g. same-layer crossing resolution when slope/geometry
+ * remain valid). Chunking/skeleton emission is handled by the shared build pipeline
+ * after compilation.
  */
 import { info, warn } from '../diagnostics.mjs';
 import { makeTerrainSampler } from './stage-2-transport.mjs';
+import { createSpatialIndex } from '../spatial.mjs';
 
 function distXZ(ax, az, bx, bz) { return Math.hypot(ax - bx, az - bz); }
 
@@ -75,6 +77,19 @@ function roadComponents(nodes = [], segments = []) {
     }
   }
   return { components, graphNodes: adj.size };
+}
+
+function segIntersectionXZ(a1, a2, b1, b2) {
+  const x1 = a1[0], z1 = a1[2], x2 = a2[0], z2 = a2[2];
+  const x3 = b1[0], z3 = b1[2], x4 = b2[0], z4 = b2[2];
+  const den = (x1 - x2) * (z3 - z4) - (z1 - z2) * (x3 - x4);
+  if (Math.abs(den) < 1e-12) return null;
+  const t = ((x1 - x3) * (z3 - z4) - (z1 - z3) * (x3 - x4)) / den;
+  const u = -(((x1 - x2) * (z1 - z3) - (z1 - z2) * (x1 - x3)) / den);
+  if (t <= 1e-6 || t >= 1 - 1e-6 || u <= 1e-6 || u >= 1 - 1e-6) return null; // proper interior crossing only
+  const ix = x1 + t * (x2 - x1), iz = z1 + t * (z2 - z1);
+  const iy = (a1[1] ?? 0) + t * ((a2[1] ?? 0) - (a1[1] ?? 0));
+  return { x: ix, y: iy, z: iz, t, u };
 }
 
 export function makeStage6() {
@@ -407,6 +422,143 @@ export function makeStage6() {
       }
 
       // Keep engine pointing to transformed input for downstream build/compile.
+      ctx.engine = ctx.input;
+    },
+    repair(ctx) {
+      const stageId = '6_finalize_emit';
+      const networks = ctx.networks?.roads;
+      if (!networks || !Array.isArray(networks.nodes) || !Array.isArray(networks.segments)) return;
+      const nodes = networks.nodes;
+      const segments = networks.segments;
+      const segLayer = (s) => (s?.layer === 'elevated' || s?.interchange === 'overpass') ? 'elevated' : 'ground';
+      const sharesNode = (a, b) => !!((a?.from && (a.from === b?.from || a.from === b?.to)) || (a?.to && (a.to === b?.from || a.to === b?.to)));
+      const usedNodeIds = new Set(nodes.map(n => n.id));
+      const usedSegIds = new Set(segments.map(s => s.id));
+      const uniqNode = (base) => { let id = base, k = 2; while (usedNodeIds.has(id)) { id = `${base}_${k++}`; } usedNodeIds.add(id); return id; };
+      const uniqSeg = (base) => { let id = base, k = 2; while (usedSegIds.has(id)) { id = `${base}_${k++}`; } usedSegIds.add(id); return id; };
+
+      const splitPathAt = (path, subIdx, t) => {
+        const a = path[subIdx], b = path[subIdx + 1];
+        // Keep point on original subsegment to preserve slope/run exactly.
+        const p = [
+          a[0] + (b[0]-a[0]) * t,
+          a[1] + (b[1]-a[1]) * t,
+          a[2] + (b[2]-a[2]) * t,
+        ];
+        const left = path.slice(0, subIdx + 1).map(pt => pt.slice());
+        left.push(p.slice());
+        const right = [p.slice()].concat(path.slice(subIdx + 1).map(pt => pt.slice()));
+        return { point: p, left, right };
+      };
+      const pathLenXZ = (pts) => { let l=0; for(let i=1;i<pts.length;i++) l+=Math.hypot((pts[i][0]-pts[i-1][0]),(pts[i][2]-pts[i-1][2])); return l; };
+      const maxSlope = (pts) => {
+        let m = 0;
+        for (let i = 1; i < (pts?.length ?? 0); i++) {
+          const a = pts[i-1], b = pts[i];
+          const run = Math.hypot((b[0]-a[0]), (b[2]-a[2]));
+          if (run > 1e-9) m = Math.max(m, Math.abs((b[1]-a[1])) / run);
+        }
+        return m;
+      };
+      const cloneSeg = (base, over) => {
+        const s = { ...base, ...over };
+        if (Array.isArray(base.lanes)) s.lanes = JSON.parse(JSON.stringify(base.lanes));
+        if (Array.isArray(over.path)) s.path = over.path.map(p => p.slice());
+        return s;
+      };
+
+      let repairs = 0;
+      const unrepairable = new Set();
+      for (let iter = 0; iter < 30; iter++) {
+        let found = null;
+        // deterministic scan: first repairable conflict found in stable order
+        for (let i = 0; i < segments.length && !found; i++) {
+          const si = segments[i]; if (!si?.path || si.path.length < 2) continue;
+          for (let j = i + 1; j < segments.length && !found; j++) {
+            const sj = segments[j]; if (!sj?.path || sj.path.length < 2) continue;
+            if (sharesNode(si, sj)) continue;
+            if (segLayer(si) !== segLayer(sj)) continue;
+            const pairKey = [si.id ?? i, sj.id ?? j].sort().join('|');
+            if (unrepairable.has(pairKey)) continue;
+            for (let a = 0; a + 1 < si.path.length && !found; a++) {
+              for (let b = 0; b + 1 < sj.path.length && !found; b++) {
+                const hit = segIntersectionXZ(si.path[a], si.path[a + 1], sj.path[b], sj.path[b + 1]);
+                if (hit) found = { i, j, a, b, hit, pairKey };
+              }
+            }
+          }
+        }
+        if (!found) break;
+        const si = segments[found.i], sj = segments[found.j];
+        const splitI = splitPathAt(si.path, found.a, found.hit.t);
+        const splitJ = splitPathAt(sj.path, found.b, found.hit.u);
+        if (pathLenXZ(splitI.left) < 1 || pathLenXZ(splitI.right) < 1 || pathLenXZ(splitJ.left) < 1 || pathLenXZ(splitJ.right) < 1) {
+          unrepairable.add(found.pairKey);
+          continue;
+        }
+
+        // Shared junction must have one position; prefer Y that stays on si's profile (deterministic)
+        // and re-validate after forcing all connecting endpoints to that node position.
+        const nodePos = splitI.point.slice();
+        const si1 = cloneSeg(si, { id: uniqSeg(`${si.id}_a`), to: null, path: splitI.left });
+        const si2 = cloneSeg(si, { id: uniqSeg(`${si.id}_b`), from: null, path: splitI.right });
+        const sj1 = cloneSeg(sj, { id: uniqSeg(`${sj.id}_a`), to: null, path: splitJ.left });
+        const sj2 = cloneSeg(sj, { id: uniqSeg(`${sj.id}_b`), from: null, path: splitJ.right });
+        // force junction endpoints to shared node position for validation and application
+        si1.path[si1.path.length - 1] = nodePos.slice();
+        si2.path[0] = nodePos.slice();
+        sj1.path[sj1.path.length - 1] = nodePos.slice();
+        sj2.path[0] = nodePos.slice();
+
+        // Degrade safely: skip this conflict if split would create invalid/too-steep segments.
+        const slopeOk = [si1, si2, sj1, sj2].every(s => maxSlope(s.path) <= 0.3 + 1e-6);
+        if (!slopeOk) {
+          usedSegIds.delete(si1.id); usedSegIds.delete(si2.id); usedSegIds.delete(sj1.id); usedSegIds.delete(sj2.id);
+          unrepairable.add(found.pairKey);
+          ctx.report.diagnostics.push(warn('road_crossing_repair_skipped', stageId, `skipped crossing repair for '${si.id}' x '${sj.id}' (would violate slope/geometry constraints)`, { segments: [si.id, sj.id] }));
+          continue;
+        }
+
+        const nodeId = uniqNode('tr_x');
+        const n = { id: nodeId, position: nodePos.slice(), layer: segLayer(si) };
+        nodes.push(n);
+        si1.to = nodeId; si2.from = nodeId; sj1.to = nodeId; sj2.from = nodeId;
+
+        // replace segments (remove higher index first)
+        const hi = Math.max(found.i, found.j), lo = Math.min(found.i, found.j);
+        const keepHi = hi === found.i ? [si1, si2] : [sj1, sj2];
+        const keepLo = lo === found.i ? [si1, si2] : [sj1, sj2];
+        segments.splice(hi, 1, ...keepHi);
+        segments.splice(lo, 1, ...keepLo);
+
+        repairs++;
+        ctx.report.repairs.push({ stage: stageId, code: 'resolve_road_crossing', node: nodeId, segments: [si.id, sj.id] });
+        ctx.report.diagnostics.push(info('road_crossing_repaired', stageId, `repaired same-layer crossing by inserting junction '${nodeId}'`, { node: nodeId, segments: [si.id, sj.id] }));
+      }
+
+      // rebuild road easement mask/index after repairs (best effort)
+      if (repairs > 0) {
+        if (!ctx.masks) ctx.masks = { easement: { rivers: ctx.masks?.easement?.rivers ?? [], roads: [] } };
+        if (!ctx.masks.easement) ctx.masks.easement = { rivers: [], roads: [] };
+        ctx.masks.easement.roads = [];
+        const idx = createSpatialIndex(ctx.meta?.worldBounds ?? { size: ctx.input?.ground?.size ?? 256 });
+        for (const s of segments) {
+          const pts = Array.isArray(s?.path) ? s.path : null;
+          if (!pts || pts.length < 2) continue;
+          let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+          for (const p of pts) { minX=Math.min(minX,p[0]); maxX=Math.max(maxX,p[0]); minZ=Math.min(minZ,p[2]); maxZ=Math.max(maxZ,p[2]); }
+          const w = (Array.isArray(s.lanes) && s.lanes[0]?.width) ? s.lanes[0].width : 8;
+          const r = { id: s.id ?? null, minX, maxX, minZ, maxZ, width: w };
+          ctx.masks.easement.roads.push(r);
+          idx.insert(r);
+        }
+        ctx.spatial = ctx.spatial || {};
+        ctx.spatial.roadEasements = idx;
+        networks.nodes = nodes;
+        networks.segments = segments;
+        if (ctx.input?.cityforge?.networks) ctx.input.cityforge.networks.roads = networks;
+      }
+
       ctx.engine = ctx.input;
     },
   };
