@@ -552,6 +552,13 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(fin?.buildingsByDistrictType?.residential > 0 && fin?.buildingsByDistrictType?.slums > 0);
   assert.ok(!report.diagnostics.some(d => d.code === 'district_without_buildings' && d.stage === '6_finalize_emit'), 'pilot buildable districts should have building coverage');
   assert.ok(!report.diagnostics.some(d => d.severity === 'warn' && d.stage === '3_districts_parcels'), 'pilot district assignment should avoid adjacency/representation warnings');
+  // M3 B2/B3 prototype: deterministic overpass interchange on pilot transport network.
+  const overpass = report.diagnostics.find(d => d.code === 'transport_interchange_overpass' && d.stage === '2_transport');
+  assert.ok(overpass, 'pilot should apply deterministic overpass interchange prototype');
+  assert.equal(overpass.segmentId, 'tr_sp1_r');
+  assert.ok(Number.isFinite(overpass.deckH) && overpass.deckH > 0);
+  assert.ok(Number.isFinite(overpass.rampLen) && overpass.rampLen > 0);
+  assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 1), 'pilot finalize should validate interchange segments');
 });
 
 test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {
