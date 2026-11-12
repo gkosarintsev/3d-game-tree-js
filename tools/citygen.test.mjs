@@ -825,7 +825,7 @@ test('citygen stage 2 helpers: axis-aligned terrain path rejects diagonal and ri
   assert.equal(isValidAxisAlignedTerrainPath(nearRiver, river), false, 'path crossing/near river corridor must be rejected');
 });
 
-test('citygen stage 6: detects same-layer road crossing conflicts without shared junction', () => {
+test('citygen stage 6: detects and safely repairs flat same-layer road crossing', () => {
   const raw = v4Base();
   raw.gameplay.spawn = { x: -80, z: -80 };
   raw.gameplay.exit = { x: 80, z: 80 };
@@ -844,5 +844,32 @@ test('citygen stage 6: detects same-layer road crossing conflicts without shared
   };
   const out = runCitygen(raw);
   assert.ok(out.report.diagnostics.some(d => d.code === 'road_same_level_conflict' && d.stage === '6_finalize_emit'), 'crossing without shared junction should be detected');
-  assert.ok(!out.report.diagnostics.some(d => d.code === 'road_conflicts_none' && d.stage === '6_finalize_emit'));
+  assert.ok(out.report.repairs.some(r => r.code === 'resolve_road_crossing' && r.stage === '6_finalize_emit'), 'safe flat crossing should be repaired');
+  assert.ok(out.report.diagnostics.some(d => d.code === 'road_crossing_repaired' && d.stage === '6_finalize_emit'));
+  assert.ok(!out.report.diagnostics.some(d => d.code === 'road_crossing_repair_skipped' && d.stage === '6_finalize_emit'));
+});
+
+test('citygen stage 6: skips unsafe crossing repair when shared junction would violate slope', () => {
+  const raw = v4Base();
+  raw.gameplay.spawn = { x: -80, z: -80 };
+  raw.gameplay.exit = { x: 80, z: 80 };
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'a1', position: [-40, 0, 0], layer: 'ground' },
+      { id: 'a2', position: [40, 0, 0], layer: 'ground' },
+      // Crossing at (0,0): sx (si) provides shared junction y=0, but sb's own interpolated y at crossing is 3.
+      // Forcing sb endpoints to y=0 creates a 6m rise over 10m run (0.6) on one split subsegment.
+      { id: 'b1', position: [0, 0, -10], layer: 'ground' },
+      { id: 'b2', position: [0, 6, 10], layer: 'ground' },
+    ],
+    segments: [
+      { id: 'sx', from: 'a1', to: 'a2', type: 'local', layer: 'ground', path: [[-40, 0, 0], [40, 0, 0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+      { id: 'sb', from: 'b1', to: 'b2', type: 'local', layer: 'ground', path: [[0, 0, -10], [0, 6, 10]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'road_same_level_conflict' && d.stage === '6_finalize_emit'), 'crossing should be detected');
+  assert.ok(!out.report.repairs.some(r => r.code === 'resolve_road_crossing' && r.stage === '6_finalize_emit' && Array.isArray(r.segments) && r.segments.includes('sx') && r.segments.includes('sb')), 'unsafe crossing repair for sx/sb must not be applied');
+  assert.ok(out.report.diagnostics.some(d => d.code === 'road_crossing_repair_skipped' && d.stage === '6_finalize_emit' && Array.isArray(d.segments) && d.segments.includes('sx') && d.segments.includes('sb')), 'unsafe crossing repair should be skipped with diagnostic');
 });
