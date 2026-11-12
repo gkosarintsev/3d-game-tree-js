@@ -73,7 +73,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 28,
           "lights": 1,
-          "props": 15,
+          "props": 20,
           "roads": 9
         },
         "rect": {
@@ -87,8 +87,8 @@ export const LEVEL_16 = {
         "file": "chunk-0-1.l14b",
         "id": "0_1",
         "objects": {
-          "buildings": 14,
-          "props": 6,
+          "buildings": 12,
+          "props": 5,
           "roads": 1
         },
         "rect": {
@@ -102,8 +102,8 @@ export const LEVEL_16 = {
         "file": "chunk-0-2.l14b",
         "id": "0_2",
         "objects": {
-          "buildings": 6,
-          "props": 7,
+          "buildings": 9,
+          "props": 4,
           "roads": 1
         },
         "rect": {
@@ -117,9 +117,8 @@ export const LEVEL_16 = {
         "file": "chunk-0-3.l14b",
         "id": "0_3",
         "objects": {
-          "buildings": 7,
-          "lights": 1,
-          "props": 3,
+          "buildings": 6,
+          "props": 6,
           "roads": 1
         },
         "rect": {
@@ -133,8 +132,8 @@ export const LEVEL_16 = {
         "file": "chunk-0-4.l14b",
         "id": "0_4",
         "objects": {
-          "buildings": 9,
-          "props": 5,
+          "buildings": 13,
+          "props": 4,
           "roads": 1
         },
         "rect": {
@@ -148,8 +147,8 @@ export const LEVEL_16 = {
         "file": "chunk-1-0.l14b",
         "id": "1_0",
         "objects": {
-          "buildings": 7,
-          "props": 18,
+          "buildings": 8,
+          "props": 15,
           "roads": 4
         },
         "rect": {
@@ -163,7 +162,7 @@ export const LEVEL_16 = {
         "file": "chunk-1-1.l14b",
         "id": "1_1",
         "objects": {
-          "props": 3,
+          "props": 14,
           "roads": 9
         },
         "rect": {
@@ -178,7 +177,7 @@ export const LEVEL_16 = {
         "id": "1_2",
         "objects": {
           "lights": 1,
-          "props": 8,
+          "props": 2,
           "roads": 3
         },
         "rect": {
@@ -193,7 +192,7 @@ export const LEVEL_16 = {
         "id": "1_3",
         "objects": {
           "buildings": 1,
-          "props": 5,
+          "props": 4,
           "roads": 7
         },
         "rect": {
@@ -207,9 +206,9 @@ export const LEVEL_16 = {
         "file": "chunk-1-4.l14b",
         "id": "1_4",
         "objects": {
-          "buildings": 23,
+          "buildings": 21,
           "lights": 1,
-          "props": 11,
+          "props": 25,
           "roads": 4
         },
         "rect": {
@@ -223,9 +222,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-0.l14b",
         "id": "2_0",
         "objects": {
-          "buildings": 5,
+          "buildings": 6,
           "channels": 1,
-          "props": 13,
+          "props": 12,
           "roads": 1
         },
         "rect": {
@@ -239,9 +238,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-1.l14b",
         "id": "2_1",
         "objects": {
-          "buildings": 8,
+          "buildings": 7,
           "channels": 1,
-          "props": 21,
+          "props": 20,
           "roads": 1
         },
         "rect": {
@@ -255,9 +254,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-2.l14b",
         "id": "2_2",
         "objects": {
-          "buildings": 15,
+          "buildings": 16,
           "channels": 1,
-          "props": 5
+          "props": 11
         },
         "rect": {
           "maxX": 128,
@@ -270,9 +269,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-3.l14b",
         "id": "2_3",
         "objects": {
-          "buildings": 11,
+          "buildings": 13,
           "channels": 1,
-          "props": 10
+          "props": 8
         },
         "rect": {
           "maxX": 128,
@@ -285,9 +284,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-4.l14b",
         "id": "2_4",
         "objects": {
-          "buildings": 19,
+          "buildings": 17,
           "channels": 1,
-          "props": 25,
+          "props": 19,
           "roads": 4
         },
         "rect": {
@@ -301,8 +300,8 @@ export const LEVEL_16 = {
         "file": "chunk-3-0.l14b",
         "id": "3_0",
         "objects": {
-          "buildings": 22,
-          "props": 7,
+          "buildings": 20,
+          "props": 21,
           "roads": 13
         },
         "rect": {
@@ -316,10 +315,10 @@ export const LEVEL_16 = {
         "file": "chunk-3-1.l14b",
         "id": "3_1",
         "objects": {
-          "buildings": 34,
+          "buildings": 37,
           "lights": 1,
           "props": 19,
-          "roads": 8
+          "roads": 12
         },
         "rect": {
           "maxX": 384,
@@ -333,7 +332,7 @@ export const LEVEL_16 = {
         "id": "3_2",
         "objects": {
           "buildings": 29,
-          "props": 19,
+          "props": 20,
           "roads": 10
         },
         "rect": {
@@ -347,8 +346,8 @@ export const LEVEL_16 = {
         "file": "chunk-3-3.l14b",
         "id": "3_3",
         "objects": {
-          "buildings": 24,
-          "props": 10,
+          "buildings": 25,
+          "props": 14,
           "roads": 6
         },
         "rect": {
@@ -362,8 +361,9 @@ export const LEVEL_16 = {
         "file": "chunk-3-4.l14b",
         "id": "3_4",
         "objects": {
-          "buildings": 30,
-          "props": 19,
+          "buildings": 28,
+          "lights": 1,
+          "props": 15,
           "roads": 3
         },
         "rect": {
@@ -377,7 +377,7 @@ export const LEVEL_16 = {
         "file": "chunk-4-0.l14b",
         "id": "4_0",
         "objects": {
-          "buildings": 30,
+          "buildings": 31,
           "lights": 1,
           "props": 38,
           "roads": 3
@@ -393,8 +393,8 @@ export const LEVEL_16 = {
         "file": "chunk-4-1.l14b",
         "id": "4_1",
         "objects": {
-          "buildings": 37,
-          "props": 39,
+          "buildings": 38,
+          "props": 29,
           "roads": 1
         },
         "rect": {
@@ -409,9 +409,8 @@ export const LEVEL_16 = {
         "id": "4_2",
         "objects": {
           "buildings": 30,
-          "lights": 1,
-          "props": 33,
-          "roads": 7
+          "props": 25,
+          "roads": 11
         },
         "rect": {
           "maxX": 640,
@@ -424,8 +423,9 @@ export const LEVEL_16 = {
         "file": "chunk-4-3.l14b",
         "id": "4_3",
         "objects": {
-          "buildings": 41,
-          "props": 26,
+          "buildings": 37,
+          "lights": 1,
+          "props": 17,
           "roads": 4
         },
         "rect": {
@@ -439,9 +439,9 @@ export const LEVEL_16 = {
         "file": "chunk-4-4.l14b",
         "id": "4_4",
         "objects": {
-          "buildings": 18,
+          "buildings": 17,
           "lights": 1,
-          "props": 25,
+          "props": 21,
           "roads": 66
         },
         "rect": {
@@ -1099,63 +1099,54 @@ export const LEVEL_16 = {
         {
           "blend": 14,
           "id": "b_district_3_2_143:площадка",
-          "maxX": 335.81,
-          "maxZ": 36.144,
-          "minX": 325.523,
-          "minZ": 27.856,
+          "maxX": 334.565,
+          "maxZ": 35.538,
+          "minX": 326.769,
+          "minZ": 28.462,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_144:площадка",
-          "maxX": 379.963,
-          "maxZ": 36.116,
-          "minX": 366.703,
-          "minZ": 27.884,
+          "maxX": 357.198,
+          "maxZ": 37.474,
+          "minX": 346.802,
+          "minZ": 26.526,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_145:площадка",
-          "maxX": 465.483,
-          "maxZ": 36.798,
-          "minX": 451.85,
-          "minZ": 27.202,
+          "maxX": 380.584,
+          "maxZ": 36.938,
+          "minX": 366.082,
+          "minZ": 27.062,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_146:площадка",
-          "maxX": 551.692,
-          "maxZ": 143.253,
-          "minX": 536.308,
-          "minZ": 134.081,
+          "maxX": 551.416,
+          "maxZ": 143.741,
+          "minX": 536.584,
+          "minZ": 133.593,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_3_2_147:площадка",
           "maxX": 549.789,
-          "maxZ": 186.228,
+          "maxZ": 207.561,
           "minX": 538.211,
-          "minZ": 176.439,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_148:площадка",
-          "maxX": 549.667,
-          "maxZ": 249.823,
-          "minX": 538.333,
-          "minZ": 240.844,
+          "minZ": 197.772,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_1_3_158:площадка",
-          "maxX": -133.783,
+          "maxX": -112.449,
           "maxZ": 549.915,
-          "minX": -143.551,
+          "minX": -122.217,
           "minZ": 538.085,
           "y": 0
         },
@@ -1449,15 +1440,6 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_284:площадка",
-          "maxX": 331.089,
-          "maxZ": -85.381,
-          "minX": 324.911,
-          "minZ": -90.619,
-          "y": 0
-        },
-        {
-          "blend": 14,
           "id": "b_district_0_1_292:площадка",
           "maxX": -566.942,
           "maxZ": -287.473,
@@ -1494,6 +1476,15 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
+          "id": "b_district_3_2_296:площадка",
+          "maxX": 466.247,
+          "maxZ": 121.426,
+          "minX": 451.086,
+          "minZ": 113.241,
+          "y": 0
+        },
+        {
+          "blend": 14,
           "id": "b_district_3_1_300:площадка",
           "maxX": 458.911,
           "maxZ": -149.612,
@@ -1522,231 +1513,195 @@ export const LEVEL_16 = {
         {
           "blend": 14,
           "id": "b_district_3_2_303:площадка",
-          "maxX": 592.727,
-          "maxZ": 206.702,
-          "minX": 580.606,
-          "minZ": 198.632,
+          "maxX": 593.441,
+          "maxZ": 292.579,
+          "minX": 579.893,
+          "minZ": 283.421,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_2_304:площадка",
-          "maxX": 593.144,
-          "maxZ": 249.904,
-          "minX": 580.189,
-          "minZ": 240.762,
+          "id": "b_district_1_3_305:площадка",
+          "maxX": -112.123,
+          "maxZ": 591.079,
+          "minX": -122.544,
+          "minZ": 582.254,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_1_3_307:площадка",
-          "maxX": -110.818,
-          "maxZ": 591.471,
-          "minX": -123.848,
-          "minZ": 581.862,
+          "id": "b_district_0_0_319:площадка",
+          "maxX": -590.785,
+          "maxZ": -590.659,
+          "minX": -601.943,
+          "minZ": -602.068,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_1_3_308:площадка",
-          "maxX": -69.253,
-          "maxZ": 591.047,
-          "minX": -80.081,
-          "minZ": 582.286,
-          "y": 0.001
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_311:площадка",
-          "maxX": -589.016,
-          "maxZ": -445.224,
-          "minX": -603.711,
-          "minZ": -456.594,
+          "id": "b_district_0_0_320:площадка",
+          "maxX": -590.191,
+          "maxZ": -328.757,
+          "minX": -602.537,
+          "minZ": -340.334,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_3_321:площадка",
-          "maxX": 635.057,
-          "maxZ": 342.442,
-          "minX": 618.276,
-          "minZ": 324.225,
+          "id": "b_district_3_1_330:площадка",
+          "maxX": 587.776,
+          "maxZ": -228.969,
+          "minX": 580.224,
+          "minZ": -235.031,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_322:площадка",
-          "maxX": -588.942,
-          "maxZ": -415.718,
-          "minX": -603.786,
-          "minZ": -427.918,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_323:площадка",
-          "maxX": -590.695,
-          "maxZ": -355.957,
-          "minX": -602.032,
-          "minZ": -371.316,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_325:площадка",
-          "maxX": -354.709,
-          "maxZ": -560.35,
-          "minX": -372.564,
-          "minZ": -574.196,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_329:площадка",
-          "maxX": 613.495,
-          "maxZ": 271.149,
-          "minX": 602.505,
-          "minZ": 262.185,
+          "id": "b_district_0_0_340:площадка",
+          "maxX": -358.717,
+          "maxZ": -589.427,
+          "minX": -368.556,
+          "minZ": -603.3,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_0_341:площадка",
-          "maxX": -358.271,
-          "maxZ": -589.807,
-          "minX": -369.002,
-          "minZ": -602.921,
+          "maxX": -616.321,
+          "maxZ": -414.977,
+          "minX": -634.588,
+          "minZ": -428.659,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_0_1_343:площадка",
+          "maxX": -607.488,
+          "maxZ": -210.038,
+          "minX": -632.512,
+          "minZ": -229.962,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_0_1_344:площадка",
+          "maxX": -603,
+          "maxZ": -89.982,
+          "minX": -637,
+          "minZ": -110.018,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_1_345:площадка",
-          "maxX": -607.751,
-          "maxZ": -207.867,
-          "minX": -632.249,
-          "minZ": -232.133,
+          "maxX": -602.5,
+          "maxZ": -47.082,
+          "minX": -637.5,
+          "minZ": -72.918,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_1_346:площадка",
-          "maxX": -609.263,
-          "maxZ": -169.362,
-          "minX": -630.737,
-          "minZ": -190.638,
+          "maxX": -603.217,
+          "maxZ": -9.957,
+          "minX": -636.783,
+          "minZ": -30.043,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_347:площадка",
-          "maxX": -605.343,
-          "maxZ": -126.125,
-          "minX": -634.657,
-          "minZ": -153.875,
+          "id": "b_district_0_2_347:площадка",
+          "maxX": -615.038,
+          "maxZ": 25.305,
+          "minX": -624.962,
+          "minZ": 14.695,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_1_348:площадка",
-          "maxX": -607.373,
-          "maxZ": -87.11,
-          "minX": -632.627,
-          "minZ": -112.89,
+          "id": "b_district_0_2_348:площадка",
+          "maxX": -614.764,
+          "maxZ": 64.338,
+          "minX": -625.236,
+          "minZ": 55.662,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_2_349:площадка",
-          "maxX": -614.925,
-          "maxZ": 145.343,
-          "minX": -625.075,
-          "minZ": 134.657,
+          "maxX": -616.39,
+          "maxZ": 144.486,
+          "minX": -623.61,
+          "minZ": 135.514,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_0_2_350:площадка",
-          "maxX": -614.175,
-          "maxZ": 224.808,
-          "minX": -625.825,
-          "minZ": 215.192,
+          "maxX": -616.594,
+          "maxZ": 263.126,
+          "minX": -623.406,
+          "minZ": 256.874,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_353:площадка",
-          "maxX": -325.408,
-          "maxZ": -560.292,
-          "minX": -343.683,
-          "minZ": -574.254,
+          "id": "b_district_0_0_354:площадка",
+          "maxX": -328.7,
+          "maxZ": -560.051,
+          "minX": -340.391,
+          "minZ": -574.494,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_0_0_357:площадка",
-          "maxX": -618.756,
-          "maxZ": -355.151,
-          "minX": -632.153,
-          "minZ": -372.121,
+          "id": "b_district_3_1_356:площадка",
+          "maxX": 362.513,
+          "maxZ": -117.27,
+          "minX": 357.487,
+          "minZ": -122.73,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_0_359:площадка",
-          "maxX": 618.676,
-          "maxZ": -475.813,
-          "minX": 604.853,
-          "minZ": -484.187,
+          "id": "b_district_0_0_359:площадка",
+          "maxX": -618.869,
+          "maxZ": -328.163,
+          "minX": -632.04,
+          "minZ": -340.928,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_3_0_360:площадка",
-          "maxX": 578.187,
-          "maxZ": -549.538,
-          "minX": 570.049,
-          "minZ": -561.05,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_361:площадка",
-          "maxX": 637.5,
-          "maxZ": 207.169,
-          "minX": 621.167,
-          "minZ": 198.164,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_362:площадка",
-          "maxX": 635.471,
-          "maxZ": 271.741,
-          "minX": 623.195,
-          "minZ": 261.592,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_1_3_366:площадка",
-          "maxX": -48.6,
-          "maxZ": 632.934,
-          "minX": -58.067,
-          "minZ": 625.732,
+          "id": "b_district_3_0_363:площадка",
+          "maxX": 615.834,
+          "maxZ": -398.95,
+          "minX": 607.696,
+          "minZ": -410.462,
           "y": 0
         },
         {
           "blend": 14,
           "id": "b_district_1_3_367:площадка",
-          "maxX": -4.684,
+          "maxX": -69.933,
+          "maxZ": 632.934,
+          "minX": -79.4,
+          "minZ": 625.732,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_1_3_368:площадка",
+          "maxX": -26.018,
           "maxZ": 634.252,
-          "minX": -16.649,
+          "minX": -37.982,
           "minZ": 624.414,
           "y": 0
         },
         {
           "blend": 14,
-          "id": "b_district_2_0_375:площадка",
+          "id": "b_district_2_0_374:площадка",
           "maxX": 124.529,
           "maxZ": -562.761,
           "minX": 104.042,
@@ -1755,16 +1710,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_3_0_381:площадка",
-          "maxX": 599.231,
-          "maxZ": -551.328,
-          "minX": 586.651,
-          "minZ": -559.26,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_0_383:площадка",
+          "id": "b_district_3_0_382:площадка",
           "maxX": 635.681,
           "maxZ": -456.669,
           "minX": 625.495,
@@ -1773,7 +1719,7 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_3_1_393:площадка",
+          "id": "b_district_3_1_392:площадка",
           "maxX": 602.42,
           "maxZ": -277.56,
           "minX": 597.58,
@@ -1782,11 +1728,20 @@ export const LEVEL_16 = {
         },
         {
           "blend": 14,
-          "id": "b_district_2_0_396:площадка",
+          "id": "b_district_2_0_395:площадка",
           "maxX": 124.018,
           "maxZ": -608.57,
           "minX": 104.553,
           "minZ": -625.715,
+          "y": 0
+        },
+        {
+          "blend": 14,
+          "id": "b_district_1_0_400:площадка",
+          "maxX": -298.826,
+          "maxZ": -619.751,
+          "minX": -312.083,
+          "minZ": -631.158,
           "y": 0
         }
       ],
@@ -6790,7 +6745,7 @@ export const LEVEL_16 = {
             {
               "x": 520,
               "y": 0,
-              "z": 88
+              "z": 28
             },
             {
               "x": 520,
@@ -6820,12 +6775,7 @@ export const LEVEL_16 = {
             {
               "x": 520,
               "y": 0,
-              "z": 19.43
-            },
-            {
-              "x": 520,
-              "y": 0,
-              "z": 8
+              "z": 28
             }
           ],
           "shoulder": 1,
@@ -7073,8 +7023,8 @@ export const LEVEL_16 = {
           "points": [
             {
               "x": 216,
-              "y": 10.98,
-              "z": -136
+              "y": 9.29,
+              "z": -196
             },
             {
               "x": 216,
@@ -7103,13 +7053,8 @@ export const LEVEL_16 = {
             },
             {
               "x": 216,
-              "y": 9.33,
-              "z": -204.57
-            },
-            {
-              "x": 216,
-              "y": 9.52,
-              "z": -216
+              "y": 9.29,
+              "z": -196
             }
           ],
           "shoulder": 1,
@@ -7122,13 +7067,8 @@ export const LEVEL_16 = {
           "points": [
             {
               "x": 216,
-              "y": 9.52,
-              "z": -216
-            },
-            {
-              "x": 216,
-              "y": 9.83,
-              "z": -227.43
+              "y": 10.17,
+              "z": -235.99
             },
             {
               "x": 216,
@@ -7157,8 +7097,8 @@ export const LEVEL_16 = {
             },
             {
               "x": 216,
-              "y": 14.57,
-              "z": -296
+              "y": 10.17,
+              "z": -235.99
             }
           ],
           "shoulder": 1,
@@ -7245,12 +7185,7 @@ export const LEVEL_16 = {
             {
               "x": 520,
               "y": 0,
-              "z": 8
-            },
-            {
-              "x": 520,
-              "y": 0,
-              "z": -2.67
+              "z": -12
             },
             {
               "x": 520,
@@ -7275,7 +7210,7 @@ export const LEVEL_16 = {
             {
               "x": 520,
               "y": 0,
-              "z": -56
+              "z": -12
             }
           ],
           "shoulder": 1,
@@ -8458,6 +8393,102 @@ export const LEVEL_16 = {
               "x": 520,
               "y": 0,
               "z": -168
+            }
+          ],
+          "shoulder": 1,
+          "width": 6
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_jc_tr_gn_53_a",
+          "points": [
+            {
+              "x": 520,
+              "y": 0,
+              "z": 8
+            },
+            {
+              "x": 520,
+              "y": 0,
+              "z": 19.43
+            },
+            {
+              "x": 520,
+              "y": 0,
+              "z": 28
+            }
+          ],
+          "shoulder": 1,
+          "width": 6
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_jc_tr_gn_53_b",
+          "points": [
+            {
+              "x": 520,
+              "y": 0,
+              "z": 8
+            },
+            {
+              "x": 520,
+              "y": 0,
+              "z": -2.67
+            },
+            {
+              "x": 520,
+              "y": 0,
+              "z": -12
+            }
+          ],
+          "shoulder": 1,
+          "width": 6
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_jc_tr_gn_60_a",
+          "points": [
+            {
+              "x": 216,
+              "y": 9.52,
+              "z": -216
+            },
+            {
+              "x": 216,
+              "y": 9.33,
+              "z": -204.57
+            },
+            {
+              "x": 216,
+              "y": 9.29,
+              "z": -196
+            }
+          ],
+          "shoulder": 1,
+          "width": 6
+        },
+        {
+          "blend": 5,
+          "crossLevel": true,
+          "id": "tr_jc_tr_gn_60_b",
+          "points": [
+            {
+              "x": 216,
+              "y": 9.52,
+              "z": -216
+            },
+            {
+              "x": 216,
+              "y": 9.83,
+              "z": -227.43
+            },
+            {
+              "x": 216,
+              "y": 10.17,
+              "z": -235.99
             }
           ],
           "shoulder": 1,

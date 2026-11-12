@@ -1629,6 +1629,7 @@ function generateTransport(ctx) {
 
     const JUNCTION_INTERCHANGE_LIMIT = 3;
     let appliedTotal = 0;
+    const appliedJunctionNodeIds = new Set();
     for (let pass = 0; pass < JUNCTION_INTERCHANGE_LIMIT; pass++) {
       let appliedJ = false;
       const byNode = new Map(nodes.map(n => [n.id, n]));
@@ -1651,38 +1652,61 @@ function generateTransport(ctx) {
       const nodeIds = Array.from(incByNode.keys()).sort();
       for (const nid of nodeIds) {
         if (appliedJ) break;
+        if (appliedJunctionNodeIds.has(nid)) continue;
         const inc = incByNode.get(nid) || [];
-        if (inc.length !== 4) continue;
+        if (inc.length !== 4 && inc.length !== 3) continue;
         if (inc.some(s => s?.interchange || s?.layer === 'elevated' || s?.type === 'arterial')) continue;
         const jn = byNode.get(nid); if (!jn || !Array.isArray(jn.position)) continue;
         const dirs = inc.map(s => dirAt(s, nid)).filter(Boolean);
-        if (dirs.length !== 4) continue;
-        const used = new Set(); const pairs = [];
-        for (let i = 0; i < 4; i++) {
-          if (used.has(i)) continue;
-          let bestJ = -1, bestDot = -0.8;
-          for (let j = i + 1; j < 4; j++) {
-            if (used.has(j)) continue;
-            const dot = dirs[i].dx * dirs[j].dx + dirs[i].dz * dirs[j].dz;
-            if (dot < bestDot) { bestDot = dot; bestJ = j; }
-          }
-          if (bestJ >= 0) { pairs.push([i, bestJ, bestDot]); used.add(i); used.add(bestJ); }
-        }
-        if (pairs.length !== 2) continue;
-        const p1a = dirs[pairs[0][0]], p2a = dirs[pairs[1][0]];
-        const perp = Math.abs(p1a.dx * p2a.dx + p1a.dz * p2a.dz);
-        if (perp > 0.2) continue; // require roughly perpendicular crossing
+        if (dirs.length !== inc.length) continue;
         if (!dirs.every(d => straightNear(d.seg, nid, 10))) continue;
 
-        const pairCands = pairs.map(p => {
-          const d0 = dirs[p[0]], d1 = dirs[p[1]];
+        let pairCands = [];
+        let jKind = null;
+        if (inc.length === 4) {
+          const used = new Set(); const pairs = [];
+          for (let i = 0; i < 4; i++) {
+            if (used.has(i)) continue;
+            let bestJ = -1, bestDot = -0.8;
+            for (let j = i + 1; j < 4; j++) {
+              if (used.has(j)) continue;
+              const dot = dirs[i].dx * dirs[j].dx + dirs[i].dz * dirs[j].dz;
+              if (dot < bestDot) { bestDot = dot; bestJ = j; }
+            }
+            if (bestJ >= 0) { pairs.push([i, bestJ, bestDot]); used.add(i); used.add(bestJ); }
+          }
+          if (pairs.length !== 2) continue;
+          const p1a = dirs[pairs[0][0]], p2a = dirs[pairs[1][0]];
+          const perp = Math.abs(p1a.dx * p2a.dx + p1a.dz * p2a.dz);
+          if (perp > 0.2) continue; // require roughly perpendicular crossing
+          pairCands = pairs.map(p => {
+            const d0 = dirs[p[0]], d1 = dirs[p[1]];
+            const total = pathLen(d0.seg.path) + pathLen(d1.seg.path);
+            return { i0: p[0], i1: p[1], total };
+          }).sort((a,b) => b.total - a.total);
+          jKind = 'cross4';
+        } else {
+          // T-junction (3-way): one through pair (opposite) elevated, stem remains at grade at junction
+          let through = null;
+          for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) {
+            const dot = dirs[i].dx * dirs[j].dx + dirs[i].dz * dirs[j].dz;
+            if (dot < -0.8) through = [i, j, dot];
+          }
+          if (!through) continue;
+          const stemIdx = [0, 1, 2].find(k => k !== through[0] && k !== through[1]);
+          if (stemIdx == null) continue;
+          const p1 = dirs[through[0]], ps = dirs[stemIdx];
+          const perp = Math.abs(p1.dx * ps.dx + p1.dz * ps.dz);
+          if (perp > 0.25) continue;
+          const d0 = dirs[through[0]], d1 = dirs[through[1]];
           const total = pathLen(d0.seg.path) + pathLen(d1.seg.path);
-          return { p, total };
-        }).sort((a,b) => b.total - a.total);
+          pairCands = [{ i0: through[0], i1: through[1], total }];
+          jKind = 'tee3';
+        }
 
         for (const pc of pairCands) {
           if (appliedJ) break;
-          const [i0, i1] = pc.p;
+          const { i0, i1 } = pc;
           const dA = dirs[i0], dB = dirs[i1];
           const sA = dA.seg, sB = dB.seg;
           // ramp distance limited by local straight length; try a few deterministic lengths (shorter fallback for tighter sites)
@@ -1807,6 +1831,7 @@ function generateTransport(ctx) {
             from, to,
             type: baseSeg.type || 'local',
             layer: 'ground',
+            interchange: 'junction_connector',
             path: path.map(p => p.slice()),
             lanes: Array.isArray(baseSeg.lanes) ? JSON.parse(JSON.stringify(baseSeg.lanes)) : [],
             ...(Number.isFinite(baseSeg.shoulderWidth) ? { shoulderWidth: baseSeg.shoulderWidth } : {}),
@@ -1829,8 +1854,9 @@ function generateTransport(ctx) {
 
           ctx.report.diagnostics.push(info('transport_interchange_junction', stageId, 'applied junction grade-separation interchange prototype', {
             nodeId: nid, elevatedPair: [sA.id, sB.id], ramps: [rampSegIdA, rampSegIdB], elevatedNode: upIdNode,
-            deckY: +pUp[1].toFixed(2), clearance: +minClear.toFixed(3), rampDist,
+            deckY: +pUp[1].toFixed(2), clearance: +minClear.toFixed(3), rampDist, kind: jKind,
           }));
+          appliedJunctionNodeIds.add(nid);
           appliedJ = true;
           appliedTotal++;
         }

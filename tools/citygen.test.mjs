@@ -551,8 +551,8 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(fin?.propsByDistrictType && typeof fin.propsByDistrictType === 'object', 'pilot finalize_counts should include propsByDistrictType');
   assert.ok(fin?.roadAccessByType && typeof fin.roadAccessByType === 'object', 'pilot finalize_counts should include roadAccessByType');
   assert.equal(fin?.roadComponents, 1, 'pilot road graph should be connected');
-  assert.equal(fin?.roadSegments, 138);
-  assert.equal(fin?.roadNodes, 113);
+  assert.equal(fin?.roadSegments, 146);
+  assert.equal(fin?.roadNodes, 119);
   assert.equal(fin?.buildings, 401);
   assert.equal(fin?.props, 360);
   assert.equal(fin?.lights, 8);
@@ -576,19 +576,31 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
     assert.ok(!report.diagnostics.some(d => d.code === 'interchange_clearance_low' && d.stage === '6_finalize_emit' && d.segmentId === o.segmentId),
       `pilot interchange ${o.segmentId} should meet required clearance (no interchange_clearance_low)`);
   }
-  assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 7), 'pilot finalize should validate interchange segments (overpasses + junction ramps)');
+  assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 11), 'pilot finalize should validate interchange segments (overpasses + junction ramps)');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_endpoint_missing' && d.stage === '6_finalize_emit'), 'pilot interchange segments should have valid endpoint nodes');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_elevated_node_degree' && d.stage === '6_finalize_emit'), 'pilot elevated interchange nodes should have valid connectivity degree');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_junction_integrity' && d.stage === '6_finalize_emit'), 'pilot junction interchange prototype references must remain valid');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_overpass_integrity' && d.stage === '6_finalize_emit'), 'pilot overpass interchange prototype segment must remain valid');
 
-  // M3 B2/B4: junction grade-separation prototype on pilot (deterministic, with ground connectors).
-  const junction = report.diagnostics.find(d => d.code === 'transport_interchange_junction' && d.stage === '2_transport');
-  assert.ok(junction, 'pilot should apply deterministic junction grade-separation prototype');
-  assert.equal(junction.nodeId, 'tr_gn_63');
-  assert.deepEqual(junction.elevatedPair, ['tr_gb_87', 'tr_gb_111']);
-  assert.deepEqual(junction.ramps, ['tr_jr_tr_gn_63_a', 'tr_jr_tr_gn_63_b']);
-  assert.ok(Number.isFinite(junction.clearance) && junction.clearance >= 1.5, 'junction interchange should have sufficient clearance');
+  // M3 B2/B4: junction grade-separation prototypes on pilot (deterministic, 4-way + T-junctions, with ground connectors).
+  const junctions = report.diagnostics.filter(d => d.code === 'transport_interchange_junction' && d.stage === '2_transport');
+  assert.equal(junctions.length, 3, 'pilot should apply deterministic junction grade-separation prototypes');
+  assert.deepEqual(junctions.map(j => j.nodeId), ['tr_gn_53', 'tr_gn_60', 'tr_gn_63']);
+  const j53 = junctions.find(j => j.nodeId === 'tr_gn_53');
+  const j60 = junctions.find(j => j.nodeId === 'tr_gn_60');
+  const j63 = junctions.find(j => j.nodeId === 'tr_gn_63');
+  assert.deepEqual(j53?.elevatedPair, ['tr_gb_77', 'tr_gb_88']);
+  assert.deepEqual(j53?.ramps, ['tr_jr_tr_gn_53_a', 'tr_jr_tr_gn_53_b']);
+  assert.equal(j53?.kind, 'tee3');
+  assert.deepEqual(j60?.elevatedPair, ['tr_gb_84', 'tr_gb_85']);
+  assert.deepEqual(j60?.ramps, ['tr_jr_tr_gn_60_a', 'tr_jr_tr_gn_60_b']);
+  assert.equal(j60?.kind, 'tee3');
+  assert.deepEqual(j63?.elevatedPair, ['tr_gb_87', 'tr_gb_111']);
+  assert.deepEqual(j63?.ramps, ['tr_jr_tr_gn_63_a', 'tr_jr_tr_gn_63_b']);
+  assert.equal(j63?.kind, 'cross4');
+  for (const j of junctions) {
+    assert.ok(Number.isFinite(j.clearance) && j.clearance >= 1.5, `junction interchange ${j.nodeId} should have sufficient clearance`);
+  }
 
   // M3 B4: interchange segment invariants in generated road network (deterministic).
   const { ctx } = runCitygen(structuredClone(raw));
@@ -626,15 +638,17 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
     assert.ok(midMaxY > endMaxY + 1.0, `overpass ${overId} path should be elevated above endpoints`);
   }
 
-  checkInterchangeSeg('tr_jr_tr_gn_63_a', { interchange: 'junction_ramp' });
-  checkInterchangeSeg('tr_jr_tr_gn_63_b', { interchange: 'junction_ramp' });
-  // Ground connectors preserve connectivity at junction interchange.
-  assert.ok(roads.segments.some(s => s.id === 'tr_jc_tr_gn_63_a' && s.layer === 'ground'), 'junction ground connector A should exist');
-  assert.ok(roads.segments.some(s => s.id === 'tr_jc_tr_gn_63_b' && s.layer === 'ground'), 'junction ground connector B should exist');
+  for (const j of junctions) for (const rid of j.ramps) checkInterchangeSeg(rid, { interchange: 'junction_ramp' });
+  // Ground connectors preserve connectivity at junction interchanges.
+  for (const nid of junctions.map(j => j.nodeId)) {
+    assert.ok(roads.segments.some(s => s.id === `tr_jc_${nid}_a` && s.layer === 'ground'), `junction ${nid} ground connector A should exist`);
+    assert.ok(roads.segments.some(s => s.id === `tr_jc_${nid}_b` && s.layer === 'ground'), `junction ${nid} ground connector B should exist`);
+  }
 
   // Compiled engine map: interchange segments become bridge roads with decks (nav/geometry semantics).
-  const compiledInter = (a.worldMap?.roads ?? []).filter(r => ['tr_sp1_r', 'tr_sp2_r', 'tr_gb_29', 'tr_gb_35', 'tr_gb_80', 'tr_jr_tr_gn_63_a', 'tr_jr_tr_gn_63_b'].includes(r.id));
-  assert.equal(compiledInter.length, 7, 'pilot compiled map should include interchange bridge roads');
+  const interchangeBridgeIds = [...overpasses.map(o => o.segmentId), ...junctions.flatMap(j => j.ramps)];
+  const compiledInter = (a.worldMap?.roads ?? []).filter(r => interchangeBridgeIds.includes(r.id));
+  assert.equal(compiledInter.length, 11, 'pilot compiled map should include interchange bridge roads');
   for (const r of compiledInter) {
     assert.equal(r.type, 'bridge', `${r.id} should compile as bridge road`);
     assert.ok(Array.isArray(r.decks) && r.decks.length > 0, `${r.id} should have decks`);
