@@ -983,6 +983,8 @@ test('citygen M3 B2: optional dead-end turnarounds are deterministic and valid (
   const taSegs = roads.segments.filter(s => String(s.id).startsWith('tr_ta_'));
   assert.ok(taSegs.length >= 3, 'should add turnaround segments when enabled');
   assert.ok(a.report.diagnostics.some(d => d.code === 'transport_turnarounds' && d.stage === '2_transport' && (d.count ?? 0) >= 1), 'should emit transport_turnarounds diagnostic');
+  const fin = a.report.diagnostics.find(d => d.code === 'finalize_counts' && d.stage === '6_finalize_emit');
+  assert.ok(fin && (fin.turnarounds ?? 0) >= 1, 'finalize_counts should report turnarounds when applied');
   assert.ok(!a.report.diagnostics.some(d => d.code === 'road_conflicts_unresolved' && d.stage === '6_finalize_emit'), 'turnarounds should not introduce unresolved road conflicts');
   // basic geometry/connectivity invariants for added turnaround segments
   const byNode = new Map(roads.nodes.map(n => [n.id, n]));

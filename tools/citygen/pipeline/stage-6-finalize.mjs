@@ -206,6 +206,7 @@ export function makeStage6() {
       const interchangeSegments = roads.filter(s => s?.interchange && s?.layer === 'elevated').length;
       const junctionInterchangesApplied = (ctx.report?.diagnostics ?? []).filter(d => d.code === 'transport_interchange_junction' && d.stage === '2_transport').length;
       const overpassInterchangesApplied = (ctx.report?.diagnostics ?? []).filter(d => d.code === 'transport_interchange_overpass' && d.stage === '2_transport').length;
+      const turnaroundsApplied = (ctx.report?.diagnostics ?? []).filter(d => d.code === 'transport_turnarounds' && d.stage === '2_transport').reduce((s,d)=>s+(d.count??0),0);
       ctx.report.diagnostics.push(info('finalize_counts', stageId, 'generation summary', {
         groundSize,
         stream: stream ? {
@@ -221,6 +222,7 @@ export function makeStage6() {
         roadComponents: roadGraph.components,
         roadGraphNodes: roadGraph.graphNodes,
         ...(interchangeSegments || junctionInterchangesApplied || overpassInterchangesApplied ? { interchanges: { segments: interchangeSegments, junctions: junctionInterchangesApplied, overpasses: overpassInterchangesApplied } } : {}),
+        ...(turnaroundsApplied ? { turnarounds: turnaroundsApplied } : {}),
         districts: districts.length,
         districtTypes,
         parcels: parcels.length,
