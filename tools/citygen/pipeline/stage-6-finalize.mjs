@@ -536,6 +536,12 @@ export function makeStage6() {
         ctx.report.diagnostics.push(info('road_crossing_repaired', stageId, `repaired same-layer crossing by inserting junction '${nodeId}'`, { node: nodeId, segments: [si.id, sj.id] }));
       }
 
+      if (unrepairable.size > 0) {
+        ctx.report.diagnostics.push(warn('road_conflicts_unresolved', stageId, `could not safely repair ${unrepairable.size} same-layer crossing conflict(s)`, { count: unrepairable.size }));
+      } else if (repairs > 0) {
+        ctx.report.diagnostics.push(info('road_conflicts_resolved', stageId, 'resolved detected same-layer road crossing conflicts', { repairs }));
+      }
+
       // rebuild road easement mask/index after repairs (best effort)
       if (repairs > 0) {
         if (!ctx.masks) ctx.masks = { easement: { rivers: ctx.masks?.easement?.rivers ?? [], roads: [] } };
