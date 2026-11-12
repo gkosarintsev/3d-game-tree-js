@@ -291,6 +291,32 @@ export function makeStage6() {
         }
       }
       if (interchangeCount > 0) {
+        // Interchange graph consistency (B4 groundwork): endpoints must exist and interchange nodes
+        // should have coherent degree/layer connectivity (ramps/elevated segments).
+        const nodeById = new Map(nodes.map(n => [n?.id, n]));
+        const deg = new Map();
+        for (const s of roads) {
+          if (!s) continue;
+          if (s.from) deg.set(s.from, (deg.get(s.from) || 0) + 1);
+          if (s.to) deg.set(s.to, (deg.get(s.to) || 0) + 1);
+        }
+        let endpointErrors = 0;
+        let elevatedNodeIssues = 0;
+        for (const seg of roads) {
+          if (!seg || !seg.interchange || seg.layer !== 'elevated') continue;
+          if (!nodeById.has(seg.from) || !nodeById.has(seg.to)) endpointErrors++;
+        }
+        for (const [nid, n] of nodeById) {
+          if (n?.layer !== 'elevated') continue;
+          const d = deg.get(nid) || 0;
+          if (d < 2) elevatedNodeIssues++;
+        }
+        if (endpointErrors > 0) {
+          ctx.report.diagnostics.push(warn('interchange_endpoint_missing', stageId, 'interchange segment references missing road node(s)', { count: endpointErrors }));
+        }
+        if (elevatedNodeIssues > 0) {
+          ctx.report.diagnostics.push(warn('interchange_elevated_node_degree', stageId, 'elevated interchange node has low connectivity degree', { count: elevatedNodeIssues }));
+        }
         ctx.report.diagnostics.push(info('interchange_validated', stageId, 'validated interchange/overpass segments', { count: interchangeCount }));
       }
 
