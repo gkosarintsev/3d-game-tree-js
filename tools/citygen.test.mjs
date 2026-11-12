@@ -560,11 +560,8 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(Number.isFinite(overpass.deckH) && overpass.deckH > 0);
   assert.ok(Number.isFinite(overpass.rampLen) && overpass.rampLen > 0);
   assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 1), 'pilot finalize should validate interchange segments');
-  const clearanceLow = report.diagnostics.find(d => d.code === 'interchange_clearance_low' && d.stage === '6_finalize_emit' && d.segmentId === 'tr_sp1_r');
-  assert.ok(
-    clearanceLow && Number.isFinite(clearanceLow.minClearance) && clearanceLow.minClearance < 1.5 && clearanceLow.requiredClearance === 1.5,
-    'pilot interchange should emit documented low-clearance warning with measured/required clearance (M3 B3)'
-  );
+  assert.ok(!report.diagnostics.some(d => d.code === 'interchange_clearance_low' && d.stage === '6_finalize_emit' && d.segmentId === 'tr_sp1_r'),
+    'pilot interchange should meet required clearance (no interchange_clearance_low for prototype segment)');
 });
 
 test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {

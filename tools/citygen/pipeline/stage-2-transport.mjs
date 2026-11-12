@@ -744,7 +744,7 @@ function generateTransport(ctx) {
   // while preserving endpoints/connectivity; degrades (no-op) if infeasible.
   const tryApplyOverpassPrototype = (parts) => {
     const INTERCHANGE_CLEARANCE = 4.0;
-    const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.1); // conservative for prototype
+    const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.12); // prototype ramp limit (validated < 0.31)
     const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
     let chosen = null;
     for (let pi = 0; pi < parts.length; pi++) {
@@ -1445,7 +1445,7 @@ function generateTransport(ctx) {
   if (!mainParts.some(p => p && p.interchange === 'overpass')) {
     const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
     const INTERCHANGE_CLEARANCE = 3.8;
-    const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.12);
+    const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.13); // prototype ramp limit (validated < 0.31)
     let chosen = null;
     for (let si = 0; si < segments.length; si++) {
       const seg = segments[si];

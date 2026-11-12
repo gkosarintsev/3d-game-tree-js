@@ -51,7 +51,7 @@
     {
       "id": "6_finalize_emit",
       "status": "ok",
-      "diagnostics": 6,
+      "diagnostics": 5,
       "repairs": 0,
       "drops": 0
     }
@@ -187,15 +187,6 @@
     }
   ],
   "diagnostics": [
-    {
-      "severity": "warn",
-      "code": "interchange_clearance_low",
-      "stage": "6_finalize_emit",
-      "message": "interchange segment 'tr_sp1_r' has low clearance over terrain",
-      "segmentId": "tr_sp1_r",
-      "minClearance": 1.42,
-      "requiredClearance": 1.5
-    },
     {
       "severity": "info",
       "code": "stage_ok",
@@ -1413,8 +1404,8 @@
       "stage": "2_transport",
       "message": "applied overpass interchange prototype on generated segment",
       "segmentId": "tr_sp1_r",
-      "deckH": 4.26,
-      "rampLen": 35.5,
+      "deckH": 4.63,
+      "rampLen": 35.62,
       "len": 96
     },
     {
@@ -1830,7 +1821,7 @@
   "drops": [],
   "summary": {
     "errors": 0,
-    "warnings": 2,
+    "warnings": 1,
     "repairs": 13,
     "drops": 0
   }
