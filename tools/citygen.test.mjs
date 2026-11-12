@@ -969,3 +969,36 @@ test('citygen M3 B4: multi-level interchange compiles with correct road types an
   assert.ok(!corridorIds.has('tr_jr_tr_gn_63_a'));
   assert.ok(!corridorIds.has('tr_jr_tr_gn_63_b'));
 });
+
+test('citygen M3 B2: optional dead-end turnarounds are deterministic and valid (level-16)', () => {
+  const raw = JSON.parse(readFileSync(resolve('src/levels/level-16.json'), 'utf8'));
+  raw.generator = raw.generator || {};
+  raw.generator.transport = raw.generator.transport || {};
+  raw.generator.transport.turnarounds = { count: 3 };
+  const a = runCitygen(structuredClone(raw));
+  const b = runCitygen(structuredClone(raw));
+  assert.equal(a.reportJson, b.reportJson, 'turnaround generation should be deterministic');
+  const roads = a.ctx?.networks?.roads;
+  assert.ok(roads && Array.isArray(roads.nodes) && Array.isArray(roads.segments), 'roads network should exist');
+  const taSegs = roads.segments.filter(s => String(s.id).startsWith('tr_ta_'));
+  assert.ok(taSegs.length >= 3, 'should add turnaround segments when enabled');
+  assert.ok(a.report.diagnostics.some(d => d.code === 'transport_turnarounds' && d.stage === '2_transport' && (d.count ?? 0) >= 1), 'should emit transport_turnarounds diagnostic');
+  assert.ok(!a.report.diagnostics.some(d => d.code === 'road_conflicts_unresolved' && d.stage === '6_finalize_emit'), 'turnarounds should not introduce unresolved road conflicts');
+  // basic geometry/connectivity invariants for added turnaround segments
+  const byNode = new Map(roads.nodes.map(n => [n.id, n]));
+  for (const s of taSegs) {
+    assert.ok(Array.isArray(s.path) && s.path.length >= 2, `turnaround segment ${s.id} should have path`);
+    assert.ok(byNode.has(s.from) && byNode.has(s.to), `turnaround segment ${s.id} should have valid endpoints`);
+    for (let i = 0; i + 1 < s.path.length; i++) {
+      const p = s.path[i], q = s.path[i + 1];
+      const dx = Math.abs((q[0] ?? 0) - (p[0] ?? 0));
+      const dz = Math.abs((q[2] ?? 0) - (p[2] ?? 0));
+      assert.ok(dx < 1e-6 || dz < 1e-6, `turnaround segment ${s.id} must be axis-aligned`);
+      const h = Math.hypot((q[0] ?? 0) - (p[0] ?? 0), (q[2] ?? 0) - (p[2] ?? 0));
+      if (h > 1e-6) {
+        const slope = Math.abs((q[1] ?? 0) - (p[1] ?? 0)) / h;
+        assert.ok(slope <= 0.301, `turnaround segment ${s.id} slope should be within limit`);
+      }
+    }
+  }
+});
