@@ -1420,11 +1420,13 @@ function generateTransport(ctx) {
   }
 
   // M3 B2 prototype fallback: try to convert one suitable existing ground segment
-  // into an overpass if main-route prototype was not applied.
+  // into an overpass if main-route prototype was not applied. Picks best feasible
+  // candidate deterministically (prefer sufficient clearance, else highest clearance).
   if (!mainParts.some(p => p && p.interchange === 'overpass')) {
     const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
     const INTERCHANGE_CLEARANCE = 3.8;
     const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.12);
+    let chosen = null;
     for (let si = 0; si < segments.length; si++) {
       const seg = segments[si];
       if (!seg || seg.layer === 'elevated' || seg.type === 'arterial') continue; // keep main arterial profile stable unless prototype targeted it
@@ -1512,13 +1514,21 @@ function generateTransport(ctx) {
       }
       if (!applied) applied = best;
       if (!applied) continue;
+      const cand = { si, seg, applied, run };
+      if (!chosen
+        || (cand.applied.minClear >= 1.5 && !(chosen.applied.minClear >= 1.5))
+        || ((cand.applied.minClear >= 1.5) === (chosen.applied.minClear >= 1.5) && cand.applied.minClear > chosen.applied.minClear + 1e-6)) {
+        chosen = cand;
+      }
+    }
+    if (chosen) {
+      const { seg, applied, run } = chosen;
       seg.path = applied.prof.map(p => p.slice());
       seg.layer = 'elevated';
       seg.interchange = 'overpass';
       ctx.report.diagnostics.push(info('transport_interchange_overpass', stageId, 'applied overpass interchange prototype on generated segment', {
         segmentId: seg.id, deckH: +applied.deckH.toFixed(2), rampLen: +applied.rampLen.toFixed(2), len: +run.toFixed(2),
       }));
-      break;
     }
   }
 
