@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 129,
+      "diagnostics": 131,
       "repairs": 0,
       "drops": 0
     },
@@ -183,7 +183,7 @@
       "profileId": "commercial",
       "cells": 1,
       "parcels": 144,
-      "reservedParcels": 64
+      "reservedParcels": 69
     }
   ],
   "diagnostics": [
@@ -262,8 +262,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 111,
-      "segments": 140,
+      "nodes": 115,
+      "segments": 145,
       "components": 1
     },
     {
@@ -1441,8 +1441,8 @@
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 111,
-      "segments": 140,
+      "nodes": 115,
+      "segments": 145,
       "seed": 1865128548,
       "branches": 113,
       "profiled": true
@@ -1597,11 +1597,37 @@
     },
     {
       "severity": "info",
+      "code": "transport_roundabout",
+      "stage": "2_transport",
+      "message": "added axis-aligned roundabout (ring) in hilly area",
+      "center": [
+        440,
+        360
+      ],
+      "size": 20,
+      "segments": [
+        "tr_rb_440_360_1",
+        "tr_rb_440_360_2",
+        "tr_rb_440_360_3",
+        "tr_rb_440_360_4",
+        "tr_rbc_440_360"
+      ]
+    },
+    {
+      "severity": "info",
       "code": "transport_roundabout_connected",
       "stage": "2_transport",
       "message": "connected roundabout ring to road network",
       "to": "tr_ta_1_r",
       "dist": 21.26
+    },
+    {
+      "severity": "info",
+      "code": "transport_roundabout_connected",
+      "stage": "2_transport",
+      "message": "connected roundabout ring to road network",
+      "to": "tr_ta_1_r",
+      "dist": 29.73
     },
     {
       "severity": "info",
@@ -1694,7 +1720,7 @@
       "message": "generated buildings from parcels",
       "count": 401,
       "budget": 420,
-      "skippedConflict": 378
+      "skippedConflict": 372
     },
     {
       "severity": "info",
@@ -1709,22 +1735,22 @@
       "message": "generated district props",
       "count": 360,
       "budget": 360,
-      "attempts": 1069,
+      "attempts": 1037,
       "byDistrictType": {
-        "luxury": 39,
-        "suburb": 22,
-        "old_town": 42,
-        "commercial": 12,
-        "industrial": 7,
-        "slums": 60,
+        "luxury": 38,
+        "suburb": 27,
+        "old_town": 47,
+        "commercial": 15,
+        "industrial": 8,
+        "slums": 48,
         "market": 32,
-        "sports": 10,
-        "parking": 10,
-        "residential": 64,
-        "park": 19,
-        "office": 21,
+        "sports": 9,
+        "parking": 9,
+        "residential": 74,
+        "park": 13,
+        "office": 20,
         "campus": 9,
-        "forest": 12
+        "forest": 10
       }
     },
     {
@@ -1768,10 +1794,10 @@
         "grid": 5,
         "total": 25
       },
-      "roadNodes": 129,
-      "roadSegments": 158,
+      "roadNodes": 133,
+      "roadSegments": 163,
       "roadComponents": 1,
-      "roadGraphNodes": 129,
+      "roadGraphNodes": 133,
       "interchanges": {
         "segments": 13,
         "junctions": 4,
@@ -1796,10 +1822,10 @@
         "suburb"
       ],
       "parcels": 2274,
-      "reservedParcels": 294,
+      "reservedParcels": 299,
       "parcelAccess": {
-        "near": 1104,
-        "mid": 1015,
+        "near": 1107,
+        "mid": 1012,
         "far": 155
       },
       "roadAccessByType": {
@@ -1846,8 +1872,8 @@
         "residential": {
           "parcels": 450,
           "unreserved": 374,
-          "good": 198,
-          "mid": 176,
+          "good": 201,
+          "mid": 173,
           "far": 0,
           "reserved": 76,
           "goodOrMid": 374,
@@ -1877,41 +1903,41 @@
       "buildings": 401,
       "buildingsByDistrictType": {
         "old_town": 51,
-        "commercial": 36,
-        "office": 40,
+        "commercial": 33,
+        "office": 37,
         "luxury": 63,
-        "slums": 51,
-        "residential": 79,
-        "market": 39,
-        "park": 6,
-        "industrial": 14,
-        "parking": 9,
-        "campus": 9,
-        "suburb": 3,
+        "slums": 54,
+        "residential": 75,
+        "market": 40,
+        "park": 5,
+        "industrial": 19,
+        "parking": 11,
+        "campus": 11,
+        "suburb": 1,
         "sports": 1
       },
       "lights": 8,
       "props": 360,
       "propsByDistrictType": {
-        "luxury": 39,
-        "suburb": 22,
-        "old_town": 42,
-        "commercial": 12,
-        "industrial": 7,
-        "slums": 60,
+        "luxury": 38,
+        "suburb": 27,
+        "old_town": 47,
+        "commercial": 15,
+        "industrial": 8,
+        "slums": 48,
         "market": 32,
-        "sports": 10,
-        "parking": 10,
-        "residential": 64,
-        "park": 19,
-        "office": 21,
+        "sports": 9,
+        "parking": 9,
+        "residential": 74,
+        "park": 13,
+        "office": 20,
         "campus": 9,
-        "forest": 12
+        "forest": 10
       },
       "chunkLoad": {
         "nonEmptyChunks": 25,
-        "maxBuildings": 32,
-        "maxProps": 34,
+        "maxBuildings": 30,
+        "maxProps": 33,
         "maxLights": 1,
         "avgBuildings": 16.04,
         "avgProps": 14.4
@@ -1948,10 +1974,8 @@
       "code": "build_conflicting_buildings_dropped",
       "stage": "build",
       "message": "dropped buildings conflicting with compiled/normalized placement",
-      "count": 4,
+      "count": 2,
       "ids": [
-        "b_district_1_0_391",
-        "b_district_1_0_392",
         "b_district_1_3_161",
         "b_district_1_3_162"
       ]
@@ -2014,16 +2038,6 @@
     },
     {
       "stage": "build",
-      "id": "b_district_1_0_391",
-      "code": "drop_conflicting_building"
-    },
-    {
-      "stage": "build",
-      "id": "b_district_1_0_392",
-      "code": "drop_conflicting_building"
-    },
-    {
-      "stage": "build",
       "id": "b_district_1_3_161",
       "code": "drop_conflicting_building"
     },
@@ -2037,7 +2051,7 @@
   "summary": {
     "errors": 0,
     "warnings": 8,
-    "repairs": 13,
+    "repairs": 11,
     "drops": 0
   }
 }
