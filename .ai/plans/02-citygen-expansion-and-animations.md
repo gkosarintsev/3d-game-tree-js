@@ -98,7 +98,7 @@
 **Задачи:**
 - [~] C1. Аудит `src/enemies.js`, `src/alien.js` (частично): состояния/рендер merged-мешей, `_syncMesh`/поверхностная ориентация Alien, lifecycle/стриминг-ограничения; детали в `.ai/state/citygen-expansion-and-animations.md`.
 - [~] C2. Дизайн (черновик): процедурный драйвер (bob/sway/lean/recoil/death) для текущих мешей; перспективно — артикулированные части или GLB+`AnimationMixer` (атрибуция/fallback/dispose), приоритеты состояний и интеграция с Alien `_syncMesh`.
-- [~] C3. Реализация каркаса (частично): минимальная процедурная визуальная анимация для human `Enemy` (idle/locomotion/attack lean/bob) без влияния на симуляцию; `AlienEnemy`/игрок-Чужой — не реализовано.
+- [~] C3. Реализация каркаса (частично): процедурная визуальная анимация для human `Enemy` и `AlienEnemy` (idle/locomotion/attack/leap, hit/recoil cues, mesh-local) и лёгкий view-bob камеры игрока-`Alien` (dt, simulation-neutral). Приоритеты/блендинг состояний и ассетный путь не реализованы.
 - [~] C4. Fallback при отсутствии клипов/ошибке загрузки (N/A, ассетный путь не реализован); утилизация ресурсов в `dispose()`/смене уровня — **частично реализовано** (`Enemy`/`AlienEnemy`/`Enemies`).
 - [ ] C5. Проверки: визуальная ручная, отсутствие ошибок/утечек, совместимость со стримингом и lifecycle (`docs/architecture-entities.md`).
 

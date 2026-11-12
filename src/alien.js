@@ -892,6 +892,8 @@ export class Alien extends AlienBody {
     this.strikeCd = 0;
     this.strikeAnim = 0;
     this._spaceHeld = false;
+    this._viewBobTime = 0;
+    this._viewBob = 0;
     this._buildClaw();
 
     this._bindInput();
@@ -1001,6 +1003,13 @@ export class Alien extends AlienBody {
     // `_control`, и без этого удержанная в машине клавиша дала бы прыжок на первом
     // шаге после высадки
     this._spaceHeld = this.keys.has('Space');
+    // Процедурный view-bob (визуал, без влияния на симуляцию/коллизии).
+    const spd = Math.hypot(this.vel.x, this.vel.y, this.vel.z);
+    const moving = this.grounded && !this.vehicle && !this._tween && spd > 0.2;
+    if (moving) this._viewBobTime = (this._viewBobTime + dt * (7.5 + Math.min(spd, 10) * 0.45)) % 10000;
+    const targetBob = moving ? Math.sin(this._viewBobTime * 2) * Math.min(0.03, 0.008 + spd * 0.002) : 0;
+    const k = 1 - Math.exp(-10 * dt);
+    this._viewBob += (targetBob - this._viewBob) * k;
     this._updateClaw(dt);
     this._updateCamera();
   }
@@ -1091,7 +1100,7 @@ export class Alien extends AlienBody {
     const cos = Math.cos(this.pitch), sin = Math.sin(this.pitch);
     this._look.copy(this.fwd).multiplyScalar(cos).addScaledVector(this.up, sin).normalize();
 
-    this.camera.position.copy(this.pos).addScaledVector(this.up, cfg.eyeOffset);
+    this.camera.position.copy(this.pos).addScaledVector(this.up, cfg.eyeOffset + (this._viewBob || 0));
     this.camera.up.copy(this.up);
     this._camTarget.copy(this.camera.position).add(this._look);
     this.camera.lookAt(this._camTarget);
