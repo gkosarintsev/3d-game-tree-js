@@ -610,6 +610,10 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
       return Math.max(m, run > 1e-9 ? Math.abs(dy)/run : 0);
     }, 0);
     assert.ok(maxSlope <= 0.31, `${segId} slope should be within validated limit`);
+    if (expect.interchange === 'junction_ramp') {
+      const lf = nFrom.layer ?? 'ground', lt = nTo.layer ?? 'ground';
+      assert.ok((lf === 'ground' && lt === 'elevated') || (lf === 'elevated' && lt === 'ground'), `${segId} should connect ground and elevated nodes`);
+    }
     return seg;
   };
   const segOver = checkInterchangeSeg('tr_sp1_r', { interchange: 'overpass' });
@@ -622,6 +626,14 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   // Ground connectors preserve connectivity at junction interchange.
   assert.ok(roads.segments.some(s => s.id === 'tr_jc_tr_gn_63_a' && s.layer === 'ground'), 'junction ground connector A should exist');
   assert.ok(roads.segments.some(s => s.id === 'tr_jc_tr_gn_63_b' && s.layer === 'ground'), 'junction ground connector B should exist');
+
+  // Compiled engine map: interchange segments become bridge roads with decks (nav/geometry semantics).
+  const compiledInter = (a.worldMap?.roads ?? []).filter(r => ['tr_sp1_r', 'tr_jr_tr_gn_63_a', 'tr_jr_tr_gn_63_b'].includes(r.id));
+  assert.equal(compiledInter.length, 3, 'pilot compiled map should include interchange bridge roads');
+  for (const r of compiledInter) {
+    assert.equal(r.type, 'bridge', `${r.id} should compile as bridge road`);
+    assert.ok(Array.isArray(r.decks) && r.decks.length > 0, `${r.id} should have decks`);
+  }
 });
 
 test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {
