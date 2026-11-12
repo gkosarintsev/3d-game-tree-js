@@ -53,12 +53,12 @@
   - Lifecycle/ресурсы: смена уровня/перезапуск/стриминг не вызывают ошибок в консоли, утечек слушателей/мешей/материалов (`dispose()` путей), дубликатов сущностей.
   - Зафиксировать результат (глава/браузер/наблюдения) в логе состояния при выполнении.
 
-## Результаты M1–M3 (пилот гл.16, детерминированно, после M2 A3.2–A3.3, M3 B2 T-junction/cross+overpass, M3 B4)
+## Результаты M1–M3 (пилот гл.16, детерминированно, после M2 A3.2–A3.3, M3 B2 T-junction/cross+overpass, M3 B4, roundabout)
 - Пересборка: `src/levels/level-16.json` → `src/levels/level-16/` + `generation-report.json` (гл.15 `--check` совпадает, без изменений).
-- Сеть/сводка: roads **150/122**, components **1**, **401** здание / **360** props / **8** lights, chunks 5×5, summary **0E/7W/9R/0D** (в т.ч. build warning `build_conflicting_buildings_dropped`, 4).
-- Развязки: segment overpasses `tr_sp1_r`, `tr_sp2_r`, `tr_gb_29`, `tr_gb_35`, `tr_gb_80` (clearance ≥1.5 m); junction interchanges — `tr_gn_53` (`tee3`, clearance 2.0 m), `tr_gn_60` (`tee3`, clearance 2.0 m), `tr_gn_63` (`cross4`, clearance 1.7 m), `tr_spc1_n` (`tee3`, clearance 2.0 m), с ground-коннекторами; `interchange_validated` **13**, `interchange_junction_candidates` **5**, `road_conflicts_none`, `anchors_connected_network`.
+- Сеть/сводка: roads **155/126**, components **1**, **401** здание / **360** props / **8** lights, chunks 5×5. Добавлено axis-aligned **круговое движение** (ring `tr_rb_360_360_*` + коннектор `tr_rbc_360_360`) в холмистой области (~[360,360], y~27–41 м), подключено к сети (`transport_roundabout`, `transport_roundabout_connected`).
+- Развязки: segment overpasses `tr_sp1_r`, `tr_sp2_r`, `tr_gb_29`, `tr_gb_35`, `tr_gb_80` (clearance ≥1.5 m); junction interchanges — `tr_gn_53` (`tee3`, clearance 2.0 m), `tr_gn_60` (`tee3`, clearance 2.0 m), `tr_gn_63` (`cross4`, clearance 1.7 m), `tr_spc1_n` (`tee3`, clearance 2.0 m), с ground-коннекторами; `interchange_validated` **13**, `road_conflicts_none`, `anchors_connected_network`.
 - Типы районов/доступ: **все 14** типов представлены со зданиями и props; нет `district_type_poor_road_access`/adjacency/representation warnings.
-- Browser gates гл.16: `ci-browser --level 16` зелёный (**15/15** проверок), `open-world` включает регрессию связности развязок (junction ramps + segment overpass, 2/2). Node-gates: `citygen.test.mjs` 40/40, `build-level --check` 15/16, `check-levels` 24/24.
+- Browser gates гл.16: `ci-browser --level 16` зелёный (**15/15** проверок), `open-world` включает регрессию связности развязок. Node-gates: `citygen.test.mjs` **41/41**, `build-level --check` 15/16, `check-levels` **24/24**.
 
 ## Проверки
 - `node --check` stage 3/4/5 ok
@@ -71,6 +71,7 @@
 - `node --test tools/relief.test.mjs tools/track.test.mjs tools/chunk.test.mjs` — 3/3 pass
 
 ## Лог
+- 2026-11-12 (продолжение): **круговое движение (roundabout) на гл.16, v4 json** — по запросу добавлено axis-aligned кольцевое движение (прямоугольное кольцо, 4 сегмента + осевой коннектор) в холмистой области (центр ~[360,360], высоты ~27–41 м) как часть v4-конфига `generator.transport.roundabouts` в `src/levels/level-16.json`. Stage 2 (`tools/citygen/pipeline/stage-2-transport.mjs`): генерация ring-сегментов с terrain-профилем/проверками уклона/рек/границ, привязка угла к существующему узлу и осевое подключение к сети; repair-коннекторы переведены на axis-aligned пути (совместимость с компилятором). Артефакты гл.16 пересобраны детерминированно (roads 155/126, components 1, buildings 401, props 360, interchange 13 сохранены). Pilot-тест `citygen.test.mjs` обновлён под новое состояние (155/126, проверки roundabout/connected). Node-gates: `citygen.test.mjs` **41/41**, `build-level --check` 15/16 OK, `check-levels` **24/24**. Browser гл.16: `ci-browser --level 16` **15/15** зелёные (contract/lifecycle/open-world). Nav-скелет сборки: 4290/4288, компоненты 476→2, вне большой сети 81 (road-граф связный, браузерные гейты зелёные).
 - 2026-11-12: создан план и состояние. Реализован M1 базово (stage 3/4/5, пилот пересобран, тесты/артефакты обновлены, gates зелёные).
 - 2026-11-12: начат M2 — аудит баланса/деталей пилота гл.16, добавлен pass представительности районов в stage 4; выявлены `district_without_buildings` (campus/residential) из-за бюджетного насыщения и конфликтов easement-масок.
 - 2026-11-12: M2 A3.1/A3.2 (существенно) — нормализация бюджета/представительности (stage 4) и детерминированное распределение + гарантия всех типов/совместимости (stage 3) обеспечили в пилоте гл.16 **все 14 типов районов** (включая `suburb/market`) со зданиями и props, **0E/0W/13R/0D**, skeleton 1 компонента, luxury access **0.933**. Пилот/тесты/артефакты обновлены, node-gates зелёные.

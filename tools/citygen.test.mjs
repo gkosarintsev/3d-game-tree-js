@@ -551,11 +551,14 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(fin?.propsByDistrictType && typeof fin.propsByDistrictType === 'object', 'pilot finalize_counts should include propsByDistrictType');
   assert.ok(fin?.roadAccessByType && typeof fin.roadAccessByType === 'object', 'pilot finalize_counts should include roadAccessByType');
   assert.equal(fin?.roadComponents, 1, 'pilot road graph should be connected');
-  assert.equal(fin?.roadSegments, 150);
-  assert.equal(fin?.roadNodes, 122);
+  assert.equal(fin?.roadSegments, 155);
+  assert.equal(fin?.roadNodes, 126);
   assert.equal(fin?.buildings, 401);
   assert.equal(fin?.props, 360);
   assert.equal(fin?.lights, 8);
+  // v4: axis-aligned roundabout (круговое движение) in hilly area, connected to network
+  assert.ok(report.diagnostics.some(d => d.code === 'transport_roundabout' && d.stage === '2_transport'), 'pilot should include roundabout ring');
+  assert.ok(report.diagnostics.some(d => d.code === 'transport_roundabout_connected' && d.stage === '2_transport'), 'pilot roundabout should be connected to road network');
   // M1/M2 expansion: pilot should include expanded district/building variety and building coverage across buildable districts.
   const expectedNewTypes = ['commercial', 'suburb', 'old_town', 'campus', 'market'];
   for (const t of expectedNewTypes) {

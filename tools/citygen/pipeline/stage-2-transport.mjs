@@ -1940,6 +1940,11 @@ function generateTransport(ctx) {
     ctx.report.diagnostics.push(warn('transport_turnarounds_failed', stageId, `turnaround generation failed: ${String(e?.message ?? e)}`));
   }
 
+  // M3: optional axis-aligned roundabouts ("круговое движение") as part of v4 generator config
+  try { addAxisAlignedRoundabouts(ctx); } catch (e) {
+    ctx.report.diagnostics.push(warn('transport_roundabout_failed', stageId, `roundabout generation failed: ${String(e?.message ?? e)}`));
+  }
+
   ctx.networks.roads.junctions = [];
   ctx.report.diagnostics.push(info('transport_generated', stageId, 'stage 2 generated road network', { nodes: nodes.length, segments: segments.length, seed, branches: made, profiled: true }));
 }
@@ -2170,6 +2175,158 @@ export function addAxisAlignedAccessRoadsForParcels(ctx) {
   return { added };
 }
 
+// M3: axis-aligned rectangular "roundabout" (ring road / кольцевое движение), hilly-friendly, from v4 generator.transport.roundabouts
+function addAxisAlignedRoundabouts(ctx) {
+  const stageId = '2_transport';
+  const tc = ctx.input?.generator?.transport || {};
+  const rbs = Array.isArray(tc.roundabouts) ? tc.roundabouts : [];
+  if (!rbs.length) return;
+  const { nodes, segments } = ctx.networks.roads;
+  const sampler = makeTerrainSampler(ctx);
+  const rivers = (ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? []);
+  const half = (ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256) / 2;
+  const usedNodeIds = new Set(nodes.map(n => n.id));
+  const usedSegIds = new Set(segments.map(s => s.id));
+  const uniqNode = (base) => { let id = base; let k = 2; while (usedNodeIds.has(id)) { id = `${base}_${k++}`; } usedNodeIds.add(id); return id; };
+  const uniqSeg = (base) => { let id = base; let k = 2; while (usedSegIds.has(id)) { id = `${base}_${k++}`; } usedSegIds.add(id); return id; };
+
+  for (const rb of rbs) {
+    try {
+      const cx = Number(rb.center?.[0] ?? rb.x ?? 0);
+      const cz = Number(rb.center?.[1] ?? rb.z ?? 0);
+      const size = Math.max(16, Number(rb.size) || 30);
+      const width = Math.max(6, Number(rb.width) || 8);
+      const x1 = Math.round((cx - size) * 10) / 10, x2 = Math.round((cx + size) * 10) / 10;
+      const z1 = Math.round((cz - size) * 10) / 10, z2 = Math.round((cz + size) * 10) / 10;
+      if (Math.max(Math.abs(x1), Math.abs(x2), Math.abs(z1), Math.abs(z2)) > half - 2) continue;
+      const corners = [
+        [x1, sampler.heightAt(x1, z1), z1],
+        [x2, sampler.heightAt(x2, z1), z1],
+        [x2, sampler.heightAt(x2, z2), z2],
+        [x1, sampler.heightAt(x1, z2), z2],
+      ];
+      let riverBad = false;
+      for (let i = 0; i < 4; i++) {
+        const a = corners[i], b = corners[(i + 1) % 4];
+        if (segCrossesRiver(a[0], a[2], b[0], b[2], rivers)) { riverBad = true; break; }
+      }
+      if (riverBad) continue;
+
+      // snap corners to nearby existing ground nodes to integrate with network (avoid disconnected component)
+      const cornerNodeIds = [];
+      for (let i = 0; i < 4; i++) {
+        const c = corners[i];
+        let snap = null;
+        for (const n of nodes) {
+          if (!n?.position || n.layer === 'elevated') continue;
+          if (Math.hypot(n.position[0] - c[0], n.position[2] - c[2]) < 1.5) { snap = n; break; }
+        }
+        if (snap) {
+          cornerNodeIds.push(snap.id);
+          // adjust corner height to existing node to avoid vertical mismatch at shared point
+          c[1] = Number(snap.position[1]) || c[1];
+        } else {
+          const id = uniqNode(`tr_rn_${Math.round(cx)}_${Math.round(cz)}_${i+1}`);
+          nodes.push({ id, position: [c[0], c[1], c[2]], layer: 'ground' });
+          cornerNodeIds.push(id);
+        }
+      }
+
+      const addedSegs = [];
+      for (let i = 0; i < 4; i++) {
+        const a = corners[i], b = corners[(i + 1) % 4];
+        let path = [[a[0], a[1], a[2]], [b[0], b[1], b[2]]];
+        path = enforceSlope(path, 0.25, stageId, `tr_rb_${Math.round(cx)}_${Math.round(cz)}`, null) || path;
+        path[0] = [a[0], a[1], a[2]];
+        path[path.length - 1] = [b[0], b[1], b[2]];
+        path = enforceSlope(path, 0.25, stageId, `tr_rb_${Math.round(cx)}_${Math.round(cz)}`, null) || path;
+        path[0] = [a[0], a[1], a[2]];
+        path[path.length - 1] = [b[0], b[1], b[2]];
+        if (!isAxisAlignedPath(path)) continue;
+        if (pathMaxSlope(path) > 0.3005) continue;
+        let badRiver = false;
+        for (let j = 0; j + 1 < path.length; j++) {
+          if (segCrossesRiver(path[j][0], path[j][2], path[j+1][0], path[j+1][2], rivers)) { badRiver = true; break; }
+        }
+        if (badRiver) continue;
+        const seg = makeRoadSegment(uniqSeg(`tr_rb_${Math.round(cx)}_${Math.round(cz)}_${i+1}`), cornerNodeIds[i], cornerNodeIds[(i+1)%4], path, width, 'local', 'ground');
+        segments.push(seg);
+        addedSegs.push(seg.id);
+      }
+      // connect ring to nearest existing ground node with axis-aligned path (avoid disconnected component / invalid repair)
+      if (addedSegs.length >= 4) {
+        const ringNodeIds = new Set(cornerNodeIds);
+        let best = null;
+        for (let i = 0; i < 4; i++) {
+          const nId = cornerNodeIds[i];
+          const n = nodes.find(x => x.id === nId);
+          if (!n?.position) continue;
+          for (const m of nodes) {
+            if (!m?.position || m.layer === 'elevated') continue;
+            if (ringNodeIds.has(m.id)) continue;
+            const d = Math.hypot(n.position[0] - m.position[0], n.position[2] - m.position[2]);
+            if (!best || d < best.d - 1e-9 || (Math.abs(d - best.d) <= 1e-9 && String(m.id) < String(best.m.id))) {
+              best = { ringNode: n, m, d, cornerIdx: i };
+            }
+          }
+        }
+        if (best && best.d <= 80) {
+          const a = best.ringNode.position, b = best.m.position;
+          let path = buildAxisAlignedTerrainPath(a[0], a[2], b[0], b[2], sampler, rivers, 12);
+          if (path && path.length >= 2) {
+            path[0] = [a[0], a[1], a[2]];
+            path[path.length - 1] = [b[0], b[1], b[2]];
+            path = enforceSlope(path, 0.25, stageId, 'tr_rb_conn', null) || path;
+            path[0] = [a[0], a[1], a[2]];
+            path[path.length - 1] = [b[0], b[1], b[2]];
+          }
+          if (!path || !isAxisAlignedPath(path) || pathMaxSlope(path) > 0.3005) {
+            // fallback: simple axis-aligned L paths
+            const candidates = [
+              [[a[0], a[1], a[2]], [b[0], sampler.heightAt(b[0], a[2]), a[2]], [b[0], b[1], b[2]]],
+              [[a[0], a[1], a[2]], [a[0], sampler.heightAt(a[0], b[2]), b[2]], [b[0], b[1], b[2]]],
+            ];
+            path = null;
+            for (const cand of candidates) {
+              let p = cand.map(pt => [Math.round(pt[0] * 100) / 100, Math.round(pt[1] * 100) / 100, Math.round(pt[2] * 100) / 100]);
+              p = enforceSlope(p, 0.25, stageId, 'tr_rb_conn', null) || p;
+              p[0] = [a[0], a[1], a[2]];
+              p[p.length - 1] = [b[0], b[1], b[2]];
+              if (!isAxisAlignedPath(p) || pathMaxSlope(p) > 0.3005) continue;
+              let badRiver = false;
+              for (let j = 0; j + 1 < p.length; j++) {
+                if (segCrossesRiver(p[j][0], p[j][2], p[j+1][0], p[j+1][2], rivers)) { badRiver = true; break; }
+              }
+              if (badRiver) continue;
+              path = p; break;
+            }
+          }
+          let okConn = path && isAxisAlignedPath(path) && pathMaxSlope(path) <= 0.3005;
+          if (okConn) {
+            for (let j = 0; j + 1 < path.length; j++) {
+              if (segCrossesRiver(path[j][0], path[j][2], path[j+1][0], path[j+1][2], rivers)) { okConn = false; break; }
+            }
+          }
+          if (okConn) {
+            const cseg = makeRoadSegment(uniqSeg(`tr_rbc_${Math.round(cx)}_${Math.round(cz)}`), best.ringNode.id, best.m.id, path, width, 'local', 'ground');
+            segments.push(cseg);
+            addedSegs.push(cseg.id);
+            ctx.report.diagnostics.push(info('transport_roundabout_connected', stageId, 'connected roundabout ring to road network', { to: best.m.id, dist: +best.d.toFixed(2) }));
+          }
+        }
+      }
+
+      if (addedSegs.length >= 4) {
+        ctx.report.diagnostics.push(info('transport_roundabout', stageId, 'added axis-aligned roundabout (ring) in hilly area', { center: [cx, cz], size, segments: addedSegs }));
+      } else {
+        ctx.report.diagnostics.push(warn('transport_roundabout_partial', stageId, 'roundabout ring incomplete due to constraints', { center: [cx, cz], added: addedSegs.length }));
+      }
+    } catch (e) {
+      ctx.report.diagnostics.push(warn('transport_roundabout_failed', stageId, `roundabout generation failed: ${String(e?.message ?? e)}`));
+    }
+  }
+}
+
 export function makeStage2() {
   return {
     id: '2_transport',
@@ -2398,9 +2555,45 @@ export function makeStage2() {
       const addConnector = (idBase, fromNode, toNode, code, message) => {
         const width = 8;
         const a = nodePos(fromNode), b = nodePos(toNode);
-        const path = buildProfiledSegment(ctx, idBase, { x: a.x, z: a.z }, { x: b.x, z: b.z }, width, null);
-        if (!path) {
-          ctx.report.diagnostics.push(warn('transport_repair_failed', stageId, `could not create connector segment '${idBase}'`));
+        const sampler = makeTerrainSampler(ctx);
+        const rivers = ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? [];
+        // Prefer axis-aligned path (compiler requires axis-aligned road segments)
+        let path = buildAxisAlignedTerrainPath(a.x, a.z, b.x, b.z, sampler, rivers, 12);
+        if (path && Array.isArray(path) && path.length >= 2) {
+          path[0] = [a.x, a.y, a.z];
+          path[path.length - 1] = [b.x, b.y, b.z];
+          path = enforceSlope(path, 0.25, stageId, idBase, null) || path;
+          path[0] = [a.x, a.y, a.z];
+          path[path.length - 1] = [b.x, b.y, b.z];
+        }
+        if (!path || !isAxisAlignedPath(path) || pathMaxSlope(path) > 0.3005) {
+          // fallback: simple L paths
+          const candidates = [
+            [[a.x, a.y, a.z], [b.x, sampler.heightAt(b.x, a.z), a.z], [b.x, b.y, b.z]],
+            [[a.x, a.y, a.z], [a.x, sampler.heightAt(a.x, b.z), b.z], [b.x, b.y, b.z]],
+            [[a.x, a.y, a.z], [b.x, b.y, b.z]], // straight (if axis-aligned)
+          ];
+          path = null;
+          for (const cand of candidates) {
+            let p = cand.map(pt => [Math.round(pt[0] * 100) / 100, Math.round(pt[1] * 100) / 100, Math.round(pt[2] * 100) / 100]);
+            if (!isAxisAlignedPath(p)) continue;
+            p = enforceSlope(p, 0.25, stageId, idBase, null) || p;
+            p[0] = [a.x, a.y, a.z];
+            p[p.length - 1] = [b.x, b.y, b.z];
+            if (!isAxisAlignedPath(p) || pathMaxSlope(p) > 0.3005) continue;
+            let badRiver = false;
+            for (let j = 0; j + 1 < p.length; j++) {
+              if (segCrossesRiver(p[j][0], p[j][2], p[j+1][0], p[j+1][2], rivers)) { badRiver = true; break; }
+            }
+            if (badRiver) continue;
+            path = p; break;
+          }
+        }
+        if (!path || !isAxisAlignedPath(path)) {
+          path = buildProfiledSegment(ctx, idBase, { x: a.x, z: a.z }, { x: b.x, z: b.z }, width, null);
+        }
+        if (!path || !isAxisAlignedPath(path)) {
+          ctx.report.diagnostics.push(warn('transport_repair_failed', stageId, `could not create axis-aligned connector segment '${idBase}'`));
           return false;
         }
         // unique segment id

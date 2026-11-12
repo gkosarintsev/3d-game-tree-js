@@ -175,7 +175,18 @@
     "transport": {
       "generate": true,
       "width": 8,
-      "branches": 3
+      "branches": 3,
+      "roundabouts": [
+        {
+          "center": [
+            360,
+            360
+          ],
+          "size": 24,
+          "width": 8,
+          "connect": true
+        }
+      ]
     }
   }
 }
