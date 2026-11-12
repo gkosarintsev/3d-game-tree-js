@@ -193,7 +193,8 @@
       "stage": "6_finalize_emit",
       "message": "interchange segment 'tr_sp1_r' has low clearance over terrain",
       "segmentId": "tr_sp1_r",
-      "minClearance": 1.267
+      "minClearance": 1.267,
+      "requiredClearance": 1.5
     },
     {
       "severity": "info",

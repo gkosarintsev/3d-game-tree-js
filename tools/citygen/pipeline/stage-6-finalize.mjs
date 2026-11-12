@@ -287,7 +287,7 @@ export function makeStage6() {
             }
           }
           if (checked > 0 && Number.isFinite(minClear) && minClear < 1.5) {
-            ctx.report.diagnostics.push(warn('interchange_clearance_low', stageId, `interchange segment '${seg.id ?? '?'}' has low clearance over terrain`, { segmentId: seg.id ?? null, minClearance: +minClear.toFixed(3) }));
+            ctx.report.diagnostics.push(warn('interchange_clearance_low', stageId, `interchange segment '${seg.id ?? '?'}' has low clearance over terrain`, { segmentId: seg.id ?? null, minClearance: +minClear.toFixed(3), requiredClearance: 1.5 }));
           }
         }
       }
