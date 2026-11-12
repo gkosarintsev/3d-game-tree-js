@@ -340,6 +340,25 @@ export function makeStage6() {
         }
       }
 
+      // M3 B2 groundwork: identify junction-grade-separation candidates (degree>=4, all ground, not interchange).
+      {
+        const segByNode = new Map();
+        for (const s of roads) {
+          if (!s) continue;
+          if (s.from) { if (!segByNode.has(s.from)) segByNode.set(s.from, []); segByNode.get(s.from).push(s); }
+          if (s.to) { if (!segByNode.has(s.to)) segByNode.set(s.to, []); segByNode.get(s.to).push(s); }
+        }
+        let candidates = 0;
+        for (const [nid, inc] of segByNode) {
+          if (!nid || inc.length < 4) continue;
+          if (inc.some(s => s?.interchange || s?.layer === 'elevated')) continue;
+          candidates++;
+        }
+        if (candidates > 0) {
+          ctx.report.diagnostics.push(info('interchange_junction_candidates', stageId, 'identified junction nodes as grade-separation candidates', { count: candidates }));
+        }
+      }
+
       if (roads.length) {
         const spawnD = minRoadDist(spawn.x, spawn.z, roads);
         const exitD = minRoadDist(exit.x, exit.z, roads);

@@ -533,6 +533,7 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.equal(raw.windows?.spacing, 12, 'pilot source should keep windows spacing perf tuning');
   assert.ok(report.diagnostics.some(d => d.code === 'anchors_connected_network' && d.stage === '6_finalize_emit'), 'pilot should report anchors connected to road network');
   assert.ok(report.diagnostics.some(d => d.code === 'road_conflicts_none' && d.stage === '6_finalize_emit'), 'pilot finalize should report no same-layer road crossing conflicts');
+  assert.ok(report.diagnostics.some(d => d.code === 'interchange_junction_candidates' && d.stage === '6_finalize_emit' && (d.count ?? 0) >= 1), 'pilot finalize should identify junction grade-separation candidates (M3 B2 groundwork)');
   assert.ok(!report.diagnostics.some(d => d.code === 'district_type_poor_road_access' && d.stage === '6_finalize_emit'), 'pilot should not have poor road access by district type');
   const fin = report.diagnostics.find(d => d.code === 'finalize_counts' && d.stage === '6_finalize_emit');
   assert.ok(fin?.propsByDistrictType && typeof fin.propsByDistrictType === 'object', 'pilot finalize_counts should include propsByDistrictType');

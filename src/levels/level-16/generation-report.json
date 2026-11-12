@@ -51,7 +51,7 @@
     {
       "id": "6_finalize_emit",
       "status": "ok",
-      "diagnostics": 5,
+      "diagnostics": 6,
       "repairs": 0,
       "drops": 0
     }
@@ -1708,6 +1708,13 @@
         "avgBuildings": 16.04,
         "avgProps": 14.4
       }
+    },
+    {
+      "severity": "info",
+      "code": "interchange_junction_candidates",
+      "stage": "6_finalize_emit",
+      "message": "identified junction nodes as grade-separation candidates",
+      "count": 6
     },
     {
       "severity": "info",
