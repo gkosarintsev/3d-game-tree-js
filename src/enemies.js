@@ -177,6 +177,7 @@ export class Enemy {
     this.animRecoil = 0;
     this.animHit = 0;
     this.animAttack = 0; // сглаженный вес атаки для визуального блендинга (без влияния на симуляцию)
+    this.animMove = 0; // сглаженный вес движения для визуального блендинга (без влияния на симуляцию)
 
     // рабочие векторы, чтобы не создавать мусор в игровом цикле
     this._eyeVec = new THREE.Vector3();
@@ -266,6 +267,7 @@ export class Enemy {
     this.animRecoil = 0;
     this.animHit = 0;
     this.animAttack = 0;
+    this.animMove = 0;
     this.mesh.material.emissive.setHex(0x000000); // сброс подсветки попадания
     this._hpBar.visible = false;
     this._updateHealthBar();
@@ -465,18 +467,21 @@ export class Enemy {
 
     // Процедурная анимация (визуал, без влияния на симуляцию/коллизии): idle/шаг/атака/попадание.
     const move01 = Math.min(1, speed2d / Math.max(0.001, cfg.speed.run));
-    const walkCycle = this.animTime * (6.5 + move01 * 5.5) + this.animPhase;
+    const mk = 1 - Math.exp(-dt * 10);
+    this.animMove += (move01 - this.animMove) * mk;
+    const mv = Math.max(0, Math.min(1, this.animMove));
+    const walkCycle = this.animTime * (6.5 + mv * 5.5) + this.animPhase;
     const hitW = Math.min(1, this.animHit * 1.5);
     const locomotionW = 1 - hitW * 0.65;
     const attackW = Math.max(0, Math.min(1, this.animAttack));
-    const idleBreath = Math.sin(this.animTime * 2.2 + this.animPhase) * 0.008 * (1 - move01) * locomotionW;
-    const bob = Math.sin(walkCycle * 2) * (0.02 + 0.03 * move01) * locomotionW + idleBreath;
-    const sway = Math.sin(walkCycle) * (0.015 + 0.03 * move01) * locomotionW;
-    const attackLean = attackW * (0.035 + 0.01 * (1 - move01));
+    const idleBreath = Math.sin(this.animTime * 2.2 + this.animPhase) * 0.008 * (1 - mv) * locomotionW;
+    const bob = Math.sin(walkCycle * 2) * (0.02 + 0.03 * mv) * locomotionW + idleBreath;
+    const sway = Math.sin(walkCycle) * (0.015 + 0.03 * mv) * locomotionW;
+    const attackLean = attackW * (0.035 + 0.01 * (1 - mv));
     const hitLean = this.animHit * 0.18;
     const recoilKick = this.animRecoil * 0.06;
-    const lean = attackLean + (0.01 + 0.04 * move01) * locomotionW * (1 - attackW * 0.25) + hitLean - recoilKick;
-    const aimSway = Math.sin(this.animTime * 1.5 + this.animPhase) * (0.006 + 0.01 * (1 - move01)) * locomotionW * (0.4 + 0.6 * attackW);
+    const lean = attackLean + (0.01 + 0.04 * mv) * locomotionW * (1 - attackW * 0.25) + hitLean - recoilKick;
+    const aimSway = Math.sin(this.animTime * 1.5 + this.animPhase) * (0.006 + 0.01 * (1 - mv)) * locomotionW * (0.4 + 0.6 * attackW);
     this.mesh.position.y = bob - this.animHit * 0.02;
     this.mesh.position.z = this.animRecoil * 0.03; // отдача (локально, визуал)
     this.mesh.rotation.z = sway + Math.sin(this.animTime * 18) * this.animHit * 0.03;
@@ -591,6 +596,7 @@ export class AlienEnemy extends AlienBody {
     this.animPhase = Math.random() * Math.PI * 2; // визуальный разброс, не влияет на симуляцию
     this.animHit = 0;
     this.animLeap = 0; // сглаженный вес прыжка для визуального блендинга (без влияния на симуляцию)
+    this.animMove = 0; // сглаженный вес движения для визуального блендинга (без влияния на симуляцию)
 
     // цель прыжка — сам игрок: при контакте в полёте он получает урон.
     // (имя _leapTarget, а не _target: _target в AlienBody занят буфером нормали)
@@ -741,6 +747,7 @@ export class AlienEnemy extends AlienBody {
     this.animTime = 0;
     this.animHit = 0;
     this.animLeap = 0;
+    this.animMove = 0;
     this.mesh.rotation.set(0, 0, 0);
     this.mesh.position.y = this._baseMeshY ?? -this.cfg.radius;
     this.group.visible = true;
@@ -778,19 +785,22 @@ export class AlienEnemy extends AlienBody {
     if (this.hurt > 0.01) this.animHit = Math.max(this.animHit, this.hurt);
     const spd = Math.hypot(this.vel.x, this.vel.y, this.vel.z);
     const move01 = Math.min(1, spd / Math.max(0.001, (this.cfg?.speed?.run ?? 6)));
+    const mk = 1 - Math.exp(-10 * dt);
+    this.animMove += (move01 - this.animMove) * mk;
+    const mv = Math.max(0, Math.min(1, this.animMove));
     const leapTarget = this.leapTimer > 0 ? 1 : 0;
     const lk = 1 - Math.exp(-12 * dt);
     this.animLeap += (leapTarget - this.animLeap) * lk;
     const leapW = Math.max(0, Math.min(1, this.animLeap));
-    const cycle = this.animTime * (7.5 + move01 * 6.5) + this.animPhase;
+    const cycle = this.animTime * (7.5 + mv * 6.5) + this.animPhase;
     const hitW = Math.min(1, this.animHit * 1.4);
     const locomotionW = (1 - leapW * 0.65) * (1 - hitW * 0.6);
-    const bob = Math.sin(cycle * 2) * (0.012 + 0.03 * move01) * locomotionW + leapW * 0.03 - this.animHit * 0.02;
-    const sway = Math.sin(cycle) * (0.01 + 0.025 * move01) * locomotionW + Math.sin(this.animTime * 20) * this.animHit * 0.03;
-    const groundLean = (0.02 + 0.05 * move01) * locomotionW;
+    const bob = Math.sin(cycle * 2) * (0.012 + 0.03 * mv) * locomotionW + leapW * 0.03 - this.animHit * 0.02;
+    const sway = Math.sin(cycle) * (0.01 + 0.025 * mv) * locomotionW + Math.sin(this.animTime * 20) * this.animHit * 0.03;
+    const groundLean = (0.02 + 0.05 * mv) * locomotionW;
     const leapLean = -0.18;
     const lean = groundLean * (1 - leapW) + leapLean * leapW + this.animHit * 0.12;
-    const huntSway = Math.sin(this.animTime * 1.7 + this.animPhase) * (0.012 + 0.03 * move01) * locomotionW * (1 - leapW * 0.5);
+    const huntSway = Math.sin(this.animTime * 1.7 + this.animPhase) * (0.012 + 0.03 * mv) * locomotionW * (1 - leapW * 0.5);
     this.mesh.position.y = this._baseMeshY + bob;
     this.mesh.position.z = -leapW * 0.02;
     this.mesh.rotation.x = lean;
