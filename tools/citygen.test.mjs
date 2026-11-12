@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runCitygen } from './citygen/index.mjs';
+import { compileCityforge } from './cityforge-compile.mjs';
 import { createReport, finalizeReport, reportToJson } from './citygen/diagnostics.mjs';
 import { makeRng, mix, hashString } from './citygen/rng.mjs';
 import { stableId, stageSubseed, byId } from './citygen/ids.mjs';
@@ -914,4 +915,27 @@ test('citygen stage 6: warns when junction ramp does not connect ground and elev
   };
   const out = runCitygen(raw);
   assert.ok(out.report.diagnostics.some(d => d.code === 'interchange_ramp_layers' && d.stage === '6_finalize_emit' && d.segmentId === 'jr_bad'), 'junction ramp with invalid endpoint layers should be warned');
+});
+
+test('citygen M3 B4: multi-level interchange compiles with correct road types and roadCorridors semantics (pilot level-16)', () => {
+  const raw = JSON.parse(readFileSync(resolve('src/levels/level-16.json'), 'utf8'));
+  const out = runCitygen(structuredClone(raw));
+  const source = out.ctx?.engine ?? out.ctx?.input ?? out.input ?? raw;
+  const compiled = compileCityforge(source);
+  const roads = compiled.engine?.roads ?? [];
+  const byId = new Map(roads.map(r => [r.id, r]));
+  // Overpass and junction ramps are elevated bridge segments; ground connectors remain ground.
+  assert.equal(byId.get('tr_sp1_r')?.type, 'bridge');
+  assert.equal(byId.get('tr_jr_tr_gn_63_a')?.type, 'bridge');
+  assert.equal(byId.get('tr_jr_tr_gn_63_b')?.type, 'bridge');
+  assert.equal(byId.get('tr_jc_tr_gn_63_a')?.type, 'ground');
+  assert.equal(byId.get('tr_jc_tr_gn_63_b')?.type, 'ground');
+  // Terrain cross-leveling corridors apply to ground roads only: connectors included, elevated interchange segments excluded.
+  const corridors = compiled.engine?.relief?.roadCorridors ?? [];
+  const corridorIds = new Set(corridors.map(c => c.id));
+  assert.ok(corridorIds.has('tr_jc_tr_gn_63_a'));
+  assert.ok(corridorIds.has('tr_jc_tr_gn_63_b'));
+  assert.ok(!corridorIds.has('tr_sp1_r'));
+  assert.ok(!corridorIds.has('tr_jr_tr_gn_63_a'));
+  assert.ok(!corridorIds.has('tr_jr_tr_gn_63_b'));
 });
