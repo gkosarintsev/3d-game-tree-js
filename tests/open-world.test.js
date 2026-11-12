@@ -1536,7 +1536,13 @@ async function testLevel16InterchangeNav() {
   const jHasDecks = rampAKeys.length > 0 && rampBKeys.length > 0;
   // Проверяем связность навграфа (рёбра/маршрут) без fit-достижимости от спавна:
   // окно помпы могло сместиться, и reach-метка WorldMap для узлов не гарантирована.
-  const jRoute = (jBuilt && jHasDecks) ? map.nav.findPath({ x: 216, y: 21.2, z: -390 }, { x: 216, y: 20.2, z: -426 }) : null;
+  // Маршрут берём между крайними deck-узлами рамп (устойчивее к привязке к ближайшему узлу от точки).
+  let jRoute = null;
+  if (jBuilt && jHasDecks) {
+    const pA = map.nav.pos[map.nav.byKey.get(rampAKeys.sort()[0])];
+    const pB = map.nav.pos[map.nav.byKey.get(rampBKeys.sort()[0])];
+    jRoute = (pA && pB) ? map.nav.findPath({ x: pA.x, y: pA.y, z: pA.z }, { x: pB.x, y: pB.y, z: pB.z }) : null;
+  }
   const jPathOk = Array.isArray(jRoute) && jRoute.length >= 2;
   let jTopLinked = false;
   if (jHasDecks) {
