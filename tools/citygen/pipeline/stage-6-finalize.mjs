@@ -355,16 +355,29 @@ export function makeStage6() {
             const up = d.elevatedNode;
             if (up && (!nodeById.has(up) || nodeById.get(up)?.layer !== 'elevated')) junctionIntegrityIssues++;
             const rampIds = Array.isArray(d.ramps) ? d.ramps : [];
+            const rampBases = [];
             for (const rid of rampIds) {
               const rs = segById.get(rid);
-              if (!rs || rs.layer !== 'elevated' || rs.interchange !== 'junction_ramp') junctionIntegrityIssues++;
+              if (!rs || rs.layer !== 'elevated' || rs.interchange !== 'junction_ramp') { junctionIntegrityIssues++; continue; }
+              // each ramp must connect the elevated node to a ground base node
+              const a = rs.from, b = rs.to;
+              if (up && a === up && b && nodeById.get(b)?.layer === 'ground') rampBases.push(b);
+              else if (up && b === up && a && nodeById.get(a)?.layer === 'ground') rampBases.push(a);
+              else junctionIntegrityIssues++;
             }
             // connectors are named deterministically from junction node id in current prototype
             if (d.nodeId) {
               const ca = segById.get(`tr_jc_${d.nodeId}_a`);
               const cb = segById.get(`tr_jc_${d.nodeId}_b`);
-              if (!ca || ca.layer !== 'ground') junctionIntegrityIssues++;
-              if (!cb || cb.layer !== 'ground') junctionIntegrityIssues++;
+              const checkConn = (cs, expectedBase) => {
+                if (!cs || cs.layer !== 'ground') return false;
+                const ends = [cs.from, cs.to];
+                return ends.includes(d.nodeId) && expectedBase && ends.includes(expectedBase) && cs.from !== cs.to;
+              };
+              if (!checkConn(ca, rampBases[0])) junctionIntegrityIssues++;
+              if (!checkConn(cb, rampBases[1])) junctionIntegrityIssues++;
+            } else if (rampIds.length) {
+              junctionIntegrityIssues++;
             }
           }
           if (d?.code === 'transport_interchange_overpass' && d?.stage === '2_transport') {
