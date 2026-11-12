@@ -569,6 +569,7 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(roads && Array.isArray(roads.segments) && Array.isArray(roads.nodes), 'pilot should produce road network');
   const seg = roads.segments.find(s => s.id === 'tr_sp1_r');
   assert.ok(seg, 'pilot interchange segment tr_sp1_r should exist in road network');
+  assert.equal(seg.bridge, true);
   assert.equal(seg.layer, 'elevated');
   assert.equal(seg.interchange, 'overpass');
   assert.ok(Array.isArray(seg.path) && seg.path.length >= 4, 'interchange segment should have profiled path');

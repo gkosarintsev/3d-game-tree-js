@@ -1564,6 +1564,7 @@ function generateTransport(ctx) {
     if (chosen) {
       const { seg, applied, run } = chosen;
       seg.path = applied.prof.map(p => p.slice());
+      seg.bridge = true;
       seg.layer = 'elevated';
       seg.interchange = 'overpass';
       ctx.report.diagnostics.push(info('transport_interchange_overpass', stageId, 'applied overpass interchange prototype on generated segment', {
