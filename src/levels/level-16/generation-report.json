@@ -51,7 +51,7 @@
     {
       "id": "6_finalize_emit",
       "status": "ok",
-      "diagnostics": 3,
+      "diagnostics": 4,
       "repairs": 0,
       "drops": 0
     }
@@ -1708,6 +1708,13 @@
         "avgBuildings": 16.04,
         "avgProps": 14.4
       }
+    },
+    {
+      "severity": "info",
+      "code": "interchange_validated",
+      "stage": "6_finalize_emit",
+      "message": "validated interchange/overpass segments",
+      "count": 1
     },
     {
       "severity": "info",

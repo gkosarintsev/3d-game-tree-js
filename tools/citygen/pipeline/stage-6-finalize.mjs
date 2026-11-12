@@ -221,6 +221,36 @@ export function makeStage6() {
         }
       }
 
+      // M3 B3 groundwork: basic validation for interchange/overpass segments.
+      let interchangeCount = 0;
+      for (const seg of roads) {
+        if (!seg || (seg.interchange !== 'overpass' && !(seg.layer === 'elevated' && seg.interchange))) continue;
+        interchangeCount++;
+        const pts = Array.isArray(seg.path) ? seg.path : [];
+        if (pts.length < 2) {
+          ctx.report.diagnostics.push(warn('interchange_invalid_path', stageId, `interchange segment '${seg.id ?? '?'}' has invalid path`, { segmentId: seg.id ?? null }));
+          continue;
+        }
+        let maxSlope = 0;
+        for (let i = 0; i + 1 < pts.length; i++) {
+          const a = pts[i], b = pts[i + 1]; if (!a || !b) continue;
+          const run = Math.hypot((b[0] ?? 0) - (a[0] ?? 0), (b[2] ?? 0) - (a[2] ?? 0));
+          const rise = Math.abs((b[1] ?? 0) - (a[1] ?? 0));
+          if (run > 1e-9) maxSlope = Math.max(maxSlope, rise / run);
+        }
+        const y0 = pts[0]?.[1] ?? 0, yN = pts[pts.length - 1]?.[1] ?? 0;
+        const midY = pts.reduce((m, p) => Math.max(m, p?.[1] ?? -Infinity), -Infinity);
+        if (maxSlope > 0.31) {
+          ctx.report.diagnostics.push(warn('interchange_slope_high', stageId, `interchange segment '${seg.id ?? '?'}' exceeds slope limit`, { segmentId: seg.id ?? null, maxSlope: +maxSlope.toFixed(3) }));
+        }
+        if (!(midY > Math.max(y0, yN) + 0.8)) {
+          ctx.report.diagnostics.push(warn('interchange_profile_flat', stageId, `interchange segment '${seg.id ?? '?'}' is not meaningfully elevated`, { segmentId: seg.id ?? null }));
+        }
+      }
+      if (interchangeCount > 0) {
+        ctx.report.diagnostics.push(info('interchange_validated', stageId, 'validated interchange/overpass segments', { count: interchangeCount }));
+      }
+
       if (roads.length) {
         const spawnD = minRoadDist(spawn.x, spawn.z, roads);
         const exitD = minRoadDist(exit.x, exit.z, roads);
