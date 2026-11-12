@@ -1499,9 +1499,9 @@ async function testEngineChapter() {
  * M3 B4 (runtime/nav): многоуровневые развязки гл.16 должны давать связный навграф
  * в загруженном окне. Проверяем: (1) 4-way junction tr_gn_63 (cross4) — deck-узлы
  * рамп, связность верхнего стыка и findPath между основаниями съездов; (2) segment
- * overpass tr_gb_80 — deck-цепочка и findPath вдоль эстакады; (3) T-junction
- * tr_gn_53 (tee3) и (4) T-junction tr_spc1_n (tee3) — связность рамп и findPath между
- * основаниями съездов. Пропускается, если гл.16 отсутствует или не выбрана фильтром.
+ * overpass tr_gb_80 — deck-цепочка и findPath вдоль эстакады; (3)-(5) T-junction
+ * tr_gn_53, tr_spc1_n, tr_gn_60 (tee3) — связность рамп и findPath между основаниями
+ * съездов. Пропускается, если гл.16 отсутствует или не выбрана фильтром.
  */
 async function testLevel16InterchangeNav() {
   const name = 'гл.16: навграф многоуровневых развязок (junction/overpass) связен в загруженном окне';
@@ -1588,16 +1588,29 @@ async function testLevel16InterchangeNav() {
   const sRoute = (sBuilt && sHasDecks) ? map.nav.findPath({ x: -440, y: 0.5, z: -424 }, { x: -408, y: 0.5, z: -424 }) : null;
   const sPathOk = Array.isArray(sRoute) && sRoute.length >= 2;
 
+  // (5) T-junction tr_gn_60 (tee3, chunk ~3,1)
+  const ux = 216, uz = -216;
+  await pumpAt(ux, uz, () => map.isBuiltAt(ux, uz)
+    && [...map.nav.byKey.keys()].some((k) => k.startsWith('d:tr_jr_tr_gn_60_a:'))
+    && [...map.nav.byKey.keys()].some((k) => k.startsWith('d:tr_jr_tr_gn_60_b:')));
+  const uBuilt = map.isBuiltAt(ux, uz);
+  const uAKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_jr_tr_gn_60_a:'));
+  const uBKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_jr_tr_gn_60_b:'));
+  const uHasDecks = uAKeys.length > 0 && uBKeys.length > 0;
+  const uRoute = (uBuilt && uHasDecks) ? map.nav.findPath({ x: 216, y: 9.8, z: -194 }, { x: 216, y: 10.7, z: -238 }) : null;
+  const uPathOk = Array.isArray(uRoute) && uRoute.length >= 2;
+
   map.dispose();
   scene.clear();
-  const passed = jBuilt && jHasDecks && jPathOk && jTopLinked && oBuilt && oHasDecks && oPathOk && tBuilt && tHasDecks && tPathOk && sBuilt && sHasDecks && sPathOk;
+  const passed = jBuilt && jHasDecks && jPathOk && jTopLinked && oBuilt && oHasDecks && oPathOk && tBuilt && tHasDecks && tPathOk && sBuilt && sHasDecks && sPathOk && uBuilt && uHasDecks && uPathOk;
   return {
     name,
     passed,
     info: 'cross4[built=' + jBuilt + ',rA=' + rampAKeys.length + ',rB=' + rampBKeys.length + ',path=' + (jPathOk ? jRoute.length : 'нет') + ',top=' + jTopLinked + ']'
       + ' overpass[built=' + oBuilt + ',deck=' + overKeys.length + ',path=' + (oPathOk ? 'ok' : 'нет') + ']'
       + ' tee3a[built=' + tBuilt + ',rA=' + tAKeys.length + ',rB=' + tBKeys.length + ',path=' + (tPathOk ? tRoute.length : 'нет') + ']'
-      + ' tee3b[built=' + sBuilt + ',rA=' + sAKeys.length + ',rB=' + sBKeys.length + ',path=' + (sPathOk ? sRoute.length : 'нет') + ']',
+      + ' tee3b[built=' + sBuilt + ',rA=' + sAKeys.length + ',rB=' + sBKeys.length + ',path=' + (sPathOk ? sRoute.length : 'нет') + ']'
+      + ' tee3c[built=' + uBuilt + ',rA=' + uAKeys.length + ',rB=' + uBKeys.length + ',path=' + (uPathOk ? uRoute.length : 'нет') + ']',
   };
 }
 
