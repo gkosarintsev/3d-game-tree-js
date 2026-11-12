@@ -1496,53 +1496,81 @@ async function testEngineChapter() {
  */
 
 /**
- * M3 B4 (runtime/nav): многоуровневая развязка в гл.16 (junction tr_gn_63) должна
- * давать связный навграф через рампы/эстакаду в загруженном окне. Проверяем, что
- * deck-узлы обоих ramp-сегментов построены и существует маршрут между точками на
- * противоположных съездах через верхний стык (позиционно совпадающие концы цепочек).
- * Пропускается, если гл.16 отсутствует или не выбрана фильтром.
+ * M3 B4 (runtime/nav): многоуровневые развязки гл.16 должны давать связный навграф
+ * в загруженном окне. Проверяем (1) junction tr_gn_63: deck-узлы рамп, связность
+ * верхнего стыка и findPath между основаниями съездов; (2) segment overpass
+ * tr_gb_80: deck-узлы и findPath вдоль эстакады между концами. Пропускается, если
+ * гл.16 отсутствует или не выбрана фильтром.
  */
 async function testLevel16InterchangeNav() {
+  const name = 'гл.16: навграф многоуровневых развязок (junction/overpass) связен в загруженном окне';
   const filter = parseLevelFilter();
   const indices = selectedIndices(filter);
   const candidates = indices ?? LEVELS.map((_, i) => i);
   const idx = candidates.find((i) => LEVELS[i]?.name === 'Глава 16. Районы города (v4, pilot)' || String(LEVELS[i]?.map?.catalog || '').includes('level-16'));
-  if (idx == null) return { name: 'гл.16: навграф многоуровневой развязки (junction ramps) связен в загруженном окне', passed: true, info: 'пропуск: гл.16 не в выборке' };
+  if (idx == null) return { name, passed: true, info: 'пропуск: гл.16 не в выборке' };
   const level = LEVELS[idx];
-  if (!level?.map?.catalog) return { name: 'гл.16: навграф многоуровневой развязки (junction ramps) связен в загруженном окне', passed: true, info: 'пропуск: не open/catalog' };
+  if (!level?.map?.catalog) return { name, passed: true, info: 'пропуск: не open/catalog' };
   const scene = new THREE.Scene();
   const map = new WorldMap(level.map);
   map.build(scene);
-  const tx = 216, tz = -408;
   const budget = CONFIG.jsonMap.pump.frameBudgetMs ?? 120;
-  for (let i = 0; i < 900; i++) {
-    map.streamStep(budget, tx, tz, 0);
-    await new Promise((r) => setTimeout(r, 0));
-  }
-  const built = map.isBuiltAt(tx, tz);
+  const pumpAt = async (x, z, ready, max = 800) => {
+    for (let i = 0; i < max; i++) {
+      map.streamStep(budget, x, z, 0);
+      await new Promise((r) => setTimeout(r, 0));
+      if (ready()) return i + 1;
+    }
+    return max;
+  };
+
+  // (1) junction tr_gn_63 (chunk ~3,0)
+  const jx = 216, jz = -408;
+  await pumpAt(jx, jz, () => map.isBuiltAt(jx, jz)
+    && [...map.nav.byKey.keys()].some((k) => k.startsWith('d:tr_jr_tr_gn_63_a:'))
+    && [...map.nav.byKey.keys()].some((k) => k.startsWith('d:tr_jr_tr_gn_63_b:')));
+  const jBuilt = map.isBuiltAt(jx, jz);
   const rampAKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_jr_tr_gn_63_a:'));
   const rampBKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_jr_tr_gn_63_b:'));
-  const hasDecks = rampAKeys.length > 0 && rampBKeys.length > 0;
-  const from = { x: 216, y: 21.2, z: -390 };
-  const to = { x: 216, y: 20.2, z: -426 };
-  const route = (built && hasDecks) ? map.findPath(from, to) : null;
-  const pathOk = Array.isArray(route) && route.length >= 2;
-  let topLinked = false;
-  if (hasDecks) {
+  const jHasDecks = rampAKeys.length > 0 && rampBKeys.length > 0;
+  // Проверяем связность навграфа (рёбра/маршрут) без fit-достижимости от спавна:
+  // окно помпы могло сместиться, и reach-метка WorldMap для узлов не гарантирована.
+  const jRoute = (jBuilt && jHasDecks) ? map.nav.findPath({ x: 216, y: 21.2, z: -390 }, { x: 216, y: 20.2, z: -426 }) : null;
+  const jPathOk = Array.isArray(jRoute) && jRoute.length >= 2;
+  let jTopLinked = false;
+  if (jHasDecks) {
     const findTop = (keys) => keys.find((k) => { const p = map.nav.pos[map.nav.byKey.get(k)]; return Math.abs(p.y - 22.61) < 0.2 && Math.abs(p.z + 408) < 1; });
     const ka = findTop(rampAKeys), kb = findTop(rampBKeys);
     if (ka && kb) {
       const ia = map.nav.byKey.get(ka), ib = map.nav.byKey.get(kb);
-      topLinked = (ia != null && ib != null) && (map.nav.adj[ia]?.includes(ib) || ia === ib);
+      jTopLinked = (ia != null && ib != null) && (map.nav.adj[ia]?.includes(ib) || ia === ib);
     }
   }
+
+  // (2) segment overpass tr_gb_80 (chunk ~3,2)
+  const ox = 320, oz = 8;
+  await pumpAt(ox, oz, () => map.isBuiltAt(ox, oz)
+    && [...map.nav.byKey.keys()].some((k) => k.startsWith('d:tr_gb_80:')));
+  const oBuilt = map.isBuiltAt(ox, oz);
+  const overKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_gb_80:')).sort();
+  const oHasDecks = overKeys.length > 0;
+  let oPathOk = false;
+  if (oBuilt && oHasDecks) {
+    // Проходимость самой deck-цепочки эстакады (рампа-вверх, настил, рампа-вниз).
+    const pA = map.nav.pos[map.nav.byKey.get(overKeys[0])];
+    const pB = map.nav.pos[map.nav.byKey.get(overKeys[overKeys.length - 1])];
+    const oRoute = map.nav.findPath({ x: pA.x, y: pA.y, z: pA.z }, { x: pB.x, y: pB.y, z: pB.z });
+    oPathOk = Array.isArray(oRoute) && oRoute.length >= 2;
+  }
+
   map.dispose();
   scene.clear();
-  const passed = built && hasDecks && pathOk && topLinked;
+  const passed = jBuilt && jHasDecks && jPathOk && jTopLinked && oBuilt && oHasDecks && oPathOk;
   return {
-    name: 'гл.16: навграф многоуровневой развязки (junction ramps) связен в загруженном окне',
+    name,
     passed,
-    info: 'built=' + built + ', rampA=' + rampAKeys.length + ', rampB=' + rampBKeys.length + ', path=' + (pathOk ? route.length : 'нет') + ', topLinked=' + topLinked,
+    info: 'junction[built=' + jBuilt + ',rA=' + rampAKeys.length + ',rB=' + rampBKeys.length + ',path=' + (jPathOk ? jRoute.length : 'нет') + ',top=' + jTopLinked + ']'
+      + ' overpass[built=' + oBuilt + ',deck=' + overKeys.length + ',path=' + (oPathOk ? 'ok' : 'нет') + ']',
   };
 }
 
