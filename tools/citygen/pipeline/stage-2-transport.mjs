@@ -1677,8 +1677,10 @@ function generateTransport(ctx) {
           const [i0, i1] = pc.p;
           const dA = dirs[i0], dB = dirs[i1];
           const sA = dA.seg, sB = dB.seg;
-          // ramp distance limited by local straight length
-          const rampDist = 20;
+          // ramp distance limited by local straight length; try a few deterministic lengths
+          const rampDistOptions = [20, 18, 16];
+          let feasible = null;
+          for (const rampDist of rampDistOptions) {
           if (pathLen(sA.path) < rampDist + 6 || pathLen(sB.path) < rampDist + 6) continue;
           const splitA = splitAtDistanceFromEnd(sA.path, dA.atFrom, rampDist);
           const splitB = splitAtDistanceFromEnd(sB.path, dB.atFrom, rampDist);
@@ -1720,6 +1722,14 @@ function generateTransport(ctx) {
           rampPathA[0] = pA.slice(); rampPathA[rampPathA.length - 1] = pUp.slice();
           rampPathB[0] = pUp.slice(); rampPathB[rampPathB.length - 1] = pB.slice();
           if (pathMaxSlope(rampPathA) > maxRampSlope + 0.02 || pathMaxSlope(rampPathB) > maxRampSlope + 0.02) continue;
+
+          feasible = { rampDist, splitA, splitB, jY, aBaseY, bBaseY, deckY, minClear, rampAIdNode, rampBIdNode, upIdNode, pA, pB, pUp, rampPathA, rampPathB };
+          break;
+          }
+          if (!feasible) continue;
+          const { rampDist, splitA, splitB, deckY, minClear, rampAIdNode, rampBIdNode, upIdNode, pA, pB, pUp, rampPathA, rampPathB } = feasible;
+          const usedIds = new Set(nodes.map(n => n.id).concat(segments.map(s => s.id)));
+          const uniq = (base) => { let id = base, k = 2; while (usedIds.has(id)) { id = `${base}_${k++}`; } usedIds.add(id); return id; };
 
           let groundPathA, rampSegPathA, groundFromA, groundToA, rampFromA, rampToA;
           let groundPathB, rampSegPathB, groundFromB, groundToB, rampFromB, rampToB;
