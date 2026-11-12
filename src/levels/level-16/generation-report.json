@@ -1596,6 +1596,11 @@
       "roadSegments": 138,
       "roadComponents": 1,
       "roadGraphNodes": 113,
+      "interchanges": {
+        "segments": 3,
+        "junctions": 1,
+        "overpasses": 1
+      },
       "districts": 16,
       "districtTypes": [
         "campus",

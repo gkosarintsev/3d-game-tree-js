@@ -203,6 +203,9 @@ export function makeStage6() {
         if (maxP > 80) ctx.report.diagnostics.push(warn('chunk_props_heavy', stageId, `high prop count in a single chunk (${maxP})`, { maxProps: maxP, chunk, grid }));
       }
 
+      const interchangeSegments = roads.filter(s => s?.interchange && s?.layer === 'elevated').length;
+      const junctionInterchangesApplied = (ctx.report?.diagnostics ?? []).filter(d => d.code === 'transport_interchange_junction' && d.stage === '2_transport').length;
+      const overpassInterchangesApplied = (ctx.report?.diagnostics ?? []).filter(d => d.code === 'transport_interchange_overpass' && d.stage === '2_transport').length;
       ctx.report.diagnostics.push(info('finalize_counts', stageId, 'generation summary', {
         groundSize,
         stream: stream ? {
@@ -217,6 +220,7 @@ export function makeStage6() {
         roadSegments: roads.length,
         roadComponents: roadGraph.components,
         roadGraphNodes: roadGraph.graphNodes,
+        ...(interchangeSegments || junctionInterchangesApplied || overpassInterchangesApplied ? { interchanges: { segments: interchangeSegments, junctions: junctionInterchangesApplied, overpasses: overpassInterchangesApplied } } : {}),
         districts: districts.length,
         districtTypes,
         parcels: parcels.length,
