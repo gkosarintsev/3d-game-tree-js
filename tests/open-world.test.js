@@ -1500,8 +1500,8 @@ async function testEngineChapter() {
  * в загруженном окне. Проверяем: (1) 4-way junction tr_gn_63 (cross4) — deck-узлы
  * рамп, связность верхнего стыка и findPath между основаниями съездов; (2) segment
  * overpass tr_gb_80 — deck-цепочка и findPath вдоль эстакады; (3) T-junction
- * tr_gn_53 (tee3) — связность рамп и findPath между основаниями съездов. Пропускается,
- * если гл.16 отсутствует или не выбрана фильтром.
+ * tr_gn_53 (tee3) и (4) T-junction tr_spc1_n (tee3) — связность рамп и findPath между
+ * основаниями съездов. Пропускается, если гл.16 отсутствует или не выбрана фильтром.
  */
 async function testLevel16InterchangeNav() {
   const name = 'гл.16: навграф многоуровневых развязок (junction/overpass) связен в загруженном окне';
@@ -1576,15 +1576,28 @@ async function testLevel16InterchangeNav() {
   const tRoute = (tBuilt && tHasDecks) ? map.nav.findPath({ x: 520, y: 0.5, z: 26 }, { x: 520, y: 0.5, z: -10 }) : null;
   const tPathOk = Array.isArray(tRoute) && tRoute.length >= 2;
 
+  // (4) T-junction tr_spc1_n (tee3, chunk ~0,0)
+  const sx = -424, sz = -424;
+  await pumpAt(sx, sz, () => map.isBuiltAt(sx, sz)
+    && [...map.nav.byKey.keys()].some((k) => k.startsWith('d:tr_jr_tr_spc1_n_a:'))
+    && [...map.nav.byKey.keys()].some((k) => k.startsWith('d:tr_jr_tr_spc1_n_b:')));
+  const sBuilt = map.isBuiltAt(sx, sz);
+  const sAKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_jr_tr_spc1_n_a:'));
+  const sBKeys = [...map.nav.byKey.keys()].filter((k) => k.startsWith('d:tr_jr_tr_spc1_n_b:'));
+  const sHasDecks = sAKeys.length > 0 && sBKeys.length > 0;
+  const sRoute = (sBuilt && sHasDecks) ? map.nav.findPath({ x: -440, y: 0.5, z: -424 }, { x: -408, y: 0.5, z: -424 }) : null;
+  const sPathOk = Array.isArray(sRoute) && sRoute.length >= 2;
+
   map.dispose();
   scene.clear();
-  const passed = jBuilt && jHasDecks && jPathOk && jTopLinked && oBuilt && oHasDecks && oPathOk && tBuilt && tHasDecks && tPathOk;
+  const passed = jBuilt && jHasDecks && jPathOk && jTopLinked && oBuilt && oHasDecks && oPathOk && tBuilt && tHasDecks && tPathOk && sBuilt && sHasDecks && sPathOk;
   return {
     name,
     passed,
     info: 'cross4[built=' + jBuilt + ',rA=' + rampAKeys.length + ',rB=' + rampBKeys.length + ',path=' + (jPathOk ? jRoute.length : 'нет') + ',top=' + jTopLinked + ']'
       + ' overpass[built=' + oBuilt + ',deck=' + overKeys.length + ',path=' + (oPathOk ? 'ok' : 'нет') + ']'
-      + ' tee3[built=' + tBuilt + ',rA=' + tAKeys.length + ',rB=' + tBKeys.length + ',path=' + (tPathOk ? tRoute.length : 'нет') + ']',
+      + ' tee3a[built=' + tBuilt + ',rA=' + tAKeys.length + ',rB=' + tBKeys.length + ',path=' + (tPathOk ? tRoute.length : 'нет') + ']'
+      + ' tee3b[built=' + sBuilt + ',rA=' + sAKeys.length + ',rB=' + sBKeys.length + ',path=' + (sPathOk ? sRoute.length : 'нет') + ']',
   };
 }
 
