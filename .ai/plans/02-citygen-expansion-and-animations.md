@@ -1,6 +1,6 @@
 # План: расширение citygen (районы, здания, детали), дорожные развязки и анимации врагов
 
-Дата: 2026-11-12. Статус: **в работе (M1–M4 частично, M5 не завершён)**. M1 (районы/типы домов) и значительная часть M2 (детали/баланс, без perf-gate) реализованы; M3 реализован прототипами (segment overpass + junction grade-separation на пилоте гл.16) с частичной валидацией/инвариантами, без полного шаблонного покрытия и perf-gate; M4 — процедурные анимации/`dispose()` каркас (без ассетного GLB-пути и без полной визуальной/стриминг-валидации). Node-gates зелёные, детерминизм/`--check` сохраняются.  
+Дата: 2026-11-12. Статус: **в работе (M1–M4 частично, M5 не завершён)**. M1 (районы/типы домов) и значительная часть M2 (детали/баланс, без perf-gate) реализованы; M3 включает прототипы interchange (segment overpass + junction grade-separation, bounded/adaptive), interchange-валидацию/integrity и безопасный crossing-repair/degradation с тестами, но без полного шаблонного покрытия, nav/`roadCorridors`-семантики многоуровневости и perf-gate; M4 — процедурный анимационный каркас и `dispose()` (без GLB/`AnimationMixer` и без полной визуальной/стриминг-валидации). Node-gates зелёные, детерминизм/`--check` сохраняются.  
 Основание: запрос на дальнейшие улучшения после закрытия MVP-пилота v4 (`.ai/plans/01-city-generator-districts.md`, коммит `ee3266d`). Подробный прогресс: `.ai/state/citygen-expansion-and-animations.md`.
 
 ## 0. Цель и границы
@@ -82,9 +82,9 @@
 
 **Этапы:**
 - [~] B1. Спецификация шаблонов (черновик зафиксирован в state): типы узлов (эстакада+пандусы, diamond/T-Y упрощ.), параметры (уровни, высоты, длины рамп по уклону, ширины, клиренсы, стыки), требования интеграции и деградации.
-- [~] B2. Реализация в stage 2/network (IR `network`): прототипы активны на пилоте гл.16 — (1) segment overpass (`tr_sp1_r`, эстакада+пандусы, best-clearance профиль) и (2) локальная junction grade-separation (`tr_gn_63`, подъём сквозной пары с рампами/elevated-узлом и ground-коннекторами для связности/access). Полноценные шаблоны (diamond/T-Y, съезды/развороты, размещение/стыковка, `roadCorridors`-специфика, многоуровневые узлы) не реализованы.
-- [~] B3. Валидация/repair (частично): stage 6 валидирует interchange/ramp/overpass сегменты (уклон, профиль, `layer`, соответствие концов узлам, приближённый клиренс/`requiredClearance`, ramp-aware профиль) и детектирует same-layer crossing-конфликты (`road_conflicts_none`/`road_same_level_conflict`). Специфичный repair/деградация конфликтов и perf-gate не реализованы.
-- [~] B4. Тесты (node + целевые геометрические/навигационные инварианты) и perf-gate — **частично**: pilot node-тесты покрывают детерминизм, валидацию, клиренс, связность, endpoint/профиль/уклон/`layer`/`interchange` и ground-коннекторы развязок. Широкие nav/`roadCorridors`-инварианты и perf-gate не выполнены.
+- [~] B2. Реализация в stage 2/network (IR `network`): прототипы активны на пилоте гл.16 — (1) segment overpass (`tr_sp1_r`, эстакада+пандусы, best-clearance профиль) и (2) локальная junction grade-separation (`tr_gn_63`, подъём сквозной пары с рампами/elevated-узлом и ground-коннекторами). Junction-прототип поддерживает bounded multi-candidate применение (перескан после мутаций) и детерминированный подбор длины рампы (`20/18/16 м`) при тех же guard-условиях. Полноценные шаблоны (diamond/T-Y, съезды/развороты, размещение/стыковка, `roadCorridors`-специфика, многоуровневые узлы) не реализованы.
+- [~] B3. Валидация/repair (частично): stage 6 валидирует interchange/ramp/overpass сегменты (уклон, профиль, `layer`, endpoint-соответствие, клиренс/`requiredClearance`, ramp-aware профиль), детектирует same-layer crossing-конфликты (`road_same_level_conflict`/`road_conflicts_none`) и выполняет **безопасный** repair/degradation: split в junction только при валидной геометрии/уклонах (иначе `road_crossing_repair_skipped`, `road_conflicts_unresolved`), с пересборкой road easement/index. Perf-gate не выполнен.
+- [~] B4. Тесты (node + целевые геометрические/навигационные инварианты) и perf-gate — **частично**: pilot node-тесты покрывают детерминизм, валидацию, клиренс, связность, endpoint/профиль/уклон/`layer`/`interchange`, interchange-consistency/integrity, ground-коннекторы; добавлены синтетические тесты детекции crossing-конфликтов, safe repair и unsafe-slope skip. Широкие nav/`roadCorridors`-инварианты и perf-gate не выполнены.
 
 ## 4. Направление C — анимации врагов
 
@@ -98,7 +98,7 @@
 **Задачи:**
 - [x] C1. Аудит `src/enemies.js`, `src/alien.js`: состояния/рендер merged-мешей, `_syncMesh`/поверхностная ориентация Alien, lifecycle/стриминг-ограничения (детали в `.ai/state/citygen-expansion-and-animations.md`).
 - [~] C2. Дизайн (черновик, частично реализован): процедурный драйвер (bob/sway/lean/recoil/death-cues) для текущих мешей; перспективно — артикулированные части или GLB+`AnimationMixer` (атрибуция/fallback/`dispose`), приоритеты состояний и интеграция с Alien `_syncMesh`.
-- [~] C3. Реализация каркаса (частично): процедурная визуальная анимация для human `Enemy` и `AlienEnemy` (idle/locomotion/attack/leap, hit/recoil cues, приоритет hit-реакции, mesh-local) и лёгкий view-bob камеры игрока-`Alien` (dt, simulation-neutral). Расширенный блендинг/ассетный путь не реализованы.
+- [~] C3. Реализация каркаса (частично): процедурная визуальная анимация для human `Enemy` и `AlienEnemy` (idle/locomotion/attack/leap, hit/recoil cues, приоритет hit-реакции, mesh-local yaw/bob/lean) и лёгкий view-bob камеры игрока-`Alien` (dt, simulation-neutral). Расширенный блендинг/ассетный путь не реализованы.
 - [~] C4. Fallback при отсутствии клипов/ошибке загрузки (N/A, ассетный путь не реализован); утилизация ресурсов в `dispose()`/смене уровня — **реализовано** (`Enemy`/`AlienEnemy`/`Enemies`).
 - [ ] C5. Проверки: визуальная ручная, отсутствие ошибок/утечек, совместимость со стримингом и lifecycle (`docs/architecture-entities.md`). **Blocked (частично):** нет browser/manual среды.
 
