@@ -1007,3 +1007,37 @@ test('citygen M3 B2: optional dead-end turnarounds are deterministic and valid (
     }
   }
 });
+
+test('citygen M3 B2: level-16 roundabout (v4 json) is deterministic, axis-aligned and connected', () => {
+  const raw = JSON.parse(readFileSync(resolve('src/levels/level-16.json'), 'utf8'));
+  const a = runCitygen(structuredClone(raw));
+  const b = runCitygen(structuredClone(raw));
+  assert.equal(a.reportJson, b.reportJson, 'roundabout generation should be deterministic');
+  assert.ok(a.report.diagnostics.some(d => d.code === 'transport_roundabout' && d.stage === '2_transport'), 'should emit transport_roundabout diagnostic');
+  assert.ok(a.report.diagnostics.some(d => d.code === 'transport_roundabout_connected' && d.stage === '2_transport'), 'should emit transport_roundabout_connected diagnostic');
+  const roads = a.ctx?.networks?.roads;
+  assert.ok(roads && Array.isArray(roads.segments) && Array.isArray(roads.nodes), 'roads network should exist');
+  const rbSegs = roads.segments.filter(s => String(s.id).startsWith('tr_rb_360_360_'));
+  const rbConn = roads.segments.filter(s => String(s.id).startsWith('tr_rbc_360_360'));
+  assert.equal(rbSegs.length, 4, 'should add 4 roundabout ring segments');
+  assert.ok(rbConn.length >= 1, 'should add roundabout connector segment');
+  const byNode = new Map(roads.nodes.map(n => [n.id, n]));
+  for (const s of [...rbSegs, ...rbConn]) {
+    assert.ok(Array.isArray(s.path) && s.path.length >= 2, `roundabout segment ${s.id} should have path`);
+    assert.ok(byNode.has(s.from) && byNode.has(s.to), `roundabout segment ${s.id} should have valid endpoints`);
+    for (let i = 0; i + 1 < s.path.length; i++) {
+      const p = s.path[i], q = s.path[i + 1];
+      const dx = Math.abs((q[0] ?? 0) - (p[0] ?? 0));
+      const dz = Math.abs((q[2] ?? 0) - (p[2] ?? 0));
+      assert.ok(dx < 1e-6 || dz < 1e-6, `roundabout segment ${s.id} must be axis-aligned`);
+      const h = Math.hypot((q[0] ?? 0) - (p[0] ?? 0), (q[2] ?? 0) - (p[2] ?? 0));
+      if (h > 1e-6) {
+        const slope = Math.abs((q[1] ?? 0) - (p[1] ?? 0)) / h;
+        assert.ok(slope <= 0.301, `roundabout segment ${s.id} slope should be within limit`);
+      }
+    }
+  }
+  assert.ok(!a.report.diagnostics.some(d => d.code === 'road_conflicts_unresolved' && d.stage === '6_finalize_emit'), 'roundabout should not introduce unresolved road conflicts');
+  const fin = a.report.diagnostics.find(d => d.code === 'finalize_counts' && d.stage === '6_finalize_emit');
+  assert.equal(fin?.roadComponents, 1, 'road graph should remain connected with roundabout');
+});
