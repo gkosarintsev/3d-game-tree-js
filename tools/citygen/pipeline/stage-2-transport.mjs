@@ -1677,8 +1677,8 @@ function generateTransport(ctx) {
           const [i0, i1] = pc.p;
           const dA = dirs[i0], dB = dirs[i1];
           const sA = dA.seg, sB = dB.seg;
-          // ramp distance limited by local straight length; try a few deterministic lengths
-          const rampDistOptions = [20, 18, 16];
+          // ramp distance limited by local straight length; try a few deterministic lengths (shorter fallback for tighter sites)
+          const rampDistOptions = [20, 18, 16, 14, 12];
           let feasible = null;
           for (const rampDist of rampDistOptions) {
           if (pathLen(sA.path) < rampDist + 6 || pathLen(sB.path) < rampDist + 6) continue;
