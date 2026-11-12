@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 128,
+      "diagnostics": 129,
       "repairs": 0,
       "drops": 0
     },
@@ -183,7 +183,7 @@
       "profileId": "commercial",
       "cells": 1,
       "parcels": 144,
-      "reservedParcels": 65
+      "reservedParcels": 64
     }
   ],
   "diagnostics": [
@@ -262,8 +262,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 108,
-      "segments": 137,
+      "nodes": 111,
+      "segments": 140,
       "components": 1
     },
     {
@@ -1441,8 +1441,8 @@
       "code": "transport_generated",
       "stage": "2_transport",
       "message": "stage 2 generated road network",
-      "nodes": 108,
-      "segments": 137,
+      "nodes": 111,
+      "segments": 140,
       "seed": 1865128548,
       "branches": 113,
       "profiled": true
@@ -1600,8 +1600,8 @@
       "code": "transport_roundabout_connected",
       "stage": "2_transport",
       "message": "connected roundabout ring to road network",
-      "to": "tr_gn_34",
-      "dist": 33.94
+      "to": "tr_ta_1_r",
+      "dist": 21.26
     },
     {
       "severity": "info",
@@ -1609,6 +1609,13 @@
       "stage": "2_transport",
       "message": "added local spur connector block",
       "corner": "tr_spc1_n"
+    },
+    {
+      "severity": "info",
+      "code": "transport_turnarounds",
+      "stage": "2_transport",
+      "message": "added dead-end turnarounds",
+      "count": 1
     },
     {
       "severity": "info",
@@ -1687,7 +1694,7 @@
       "message": "generated buildings from parcels",
       "count": 401,
       "budget": 420,
-      "skippedConflict": 371
+      "skippedConflict": 378
     },
     {
       "severity": "info",
@@ -1702,22 +1709,22 @@
       "message": "generated district props",
       "count": 360,
       "budget": 360,
-      "attempts": 1054,
+      "attempts": 1069,
       "byDistrictType": {
-        "luxury": 37,
-        "suburb": 23,
-        "old_town": 40,
-        "commercial": 18,
-        "industrial": 8,
-        "slums": 51,
-        "market": 35,
+        "luxury": 39,
+        "suburb": 22,
+        "old_town": 42,
+        "commercial": 12,
+        "industrial": 7,
+        "slums": 60,
+        "market": 32,
         "sports": 10,
-        "parking": 9,
-        "residential": 61,
-        "park": 20,
-        "office": 26,
-        "campus": 11,
-        "forest": 10
+        "parking": 10,
+        "residential": 64,
+        "park": 19,
+        "office": 21,
+        "campus": 9,
+        "forest": 12
       }
     },
     {
@@ -1761,15 +1768,16 @@
         "grid": 5,
         "total": 25
       },
-      "roadNodes": 126,
-      "roadSegments": 155,
+      "roadNodes": 129,
+      "roadSegments": 158,
       "roadComponents": 1,
-      "roadGraphNodes": 126,
+      "roadGraphNodes": 129,
       "interchanges": {
         "segments": 13,
         "junctions": 4,
         "overpasses": 5
       },
+      "turnarounds": 1,
       "districts": 16,
       "districtTypes": [
         "campus",
@@ -1788,7 +1796,7 @@
         "suburb"
       ],
       "parcels": 2274,
-      "reservedParcels": 295,
+      "reservedParcels": 294,
       "parcelAccess": {
         "near": 1104,
         "mid": 1015,
@@ -1868,42 +1876,42 @@
       },
       "buildings": 401,
       "buildingsByDistrictType": {
-        "old_town": 50,
-        "commercial": 33,
-        "office": 37,
-        "luxury": 67,
-        "slums": 58,
-        "residential": 69,
-        "market": 41,
-        "industrial": 21,
-        "parking": 11,
-        "campus": 10,
-        "park": 1,
-        "suburb": 2,
+        "old_town": 51,
+        "commercial": 36,
+        "office": 40,
+        "luxury": 63,
+        "slums": 51,
+        "residential": 79,
+        "market": 39,
+        "park": 6,
+        "industrial": 14,
+        "parking": 9,
+        "campus": 9,
+        "suburb": 3,
         "sports": 1
       },
       "lights": 8,
       "props": 360,
       "propsByDistrictType": {
-        "luxury": 37,
-        "suburb": 23,
-        "old_town": 40,
-        "commercial": 18,
-        "industrial": 8,
-        "slums": 51,
-        "market": 35,
+        "luxury": 39,
+        "suburb": 22,
+        "old_town": 42,
+        "commercial": 12,
+        "industrial": 7,
+        "slums": 60,
+        "market": 32,
         "sports": 10,
-        "parking": 9,
-        "residential": 61,
-        "park": 20,
-        "office": 26,
-        "campus": 11,
-        "forest": 10
+        "parking": 10,
+        "residential": 64,
+        "park": 19,
+        "office": 21,
+        "campus": 9,
+        "forest": 12
       },
       "chunkLoad": {
         "nonEmptyChunks": 25,
         "maxBuildings": 32,
-        "maxProps": 30,
+        "maxProps": 34,
         "maxLights": 1,
         "avgBuildings": 16.04,
         "avgProps": 14.4
@@ -1942,10 +1950,10 @@
       "message": "dropped buildings conflicting with compiled/normalized placement",
       "count": 4,
       "ids": [
-        "b_district_1_0_397",
+        "b_district_1_0_391",
+        "b_district_1_0_392",
         "b_district_1_3_161",
-        "b_district_1_3_162",
-        "b_district_2_3_368"
+        "b_district_1_3_162"
       ]
     }
   ],
@@ -2006,7 +2014,12 @@
     },
     {
       "stage": "build",
-      "id": "b_district_1_0_397",
+      "id": "b_district_1_0_391",
+      "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "b_district_1_0_392",
       "code": "drop_conflicting_building"
     },
     {
@@ -2017,11 +2030,6 @@
     {
       "stage": "build",
       "id": "b_district_1_3_162",
-      "code": "drop_conflicting_building"
-    },
-    {
-      "stage": "build",
-      "id": "b_district_2_3_368",
       "code": "drop_conflicting_building"
     }
   ],

@@ -186,7 +186,10 @@
           "width": 8,
           "connect": true
         }
-      ]
+      ],
+      "turnarounds": {
+        "count": 1
+      }
     }
   }
 }
