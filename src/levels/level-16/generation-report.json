@@ -23,7 +23,7 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 116,
+      "diagnostics": 117,
       "repairs": 0,
       "drops": 0
     },
@@ -1466,6 +1466,16 @@
     },
     {
       "severity": "info",
+      "code": "transport_interchange_overpass",
+      "stage": "2_transport",
+      "message": "applied overpass interchange prototype on generated segment",
+      "segmentId": "tr_gb_80",
+      "deckH": 3.82,
+      "rampLen": 29.39,
+      "len": 80
+    },
+    {
+      "severity": "info",
       "code": "transport_spur_loop",
       "stage": "2_transport",
       "message": "added local spur connector block",
@@ -1627,9 +1637,9 @@
       "roadComponents": 1,
       "roadGraphNodes": 113,
       "interchanges": {
-        "segments": 6,
+        "segments": 7,
         "junctions": 1,
-        "overpasses": 4
+        "overpasses": 5
       },
       "districts": 16,
       "districtTypes": [
@@ -1782,7 +1792,7 @@
       "code": "interchange_validated",
       "stage": "6_finalize_emit",
       "message": "validated interchange/overpass segments",
-      "count": 6
+      "count": 7
     },
     {
       "severity": "info",

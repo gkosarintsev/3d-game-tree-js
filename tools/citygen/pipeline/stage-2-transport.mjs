@@ -1443,7 +1443,7 @@ function generateTransport(ctx) {
   // into overpasses if main-route prototype was not applied. Picks best feasible
   // candidate deterministically per pass (prefer sufficient clearance, else highest clearance).
   if (!mainParts.some(p => p && p.interchange === 'overpass')) {
-    const OVERPASS_FALLBACK_LIMIT = 4;
+    const OVERPASS_FALLBACK_LIMIT = 5;
     const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
     const INTERCHANGE_CLEARANCE = 3.8;
     const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.13); // prototype ramp limit (validated < 0.31)
