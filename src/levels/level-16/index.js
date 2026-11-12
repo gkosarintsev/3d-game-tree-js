@@ -88,7 +88,7 @@ export const LEVEL_16 = {
         "id": "0_1",
         "objects": {
           "buildings": 14,
-          "props": 7,
+          "props": 6,
           "roads": 1
         },
         "rect": {
@@ -119,7 +119,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 7,
           "lights": 1,
-          "props": 4,
+          "props": 3,
           "roads": 1
         },
         "rect": {
@@ -178,7 +178,7 @@ export const LEVEL_16 = {
         "id": "1_2",
         "objects": {
           "lights": 1,
-          "props": 7,
+          "props": 8,
           "roads": 3
         },
         "rect": {
@@ -209,7 +209,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 23,
           "lights": 1,
-          "props": 10,
+          "props": 11,
           "roads": 4
         },
         "rect": {
@@ -318,7 +318,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 34,
           "lights": 1,
-          "props": 20,
+          "props": 19,
           "roads": 8
         },
         "rect": {
@@ -333,7 +333,7 @@ export const LEVEL_16 = {
         "id": "3_2",
         "objects": {
           "buildings": 29,
-          "props": 16,
+          "props": 15,
           "roads": 10
         },
         "rect": {
@@ -348,7 +348,7 @@ export const LEVEL_16 = {
         "id": "3_3",
         "objects": {
           "buildings": 24,
-          "props": 11,
+          "props": 10,
           "roads": 6
         },
         "rect": {
@@ -379,7 +379,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 30,
           "lights": 1,
-          "props": 37,
+          "props": 38,
           "roads": 3
         },
         "rect": {
@@ -394,7 +394,7 @@ export const LEVEL_16 = {
         "id": "4_1",
         "objects": {
           "buildings": 37,
-          "props": 37,
+          "props": 39,
           "roads": 1
         },
         "rect": {
@@ -410,7 +410,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 30,
           "lights": 1,
-          "props": 29,
+          "props": 33,
           "roads": 7
         },
         "rect": {
@@ -425,7 +425,7 @@ export const LEVEL_16 = {
         "id": "4_3",
         "objects": {
           "buildings": 41,
-          "props": 28,
+          "props": 26,
           "roads": 4
         },
         "rect": {
@@ -441,7 +441,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 18,
           "lights": 1,
-          "props": 15,
+          "props": 21,
           "roads": 66
         },
         "rect": {
@@ -3718,70 +3718,6 @@ export const LEVEL_16 = {
               "x": 632,
               "y": 0,
               "z": 520
-            }
-          ],
-          "shoulder": 1,
-          "width": 6
-        },
-        {
-          "blend": 5,
-          "crossLevel": true,
-          "id": "tr_gb_29",
-          "points": [
-            {
-              "x": 632,
-              "y": 0,
-              "z": 520
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 531.2
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 542.4
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 553.6
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 564.8
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 576
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 587.2
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 598.4
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 609.6
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 620.8
-            },
-            {
-              "x": 632,
-              "y": 0,
-              "z": 632
             }
           ],
           "shoulder": 1,

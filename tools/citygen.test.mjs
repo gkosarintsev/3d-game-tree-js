@@ -568,15 +568,15 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(!report.diagnostics.some(d => d.severity === 'warn' && d.stage === '3_districts_parcels'), 'pilot district assignment should avoid adjacency/representation warnings');
   // M3 B2/B3 prototype: deterministic overpass interchanges on pilot transport network.
   const overpasses = report.diagnostics.filter(d => d.code === 'transport_interchange_overpass' && d.stage === '2_transport');
-  assert.equal(overpasses.length, 2, 'pilot should apply two deterministic overpass interchange prototypes');
-  assert.deepEqual(overpasses.map(d => d.segmentId), ['tr_sp1_r', 'tr_sp2_r']);
+  assert.equal(overpasses.length, 3, 'pilot should apply three deterministic overpass interchange prototypes');
+  assert.deepEqual(overpasses.map(d => d.segmentId), ['tr_sp1_r', 'tr_sp2_r', 'tr_gb_29']);
   for (const o of overpasses) {
     assert.ok(Number.isFinite(o.deckH) && o.deckH > 0);
     assert.ok(Number.isFinite(o.rampLen) && o.rampLen > 0);
     assert.ok(!report.diagnostics.some(d => d.code === 'interchange_clearance_low' && d.stage === '6_finalize_emit' && d.segmentId === o.segmentId),
       `pilot interchange ${o.segmentId} should meet required clearance (no interchange_clearance_low)`);
   }
-  assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 4), 'pilot finalize should validate interchange segments (overpasses + junction ramps)');
+  assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 5), 'pilot finalize should validate interchange segments (overpasses + junction ramps)');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_endpoint_missing' && d.stage === '6_finalize_emit'), 'pilot interchange segments should have valid endpoint nodes');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_elevated_node_degree' && d.stage === '6_finalize_emit'), 'pilot elevated interchange nodes should have valid connectivity degree');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_junction_integrity' && d.stage === '6_finalize_emit'), 'pilot junction interchange prototype references must remain valid');
@@ -619,7 +619,7 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
     }
     return seg;
   };
-  for (const overId of ['tr_sp1_r', 'tr_sp2_r']) {
+  for (const overId of ['tr_sp1_r', 'tr_sp2_r', 'tr_gb_29']) {
     const segOver = checkInterchangeSeg(overId, { interchange: 'overpass' });
     const endMaxY = Math.max(segOver.path[0][1] ?? 0, segOver.path.at(-1)[1] ?? 0);
     const midMaxY = segOver.path.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
@@ -633,8 +633,8 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(roads.segments.some(s => s.id === 'tr_jc_tr_gn_63_b' && s.layer === 'ground'), 'junction ground connector B should exist');
 
   // Compiled engine map: interchange segments become bridge roads with decks (nav/geometry semantics).
-  const compiledInter = (a.worldMap?.roads ?? []).filter(r => ['tr_sp1_r', 'tr_sp2_r', 'tr_jr_tr_gn_63_a', 'tr_jr_tr_gn_63_b'].includes(r.id));
-  assert.equal(compiledInter.length, 4, 'pilot compiled map should include interchange bridge roads');
+  const compiledInter = (a.worldMap?.roads ?? []).filter(r => ['tr_sp1_r', 'tr_sp2_r', 'tr_gb_29', 'tr_jr_tr_gn_63_a', 'tr_jr_tr_gn_63_b'].includes(r.id));
+  assert.equal(compiledInter.length, 5, 'pilot compiled map should include interchange bridge roads');
   for (const r of compiledInter) {
     assert.equal(r.type, 'bridge', `${r.id} should compile as bridge road`);
     assert.ok(Array.isArray(r.decks) && r.decks.length > 0, `${r.id} should have decks`);
@@ -931,6 +931,7 @@ test('citygen M3 B4: multi-level interchange compiles with correct road types an
   // Overpass and junction ramps are elevated bridge segments; ground connectors remain ground.
   assert.equal(byId.get('tr_sp1_r')?.type, 'bridge');
   assert.equal(byId.get('tr_sp2_r')?.type, 'bridge');
+  assert.equal(byId.get('tr_gb_29')?.type, 'bridge');
   assert.equal(byId.get('tr_jr_tr_gn_63_a')?.type, 'bridge');
   assert.equal(byId.get('tr_jr_tr_gn_63_b')?.type, 'bridge');
   assert.equal(byId.get('tr_jc_tr_gn_63_a')?.type, 'ground');
@@ -942,6 +943,7 @@ test('citygen M3 B4: multi-level interchange compiles with correct road types an
   assert.ok(corridorIds.has('tr_jc_tr_gn_63_b'));
   assert.ok(!corridorIds.has('tr_sp1_r'));
   assert.ok(!corridorIds.has('tr_sp2_r'));
+  assert.ok(!corridorIds.has('tr_gb_29'));
   assert.ok(!corridorIds.has('tr_jr_tr_gn_63_a'));
   assert.ok(!corridorIds.has('tr_jr_tr_gn_63_b'));
 });

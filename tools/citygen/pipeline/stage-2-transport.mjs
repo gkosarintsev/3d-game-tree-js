@@ -1443,17 +1443,25 @@ function generateTransport(ctx) {
   // into overpasses if main-route prototype was not applied. Picks best feasible
   // candidate deterministically per pass (prefer sufficient clearance, else highest clearance).
   if (!mainParts.some(p => p && p.interchange === 'overpass')) {
-    const OVERPASS_FALLBACK_LIMIT = 2;
+    const OVERPASS_FALLBACK_LIMIT = 3;
     const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
     const INTERCHANGE_CLEARANCE = 3.8;
     const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.13); // prototype ramp limit (validated < 0.31)
     for (let overpassPass = 0; overpassPass < OVERPASS_FALLBACK_LIMIT; overpassPass++) {
+      const incidentGround = new Map();
+      for (const s of segments) {
+        if (!s || s.bridge || s.layer === 'elevated') continue;
+        if (s.from) incidentGround.set(s.from, (incidentGround.get(s.from) || 0) + 1);
+        if (s.to) incidentGround.set(s.to, (incidentGround.get(s.to) || 0) + 1);
+      }
       let chosen = null;
       for (let si = 0; si < segments.length; si++) {
         const seg = segments[si];
         if (!seg || seg.layer === 'elevated' || seg.type === 'arterial' || seg.interchange) continue; // keep main arterial profile stable unless prototype targeted it
         const path = Array.isArray(seg.path) ? seg.path : null;
         if (!path || path.length < 2) continue;
+        // Bridge/ramp noses must land on ground roads: both endpoints need another incident ground segment.
+        if ((incidentGround.get(seg.from) || 0) < 2 || (incidentGround.get(seg.to) || 0) < 2) continue;
         const len = totalLen(path);
         if (len < 64) continue;
         // axis-aligned straight check (tolerant)
