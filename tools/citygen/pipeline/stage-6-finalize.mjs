@@ -223,6 +223,7 @@ export function makeStage6() {
 
       // M3 B3 groundwork: basic validation for interchange/overpass segments.
       let interchangeCount = 0;
+      const nodeById = new Map(nodes.map(n => [n?.id, n]));
       for (const seg of roads) {
         if (!seg || (seg.interchange !== 'overpass' && !(seg.layer === 'elevated' && seg.interchange))) continue;
         interchangeCount++;
@@ -230,6 +231,22 @@ export function makeStage6() {
         if (pts.length < 2) {
           ctx.report.diagnostics.push(warn('interchange_invalid_path', stageId, `interchange segment '${seg.id ?? '?'}' has invalid path`, { segmentId: seg.id ?? null }));
           continue;
+        }
+        if (seg.layer !== 'elevated') {
+          ctx.report.diagnostics.push(warn('interchange_layer_mismatch', stageId, `interchange segment '${seg.id ?? '?'}' should use elevated layer`, { segmentId: seg.id ?? null, layer: seg.layer ?? null }));
+        }
+        // Endpoint consistency with road graph nodes (path endpoints should match node positions).
+        const nFrom = nodeById.get(seg.from), nTo = nodeById.get(seg.to);
+        if (nFrom?.position && pts[0]) {
+          const dx = Math.abs((pts[0][0] ?? 0) - (nFrom.position[0] ?? 0));
+          const dz = Math.abs((pts[0][2] ?? 0) - (nFrom.position[2] ?? 0));
+          if (dx > 0.05 || dz > 0.05) ctx.report.diagnostics.push(warn('interchange_endpoint_mismatch', stageId, `interchange segment '${seg.id ?? '?'}' start mismatches node`, { segmentId: seg.id ?? null, node: seg.from ?? null }));
+        }
+        if (nTo?.position && pts[pts.length - 1]) {
+          const pe = pts[pts.length - 1];
+          const dx = Math.abs((pe[0] ?? 0) - (nTo.position[0] ?? 0));
+          const dz = Math.abs((pe[2] ?? 0) - (nTo.position[2] ?? 0));
+          if (dx > 0.05 || dz > 0.05) ctx.report.diagnostics.push(warn('interchange_endpoint_mismatch', stageId, `interchange segment '${seg.id ?? '?'}' end mismatches node`, { segmentId: seg.id ?? null, node: seg.to ?? null }));
         }
         let maxSlope = 0;
         for (let i = 0; i + 1 < pts.length; i++) {

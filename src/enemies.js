@@ -343,7 +343,7 @@ export class Enemy {
     // полоска всегда над головой и развёрнута к камере
     this._hpBar.position.set(this.position.x, this.feetY + 2.05, this.position.z);
     this._hpBar.quaternion.copy(camera.quaternion);
-    this.animTime += dt;
+    this.animTime = (this.animTime + dt) % 10000;
 
     // за бортом активного окна: ждём очередь возрождения, не стреляем и не идём
     // через несобранный район (маршрута к игроку в новом графе у такого нет)
@@ -469,6 +469,7 @@ export class Enemy {
     const recoilKick = this.animRecoil * 0.06;
     const lean = attackLean + (0.01 + 0.04 * move01) + hitLean - recoilKick;
     this.mesh.position.y = bob - this.animHit * 0.02;
+    this.mesh.position.z = this.animRecoil * 0.03; // отдача (локально, визуал)
     this.mesh.rotation.z = sway + Math.sin(this.animTime * 18) * this.animHit * 0.03;
     this.mesh.rotation.x = -lean;
     this.group.position.y = this.feetY;
@@ -760,7 +761,7 @@ export class AlienEnemy extends AlienBody {
       this.material.emissive.setHex(this.hurt > 0.01 ? 0x551200 : 0x000000);
     }
     // Процедурная анимация (визуал): покачивание/рывок/попадание в локальных осях тела без влияния на физику/ориентацию.
-    this.animTime += dt;
+    this.animTime = (this.animTime + dt) % 10000;
     this.animHit = Math.max(0, this.animHit - dt * 4.0);
     if (this.hurt > 0.01) this.animHit = Math.max(this.animHit, this.hurt);
     const spd = Math.hypot(this.vel.x, this.vel.y, this.vel.z);
@@ -771,6 +772,7 @@ export class AlienEnemy extends AlienBody {
     const sway = Math.sin(cycle) * (0.01 + 0.025 * move01) + Math.sin(this.animTime * 20) * this.animHit * 0.03;
     const lean = (inLeap ? -0.18 : (0.02 + 0.05 * move01)) + this.animHit * 0.12;
     this.mesh.position.y = this._baseMeshY + bob;
+    this.mesh.position.z = inLeap ? -0.02 : 0;
     this.mesh.rotation.x = lean;
     this.mesh.rotation.z = sway;
   }
