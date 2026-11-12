@@ -284,6 +284,15 @@ export function makeStage6() {
         if (!isRampLike && !(midY > Math.max(y0, yN) + 0.8)) {
           ctx.report.diagnostics.push(warn('interchange_profile_flat', stageId, `interchange segment '${seg.id ?? '?'}' is not meaningfully elevated`, { segmentId: seg.id ?? null }));
         }
+        // Junction ramps should bridge ground and elevated road nodes (grade separation semantics).
+        if (seg.interchange === 'junction_ramp') {
+          const lf = nFrom?.layer ?? 'ground';
+          const lt = nTo?.layer ?? 'ground';
+          const layersOk = (lf === 'ground' && lt === 'elevated') || (lf === 'elevated' && lt === 'ground');
+          if (!layersOk) {
+            ctx.report.diagnostics.push(warn('interchange_ramp_layers', stageId, `junction ramp '${seg.id ?? '?'}' should connect ground and elevated nodes`, { segmentId: seg.id ?? null, fromLayer: lf, toLayer: lt }));
+          }
+        }
         // Approximate vertical clearance over terrain along elevated span (B3 groundwork).
         if (sampler) {
           let minClear = Infinity;

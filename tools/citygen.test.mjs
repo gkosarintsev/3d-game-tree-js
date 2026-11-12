@@ -885,3 +885,21 @@ test('citygen stage 6: skips unsafe crossing repair when no shared junction heig
   assert.ok(!out.report.repairs.some(r => r.code === 'resolve_road_crossing' && r.stage === '6_finalize_emit' && Array.isArray(r.segments) && r.segments.includes('sx') && r.segments.includes('sb')), 'unsafe crossing repair for sx/sb must not be applied');
   assert.ok(out.report.diagnostics.some(d => d.code === 'road_crossing_repair_skipped' && d.stage === '6_finalize_emit' && Array.isArray(d.segments) && d.segments.includes('sx') && d.segments.includes('sb')), 'unsafe crossing repair should be skipped with diagnostic');
 });
+
+test('citygen stage 6: warns when junction ramp does not connect ground and elevated nodes', () => {
+  const raw = v4Base();
+  raw.gameplay.spawn = { x: -80, z: -80 };
+  raw.gameplay.exit = { x: 80, z: 80 };
+  raw.cityforge.networks.roads = {
+    nodes: [
+      { id: 'g1', position: [-20, 0, 0], layer: 'ground' },
+      { id: 'g2', position: [20, 4, 0], layer: 'ground' },
+    ],
+    segments: [
+      { id: 'jr_bad', from: 'g1', to: 'g2', type: 'local', layer: 'elevated', bridge: true, interchange: 'junction_ramp', path: [[-20, 0, 0], [0, 2, 0], [20, 4, 0]], lanes: [{ id: 'l1', direction: 'forward', width: 8, type: 'vehicle' }] },
+    ],
+    junctions: [],
+  };
+  const out = runCitygen(raw);
+  assert.ok(out.report.diagnostics.some(d => d.code === 'interchange_ramp_layers' && d.stage === '6_finalize_emit' && d.segmentId === 'jr_bad'), 'junction ramp with invalid endpoint layers should be warned');
+});
