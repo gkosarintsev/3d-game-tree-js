@@ -848,8 +848,7 @@ function generateTransport(ctx) {
         if (nextDeck <= deckH + 1e-9) break;
         deckH = nextDeck;
       }
-      if (!applied) applied = best;
-      if (!applied) continue;
+      if (!applied) continue; // require sufficient clearance (>=1.5m) to avoid low-clearance interchanges
       const cand = { pi, part, applied, run };
       if (!chosen
         || (cand.applied.minClear >= 1.5 && !(chosen.applied.minClear >= 1.5))
@@ -1562,8 +1561,7 @@ function generateTransport(ctx) {
           if (nextDeck <= deckH + 1e-9) break;
           deckH = nextDeck;
         }
-        if (!applied) applied = best;
-        if (!applied) continue;
+        if (!applied) continue; // require sufficient clearance (>=1.5m) to avoid low-clearance interchanges
         const cand = { si, seg, applied, run };
         if (!chosen
           || (cand.applied.minClear >= 1.5 && !(chosen.applied.minClear >= 1.5))
