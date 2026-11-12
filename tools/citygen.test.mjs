@@ -565,6 +565,7 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
     'pilot interchange should meet required clearance (no interchange_clearance_low for prototype segment)');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_endpoint_missing' && d.stage === '6_finalize_emit'), 'pilot interchange segments should have valid endpoint nodes');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_elevated_node_degree' && d.stage === '6_finalize_emit'), 'pilot elevated interchange nodes should have valid connectivity degree');
+  assert.ok(!report.diagnostics.some(d => d.code === 'interchange_junction_integrity' && d.stage === '6_finalize_emit'), 'pilot junction interchange prototype references must remain valid');
 
   // M3 B2/B4: junction grade-separation prototype on pilot (deterministic, with ground connectors).
   const junction = report.diagnostics.find(d => d.code === 'transport_interchange_junction' && d.stage === '2_transport');

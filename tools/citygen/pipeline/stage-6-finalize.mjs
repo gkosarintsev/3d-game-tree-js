@@ -309,6 +309,7 @@ export function makeStage6() {
         // Interchange graph consistency (B4 groundwork): endpoints must exist and interchange nodes
         // should have coherent degree/layer connectivity (ramps/elevated segments).
         const nodeById = new Map(nodes.map(n => [n?.id, n]));
+        const segById = new Map(roads.map(s => [s?.id, s]).filter(([id]) => id != null));
         const deg = new Map();
         for (const s of roads) {
           if (!s) continue;
@@ -331,6 +332,29 @@ export function makeStage6() {
         }
         if (elevatedNodeIssues > 0) {
           ctx.report.diagnostics.push(warn('interchange_elevated_node_degree', stageId, 'elevated interchange node has low connectivity degree', { count: elevatedNodeIssues }));
+        }
+
+        // Junction interchange prototype integrity: referenced ramps/nodes/connectors must still exist.
+        let junctionIntegrityIssues = 0;
+        for (const d of (ctx.report?.diagnostics ?? [])) {
+          if (d?.code !== 'transport_interchange_junction' || d?.stage !== '2_transport') continue;
+          const up = d.elevatedNode;
+          if (up && (!nodeById.has(up) || nodeById.get(up)?.layer !== 'elevated')) junctionIntegrityIssues++;
+          const rampIds = Array.isArray(d.ramps) ? d.ramps : [];
+          for (const rid of rampIds) {
+            const rs = segById.get(rid);
+            if (!rs || rs.layer !== 'elevated' || rs.interchange !== 'junction_ramp') junctionIntegrityIssues++;
+          }
+          // connectors are named deterministically from junction node id in current prototype
+          if (d.nodeId) {
+            const ca = segById.get(`tr_jc_${d.nodeId}_a`);
+            const cb = segById.get(`tr_jc_${d.nodeId}_b`);
+            if (!ca || ca.layer !== 'ground') junctionIntegrityIssues++;
+            if (!cb || cb.layer !== 'ground') junctionIntegrityIssues++;
+          }
+        }
+        if (junctionIntegrityIssues > 0) {
+          ctx.report.diagnostics.push(warn('interchange_junction_integrity', stageId, 'junction interchange prototype references missing/invalid segments or nodes', { count: junctionIntegrityIssues }));
         }
         ctx.report.diagnostics.push(info('interchange_validated', stageId, 'validated interchange/overpass segments', { count: interchangeCount }));
       }
