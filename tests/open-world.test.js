@@ -1381,7 +1381,7 @@ async function testEngineChapter() {
         if (atom > worstAtomMs) { worstAtomMs = atom; atomLabel = label; }
         const idle = map.pump.stats.slices === before && !map.pump.task && map.pump.requests.size === 0;
         if (idle && idleAt === null) idleAt = frames;
-        if (idle || frames >= 400) break;
+        if (idle || frames >= 800) break;
         // макрозадача между кадрами: без неё `fetch` клетки не успевает вернуться
         await new Promise((r) => setTimeout(r, 0));
       }
