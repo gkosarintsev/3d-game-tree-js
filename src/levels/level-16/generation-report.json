@@ -193,7 +193,7 @@
       "stage": "6_finalize_emit",
       "message": "interchange segment 'tr_sp1_r' has low clearance over terrain",
       "segmentId": "tr_sp1_r",
-      "minClearance": 1.267,
+      "minClearance": 1.42,
       "requiredClearance": 1.5
     },
     {
@@ -1413,8 +1413,8 @@
       "stage": "2_transport",
       "message": "applied overpass interchange prototype on generated segment",
       "segmentId": "tr_sp1_r",
-      "deckH": 3.8,
-      "rampLen": 31.67,
+      "deckH": 4.26,
+      "rampLen": 35.5,
       "len": 96
     },
     {

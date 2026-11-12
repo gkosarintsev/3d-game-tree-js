@@ -787,51 +787,64 @@ function generateTransport(ctx) {
       let applied = null;
       let best = null;
       for (let iter = 0; iter < 6; iter++) {
-        const rise = Math.max(deckH - aY, deckH - bY, 0);
-        let rampLen = clamp(Math.max(24, rise / Math.max(RAMP_SLOPE, 0.05)), 24, run * 0.36);
-        let deckLen = run - rampLen * 2;
-        if (deckLen < 20) break;
-        if ((deckH - aY) / rampLen > RAMP_SLOPE + 1e-6 || (deckH - bY) / rampLen > RAMP_SLOPE + 1e-6) break;
+        const riseA = Math.max(deckH - aY, 0);
+        const riseB = Math.max(deckH - bY, 0);
+        const baseA = clamp(Math.max(24, riseA / Math.max(RAMP_SLOPE, 0.05)), 24, run * 0.36);
+        const baseB = clamp(Math.max(24, riseB / Math.max(RAMP_SLOPE, 0.05)), 24, run * 0.36);
+        const shiftMax = Math.min(12, run * 0.12);
+        const shifts = [0, -4, 4, -8, 8, -12, 12].filter(d => Math.abs(d) <= shiftMax + 1e-9);
+        for (const shift of shifts) {
+          let rampLenA = clamp(baseA + shift, 24, run * 0.4);
+          let rampLenB = clamp(baseB - shift, 24, run * 0.4);
+          if (run - rampLenA - rampLenB < 20) continue;
+          if ((deckH - aY) > RAMP_SLOPE * rampLenA + 1e-6) rampLenA = clamp((deckH - aY) / Math.max(RAMP_SLOPE, 0.05), 24, run * 0.4);
+          if ((deckH - bY) > RAMP_SLOPE * rampLenB + 1e-6) rampLenB = clamp((deckH - bY) / Math.max(RAMP_SLOPE, 0.05), 24, run * 0.4);
+          if (run - rampLenA - rampLenB < 20) continue;
+          if ((deckH - aY) / Math.max(rampLenA, 1e-6) > RAMP_SLOPE + 1e-6) continue;
+          if ((deckH - bY) / Math.max(rampLenB, 1e-6) > RAMP_SLOPE + 1e-6) continue;
 
-        const r1 = [a[0] + ux * rampLen, a[2] + uz * rampLen];
-        const r2 = [b[0] - ux * rampLen, b[2] - uz * rampLen];
-        const yR1 = aY + Math.sign(deckH - aY) * Math.min(Math.abs(deckH - aY), RAMP_SLOPE * rampLen);
-        const yR2 = bY + Math.sign(deckH - bY) * Math.min(Math.abs(deckH - bY), RAMP_SLOPE * rampLen);
-        const pts = [
-          [a[0], aY, a[2]],
-          [Math.round(r1[0]*100)/100, Math.round(yR1*100)/100, Math.round(r1[1]*100)/100],
-          [Math.round(((r1[0]+r2[0])/2)*100)/100, Math.round(deckH*100)/100, Math.round(((r1[1]+r2[1])/2)*100)/100],
-          [Math.round(r2[0]*100)/100, Math.round(yR2*100)/100, Math.round(r2[1]*100)/100],
-          [b[0], bY, b[2]],
-        ];
-        // Trial without polluting report; apply only if clean/valid.
-        let prof = enforceSlope(pts.map(p => p.slice()), RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
-        prof = pinEndpoints(prof, [a[0], aY, a[2]], [b[0], bY, b[2]], RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
-        if (!Array.isArray(prof) || prof.length < 2) break;
-        if (pathMaxSlope(prof) > RAMP_SLOPE + 0.015) break;
-        const midProfY = prof.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
-        if (!(midProfY > endMaxY + 1.5)) break;
+          const r1 = [a[0] + ux * rampLenA, a[2] + uz * rampLenA];
+          const r2 = [b[0] - ux * rampLenB, b[2] - uz * rampLenB];
+          const yR1 = aY + Math.sign(deckH - aY) * Math.min(Math.abs(deckH - aY), RAMP_SLOPE * rampLenA);
+          const yR2 = bY + Math.sign(deckH - bY) * Math.min(Math.abs(deckH - bY), RAMP_SLOPE * rampLenB);
+          const pts = [
+            [a[0], aY, a[2]],
+            [Math.round(r1[0]*100)/100, Math.round(yR1*100)/100, Math.round(r1[1]*100)/100],
+            [Math.round(((r1[0]+r2[0])/2)*100)/100, Math.round(deckH*100)/100, Math.round(((r1[1]+r2[1])/2)*100)/100],
+            [Math.round(r2[0]*100)/100, Math.round(yR2*100)/100, Math.round(r2[1]*100)/100],
+            [b[0], bY, b[2]],
+          ];
+          // Trial without polluting report; apply only if clean/valid.
+          let prof = enforceSlope(pts.map(p => p.slice()), RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+          prof = pinEndpoints(prof, [a[0], aY, a[2]], [b[0], bY, b[2]], RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+          if (!Array.isArray(prof) || prof.length < 2) continue;
+          if (pathMaxSlope(prof) > RAMP_SLOPE + 0.015) continue;
+          const midProfY = prof.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
+          if (!(midProfY > endMaxY + 1.5)) continue;
 
-        // Best-effort clearance repair: keep feasible candidate, try to raise deck if span too close to terrain.
-        let minClear = Infinity, checked = 0;
-        for (let i = 0; i + 1 < prof.length; i++) {
-          const pa = prof[i], pb = prof[i + 1];
-          const dxs = (pb[0] ?? 0) - (pa[0] ?? 0), dzs = (pb[2] ?? 0) - (pa[2] ?? 0);
-          const segLen = Math.hypot(dxs, dzs);
-          const st = Math.max(1, Math.ceil(segLen / 6));
-          for (let ss = 0; ss <= st; ss++) {
-            const tt = ss / st;
-            const sx = (pa[0] ?? 0) + dxs * tt, sz = (pa[2] ?? 0) + dzs * tt;
-            const sy = (pa[1] ?? 0) + ((pb[1] ?? 0) - (pa[1] ?? 0)) * tt;
-            if (sy <= endMaxY + 1.0) continue;
-            minClear = Math.min(minClear, sy - sampler.heightAt(sx, sz));
-            checked++;
+          // Best-effort clearance repair: keep feasible candidate, try to raise deck if span too close to terrain.
+          let minClear = Infinity, checked = 0;
+          for (let i = 0; i + 1 < prof.length; i++) {
+            const pa = prof[i], pb = prof[i + 1];
+            const dxs = (pb[0] ?? 0) - (pa[0] ?? 0), dzs = (pb[2] ?? 0) - (pa[2] ?? 0);
+            const segLen = Math.hypot(dxs, dzs);
+            const st = Math.max(1, Math.ceil(segLen / 6));
+            for (let ss = 0; ss <= st; ss++) {
+              const tt = ss / st;
+              const sx = (pa[0] ?? 0) + dxs * tt, sz = (pa[2] ?? 0) + dzs * tt;
+              const sy = (pa[1] ?? 0) + ((pb[1] ?? 0) - (pa[1] ?? 0)) * tt;
+              if (sy <= endMaxY + 1.0) continue;
+              minClear = Math.min(minClear, sy - sampler.heightAt(sx, sz));
+              checked++;
+            }
           }
+          const candProf = { prof, deckH: midProfY, rampLen: +(Math.max(rampLenA, rampLenB).toFixed(2)), minClear: (checked > 0 && Number.isFinite(minClear)) ? minClear : Infinity };
+          if (!best || candProf.minClear > best.minClear + 1e-6) best = candProf;
+          if (candProf.minClear >= 1.5) { applied = candProf; break; }
         }
-        const cand = { prof, deckH: midProfY, rampLen, minClear: (checked > 0 && Number.isFinite(minClear)) ? minClear : Infinity };
-        if (!best || cand.minClear > best.minClear + 1e-6) best = cand;
-        if (cand.minClear >= 1.5) { applied = cand; break; }
-        const nextDeck = Math.round((deckH + Math.max(0.2, 1.5 - cand.minClear)) * 100) / 100;
+        if (applied) break;
+        if (!best) break;
+        const nextDeck = Math.round((deckH + Math.max(0.2, 1.5 - best.minClear)) * 100) / 100;
         if (nextDeck <= deckH + 1e-9) break;
         deckH = nextDeck;
       }
@@ -1475,47 +1488,67 @@ function generateTransport(ctx) {
       let applied = null;
       let best = null;
       for (let iter = 0; iter < 6; iter++) {
-        const riseNeed = Math.max(deckH - aY, deckH - bY, 0);
-        let rampLen = clamp(Math.max(18, riseNeed / Math.max(RAMP_SLOPE, 0.05)), 18, run * 0.36);
-        if (run - rampLen * 2 < 16) break;
-        if ((deckH - aY) / rampLen > RAMP_SLOPE + 1e-6 || (deckH - bY) / rampLen > RAMP_SLOPE + 1e-6) break;
-        const r1 = [a[0] + ux * rampLen, a[2] + uz * rampLen];
-        const r2 = [b[0] - ux * rampLen, b[2] - uz * rampLen];
-        const yR1 = aY + Math.sign(deckH - aY) * Math.min(Math.abs(deckH - aY), RAMP_SLOPE * rampLen);
-        const yR2 = bY + Math.sign(deckH - bY) * Math.min(Math.abs(deckH - bY), RAMP_SLOPE * rampLen);
-        const pts = [
-          [a[0], aY, a[2]],
-          [Math.round(r1[0]*100)/100, Math.round(yR1*100)/100, Math.round(r1[1]*100)/100],
-          [Math.round(((r1[0]+r2[0])/2)*100)/100, Math.round(deckH*100)/100, Math.round(((r1[1]+r2[1])/2)*100)/100],
-          [Math.round(r2[0]*100)/100, Math.round(yR2*100)/100, Math.round(r2[1]*100)/100],
-          [b[0], bY, b[2]],
-        ];
-        let prof = enforceSlope(pts.map(p => p.slice()), RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
-        prof = pinEndpoints(prof, [a[0], aY, a[2]], [b[0], bY, b[2]], RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
-        if (!Array.isArray(prof) || prof.length < 2) break;
-        if (pathMaxSlope(prof) > RAMP_SLOPE + 0.02) break;
-        const midProfY = prof.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
-        if (!(midProfY > endMaxY + 1.0)) break;
+        const riseNeedA = Math.max(deckH - aY, 0);
+        const riseNeedB = Math.max(deckH - bY, 0);
+        const baseA = clamp(Math.max(18, riseNeedA / Math.max(RAMP_SLOPE, 0.05)), 18, run * 0.36);
+        const baseB = clamp(Math.max(18, riseNeedB / Math.max(RAMP_SLOPE, 0.05)), 18, run * 0.36);
+        const shiftMax = Math.min(12, run * 0.12);
+        const shifts = [0, -4, 4, -8, 8, -12, 12].filter(d => Math.abs(d) <= shiftMax + 1e-9);
+        for (const shift of shifts) {
+          let rampLenA = clamp(baseA + shift, 18, run * 0.4);
+          let rampLenB = clamp(baseB - shift, 18, run * 0.4);
+          if (run - rampLenA - rampLenB < 14) continue;
+          // ensure ramps can reach deck height within slope
+          if ((deckH - aY) > RAMP_SLOPE * rampLenA + 1e-6) rampLenA = clamp((deckH - aY) / Math.max(RAMP_SLOPE, 0.05), 18, run * 0.4);
+          if ((deckH - bY) > RAMP_SLOPE * rampLenB + 1e-6) rampLenB = clamp((deckH - bY) / Math.max(RAMP_SLOPE, 0.05), 18, run * 0.4);
+          if (run - rampLenA - rampLenB < 14) continue;
+          if ((deckH - aY) / Math.max(rampLenA, 1e-6) > RAMP_SLOPE + 1e-6) continue;
+          if ((deckH - bY) / Math.max(rampLenB, 1e-6) > RAMP_SLOPE + 1e-6) continue;
+          const r1 = [a[0] + ux * rampLenA, a[2] + uz * rampLenA];
+          const r2 = [b[0] - ux * rampLenB, b[2] - uz * rampLenB];
+          const yR1 = aY + Math.sign(deckH - aY) * Math.min(Math.abs(deckH - aY), RAMP_SLOPE * rampLenA);
+          const yR2 = bY + Math.sign(deckH - bY) * Math.min(Math.abs(deckH - bY), RAMP_SLOPE * rampLenB);
+          const pts = [
+            [a[0], aY, a[2]],
+            [Math.round(r1[0]*100)/100, Math.round(yR1*100)/100, Math.round(r1[1]*100)/100],
+            [Math.round(((r1[0]+r2[0])/2)*100)/100, Math.round(deckH*100)/100, Math.round(((r1[1]+r2[1])/2)*100)/100],
+            [Math.round(r2[0]*100)/100, Math.round(yR2*100)/100, Math.round(r2[1]*100)/100],
+            [b[0], bY, b[2]],
+          ];
+          let prof = enforceSlope(pts.map(p => p.slice()), RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+          prof = pinEndpoints(prof, [a[0], aY, a[2]], [b[0], bY, b[2]], RAMP_SLOPE, stageId, 'tr_interchange_overpass', null);
+          if (!Array.isArray(prof) || prof.length < 2) continue;
+          if (pathMaxSlope(prof) > RAMP_SLOPE + 0.02) continue;
+          const midProfY = prof.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
+          if (!(midProfY > endMaxY + 1.0)) continue;
 
-        let minClear = Infinity, checked = 0;
-        for (let i = 0; i + 1 < prof.length; i++) {
-          const pa = prof[i], pb = prof[i + 1];
-          const dxs = (pb[0] ?? 0) - (pa[0] ?? 0), dzs = (pb[2] ?? 0) - (pa[2] ?? 0);
-          const segLen = Math.hypot(dxs, dzs);
-          const st = Math.max(1, Math.ceil(segLen / 6));
-          for (let ss = 0; ss <= st; ss++) {
-            const tt = ss / st;
-            const sx = (pa[0] ?? 0) + dxs * tt, sz = (pa[2] ?? 0) + dzs * tt;
-            const sy = (pa[1] ?? 0) + ((pb[1] ?? 0) - (pa[1] ?? 0)) * tt;
-            if (sy <= endMaxY + 1.0) continue;
-            minClear = Math.min(minClear, sy - sampler.heightAt(sx, sz));
-            checked++;
+          let minClear = Infinity, checked = 0;
+          for (let i = 0; i + 1 < prof.length; i++) {
+            const pa = prof[i], pb = prof[i + 1];
+            const dxs = (pb[0] ?? 0) - (pa[0] ?? 0), dzs = (pb[2] ?? 0) - (pa[2] ?? 0);
+            const segLen = Math.hypot(dxs, dzs);
+            const st = Math.max(1, Math.ceil(segLen / 6));
+            for (let ss = 0; ss <= st; ss++) {
+              const tt = ss / st;
+              const sx = (pa[0] ?? 0) + dxs * tt, sz = (pa[2] ?? 0) + dzs * tt;
+              const sy = (pa[1] ?? 0) + ((pb[1] ?? 0) - (pa[1] ?? 0)) * tt;
+              if (sy <= endMaxY + 1.0) continue;
+              minClear = Math.min(minClear, sy - sampler.heightAt(sx, sz));
+              checked++;
+            }
           }
+          const candProf = {
+            prof,
+            deckH: midProfY,
+            rampLen: +(Math.max(rampLenA, rampLenB).toFixed(2)),
+            minClear: (checked > 0 && Number.isFinite(minClear)) ? minClear : Infinity,
+          };
+          if (!best || candProf.minClear > best.minClear + 1e-6) best = candProf;
+          if (candProf.minClear >= 1.5) { applied = candProf; break; }
         }
-        const cand = { prof, deckH: midProfY, rampLen, minClear: (checked > 0 && Number.isFinite(minClear)) ? minClear : Infinity };
-        if (!best || cand.minClear > best.minClear + 1e-6) best = cand;
-        if (cand.minClear >= 1.5) { applied = cand; break; }
-        const nextDeck = Math.round((deckH + Math.max(0.2, 1.5 - cand.minClear)) * 100) / 100;
+        if (applied) break;
+        if (!best) break;
+        const nextDeck = Math.round((deckH + Math.max(0.2, 1.5 - best.minClear)) * 100) / 100;
         if (nextDeck <= deckH + 1e-9) break;
         deckH = nextDeck;
       }
