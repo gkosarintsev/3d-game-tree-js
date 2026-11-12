@@ -746,6 +746,7 @@ function generateTransport(ctx) {
     const INTERCHANGE_CLEARANCE = 4.0;
     const RAMP_SLOPE = Math.min(MAX_ROAD_SLOPE, 0.1); // conservative for prototype
     const totalLen = (pth) => { let l = 0; for (let i=1;i<pth.length;i++) l += Math.hypot(pth[i][0]-pth[i-1][0], pth[i][2]-pth[i-1][2]); return l; };
+    let chosen = null;
     for (let pi = 0; pi < parts.length; pi++) {
       const part = parts[pi];
       if (!part || part.bridge) continue;
@@ -836,16 +837,22 @@ function generateTransport(ctx) {
       }
       if (!applied) applied = best;
       if (!applied) continue;
-
-      part.path = applied.prof.map(p => p.slice());
-      part.bridge = true;
-      part.interchange = 'overpass';
-      ctx.report.diagnostics.push(info('transport_interchange_overpass', stageId, 'applied overpass interchange prototype on main route segment', {
-        segmentIndex: pi, deckH: +applied.deckH.toFixed(2), rampLen: +applied.rampLen.toFixed(2), len: +run.toFixed(2),
-      }));
-      return true; // one prototype per generation (deterministic, low risk)
+      const cand = { pi, part, applied, run };
+      if (!chosen
+        || (cand.applied.minClear >= 1.5 && !(chosen.applied.minClear >= 1.5))
+        || ((cand.applied.minClear >= 1.5) === (chosen.applied.minClear >= 1.5) && cand.applied.minClear > chosen.applied.minClear + 1e-6)) {
+        chosen = cand;
+      }
     }
-    return false;
+    if (!chosen) return false;
+    const { pi, part, applied, run } = chosen;
+    part.path = applied.prof.map(p => p.slice());
+    part.bridge = true;
+    part.interchange = 'overpass';
+    ctx.report.diagnostics.push(info('transport_interchange_overpass', stageId, 'applied overpass interchange prototype on main route segment', {
+      segmentIndex: pi, deckH: +applied.deckH.toFixed(2), rampLen: +applied.rampLen.toFixed(2), len: +run.toFixed(2),
+    }));
+    return true; // one prototype per generation (deterministic, low risk)
   };
 
   const mainParts = splitMainSegments(mainPath);
