@@ -562,6 +562,31 @@ test('pilot level-16 v4: generateOutput deterministic (report and catalog conten
   assert.ok(report.diagnostics.some(d => d.code === 'interchange_validated' && d.stage === '6_finalize_emit' && d.count >= 1), 'pilot finalize should validate interchange segments');
   assert.ok(!report.diagnostics.some(d => d.code === 'interchange_clearance_low' && d.stage === '6_finalize_emit' && d.segmentId === 'tr_sp1_r'),
     'pilot interchange should meet required clearance (no interchange_clearance_low for prototype segment)');
+
+  // M3 B4: interchange segment invariants in generated road network (deterministic).
+  const { ctx } = runCitygen(structuredClone(raw));
+  const roads = ctx.networks?.roads;
+  assert.ok(roads && Array.isArray(roads.segments) && Array.isArray(roads.nodes), 'pilot should produce road network');
+  const seg = roads.segments.find(s => s.id === 'tr_sp1_r');
+  assert.ok(seg, 'pilot interchange segment tr_sp1_r should exist in road network');
+  assert.equal(seg.layer, 'elevated');
+  assert.equal(seg.interchange, 'overpass');
+  assert.ok(Array.isArray(seg.path) && seg.path.length >= 4, 'interchange segment should have profiled path');
+  const nFrom = roads.nodes.find(n => n.id === seg.from);
+  const nTo = roads.nodes.find(n => n.id === seg.to);
+  assert.ok(nFrom && nTo, 'interchange segment endpoints should reference existing nodes');
+  const p0 = seg.path[0], pN = seg.path[seg.path.length - 1];
+  assert.ok(Math.abs(p0[0] - nFrom.position[0]) < 1e-6 && Math.abs(p0[2] - nFrom.position[2]) < 1e-6, 'interchange path start should match from-node position');
+  assert.ok(Math.abs(pN[0] - nTo.position[0]) < 1e-6 && Math.abs(pN[2] - nTo.position[2]) < 1e-6, 'interchange path end should match to-node position');
+  const endMaxY = Math.max(p0[1] ?? 0, pN[1] ?? 0);
+  const midMaxY = seg.path.reduce((m, p) => Math.max(m, p[1] ?? -Infinity), -Infinity);
+  assert.ok(midMaxY > endMaxY + 1.0, 'interchange path should be elevated above endpoints');
+  const maxSlope = seg.path.slice(1).reduce((m, p, i) => {
+    const a = seg.path[i], dx = (p[0]-a[0]), dz = (p[2]-a[2]), dy = (p[1]-a[1]);
+    const run = Math.hypot(dx,dz);
+    return Math.max(m, run > 1e-9 ? Math.abs(dy)/run : 0);
+  }, 0);
+  assert.ok(maxSlope <= 0.31, 'interchange segment slope should be within validated limit');
 });
 
 test('citygen stage 1: clamps river width/depth and repairs steep terrain modifier', () => {
