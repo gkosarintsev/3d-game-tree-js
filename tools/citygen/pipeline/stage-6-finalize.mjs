@@ -295,6 +295,51 @@ export function makeStage6() {
         ctx.report.diagnostics.push(info('interchange_validated', stageId, 'validated interchange/overpass segments', { count: interchangeCount }));
       }
 
+      // M3 B3: detect same-layer proper (non-collinear) road crossings without a shared junction node.
+      // Collinear overlaps and endpoint-sharing connections are not treated as crossing conflicts.
+      // Different effective layers are considered grade-separated.
+      {
+        const segLayer = (s) => (s?.layer === 'elevated' || s?.interchange === 'overpass') ? 'elevated' : 'ground';
+        const sharesNode = (a, b) => !!((a?.from && (a.from === b?.from || a.from === b?.to)) || (a?.to && (a.to === b?.from || a.to === b?.to)));
+        const orient = (ax, az, bx, bz, cx, cz) => (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+        const onSeg = (ax, az, bx, bz, cx, cz) => Math.min(ax,bx)-1e-6 <= cx && cx <= Math.max(ax,bx)+1e-6 && Math.min(az,bz)-1e-6 <= cz && cz <= Math.max(az,bz)+1e-6;
+        const properCross = (a1, a2, b1, b2) => {
+          const o1 = orient(a1[0],a1[2],a2[0],a2[2],b1[0],b1[2]);
+          const o2 = orient(a1[0],a1[2],a2[0],a2[2],b2[0],b2[2]);
+          const o3 = orient(b1[0],b1[2],b2[0],b2[2],a1[0],a1[2]);
+          const o4 = orient(b1[0],b1[2],b2[0],b2[2],a2[0],a2[2]);
+          const s1 = (o1 > 0) - (o1 < 0), s2 = (o2 > 0) - (o2 < 0), s3 = (o3 > 0) - (o3 < 0), s4 = (o4 > 0) - (o4 < 0);
+          if (s1 !== 0 && s2 !== 0 && s3 !== 0 && s4 !== 0 && s1 !== s2 && s3 !== s4) return true;
+          return false; // collinear/touching treated as non-crossing conflict here
+        };
+        let conflictCount = 0;
+        const conflictPairs = new Set();
+        for (let i = 0; i < roads.length; i++) {
+          const si = roads[i]; if (!si?.path || si.path.length < 2) continue;
+          for (let j = i + 1; j < roads.length; j++) {
+            const sj = roads[j]; if (!sj?.path || sj.path.length < 2) continue;
+            if (sharesNode(si, sj)) continue;
+            if (segLayer(si) !== segLayer(sj)) continue; // grade-separated
+            let crossed = false;
+            for (let a = 0; a + 1 < si.path.length && !crossed; a++) {
+              for (let b = 0; b + 1 < sj.path.length && !crossed; b++) {
+                const p1 = si.path[a], p2 = si.path[a+1], p3 = sj.path[b], p4 = sj.path[b+1];
+                if (!p1||!p2||!p3||!p4) continue;
+                if (properCross(p1,p2,p3,p4)) crossed = true;
+              }
+            }
+            if (!crossed) continue;
+            const key = [si.id ?? i, sj.id ?? j].sort().join('|');
+            if (!conflictPairs.has(key)) { conflictPairs.add(key); conflictCount++; }
+          }
+        }
+        if (conflictCount > 0) {
+          ctx.report.diagnostics.push(warn('road_same_level_conflict', stageId, `detected ${conflictCount} same-layer road crossing conflict(s) without shared junction`, { count: conflictCount }));
+        } else {
+          ctx.report.diagnostics.push(info('road_conflicts_none', stageId, 'no same-layer road crossing conflicts detected'));
+        }
+      }
+
       if (roads.length) {
         const spawnD = minRoadDist(spawn.x, spawn.z, roads);
         const exitD = minRoadDist(exit.x, exit.z, roads);

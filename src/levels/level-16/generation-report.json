@@ -51,7 +51,7 @@
     {
       "id": "6_finalize_emit",
       "status": "ok",
-      "diagnostics": 5,
+      "diagnostics": 6,
       "repairs": 0,
       "drops": 0
     }
@@ -1724,6 +1724,12 @@
       "stage": "6_finalize_emit",
       "message": "validated interchange/overpass segments",
       "count": 1
+    },
+    {
+      "severity": "info",
+      "code": "road_conflicts_none",
+      "stage": "6_finalize_emit",
+      "message": "no same-layer road crossing conflicts detected"
     },
     {
       "severity": "info",
