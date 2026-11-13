@@ -12,6 +12,10 @@ import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
 import { buildPanelkaDecor } from './panelka-decor.js';
 import { buildDetailedSovietPanel, makeSovietPanelMaterials } from './soviet-panel-detail.js';
 import { buildDetailedSkyscraper, makeSkyscraperMaterials } from './skyscraper-detail.js';
+import { buildDetailedOfficeBuilding, makeOfficeBuildingMaterials } from './office-building-detail.js';
+import { buildDetailedMegabuilding, makeMegabuildingMaterials } from './megabuilding-detail.js';
+import { buildDetailedSlumShack, makeSlumShackMaterials } from './slum-shack-detail.js';
+import { buildDetailedGenericHouse, makeGenericHouseMaterials } from './generic-house-detail.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -2410,22 +2414,66 @@ export class JsonMap extends SurfaceField {
         const fndH = 1.2;
         const mats = makeSkyscraperMaterials(b.wallColor || '#4b5563');
         meshes = buildDetailedSkyscraper({
-          width: bw,
-          depth: bd,
-          floorHeight: b.floorHeight || 3.6,
-          floors: b.floorsCount || 20,
-          foundationHeight: fndH,
-          roofPitchDeg: 28,
-          roofType: b.floorsCount >= 20 ? 'stepped' : 'flat',
-          windowDensity: b.windowDensity || 2,
-          windowScale: b.windowScale || 1.05,
-          hasPorch: true,
-          hasChimney: true,
-          hasCornerAccents: true,
-          hasBalcony: true,
+          width: bw, depth: bd, floorHeight: b.floorHeight || 3.6, floors: b.floorsCount || 20,
+          foundationHeight: fndH, roofPitchDeg: 28, roofType: b.floorsCount >= 20 ? 'stepped' : 'flat',
+          windowDensity: b.windowDensity || 2, windowScale: b.windowScale || 1.05,
+          hasPorch: true, hasChimney: true, hasCornerAccents: true, hasBalcony: true,
         }, mats);
-        // модель строится от y=0 (плинт/фундамент) с этажами от foundationHeight;
-        // совмещаем начало этажей с baseY здания
+        yOffset = b.baseY - fndH;
+      } else if (b.detailedVisual === 'office-building') {
+        const fndH = 0.7;
+        const mats = makeOfficeBuildingMaterials(b.wallColor || '#b8c2cc');
+        meshes = buildDetailedOfficeBuilding({
+          width: bw, depth: bd, floorHeight: b.floorHeight || 3.7, floors: b.floorsCount || 6,
+          foundationHeight: fndH, roofPitchDeg: 10, roofOverhang: 0.35,
+          roofType: b.floorsCount >= 8 ? 'stepped' : 'flat',
+          windowDensity: b.windowDensity || 2, windowScale: b.windowScale || 1.08,
+          hasPorch: true, hasChimney: true, hasCornerAccents: true, hasBalcony: true,
+        }, mats);
+        yOffset = b.baseY - fndH;
+      } else if (b.detailedVisual === 'megabuilding') {
+        const fndH = 1.6;
+        const mats = makeMegabuildingMaterials(b.wallColor || '#49505b');
+        meshes = buildDetailedMegabuilding({
+          width: bw, depth: bd, floorHeight: b.floorHeight || 3.4, floors: b.floorsCount || 24,
+          foundationHeight: fndH, roofPitchDeg: 14, roofOverhang: 0.5,
+          roofType: b.floorsCount >= 30 ? 'stepped' : 'flat',
+          windowDensity: b.windowDensity || 3, windowScale: b.windowScale || 1.02,
+          hasPorch: true, hasChimney: true, hasCornerAccents: true, hasBalcony: true,
+        }, mats);
+        yOffset = b.baseY - fndH;
+      } else if (b.detailedVisual === 'slum-shack') {
+        const fndH = 0.2;
+        const mats = makeSlumShackMaterials(b.wallColor || '#8d949b');
+        meshes = buildDetailedSlumShack({
+          width: bw, depth: bd, floorHeight: b.floorHeight || 2.7, floors: b.floorsCount || 2,
+          foundationHeight: fndH, roofPitchDeg: 18, roofOverhang: 0.5,
+          roofType: (b.floorsCount || 2) <= 1 ? 'shed' : 'flat',
+          windowDensity: b.windowDensity || 1, windowScale: b.windowScale || 0.9,
+          hasPorch: false, hasChimney: true, hasCornerAccents: false, hasBalcony: false,
+        }, mats);
+        yOffset = b.baseY - fndH;
+      } else if (['classic-cottage','nordic-barn','modern-pavilion','a-frame','alpine-chalet','mansard-house'].includes(b.detailedVisual)) {
+        const styleId = b.detailedVisual;
+        const roofByStyle = {
+          'classic-cottage': 'gable', 'nordic-barn': 'gable', 'modern-pavilion': 'flat',
+          'a-frame': 'aframe', 'alpine-chalet': 'gable', 'mansard-house': 'mansard',
+        };
+        const fndH = styleId === 'a-frame' ? 0.3 : (styleId === 'modern-pavilion' ? 0.3 : 0.45);
+        const mats = makeGenericHouseMaterials(styleId, b.wallColor);
+        meshes = buildDetailedGenericHouse({
+          styleId,
+          dimensions: {
+            width: bw, depth: bd, floorHeight: b.floorHeight || 3.0, floors: b.floorsCount || 2,
+            foundationHeight: fndH, roofPitchDeg: styleId === 'a-frame' ? 62 : (styleId === 'modern-pavilion' ? 4 : 32), roofOverhang: 0.55,
+          },
+          features: {
+            roofType: roofByStyle[styleId] || 'gable',
+            windowDensity: b.windowDensity || 2, windowScale: b.windowScale || 1.0,
+            hasPorch: styleId !== 'modern-pavilion', hasChimney: true, hasCornerAccents: true,
+            hasBalcony: false, hasDormers: styleId === 'mansard-house',
+          },
+        }, mats);
         yOffset = b.baseY - fndH;
       } else {
         continue;

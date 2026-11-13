@@ -445,8 +445,21 @@ export function makeStage4() {
         }
         const isL17Panelka = panelkaL17;
         if (isL17Panelka) entrances = 3;
-        // Детальная визуальная модель (docs/houses): небоскрёб получает полную модель.
-        const detailedVisual = isL17Panelka ? 'soviet_panel' : (kind === 'skyscraper' ? 'skyscraper' : null);
+        // Детальная визуальная модель (docs/houses): назначаем по houseKind.
+        const DETAILED_VISUAL_BY_KIND = {
+          panelka: 'soviet_panel',
+          skyscraper: 'skyscraper',
+          office_block: 'office-building',
+          megablock: 'megabuilding',
+          slum_shack: 'slum-shack',
+          classic_cottage: 'classic-cottage',
+          barn_house: 'nordic-barn',
+          aframe: 'a-frame',
+          chalet: 'alpine-chalet',
+          mansard_house: 'mansard-house',
+          modern_pavilion: 'modern-pavilion',
+        };
+        const detailedVisual = isL17Panelka ? 'soviet_panel' : (DETAILED_VISUAL_BY_KIND[kind] || null);
         out.push({
           id,
           name: `B ${placed + 1}`,
@@ -554,7 +567,20 @@ export function makeStage4() {
             const id = `b_${d.id}_${placed + 1}`;
             const facadeMaterial = materialFor(profile, kind, () => 0);
             const isL17PanelkaFallback = kind === 'panelka' && /level-17/i.test(levelName);
-            const detailedVisual = isL17PanelkaFallback ? 'soviet_panel' : (kind === 'skyscraper' ? 'skyscraper' : null);
+            const DETAILED_VISUAL_BY_KIND = {
+              panelka: 'soviet_panel',
+              skyscraper: 'skyscraper',
+              office_block: 'office-building',
+              megablock: 'megabuilding',
+              slum_shack: 'slum-shack',
+              classic_cottage: 'classic-cottage',
+              barn_house: 'nordic-barn',
+              aframe: 'a-frame',
+              chalet: 'alpine-chalet',
+              mansard_house: 'mansard-house',
+              modern_pavilion: 'modern-pavilion',
+            };
+            const detailedVisual = isL17PanelkaFallback ? 'soviet_panel' : (DETAILED_VISUAL_BY_KIND[kind] || null);
             out.push({
               id,
               name: `B ${placed + 1}`,
