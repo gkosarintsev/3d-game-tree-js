@@ -4,10 +4,10 @@
   "schemaVersion": 4,
   "metadata": {
     "levelName": "level-18",
-    "name": "Глава 18. Песочница развязок",
-    "hint": "Песочница: турбинная (whirlpool) развязка — 4 полупрямых левоповоротных съезда по спирали вокруг центрального узла (X — низ, Z — эстакада) и 4 внешних правоповоротных рампы.",
+    "name": "Глава 18. Мост и съезд",
+    "hint": "Длинный мост со съездом посередине.",
     "units": "meters",
-    "notes": "Песочница развязок (level-18): клеверная развязка удалена, добавлена турбинная/whirlpool по спецификации (полупрямые левоповоротные съезды + внешние правоповоротные, эшелонирование X y=0 / Z y=6.5). Геометрия — авторские cityforge segments/elements (plate/arc)."
+    "notes": "Пустой уровень: длинный прямой мост с дугообразным съездом в середине; ограждения моста в месте примыкания съезда убраны (средний сегмент без rails)."
   },
   "ground": {
     "y": 0,
@@ -20,29 +20,23 @@
   "gameplay": {
     "goal": "exit",
     "spawn": {
-      "x": -520,
-      "z": -520
+      "x": 70,
+      "z": 10
     },
     "exit": {
-      "x": 520,
-      "z": 520
+      "x": 220,
+      "z": 0
     },
     "exitRadius": 4,
     "enemies": {
-      "count": 4
+      "count": 0
     },
     "alienEnemies": {
       "count": 0
     },
     "cars": {
-      "count": 1,
-      "spots": [
-        {
-          "x": -560,
-          "z": -520,
-          "yaw": 90
-        }
-      ]
+      "count": 0,
+      "spots": []
     }
   },
   "stream": {
@@ -100,56 +94,11 @@
       },
       "modifiers": [
         {
-          "id": "hill_west",
+          "id": "flat_seed",
           "type": "mountain",
-          "center": [
-            -350,
-            200
-          ],
-          "radius": 140,
-          "height": 22,
-          "falloff": "smooth",
-          "operation": "add",
-          "sourceRef": "terrain.base",
-          "parameters": {}
-        },
-        {
-          "id": "hill_east",
-          "type": "mountain",
-          "center": [
-            350,
-            -220
-          ],
-          "radius": 160,
-          "height": 28,
-          "falloff": "smooth",
-          "operation": "add",
-          "sourceRef": "terrain.base",
-          "parameters": {}
-        },
-        {
-          "id": "hill_north",
-          "type": "mountain",
-          "center": [
-            120,
-            380
-          ],
-          "radius": 130,
-          "height": 18,
-          "falloff": "smooth",
-          "operation": "add",
-          "sourceRef": "terrain.base",
-          "parameters": {}
-        },
-        {
-          "id": "valley_south",
-          "type": "valley",
-          "center": [
-            -120,
-            -350
-          ],
-          "radius": 150,
-          "height": 10,
+          "center": [0, 0],
+          "radius": 2,
+          "height": 0.01,
           "falloff": "smooth",
           "operation": "add",
           "sourceRef": "terrain.base",
@@ -164,775 +113,84 @@
     "networks": {
       "roads": {
         "nodes": [
-          {
-            "id": "cr_s",
-            "position": [
-              0,
-              0,
-              -220
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "cr_n",
-            "position": [
-              0,
-              0,
-              220
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "hw_w",
-            "position": [
-              -220,
-              0,
-              0
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "hw_e",
-            "position": [
-              220,
-              0,
-              0
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "svc_w",
-            "position": [
-              -150,
-              0,
-              -60
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "svc_e",
-            "position": [
-              150,
-              0,
-              -60
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "svc_s",
-            "position": [
-              80,
-              0,
-              -150
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "svc_n",
-            "position": [
-              80,
-              0,
-              150
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "cr_s2",
-            "position": [
-              0,
-              0,
-              -70
-            ],
-            "layer": "embankment"
-          },
-          {
-            "id": "cr_s1",
-            "position": [
-              0,
-              0,
-              -25
-            ],
-            "layer": "embankment"
-          },
-          {
-            "id": "cr_n1",
-            "position": [
-              0,
-              0,
-              25
-            ],
-            "layer": "embankment"
-          },
-          {
-            "id": "cr_n2",
-            "position": [
-              0,
-              0,
-              70
-            ],
-            "layer": "embankment"
-          },
-          {
-            "id": "hw_xw2",
-            "position": [
-              -70,
-              0,
-              0
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "hw_xe2",
-            "position": [
-              70,
-              0,
-              0
-            ],
-            "layer": "ground"
-          }
+          { "id": "bw", "position": [-220, 8, 0], "layer": "bridge_01" },
+          { "id": "bj1", "position": [-20, 8, 0], "layer": "bridge_01" },
+          { "id": "rj", "position": [0, 8, 0], "layer": "bridge_01" },
+          { "id": "bj2", "position": [20, 8, 0], "layer": "bridge_01" },
+          { "id": "be", "position": [220, 8, 0], "layer": "bridge_01" },
+          { "id": "g1", "position": [70, 0, 70], "layer": "ground" },
+          { "id": "g2", "position": [70, 0, 10], "layer": "ground" }
         ],
         "segments": [
           {
-            "id": "ix_service_s",
-            "from": "svc_w",
-            "to": "svc_e",
-            "type": "local",
-            "layer": "ground",
-            "path": [
-              [
-                -150,
-                0,
-                -60
-              ],
-              [
-                150,
-                0,
-                -60
-              ]
-            ],
-            "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 0,
-                  "z": -60,
-                  "yaw": 0,
-                  "length": 300,
-                  "width": 7,
-                  "y": 0,
-                  "rise": 0
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "ix_service_e",
-            "from": "svc_s",
-            "to": "svc_n",
-            "type": "local",
-            "layer": "ground",
-            "path": [
-              [
-                80,
-                0,
-                -150
-              ],
-              [
-                80,
-                0,
-                150
-              ]
-            ],
-            "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 80,
-                  "z": 0,
-                  "yaw": 90,
-                  "length": 300,
-                  "width": 7,
-                  "y": 0,
-                  "rise": 0
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "hw_main_w",
-            "from": "hw_w",
-            "to": "hw_xw2",
-            "type": "arterial",
-            "layer": "ground",
-            "path": [
-              [
-                -220,
-                0,
-                0
-              ],
-              [
-                -70,
-                0,
-                0
-              ]
-            ],
-            "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": -145,
-                  "z": 0,
-                  "yaw": 0,
-                  "length": 150,
-                  "width": 10,
-                  "y": 0,
-                  "rise": 0
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "hw_main_c",
-            "from": "hw_xw2",
-            "to": "hw_xe2",
-            "type": "highway",
-            "layer": "ground",
-            "path": [
-              [
-                -70,
-                0,
-                0
-              ],
-              [
-                70,
-                0,
-                0
-              ]
-            ],
-            "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 0,
-                  "z": 0,
-                  "yaw": 0,
-                  "length": 140,
-                  "width": 10,
-                  "y": 0,
-                  "rise": 0
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "hw_main_e",
-            "from": "hw_xe2",
-            "to": "hw_e",
-            "type": "arterial",
-            "layer": "ground",
-            "path": [
-              [
-                70,
-                0,
-                0
-              ],
-              [
-                220,
-                0,
-                0
-              ]
-            ],
-            "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 145,
-                  "z": 0,
-                  "yaw": 0,
-                  "length": 150,
-                  "width": 10,
-                  "y": 0,
-                  "rise": 0
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "cr_ground_s",
-            "from": "cr_s",
-            "to": "cr_s2",
-            "type": "arterial",
-            "layer": "ground",
-            "path": [
-              [
-                0,
-                0,
-                -220
-              ],
-              [
-                0,
-                0,
-                -70
-              ]
-            ],
-            "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 0,
-                  "z": -145,
-                  "yaw": 90,
-                  "length": 150,
-                  "width": 10,
-                  "y": 0,
-                  "rise": 0
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "cr_ramp_up_s",
-            "from": "cr_s2",
-            "to": "cr_s1",
-            "type": "highway",
-            "layer": "embankment",
-            "path": [
-              [
-                0,
-                0,
-                -70
-              ],
-              [
-                0,
-                0,
-                -25
-              ]
-            ],
-            "elements": [
-              {
-                "plate": {
-                  "rails": true,
-                  "x": 0,
-                  "z": -47.5,
-                  "yaw": 90,
-                  "length": 45,
-                  "width": 10,
-                  "y": 0,
-                  "rise": 6.5
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "cr_bridge",
-            "from": "cr_s1",
-            "to": "cr_n1",
+            "id": "bridge_w",
+            "from": "bw",
+            "to": "bj1",
             "type": "highway",
             "layer": "bridge_01",
-            "path": [
-              [
-                0,
-                0,
-                -25
-              ],
-              [
-                0,
-                0,
-                25
-              ]
-            ],
+            "path": [[-220, 8, 0], [-20, 8, 0]],
             "elements": [
-              {
-                "plate": {
-                  "rails": true,
-                  "x": 0,
-                  "z": 0,
-                  "yaw": 90,
-                  "length": 50,
-                  "width": 10,
-                  "y": 6.5,
-                  "rise": 0
-                }
-              }
+              { "plate": { "rails": true, "x": -120, "z": 0, "yaw": 0, "length": 200, "width": 10, "y": 8, "rise": 0 } }
             ],
             "lanes": []
           },
           {
-            "id": "cr_ramp_down_n",
-            "from": "cr_n1",
-            "to": "cr_n2",
+            "id": "bridge_mid_w",
+            "from": "bj1",
+            "to": "rj",
             "type": "highway",
-            "layer": "embankment",
-            "path": [
-              [
-                0,
-                0,
-                25
-              ],
-              [
-                0,
-                0,
-                70
-              ]
-            ],
+            "layer": "bridge_01",
+            "path": [[-20, 8, 0], [0, 8, 0]],
             "elements": [
-              {
-                "plate": {
-                  "rails": true,
-                  "x": 0,
-                  "z": 47.5,
-                  "yaw": 90,
-                  "length": 45,
-                  "width": 10,
-                  "y": 6.5,
-                  "rise": -6.5
-                }
-              }
+              { "plate": { "rails": false, "x": -10, "z": 0, "yaw": 0, "length": 20, "width": 10, "y": 8, "rise": 0 } }
             ],
             "lanes": []
           },
           {
-            "id": "cr_ground_n",
-            "from": "cr_n2",
-            "to": "cr_n",
+            "id": "bridge_mid_e",
+            "from": "rj",
+            "to": "bj2",
+            "type": "highway",
+            "layer": "bridge_01",
+            "path": [[0, 8, 0], [20, 8, 0]],
+            "elements": [
+              { "plate": { "rails": false, "x": 10, "z": 0, "yaw": 0, "length": 20, "width": 10, "y": 8, "rise": 0 } }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "bridge_e",
+            "from": "bj2",
+            "to": "be",
+            "type": "highway",
+            "layer": "bridge_01",
+            "path": [[20, 8, 0], [220, 8, 0]],
+            "elements": [
+              { "plate": { "rails": true, "x": 120, "z": 0, "yaw": 0, "length": 200, "width": 10, "y": 8, "rise": 0 } }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "bridge_exit",
+            "from": "rj",
+            "to": "g1",
+            "type": "ramp",
+            "layer": "embankment",
+            "path": [[0, 8, 0], [70, 0, 70]],
+            "elements": [
+              { "arc": { "cx": 0, "cz": 70, "radius": 70, "from": -90, "to": 0, "width": 6, "y": [8, 0], "bank": 0, "rails": true } }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "ground_link",
+            "from": "g1",
+            "to": "g2",
             "type": "arterial",
             "layer": "ground",
-            "path": [
-              [
-                0,
-                0,
-                70
-              ],
-              [
-                0,
-                0,
-                220
-              ]
-            ],
+            "path": [[70, 0, 70], [70, 0, 10]],
             "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 0,
-                  "z": 145,
-                  "yaw": 90,
-                  "length": 150,
-                  "width": 10,
-                  "y": 0,
-                  "rise": 0
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "outer_W_to_Nside",
-            "from": "hw_xw2",
-            "to": "cr_n2",
-            "type": "ramp",
-            "layer": "embankment",
-            "path": [
-              [
-                -70,
-                0,
-                0
-              ],
-              [
-                0,
-                3.25,
-                70
-              ]
-            ],
-            "elements": [
-              {
-                "arc": {
-                  "cx": -70,
-                  "cz": 70,
-                  "radius": 70,
-                  "from": -90,
-                  "to": 0,
-                  "width": 6,
-                  "y": [
-                    0,
-                    6.5
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "outer_Nside_to_E",
-            "from": "cr_n2",
-            "to": "hw_xe2",
-            "type": "ramp",
-            "layer": "embankment",
-            "path": [
-              [
-                0,
-                6.5,
-                70
-              ],
-              [
-                70,
-                0,
-                0
-              ]
-            ],
-            "elements": [
-              {
-                "arc": {
-                  "cx": 70,
-                  "cz": 70,
-                  "radius": 70,
-                  "from": 180,
-                  "to": 270,
-                  "width": 6,
-                  "y": [
-                    6.5,
-                    0
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "outer_E_to_Sside",
-            "from": "hw_xe2",
-            "to": "cr_s2",
-            "type": "ramp",
-            "layer": "embankment",
-            "path": [
-              [
-                70,
-                0,
-                0
-              ],
-              [
-                0,
-                3.25,
-                -70
-              ]
-            ],
-            "elements": [
-              {
-                "arc": {
-                  "cx": 70,
-                  "cz": -70,
-                  "radius": 70,
-                  "from": 90,
-                  "to": 180,
-                  "width": 6,
-                  "y": [
-                    0,
-                    6.5
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "outer_Sside_to_W",
-            "from": "cr_s2",
-            "to": "hw_xw2",
-            "type": "ramp",
-            "layer": "embankment",
-            "path": [
-              [
-                0,
-                6.5,
-                -70
-              ],
-              [
-                -70,
-                0,
-                0
-              ]
-            ],
-            "elements": [
-              {
-                "arc": {
-                  "cx": -70,
-                  "cz": -70,
-                  "radius": 70,
-                  "from": 0,
-                  "to": 90,
-                  "width": 6,
-                  "y": [
-                    6.5,
-                    0
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "turbine_WN",
-            "from": "hw_xw2",
-            "to": "cr_n2",
-            "type": "ramp",
-            "layer": "bridge_01",
-            "path": [
-              [
-                -70,
-                0,
-                0
-              ],
-              [
-                0,
-                6.5,
-                70
-              ]
-            ],
-            "elements": [
-              {
-                "arc": {
-                  "cx": 0,
-                  "cz": 0,
-                  "radius": 70,
-                  "from": 180,
-                  "to": 90,
-                  "width": 6,
-                  "y": [
-                    0,
-                    6.5
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "turbine_ES",
-            "from": "hw_xe2",
-            "to": "cr_s2",
-            "type": "ramp",
-            "layer": "bridge_01",
-            "path": [
-              [
-                70,
-                0,
-                0
-              ],
-              [
-                0,
-                6.5,
-                -70
-              ]
-            ],
-            "elements": [
-              {
-                "arc": {
-                  "cx": 0,
-                  "cz": 0,
-                  "radius": 70,
-                  "from": 0,
-                  "to": -90,
-                  "width": 6,
-                  "y": [
-                    0,
-                    6.5
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "turbine_NE",
-            "from": "cr_n2",
-            "to": "hw_xe2",
-            "type": "ramp",
-            "layer": "bridge_01",
-            "path": [
-              [
-                0,
-                6.5,
-                70
-              ],
-              [
-                70,
-                0,
-                0
-              ]
-            ],
-            "elements": [
-              {
-                "arc": {
-                  "cx": 0,
-                  "cz": 0,
-                  "radius": 70,
-                  "from": 90,
-                  "to": 0,
-                  "width": 6,
-                  "y": [
-                    6.5,
-                    0
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "turbine_SW",
-            "from": "cr_s2",
-            "to": "hw_xw2",
-            "type": "ramp",
-            "layer": "bridge_01",
-            "path": [
-              [
-                0,
-                6.5,
-                -70
-              ],
-              [
-                -70,
-                0,
-                0
-              ]
-            ],
-            "elements": [
-              {
-                "arc": {
-                  "cx": 0,
-                  "cz": 0,
-                  "radius": 70,
-                  "from": -90,
-                  "to": -180,
-                  "width": 6,
-                  "y": [
-                    6.5,
-                    0
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
+              { "plate": { "rails": false, "x": 70, "z": 40, "yaw": 90, "length": 60, "width": 8, "y": 0, "rise": 0 } }
             ],
             "lanes": []
           }
@@ -969,40 +227,20 @@
     "catalogs": {},
     "refs": {},
     "policies": {},
+    "infrastructure": {
+      "enabled": false
+    },
     "landscape": {
-      "generate": true,
-      "hills": {
-        "count": 0,
-        "minHeight": 12,
-        "maxHeight": 45,
-        "minRadius": 100,
-        "maxRadius": 300
-      },
-      "river": {
-        "enabled": false,
-        "width": 18,
-        "depth": 3,
-        "points": 5,
-        "axis": "z"
-      }
+      "generate": false
     },
     "transport": {
-      "generate": false,
-      "width": 8,
-      "branches": 0,
-      "cornerFillet": {
-        "radius": 8,
-        "segmentTypes": [
-          "local"
-        ],
-        "excludeSegmentIds": []
-      },
-      "roundabouts": [],
-      "turnarounds": {
-        "count": 0
-      }
+      "generate": false
+    },
+    "districtsGen": {
+      "generate": false
+    },
+    "buildings": {
+      "generate": false
     }
-  },
-  "navEdgeProbe": 1.2,
-  "bodyProbe": 1.2
+  }
 }
