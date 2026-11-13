@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { beep } from './audio.js';
 import { AlienBody } from './alien.js';
+import { buildEnemySoldier, SOLDIER_VARIANTS } from './soldier.js';
 
 /** Приводит угол к диапазону (-π, π] — для плавного поворота без «прыжков». */
 function wrapAngle(a) {
@@ -11,62 +12,85 @@ function wrapAngle(a) {
   return a;
 }
 
-/** Простая человекоподобная фигура: ноги, корпус, плечи, руки, голова, оружие. */
-function buildBodyGeometry() {
-  const box = (w, h, d, x, y, z) => {
-    const g = new THREE.BoxGeometry(w, h, d);
-    g.translate(x, y, z);
-    return g;
-  };
-  return mergeGeometries([
-    box(0.16, 0.85, 0.18, -0.13, 0.42, 0),   // нога
-    box(0.16, 0.85, 0.18, 0.13, 0.42, 0),    // нога
-    box(0.50, 0.72, 0.28, 0, 1.20, 0),       // корпус
-    box(0.62, 0.16, 0.30, 0, 1.50, 0),       // плечи
-    box(0.14, 0.62, 0.16, -0.36, 1.20, 0),   // рука
-    box(0.14, 0.62, 0.16, 0.36, 1.20, 0),    // рука
-    box(0.28, 0.30, 0.28, 0, 1.72, 0),       // голова
-    box(0.10, 0.12, 0.50, 0.34, 1.14, -0.30), // оружие (ствол смотрит в -Z)
-  ], false);
-}
-
-// Общая геометрия на всех врагов: тела различаются только материалом.
-const BODY_GEOMETRY = buildBodyGeometry();
-
+// Габариты человеческого врага (солдат): физика/попадания — по сфере и высоте,
+// визуал — отдельный риг (src/soldier.js), без влияния на симуляцию.
 const BODY_HEIGHT = 1.9;
 const BODY_CENTER_Y = 1.0;   // центр сферы попадания над ногами
 const BODY_RADIUS = 0.6;
+const SOLDIER_VARIANT_IDS = Object.keys(SOLDIER_VARIANTS);
 
 /**
- * Хищная фигура Чужого-врага. Силуэт приближен к классическому ксеноморфу:
- * вытянутый гладкий череп, сгорбленный корпус с рёбрами, дорсальные шипы на
- * спине, длинные тонкие конечности с когтями и сегментированный хвост с
- * клинком. Низ модели (y = 0) стоит на поверхности опоры, «вперёд» — по -Z.
+ * Хищная фигура Чужого-врага (раздельные части для процедурной анимации).
+ * Силуэт приближен к классическому ксеноморфу: вытянутый гладкий череп,
+ * сгорбленный корпус с рёбрами, дорсальные шипы, длинные тонкие конечности с
+ * когтями и сегментированный хвост с клинком. Низ модели (y = 0) стоит на
+ * поверхности опоры, «вперёд» — по -Z.
+ *
+ * Ноги и руки отделены в собственные меши с локальным началом в суставе, чтобы
+ * при ходьбе и атаке их можно было качать поворотом без деформации корпуса.
  */
-function buildAlienBodyGeometry() {
-  const parts = [];
-  // поворот вокруг осей до переноса — так деталь ставят «как есть», а не по углам
-  const place = (g, x, y, z, rx = 0, ry = 0, rz = 0) => {
-    if (rx) g.rotateX(rx);
-    if (ry) g.rotateY(ry);
-    if (rz) g.rotateZ(rz);
-    g.translate(x, y, z);
-    parts.push(g);
+function buildAlienBodyParts() {
+  const make = () => {
+    const parts = [];
+    const place = (g, x, y, z, rx = 0, ry = 0, rz = 0) => {
+      if (rx) g.rotateX(rx);
+      if (ry) g.rotateY(ry);
+      if (rz) g.rotateZ(rz);
+      g.translate(x, y, z);
+      parts.push(g);
+    };
+    const box = (w, h, d, x, y, z, rx, ry, rz) =>
+      place(new THREE.BoxGeometry(w, h, d), x, y, z, rx, ry, rz);
+    const cyl = (rt, rb, h, seg, x, y, z, rx, ry, rz) =>
+      place(new THREE.CylinderGeometry(rt, rb, h, seg), x, y, z, rx, ry, rz);
+    const cone = (r, h, seg, x, y, z, rx, ry, rz) =>
+      place(new THREE.ConeGeometry(r, h, seg), x, y, z, rx, ry, rz);
+    const ball = (r, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0) => {
+      const g = new THREE.SphereGeometry(r, 12, 10);
+      g.scale(sx, sy, sz);
+      place(g, x, y, z, rx);
+    };
+    return { parts, box, cyl, cone, ball };
   };
-  const box = (w, h, d, x, y, z, rx, ry, rz) =>
-    place(new THREE.BoxGeometry(w, h, d), x, y, z, rx, ry, rz);
-  const cyl = (rt, rb, h, seg, x, y, z, rx, ry, rz) =>
-    place(new THREE.CylinderGeometry(rt, rb, h, seg), x, y, z, rx, ry, rz);
-  const cone = (r, h, seg, x, y, z, rx, ry, rz) =>
-    place(new THREE.ConeGeometry(r, h, seg), x, y, z, rx, ry, rz);
-  const ball = (r, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0) => {
-    const g = new THREE.SphereGeometry(r, 12, 10);
-    g.scale(sx, sy, sz);
-    place(g, x, y, z, rx);
+  const finalize = (parts, pivot) => {
+    if (!parts.length) return null;
+    const g = mergeGeometries(parts, false);
+    if (pivot) g.translate(-pivot.x, -pivot.y, -pivot.z);
+    return g;
   };
 
-  // ноги: дигитигрейдная стойка — высокое колено, стопа вытянута вперёд
-  for (const s of [-1, 1]) {
+  // Корпус, шея, голова, шипы и хвост — статичная часть.
+  const torso = make();
+  {
+    const { box, cyl, cone, ball } = torso;
+    box(0.44, 0.32, 0.32, 0, 0.98, 0.02);                      // таз
+    box(0.36, 0.36, 0.28, 0, 1.28, -0.02);                     // живот
+    for (let i = 0; i < 3; i++) box(0.40, 0.05, 0.10, 0, 1.16 + i * 0.13, -0.16); // рёбра
+    box(0.52, 0.42, 0.34, 0, 1.56, -0.08, -0.16);              // грудная клетка
+    box(0.70, 0.20, 0.36, 0, 1.74, -0.06, -0.16);              // плечи
+    for (let i = 0; i < 4; i++) {                              // дорсальные шипы
+      cyl(0.03, 0.05, 0.34, 8, 0, 1.42 + i * 0.10, 0.15 + i * 0.012, 1.0 - i * 0.06);
+    }
+    box(0.22, 0.20, 0.26, 0, 1.86, -0.14, -0.50);              // шея
+    ball(0.17, 0, 1.98, 0.04, 1.0, 0.82, 2.3, -0.10);          // череп
+    box(0.17, 0.15, 0.32, 0, 1.90, -0.30, -0.10);              // морда
+    box(0.30, 0.05, 0.12, 0, 2.02, -0.20, -0.10);              // надбровные валики
+    for (let k = -1; k <= 1; k++) cone(0.018, 0.07, 4, k * 0.05, 1.85, -0.42, Math.PI); // зубы
+    let tailZ = 0, tailY = 0;
+    for (let i = 0; i < 7; i++) {                              // хвост
+      const t = i / 6;
+      tailZ = 0.22 + i * 0.14;
+      tailY = 0.98 + Math.sin(t * 2.2) * 0.22 - t * 0.30;
+      const r = 0.08 * (1 - 0.55 * t);
+      cyl(r * 0.85, r, 0.17, 6, 0, tailY, tailZ, Math.PI / 2 - 0.30 + t * 0.35);
+    }
+    cone(0.07, 0.34, 6, 0, tailY, tailZ + 0.20, Math.PI / 2 - 0.05); // клинок
+  }
+
+  // Ноги: дигитигрейдная стойка, локальное начало — в бедре (точка качания при шаге).
+  const makeLeg = (s) => {
+    const leg = make();
+    const { box, cone } = leg;
     box(0.20, 0.56, 0.22, s * 0.23, 0.76, -0.05, 0.35);      // бедро
     box(0.14, 0.62, 0.16, s * 0.23, 0.34, 0.05, -0.26);      // голень
     box(0.13, 0.12, 0.42, s * 0.23, 0.07, -0.12);            // стопа
@@ -74,56 +98,39 @@ function buildAlienBodyGeometry() {
     for (let k = -1; k <= 1; k++) {                          // когти на стопе
       cone(0.035, 0.14, 4, s * 0.23 + k * 0.05, 0.06, -0.34, -Math.PI / 2);
     }
-  }
+    return leg.parts;
+  };
 
-  box(0.44, 0.32, 0.32, 0, 0.98, 0.02);                      // таз
-  box(0.36, 0.36, 0.28, 0, 1.28, -0.02);                     // живот
-  for (let i = 0; i < 3; i++) {                              // рёбра
-    box(0.40, 0.05, 0.10, 0, 1.16 + i * 0.13, -0.16);
-  }
-  box(0.52, 0.42, 0.34, 0, 1.56, -0.08, -0.16);              // грудная клетка
-  box(0.70, 0.20, 0.36, 0, 1.74, -0.06, -0.16);              // плечи
-
-  // дорсальные шипы — характерный признак ксеноморфа
-  for (let i = 0; i < 4; i++) {
-    cyl(0.03, 0.05, 0.34, 8, 0, 1.42 + i * 0.10, 0.15 + i * 0.012, 1.0 - i * 0.06);
-  }
-
-  // руки: длинные, висят вдоль тела, кисти с когтями
-  for (const s of [-1, 1]) {
+  // Руки: длинные, висят вдоль тела, локальное начало — в плече.
+  const makeArm = (s) => {
+    const arm = make();
+    const { box, cone } = arm;
     box(0.14, 0.52, 0.15, s * 0.40, 1.44, -0.02, 0.15, 0, s * 0.18); // плечо
     box(0.12, 0.54, 0.13, s * 0.46, 1.00, -0.10, 0.30);              // предплечье
     box(0.11, 0.20, 0.16, s * 0.48, 0.72, -0.22);                    // кисть
     for (let k = -1; k <= 1; k++) {                                  // когти
       cone(0.025, 0.16, 4, s * 0.48 + k * 0.04, 0.60, -0.28, -Math.PI / 2 + 0.30);
     }
-  }
+    return arm.parts;
+  };
 
-  // шея и голова: вытянутый гладкий череп-«банан» + приплюснутая морда
-  box(0.22, 0.20, 0.26, 0, 1.86, -0.14, -0.50);              // шея наклонена вперёд
-  ball(0.17, 0, 1.98, 0.04, 1.0, 0.82, 2.3, -0.10);          // череп
-  box(0.17, 0.15, 0.32, 0, 1.90, -0.30, -0.10);              // морда
-  box(0.30, 0.05, 0.12, 0, 2.02, -0.20, -0.10);              // надбровные валики
-  for (let k = -1; k <= 1; k++) {                            // зубы
-    cone(0.018, 0.07, 4, k * 0.05, 1.85, -0.42, Math.PI);
-  }
+  const legLPivot = new THREE.Vector3(-0.23, 1.04, -0.05);
+  const legRPivot = new THREE.Vector3(0.23, 1.04, -0.05);
+  const armLPivot = new THREE.Vector3(-0.36, 1.68, -0.04);
+  const armRPivot = new THREE.Vector3(0.36, 1.68, -0.04);
 
-  // хвост: сегменты тянутся назад, плавно проседая к клинку
-  let tailZ = 0, tailY = 0;
-  for (let i = 0; i < 7; i++) {
-    const t = i / 6;
-    tailZ = 0.22 + i * 0.14;
-    tailY = 0.98 + Math.sin(t * 2.2) * 0.22 - t * 0.30;
-    const r = 0.08 * (1 - 0.55 * t);
-    cyl(r * 0.85, r, 0.17, 6, 0, tailY, tailZ, Math.PI / 2 - 0.30 + t * 0.35);
-  }
-  cone(0.07, 0.34, 6, 0, tailY, tailZ + 0.20, Math.PI / 2 - 0.05); // клинок
-
-  return mergeGeometries(parts, false);
+  return {
+    torso: finalize(torso.parts, null),
+    legL: finalize(makeLeg(-1), legLPivot),
+    legR: finalize(makeLeg(1), legRPivot),
+    armL: finalize(makeArm(-1), armLPivot),
+    armR: finalize(makeArm(1), armRPivot),
+    pivots: { legL: legLPivot, legR: legRPivot, armL: armLPivot, armR: armRPivot },
+  };
 }
 
-// Общая геометрия на всех Чужих-врагов: тела различаются только материалом.
-const ALIEN_BODY_GEOMETRY = buildAlienBodyGeometry();
+// Общие геометрии на всех Чужих-врагов: тела различаются только материалом.
+const ALIEN_PARTS = buildAlienBodyParts();
 
 /**
  * Враг: патрулирует уровень (в том числе переходя между этажами по лестницам),
@@ -144,9 +151,14 @@ export class Enemy {
     this.onDeath = onDeath;
 
     this.group = new THREE.Group();
-    this.mesh = new THREE.Mesh(BODY_GEOMETRY, material);
-    this.mesh.castShadow = false; // карта теней заморожена: движущиеся объекты её не пишут
-    this.group.add(this.mesh);
+    // Визуал солдата (docs/enemy1), вариант детерминированно по цвету палитры.
+    const palette = [0xc0392b, 0x8e44ad, 0x2c3e50, 0x1e824c, 0xb9770e, 0x943126, 0x2e86c1];
+    const color = material?.color?.getHex ? material.color.getHex() : 0;
+    const vi = Math.max(0, palette.indexOf(color));
+    this.rig = buildEnemySoldier(SOLDIER_VARIANT_IDS[vi % SOLDIER_VARIANT_IDS.length]);
+    this.group.add(this.rig.root);
+    // палитрный материал врага заменён собственными материалами рига
+    if (material?.dispose) material.dispose();
     this._buildHealthBar();
     scene.add(this.group);
 
@@ -240,8 +252,6 @@ export class Enemy {
 
     this.group.position.set(node.x, node.y, node.z);
     this.group.rotation.set(0, Math.random() * Math.PI * 2, 0);
-    this.mesh.position.set(0, 0, 0);
-    this.mesh.rotation.set(0, 0, 0);
     this.group.visible = true;
     this.feetY = node.y;
     this.facing = this.group.rotation.y;
@@ -268,7 +278,7 @@ export class Enemy {
     this.animHit = 0;
     this.animAttack = 0;
     this.animMove = 0;
-    this.mesh.material.emissive.setHex(0x000000); // сброс подсветки попадания
+    if (this.rig?.applyPose) this.rig.applyPose(0, 0, 0, 0, 0);
     this._hpBar.visible = false;
     this._updateHealthBar();
   }
@@ -311,6 +321,8 @@ export class Enemy {
     if (this.dead) return;
     this.health -= amount;
     this.hitFlash = 0.12;
+    this.animHit = Math.max(this.animHit, 0.12);
+    this.rig?.flashHit?.();
     this._hpBar.visible = true;
     this._updateHealthBar();
     if (this.health <= 0) {
@@ -363,8 +375,7 @@ export class Enemy {
         // заваливается на бок и оседает, затем скрывается до возрождения
         const t = 1 - Math.max(0, this.deathTimer) / 0.9;
         this.group.rotation.x = -t * Math.PI / 2;
-        this.mesh.position.set(0, 0, 0);
-        this.mesh.rotation.set(0, 0, 0);
+        this.rig?.applyPose?.(dt, this.animTime, 0, 0, Math.min(1, t));
         if (this.deathTimer <= 0) this.group.visible = false;
       }
       this.respawnTimer -= dt;
@@ -374,8 +385,6 @@ export class Enemy {
 
     if (this.hitFlash > 0) {
       this.hitFlash = Math.max(0, this.hitFlash - dt);
-      this.animHit = Math.max(this.animHit, this.hitFlash);
-      this.mesh.material.emissive.setHex(this.hitFlash > 0 ? 0x551200 : 0x000000);
     }
     this.animRecoil = Math.max(0, this.animRecoil - dt * 3.5);
     this.animHit = Math.max(0, this.animHit - dt * 4.0);
@@ -455,39 +464,25 @@ export class Enemy {
     pos.y = this.feetY;
 
     // --- поворот: в бою смотрит на игрока, иначе по направлению движения ---
+    // Модель солдата (docs/enemy1) смотрит вперёд по +Z, поэтому yaw = atan2(x, z).
     const speed2d = Math.hypot(this.velocity.x, this.velocity.z);
     let targetYaw;
     if (this.state === 'attack' || speed2d < 0.3) {
-      targetYaw = Math.atan2(-(player.position.x - pos.x), -(player.position.z - pos.z));
+      targetYaw = Math.atan2(player.position.x - pos.x, player.position.z - pos.z);
     } else {
-      targetYaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+      targetYaw = Math.atan2(this.velocity.x, this.velocity.z);
     }
     this.facing += wrapAngle(targetYaw - this.facing) * Math.min(1, dt * 8);
     this.group.rotation.y = this.facing;
 
-    // Процедурная анимация (визуал, без влияния на симуляцию/коллизии): idle/шаг/атака/попадание.
+    // Процедурная анимация солдата (визуал, без влияния на симуляцию/коллизии).
     const move01 = Math.min(1, speed2d / Math.max(0.001, cfg.speed.run));
     const mk = 1 - Math.exp(-dt * 10);
     this.animMove += (move01 - this.animMove) * mk;
     const mv = Math.max(0, Math.min(1, this.animMove));
-    const walkCycle = this.animTime * (6.5 + mv * 5.5) + this.animPhase;
-    const hitW = Math.min(1, this.animHit * 1.5);
-    const locomotionW = 1 - hitW * 0.65;
-    const attackW = Math.max(0, Math.min(1, this.animAttack));
-    const idleBreath = Math.sin(this.animTime * 2.2 + this.animPhase) * 0.008 * (1 - mv) * locomotionW;
-    const bob = Math.sin(walkCycle * 2) * (0.02 + 0.03 * mv) * locomotionW + idleBreath;
-    const sway = Math.sin(walkCycle) * (0.015 + 0.03 * mv) * locomotionW;
-    const attackLean = attackW * (0.035 + 0.01 * (1 - mv));
-    const hitLean = this.animHit * 0.18;
-    const recoilKick = this.animRecoil * 0.06;
-    const lean = attackLean + (0.01 + 0.04 * mv) * locomotionW * (1 - attackW * 0.25) + hitLean - recoilKick;
-    const aimSway = Math.sin(this.animTime * 1.5 + this.animPhase) * (0.006 + 0.01 * (1 - mv)) * locomotionW * (0.4 + 0.6 * attackW);
-    this.mesh.position.y = bob - this.animHit * 0.02;
-    this.mesh.position.z = this.animRecoil * 0.03; // отдача (локально, визуал)
-    this.mesh.rotation.z = sway + Math.sin(this.animTime * 18) * this.animHit * 0.03;
-    this.mesh.rotation.x = -lean;
-    this.mesh.rotation.y = aimSway;
+    const attackW = Math.max(0, Math.min(1, this.animAttack + this.animRecoil * 0.7));
     this.group.position.y = this.feetY;
+    this.rig?.applyPose?.(dt, this.animTime + this.animPhase, mv, attackW, 0);
 
     // --- огонь по игроку ---
     if (this.state === 'attack') {
@@ -538,7 +533,7 @@ export class Enemy {
         if (o.material) o.material.dispose?.();
       });
     }
-    this.mesh?.material?.dispose?.();
+    this.rig?.dispose?.();
   }
 }
 
@@ -580,10 +575,28 @@ export class AlienEnemy extends AlienBody {
     this._leapCd = 0;
 
     this.group = new THREE.Group();
-    this.mesh = new THREE.Mesh(ALIEN_BODY_GEOMETRY, material);
-    this.mesh.castShadow = false; // карта теней заморожена: движущиеся объекты её не пишут
-    this.mesh.position.y = -this.cfg.radius; // низ модели — на поверхности опоры
-    this.group.add(this.mesh);
+    this._baseMeshY = -this.cfg.radius;
+
+    // Раздельные части тела: конечности качаются при ходьбе/атаке (см. _postUpdate),
+    // материал общий, поэтому вспышка попадания красит всё тело сразу.
+    const parts = ALIEN_PARTS;
+    this.body = new THREE.Group();
+    this.body.position.y = this._baseMeshY; // низ модели — на поверхности опоры
+    this.group.add(this.body);
+    const add = (geom, pivot) => {
+      if (!geom) return null;
+      const mesh = new THREE.Mesh(geom, material);
+      mesh.castShadow = false; // карта теней заморожена: движущиеся объекты её не пишут
+      if (pivot) mesh.position.copy(pivot);
+      this.body.add(mesh);
+      return mesh;
+    };
+    this.alienTorso = add(parts.torso);
+    this.alienLegL = add(parts.legL, parts.pivots.legL);
+    this.alienLegR = add(parts.legR, parts.pivots.legR);
+    this.alienArmL = add(parts.armL, parts.pivots.armL);
+    this.alienArmR = add(parts.armR, parts.pivots.armR);
+    this.mesh = this.alienTorso; // совместимость: корпус — «основная» часть тела
     scene.add(this.group);
 
     // рабочие буферы (отдельно от физических буферов AlienBody)
@@ -591,7 +604,6 @@ export class AlienEnemy extends AlienBody {
     this._xAxis = new THREE.Vector3();
     this._zAxis = new THREE.Vector3();
     this._basis = new THREE.Matrix4();
-    this._baseMeshY = -this.cfg.radius;
     this.animTime = 0;
     this.animPhase = Math.random() * Math.PI * 2; // визуальный разброс, не влияет на симуляцию
     this.animHit = 0;
@@ -709,8 +721,14 @@ export class AlienEnemy extends AlienBody {
 
   _die() {
     this.respawnTimer = this.cfgEnemy.respawnDelay;
-    this.mesh.position.y = this._baseMeshY ?? -this.cfg.radius;
-    this.mesh.rotation.set(0, 0, 0);
+    if (this.body) {
+      this.body.position.set(0, this._baseMeshY ?? -this.cfg.radius, 0);
+      this.body.rotation.set(0, 0, 0);
+    }
+    if (this.alienLegL) this.alienLegL.rotation.set(0, 0, 0);
+    if (this.alienLegR) this.alienLegR.rotation.set(0, 0, 0);
+    if (this.alienArmL) this.alienArmL.rotation.set(0, 0, 0);
+    if (this.alienArmR) this.alienArmR.rotation.set(0, 0, 0);
     this.group.visible = false;
     beep(320, 0.12, 'sawtooth');
     if (this.onDeath) this.onDeath(this);
@@ -748,8 +766,14 @@ export class AlienEnemy extends AlienBody {
     this.animHit = 0;
     this.animLeap = 0;
     this.animMove = 0;
-    this.mesh.rotation.set(0, 0, 0);
-    this.mesh.position.y = this._baseMeshY ?? -this.cfg.radius;
+    if (this.body) {
+      this.body.position.set(0, this._baseMeshY ?? -this.cfg.radius, 0);
+      this.body.rotation.set(0, 0, 0);
+    }
+    if (this.alienLegL) this.alienLegL.rotation.set(0, 0, 0);
+    if (this.alienLegR) this.alienLegR.rotation.set(0, 0, 0);
+    if (this.alienArmL) this.alienArmL.rotation.set(0, 0, 0);
+    if (this.alienArmR) this.alienArmR.rotation.set(0, 0, 0);
     this.group.visible = true;
     this._syncMesh();
   }
@@ -779,7 +803,8 @@ export class AlienEnemy extends AlienBody {
     if (this.material && this.material.emissive) {
       this.material.emissive.setHex(this.hurt > 0.01 ? 0x551200 : 0x000000);
     }
-    // Процедурная анимация (визуал): покачивание/рывок/попадание в локальных осях тела без влияния на физику/ориентацию.
+    // Процедурная анимация (визуал): покачивание корпуса, шаг ногами при ходьбе и
+    // взмах руками при атаке (прыжок/удар) в локальных осях тела, без влияния на физику.
     this.animTime = (this.animTime + dt) % 10000;
     this.animHit = Math.max(0, this.animHit - dt * 4.0);
     if (this.hurt > 0.01) this.animHit = Math.max(this.animHit, this.hurt);
@@ -801,11 +826,20 @@ export class AlienEnemy extends AlienBody {
     const leapLean = -0.18;
     const lean = groundLean * (1 - leapW) + leapLean * leapW + this.animHit * 0.12;
     const huntSway = Math.sin(this.animTime * 1.7 + this.animPhase) * (0.012 + 0.03 * mv) * locomotionW * (1 - leapW * 0.5);
-    this.mesh.position.y = this._baseMeshY + bob;
-    this.mesh.position.z = -leapW * 0.02;
-    this.mesh.rotation.x = lean;
-    this.mesh.rotation.y = huntSway;
-    this.mesh.rotation.z = sway;
+
+    if (this.body) {
+      this.body.position.set(0, this._baseMeshY + bob, -leapW * 0.02);
+      this.body.rotation.set(lean, huntSway, sway);
+    }
+    // Ноги: шагают при движении (противофазно), затухая в прыжке/при попадании.
+    const step = Math.sin(cycle) * (0.18 + 0.5 * mv) * locomotionW;
+    if (this.alienLegL) this.alienLegL.rotation.x = step;
+    if (this.alienLegR) this.alienLegR.rotation.x = -step;
+    // Руки: лёгкий встречный ход при движении и резкий выброс вперёд при атаке (прыжке).
+    const armWalk = Math.sin(cycle) * (0.08 + 0.22 * mv) * locomotionW;
+    const armAttack = leapW * 0.95;
+    if (this.alienArmL) this.alienArmL.rotation.x = -armWalk - armAttack;
+    if (this.alienArmR) this.alienArmR.rotation.x = armWalk - armAttack;
   }
 
   /** Привязывает модель к телу: позиция — центр, ориентация — по нормали и курсу. */

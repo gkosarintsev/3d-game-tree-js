@@ -262,6 +262,10 @@ export const CONFIG = {
         painted_brick: { spacing: 3.2, lit: 0.35 },
         rusted_metal: { spacing: 3.6, lit: 0.3, width: 0.95 },
         stone_base: { spacing: 3.4, height: 1.9, sill: 1.1 },
+        // Промышленные здания (industrial): крупные пролёты/ворота, процедурный шейдерный узор.
+        industrial_warehouse: { spacing: 5.2, width: 3.4, height: 2.8, sill: 0.6, lit: 0.18 },
+        industrial_factory: { spacing: 4.6, width: 2.6, height: 2.4, sill: 0.7, lit: 0.28 },
+        industrial_workshop: { spacing: 3.8, width: 1.8, height: 1.8, sill: 0.8, lit: 0.22 },
       },
     },
     maxRealLights: 8,      // штук: настоящих point/spot на уровень (свет — множитель в каждый фрагмент)
@@ -290,6 +294,10 @@ export const CONFIG = {
       byMaterial: {
         neon_panel: { keep: 1, perFace: 3, step: 6, width: [5, 9] },
         stone_base: { keep: 0 },   // цоколь: подвалы вывесок не носят
+        // Промышленные фасады: вывесок меньше/крупнее, без «неонового» ритма.
+        industrial_warehouse: { keep: 0.15, perFace: 1, step: 14, width: [6, 10] },
+        industrial_factory: { keep: 0.2, perFace: 1, step: 12, width: [5, 9] },
+        industrial_workshop: { keep: 0.12, perFace: 1, step: 12, width: [4, 7] },
       },
     },
     // --- мусор кровель и тротуаров: картинка, как окна. Включается секцией

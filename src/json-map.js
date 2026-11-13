@@ -1945,6 +1945,7 @@ export class JsonMap extends SurfaceField {
               y: cy,
               z: q.z,
               c: q.c, s: q.s, w: cfg.width, h,
+              m: b.facadeMaterial || 'concrete',
             });
           }
         }
@@ -2372,14 +2373,88 @@ export class JsonMap extends SurfaceField {
     if (!groups.size) return 0;
     const geo = new THREE.PlaneGeometry(1, 1);
     let count = 0;
-    for (const [color, items] of groups) {
-      const mat = new THREE.MeshBasicMaterial({ color });
-      if (kind === 'windows') {
-        mat.defines = { ...(mat.defines || {}), USE_UV: '' };
-        mat.onBeforeCompile = (shader) => {
-          shader.fragmentShader = shader.fragmentShader.replace(
-            '#include <map_fragment>',
-            `#include <map_fragment>
+    const variantOf = (it) => (kind === 'windows' && typeof it?.m === 'string' && it.m.startsWith('industrial_')) ? it.m : 'default';
+    for (const [color, list] of groups) {
+      // Для окон промзданий фасадный «узор» — процедурный шейдер: разбиваем группу по варианту.
+      const buckets = kind === 'windows'
+        ? list.reduce((m, it) => { const v = variantOf(it); (m.get(v) || m.set(v, []).get(v)).push(it); return m; }, new Map())
+        : new Map([['default', list]]);
+      for (const [variant, items] of buckets) {
+        const mat = new THREE.MeshBasicMaterial({ color });
+        if (kind === 'windows') {
+          mat.defines = { ...(mat.defines || {}), USE_UV: '' };
+          mat.onBeforeCompile = (shader) => {
+            if (variant === 'industrial_warehouse') {
+              shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `#include <map_fragment>
+            #ifdef USE_UV
+            {
+              vec2 uv = vUv;
+              // Склад: крупная секция/ворота с вертикальными рёбрами и горизонтальными панелями (процедурно).
+              float fx = min(uv.x, 1.0 - uv.x);
+              float fy = min(uv.y, 1.0 - uv.y);
+              float frame = 1.0 - smoothstep(0.0, 0.05, min(fx, fy));
+              float ribs = 0.82 + 0.18 * smoothstep(0.35, 0.5, abs(fract(uv.x * 6.0) - 0.5));
+              float bands = 0.88 + 0.12 * step(0.55, fract(uv.y * 4.0));
+              float door = step(uv.y, 0.62) * step(abs(uv.x - 0.5), 0.34);
+              float doorLine = (1.0 - smoothstep(0.0, 0.02, abs(uv.x - 0.5))) * step(uv.y, 0.62);
+              float topGlass = (1.0 - door) * (0.75 + 0.25 * smoothstep(0.0, 0.5, uv.y));
+              float base = mix(ribs * bands, 0.55 + 0.25 * ribs, door);
+              base = mix(base, topGlass, 1.0 - door);
+              base = mix(base, 0.22, max(frame, doorLine * 0.9));
+              diffuseColor.rgb *= base;
+            }
+            #endif`
+              );
+            } else if (variant === 'industrial_factory') {
+              shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `#include <map_fragment>
+            #ifdef USE_UV
+            {
+              vec2 uv = vUv;
+              // Завод: ленточное остекление и гофрированные панели (процедурно).
+              float fx = min(uv.x, 1.0 - uv.x);
+              float fy = min(uv.y, 1.0 - uv.y);
+              float frame = 1.0 - smoothstep(0.0, 0.045, min(fx, fy));
+              float corr = 0.8 + 0.2 * sin(uv.x * 80.0);
+              float stripe = step(0.38, uv.y) * step(uv.y, 0.72);
+              float mull = (1.0 - smoothstep(0.0, 0.02, abs(fract(uv.x * 5.0) - 0.5))) * stripe;
+              float glass = stripe * (0.78 + 0.22 * smoothstep(0.0, 1.0, uv.y));
+              float wall = (1.0 - stripe) * corr * (0.7 + 0.3 * (1.0 - uv.y));
+              float base = mix(wall, glass, stripe);
+              base = mix(base, 0.2, max(frame, mull * 0.85));
+              diffuseColor.rgb *= base;
+            }
+            #endif`
+              );
+            } else if (variant === 'industrial_workshop') {
+              shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `#include <map_fragment>
+            #ifdef USE_UV
+            {
+              vec2 uv = vUv;
+              // Цех: мелкие окна и металлическая обшивка с рёбрами (процедурно).
+              float fx = min(uv.x, 1.0 - uv.x);
+              float fy = min(uv.y, 1.0 - uv.y);
+              float frame = 1.0 - smoothstep(0.0, 0.06, min(fx, fy));
+              float corr = 0.78 + 0.22 * sin(uv.x * 55.0 + uv.y * 6.0);
+              vec2 g = fract(vec2(uv.x * 2.0, uv.y * 2.0));
+              float cell = step(0.12, g.x) * step(g.x, 0.88) * step(0.18, g.y) * step(g.y, 0.82);
+              float pane = cell * (0.75 + 0.25 * g.y);
+              float mull = cell * max(1.0 - smoothstep(0.0, 0.06, abs(g.x - 0.5)), 1.0 - smoothstep(0.0, 0.06, abs(g.y - 0.5)));
+              float base = mix(corr * 0.85, pane, cell);
+              base = mix(base, 0.2, max(frame, mull * 0.8));
+              diffuseColor.rgb *= base;
+            }
+            #endif`
+              );
+            } else {
+              shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `#include <map_fragment>
             #ifdef USE_UV
             {
               vec2 uv = vUv;
@@ -2395,27 +2470,29 @@ export class JsonMap extends SurfaceField {
               diffuseColor.rgb *= win;
             }
             #endif`
-          );
-        };
-        mat.customProgramCacheKey = () => 'window-proc';
+              );
+            }
+          };
+          mat.customProgramCacheKey = () => 'window-proc-' + variant;
+        }
+        const mesh = new THREE.InstancedMesh(geo, mat, items.length);
+        const a = mesh.instanceMatrix.array;
+        items.forEach((it, i) => {
+          const o = i * 16;
+          a[o] = it.c * it.w; a[o + 1] = 0; a[o + 2] = -it.s * it.w; a[o + 3] = 0;
+          a[o + 4] = 0; a[o + 5] = it.h; a[o + 6] = 0; a[o + 7] = 0;
+          a[o + 8] = it.s; a[o + 9] = 0; a[o + 10] = it.c; a[o + 11] = 0;
+          a[o + 12] = it.x; a[o + 13] = it.y; a[o + 14] = it.z; a[o + 15] = 1;
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+        // сфера по экземплярам: без неё frustum culling меряет единичный квад в
+        // центре мира и окно исчезает, как только начало координат уходит за экран
+        mesh.computeBoundingSphere();
+        mesh.userData.quad = kind;
+        scene.add(mesh);
+        objs.push(mesh);
+        count += items.length;
       }
-      const mesh = new THREE.InstancedMesh(geo, mat, items.length);
-      const a = mesh.instanceMatrix.array;
-      items.forEach((it, i) => {
-        const o = i * 16;
-        a[o] = it.c * it.w; a[o + 1] = 0; a[o + 2] = -it.s * it.w; a[o + 3] = 0;
-        a[o + 4] = 0; a[o + 5] = it.h; a[o + 6] = 0; a[o + 7] = 0;
-        a[o + 8] = it.s; a[o + 9] = 0; a[o + 10] = it.c; a[o + 11] = 0;
-        a[o + 12] = it.x; a[o + 13] = it.y; a[o + 14] = it.z; a[o + 15] = 1;
-      });
-      mesh.instanceMatrix.needsUpdate = true;
-      // сфера по экземплярам: без неё frustum culling меряет единичный квад в
-      // центре мира и окно исчезает, как только начало координат уходит за экран
-      mesh.computeBoundingSphere();
-      mesh.userData.quad = kind;
-      scene.add(mesh);
-      objs.push(mesh);
-      count += items.length;
     }
     return count;
   }

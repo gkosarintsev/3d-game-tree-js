@@ -121,6 +121,14 @@ function footprintNearAnchors(fp, anchors = [], margin = 8) {
 }
 
 function materialFor(profile, kind, rng) {
+  // Промышленные типы industrial-района получают собственный фасадный материал,
+  // чтобы рантайм мог отрисовать им особый процедурный (шейдерный) вид.
+  const INDUSTRIAL_FACADE = {
+    warehouse: 'industrial_warehouse',
+    factory: 'industrial_factory',
+    workshop: 'industrial_workshop',
+  };
+  if (INDUSTRIAL_FACADE[kind]) return INDUSTRIAL_FACADE[kind];
   const ARCH_MATS = {
     office_tower: ['glass_and_concrete', 'concrete'],
     office_mid: ['glass_and_concrete', 'concrete', 'painted_brick'],

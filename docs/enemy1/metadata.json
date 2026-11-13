@@ -1,0 +1,6 @@
+{
+  "name": "Тактический манекен Ragdoll — 3D модель врага для шутера",
+  "description": "Интерактивная 3D-модель бойца-противника на Three.js с процедурной анимацией ходьбы, зонами попадания и физикой Ragdoll на базе cannon-es.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
