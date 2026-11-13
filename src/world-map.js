@@ -849,14 +849,24 @@ export class WorldMap extends JsonMap {
    */
   streamStep(budgetMs, x, z, speed = 0) {
     const budget = Math.min(budgetMs ?? this.stream.budgetMs, this.stream.budgetMs);
-    const radius = this._windowRadius(speed);
-    this.pump.radius = radius;
-    const want = this._windowCells(x, z, radius);
-    this._prefetch(want, radius, x, z);
-    const started = performance.now();
+    const wantRadius = this._windowRadius(speed);
+    const now = performance.now();
+    // Радиус выгрузки: следует за ростом сразу, но убывает плавно (~20 м/с),
+    // чтобы кратковременное падение скорости (торможение/колебания) не вызывало
+    // unload→load thrash на границе окна. Загрузка/приоритет — по wantRadius.
+    const prevUnload = this.pump.unloadRadius || wantRadius;
+    const dtUnload = this.pump.unloadRadiusAt ? Math.max(0, (now - this.pump.unloadRadiusAt) / 1000) : 0;
+    const unloadDecay = 20; // м/с
+    const unloadRadius = Math.max(wantRadius, prevUnload - unloadDecay * dtUnload);
+    this.pump.radius = wantRadius;
+    this.pump.unloadRadius = unloadRadius;
+    this.pump.unloadRadiusAt = now;
+    const want = this._windowCells(x, z, wantRadius);
+    this._prefetch(want, unloadRadius, x, z);
+    const started = now;
     let run = 0;
     for (;;) {
-      const slice = this._nextSlice(x, z, radius, want);
+      const slice = this._nextSlice(x, z, unloadRadius, want);
       if (!slice) break;
       const est = this.pump.costWorst.get(slice.label);
       // немеряная метка — тоже «не влезет»: обещание кадра («либо в просьбу,
@@ -919,9 +929,9 @@ export class WorldMap extends JsonMap {
    *  `requests` рос бы как след всего пройденного маршрута — ~700 КБ на клетку.
    *  Снимается только то, чего нет в `loaded` и в работе: держатель у прочитанной
    *  клетки один — эта очередь. */
-  _prefetch(want, radius, x, z) {
+  _prefetch(want, unloadRadius, x, z) {
     const pump = this.pump;
-    const discard = radius + J.pump.unloadMargin;
+    const discard = unloadRadius + J.pump.unloadMargin;
     for (const id of [...pump.requests.keys()]) {
       if (pump.task && pump.task.id === id) continue;
       if (this._cellDistance(x, z, id) > discard) pump.requests.delete(id);
@@ -1001,7 +1011,7 @@ export class WorldMap extends JsonMap {
    *  бюджет целиком, никогда не выгружая ничего (мера: 14,5 млн сбросов за
    *  прогон, `unloaded` 0, медианный кадр = весь бюджет).
    */
-  _nextSlice(x, z, radius, want) {
+  _nextSlice(x, z, unloadRadius, want) {
     const pump = this.pump;
     if (pump.task) return pump.task.slices[0];
     for (const { cell } of want) {
@@ -1017,7 +1027,7 @@ export class WorldMap extends JsonMap {
       };
       return pump.task.slices[0];
     }
-    const discard = radius + J.pump.unloadMargin;
+    const discard = unloadRadius + J.pump.unloadMargin;
     let far = null;
     for (const id of this.loaded.keys()) {
       const d = this._cellDistance(x, z, id);
