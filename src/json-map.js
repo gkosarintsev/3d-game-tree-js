@@ -105,6 +105,9 @@ export class JsonMap extends SurfaceField {
     const s = spec.spawn ?? { x: 0, z: 0 };
     this.spawn = { x: s.x, y: this.groundHeightAt(s.x, s.z, this.groundY), z: s.z };
     this.anchors = this._collectAnchors();
+    // Шаг решётки навигации: по умолчанию из CONFIG, но может быть переопределён
+    // данными уровня/карты (open-world: более крупная сетка снижает стоимость сборки).
+    this.navStep = +(spec.navStep ?? spec.nav?.step ?? J.navStep);
     // Предикат пригодности узла для движка (`randomNavPoint` и `findPath`). У
     // `JsonMap` он `null`: глава собирается целиком, а изолированные карманы уже
     // отрезаны `_pruneToSpawn`, поэтому годен каждый узел графа. `WorldMap`
@@ -557,7 +560,7 @@ export class JsonMap extends SurfaceField {
       if (d.ramp) continue;
       push((d.minX + d.maxX) / 2, d.topY, (d.minZ + d.maxZ) / 2);
     }
-    const step = J.navStep * 2;
+    const step = this.navStep * 2;
     // фаза той же мировой решётки, что и у `_navLattice`: `k`-й узел сетки земли
     // лежит на `-half + step/2 + k·step` и не зависит от того, какая клетка его
     // берёт, иначе две соседние клетки поставили бы якоря в двух метрах друг
@@ -747,7 +750,7 @@ export class JsonMap extends SurfaceField {
    * загрузки не важен, а `nav.link` дедуплицирует ребро при втором заходе.
    */
   _navLattice(nav, rect = null) {
-    const step = J.navStep;
+    const step = this.navStep;
     const n = Math.floor(this.width / step);
     const box = rect ?? { minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half };
     const i0 = Math.max(0, Math.ceil((box.minX + this.half) / step));
@@ -1001,7 +1004,7 @@ export class JsonMap extends SurfaceField {
    */
   _navRoofs(nav, rect = null) {
     if (!this.roofPlates.length) return;
-    const step = J.navStep;
+    const step = this.navStep;
     // тот же отступ, что и у пола комнаты: парапет — фасадная стена той же
     // толщины, стоящая серединой на линии плана, и линия решётки в `radius` от
     // края бракулась бы его габаритом (замер на ходовой кровле 7 × 7,5 м
@@ -1074,7 +1077,7 @@ export class JsonMap extends SurfaceField {
           // `_edgeSupported`. Без цепочки поднявшийся стоит на одной точке, и
           // `_pruneToSpawn` отрезает кровлю вместе с маршем
           if (isTop && roofTop) this._roofChain(nav, b, s, land);
-          this._linkClosest(nav, land, isTop && roofTop ? J.navStep * 1.5 : rstep * 1.2, 3);
+          this._linkClosest(nav, land, isTop && roofTop ? this.navStep * 1.5 : rstep * 1.2, 3);
           // посадка висит на одном ребре (только на своей ступени): в тесной
           // комнате генератора единственная клетка решётки лежит за проёмом
           // марша, и ребро через него бракуется — этаж с кровлей отрезались бы
@@ -1182,7 +1185,7 @@ export class JsonMap extends SurfaceField {
     }
     // последняя живая точка дотягивается до решётки кровли: без этого большой
     // пролёт крыши остался бы отдельным островом, а цепочка — тупиком на 8 м
-    if (added) this._linkClosest(nav, prev, J.navStep * 1.2, 3);
+    if (added) this._linkClosest(nav, prev, this.navStep * 1.2, 3);
   }
 
   /**
@@ -1200,7 +1203,7 @@ export class JsonMap extends SurfaceField {
    * между элементами дороги, а концы выходят на решётку земли.
    */
   _navDecks(nav, rect = null) {
-    const step = J.navStep;
+    const step = this.navStep;
     const deckEnds = [];
     if (!this._deckRoadEnds) this._deckRoadEnds = new Map();
     for (const road of this.roads) {
@@ -1267,7 +1270,7 @@ export class JsonMap extends SurfaceField {
    * связываются с ближайшей сетью (решётка/площадки порталов), как концы настила.
    */
   _navTunnels(nav, rect = null) {
-    const step = J.navStep;
+    const step = this.navStep;
     if (!this._navTunnelEnds) this._navTunnelEnds = new Map();
     for (const t of (this.tunnels ?? [])) {
       if (rect) {
@@ -1321,7 +1324,7 @@ export class JsonMap extends SurfaceField {
    * берегами.
    */
   _navWater(nav, rect = null) {
-    const step = J.navStep;
+    const step = this.navStep;
     if (!this._navDescentEnds) this._navDescentEnds = new Map();
     for (const d of this.descents) {
       if (rect) {
@@ -1367,7 +1370,7 @@ export class JsonMap extends SurfaceField {
         // выбрасывает его целиком (замер на 10 генераторных дверях: 1 дом из 10
         // терял всё). Дверь между комнатами одного дома фильтру не подлежит: её
         // наружная точка стоит внутри плана, и цель её — соединить интерьер
-        this._linkClosest(nav, outId, J.navStep * 1.8, 3,
+        this._linkClosest(nav, outId, this.navStep * 1.8, 3,
           this._inPlan(b, d.outside) ? null : (p => !this._inPlan(b, p)));
       }
     }
@@ -1532,11 +1535,15 @@ export class JsonMap extends SurfaceField {
     ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0);
     const pos = g.attributes.position;
     const nrm = g.attributes.normal;
+    // Быстрый отбор: per-vertex _inChannel/_channelBedY нужны только если в rect
+    // реально попадают кривые (strip) русла; rect-дыры вырезаны subtractRect.
+    const curvedInRect = hasCurved && this.holes.some(h =>
+      h.strip && h.maxX > r.minX && h.minX < r.maxX && h.maxZ > r.minZ && h.minZ < r.maxZ);
     for (let k = 0; k < pos.count; k++) {
       const x = pos.getX(k), z = -pos.getY(k);
       // позиция задаётся относительно `ground.position.y = groundY`
       let h = this.relief.heightAt(x, z);
-      if (hasCurved && this._inChannel(x, z)) h = this._channelBedY(x, z);
+      if (curvedInRect && this._inChannel(x, z)) h = this._channelBedY(x, z);
       pos.setZ(k, h - this.groundY);
       const n = this.relief.normalAt(x, z);
       nrm.setXYZ(k, n.x, -n.z, n.y);
