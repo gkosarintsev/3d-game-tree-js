@@ -1151,13 +1151,35 @@ export class SurfaceField extends SolidField {
     const steps = Math.max(1, Math.ceil(dist / J.navEdgeProbe));
     const cap = Math.max(a.y, b.y);
     let feet = a.y;
+    const simpleGround = !this.prisms?.length && !this.sweeps?.length && !(this.tunnelZones?.length || this.tunnelHoles?.length) && !(this.holes?.length || this.channelSegs?.length);
+    const noSurfaces = !this.surfaces?.length;
+    const simple = simpleGround && noSurfaces;
+    const relief = this.relief;
     for (let s = 1; s <= steps; s++) {
       const t = s / steps;
-      const y = this.groundHeightAt(a.x + dx * t, a.z + dz * t, Math.max(feet, a.y));
+      const x = a.x + dx * t, z = a.z + dz * t;
+      const y = simple ? (relief ? relief.heightAt(x, z) : 0) : this.groundHeightAt(x, z, Math.max(feet, a.y));
       if (feet - y > J.navEdgeDrop) return false;
       feet = Math.min(y, cap);
     }
     return b.y - feet <= this.stepUp;
+  }
+
+  /**
+   * Свободен ли отрезок для тела: в простом мире без блокеров/рельс и внутри
+   * границ плиты промежуточные пробы `isBlocked` всегда ложны (эквивалентно
+   * базовой геометрической проверке), поэтому цикл проб можно пропустить.
+   * Rapier-ветка и иные случаи делегируются базовой реализации.
+   */
+  bodyClearLine(a, b, radius = CONFIG.radius, height = CONFIG.eyeHeight) {
+    if (CONFIG.physics?.mode === 'rapier') return super.bodyClearLine(a, b, radius, height);
+    if (!this.blockers?.length && !this.rails?.length) {
+      const h = this.half;
+      if (a.x >= -h && a.x <= h && a.z >= -h && a.z <= h && b.x >= -h && b.x <= h && b.z >= -h && b.z <= h) {
+        return true;
+      }
+    }
+    return super.bodyClearLine(a, b, radius, height);
   }
 
   /**
