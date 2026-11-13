@@ -101,29 +101,20 @@ class SlumBatcher {
   buildMeshes(materials) {
     this.unitBox.dispose();
     this.unitCyl.dispose();
-
-    const entries = Object.entries(this.buckets) as Array<
-      [MaterialBucketKey, THREE.BufferGeometry[]]
-    >;
-
-    for (const [key, geos] of entries) {
-      if (geos.length === 0) continue;
+    const meshes = [];
+    for (const [key, geos] of Object.entries(this.buckets)) {
+      if (!geos.length) continue;
       const merged = mergeGeometries(geos, false);
       for (const g of geos) g.dispose();
       if (!merged) continue;
-      ctx.trackGeometry(merged);
-
-      const mat =
-        key === 'rustPlate' || key === 'waterTank'
-          ? extraMaterials[key]
-          : ctx.materials[key];
-      const mesh = new THREE.Mesh(merged, mat);
-      mesh.name = `SlumShack_${key}`;
+      const mesh = new THREE.Mesh(merged, materials[key]);
+      mesh.name = `Slum_${key}`;
       const isGlass = key === 'glass' || key === 'glassBacking';
       mesh.castShadow = !isGlass;
       mesh.receiveShadow = key !== 'glass';
-      group.add(mesh);
+      meshes.push(mesh);
     }
+    return meshes;
   }
 }
 
@@ -178,20 +169,7 @@ export function buildDetailedSlumShack(config, materials) {
     hasBalcony,
   } = config.features;
 
-  const rustPlateMat = new THREE.MeshStandardMaterial({
-    name: 'SlumRustPatch',
-    color: new THREE.Color('#8e563f'),
-    roughness: 0.78,
-    metalness: 0.34,
-  });
-  const waterTankMat = new THREE.MeshStandardMaterial({
-    name: 'SlumWaterTank',
-    color: new THREE.Color('#256fa1'),
-    roughness: 0.42,
-    metalness: 0.08,
-  });
-  ctx.trackDisposable(rustPlateMat);
-  ctx.trackDisposable(waterTankMat);
+  // материалы передаются снаружи (rustPlate, waterTank)
 
   const batch = new SlumBatcher();
   const baseY = foundationHeight;
@@ -664,11 +642,7 @@ export function buildDetailedSlumShack(config, materials) {
     batch.addBox('metalAccent', 0.56, 0.03, 0.03, antX, antBaseY + 1.72, antZ + 0.15, 0, 0.3);
   }
 
-  batch.flushToGroup(group, ctx, {
-    rustPlate: rustPlateMat,
-    waterTank: waterTankMat,
-  });
-  return group;
+  return batch.buildMeshes(materials);
 }
 
 

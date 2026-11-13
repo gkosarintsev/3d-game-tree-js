@@ -105,8 +105,8 @@ class MegabuildingBatcher {
   buildMeshes(materials) {
     this.unitBox.dispose();
     this.unitCyl.dispose();
-
-    const entries = Object.entries(this.buckets) as Array<[MegaBucketKey, THREE.BufferGeometry[]]>;
+    const meshes = [];
+    const entries = Object.entries(this.buckets);
 
     for (const [key, geos] of entries) {
       if (geos.length === 0) continue;
@@ -119,7 +119,6 @@ class MegabuildingBatcher {
       mesh.castShadow = !isTransparentOrNeon;
       mesh.receiveShadow = !key.startsWith('neon') && key !== 'glass';
       meshes.push(mesh);
-    }
     }
     return meshes;
   }
@@ -196,60 +195,7 @@ export function buildDetailedMegabuilding(config, materials) {
   const { roofType, windowDensity, windowScale, hasPorch, hasChimney, hasCornerAccents, hasBalcony } =
     config.features;
 
-  // Custom emissive cyberpunk neon & procedural billboard materials (tracked for cleanup)
-  const billboardMagTex = ctx.textures.createCyberBillboardTexture('magenta');
-  const billboardCyanTex = ctx.textures.createCyberBillboardTexture('cyan');
-  ctx.trackDisposable(billboardMagTex);
-  ctx.trackDisposable(billboardCyanTex);
-
-  const neonCyanMat = new THREE.MeshStandardMaterial({
-    name: 'CyberNeonCyan',
-    color: new THREE.Color('#00e5ff'),
-    emissive: new THREE.Color('#00d8ff'),
-    emissiveIntensity: hasCornerAccents ? 1.75 : 0.0,
-    roughness: 0.25,
-    metalness: 0.1,
-  });
-  const neonMagentaMat = new THREE.MeshStandardMaterial({
-    name: 'CyberNeonMagenta',
-    color: new THREE.Color('#ff2e88'),
-    emissive: new THREE.Color('#ff1e7a'),
-    emissiveIntensity: hasCornerAccents ? 1.7 : 0.0,
-    roughness: 0.25,
-    metalness: 0.1,
-  });
-  const neonAmberMat = new THREE.MeshStandardMaterial({
-    name: 'CyberNeonAmber',
-    color: new THREE.Color('#ffb020'),
-    emissive: new THREE.Color('#ff9d00'),
-    emissiveIntensity: hasCornerAccents ? 1.45 : 0.0,
-    roughness: 0.3,
-    metalness: 0.15,
-  });
-  const billboardMagentaMat = new THREE.MeshStandardMaterial({
-    name: 'CyberBillboardMagenta',
-    map: billboardMagTex,
-    emissiveMap: billboardMagTex,
-    emissive: new THREE.Color('#ffffff'),
-    emissiveIntensity: hasCornerAccents ? 1.35 : 0.15,
-    roughness: 0.3,
-    metalness: 0.1,
-  });
-  const billboardCyanMat = new THREE.MeshStandardMaterial({
-    name: 'CyberBillboardCyan',
-    map: billboardCyanTex,
-    emissiveMap: billboardCyanTex,
-    emissive: new THREE.Color('#ffffff'),
-    emissiveIntensity: hasCornerAccents ? 1.35 : 0.15,
-    roughness: 0.3,
-    metalness: 0.1,
-  });
-
-  ctx.trackDisposable(neonCyanMat);
-  ctx.trackDisposable(neonMagentaMat);
-  ctx.trackDisposable(neonAmberMat);
-  ctx.trackDisposable(billboardMagentaMat);
-  ctx.trackDisposable(billboardCyanMat);
+  // материалы (в т.ч. неон/билборды) передаются снаружи via materials
 
   const batch = new MegabuildingBatcher();
   const baseY = foundationHeight;
