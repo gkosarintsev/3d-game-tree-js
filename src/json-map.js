@@ -97,6 +97,9 @@ export class JsonMap extends SurfaceField {
     this.clutterCfg = spec.clutter ? this._clutterSpec(spec.clutter) : null;
     // неон и билборды — третий выводимый ряд того же механизма (`_signageItems`)
     this.signCfg = spec.signage ? { ...J.signage, ...spec.signage } : null;
+    // Параметры сетки визуального меша рельефа (не влияют на аналитику опор/физики).
+    this.reliefMeshCell = +(spec.reliefMeshCell ?? spec.relief?.meshCell ?? J.relief.meshCell);
+    this.reliefRiverMeshCell = +(spec.reliefRiverMeshCell ?? spec.relief?.riverMeshCell ?? J.relief.riverMeshCell);
 
     this.geo = this._geoGroups();
 
@@ -430,7 +433,7 @@ export class JsonMap extends SurfaceField {
    * поверхности в луче разошлась бы с опорой ноги.
    */
   _reliefRay(ox, oy, oz, dx, dy, dz, maxDist) {
-    const step = J.relief.meshCell / 2;
+    const step = (this.reliefMeshCell ?? J.relief.meshCell) / 2;
     const gap = (t) => (oy + dy * t) - this.relief.heightAt(ox + dx * t, oz + dz * t);
     let prev = gap(0);
     // шаг считается целым числом проб, а не условием `t <= maxDist` со `min`:
@@ -759,19 +762,31 @@ export class JsonMap extends SurfaceField {
     const j1 = Math.min(n, Math.floor((box.maxZ + this.half) / step));
     if (i1 < i0 || j1 < j0) return;
     const lat = [];
+    const radius = CONFIG.radius, eyeH = CONFIG.eyeHeight;
+    const hasRelief = !!this.relief;
+    const groundY = this.groundY;
+    const half = this.half;
+    const hasBuildings = !!this.buildings?.length;
+    const simpleGround = !this.prisms?.length && !this.sweeps?.length && !(this.tunnelZones?.length || this.tunnelHoles?.length) && !(this.holes?.length || this.channelSegs?.length);
+    const noSurfaces = !this.surfaces?.length;
+    const noBlockers = !this.blockers?.length;
+    const noRails = !this.rails?.length;
+    const simpleBlock = noBlockers && noRails;
     for (let j = j0; j <= j1; j++) {
       const row = new Array(i1 - i0 + 1);
       const z = -this.half + j * step;
       for (let i = i0; i <= i1; i++) {
         const x = -this.half + i * step;
-        if (this._inBuilding(x, z)) continue;
+        if (hasBuildings && this._inBuilding(x, z)) continue;
         // на склоне отсчёт опоры ведётся от местности, а не от `groundY`: плита
         // тротуара на холме +14 м лежит в пределе шага от поля и обязана быть
         // принята, иначе узел встал бы на голый склон под ногами
-        const terrainY = this.relief ? this.relief.heightAt(x, z) : 0;
-        const fromY = this.relief ? terrainY : this.groundY;
-        const y = this.groundHeightAt(x, z, fromY, terrainY);
-        if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) continue;
+        const terrainY = hasRelief ? this.relief.heightAt(x, z) : 0;
+        const fromY = hasRelief ? terrainY : groundY;
+        const y = (simpleGround && noSurfaces) ? (hasRelief ? terrainY : groundY) : this.groundHeightAt(x, z, fromY, terrainY);
+        if (simpleGround && noSurfaces && simpleBlock) {
+          if (x - radius < -half || x + radius > half || z - radius < -half || z + radius > half) continue;
+        } else if (this.isBlocked(x, z, radius, y, eyeH)) continue;
         row[i - i0] = nav.add(x, y, z, `w:${i}:${j}`);
       }
       lat.push(row);
@@ -832,21 +847,29 @@ export class JsonMap extends SurfaceField {
    */
   _linkRise(nav, a, b, tag) {
     const pa = nav.pos[a], pb = nav.pos[b];
-    if (!this.relief || Math.abs(pa.y - pb.y) <= this.stepUp) {
+    const dy = Math.abs(pa.y - pb.y);
+    if (!this.relief || dy <= this.stepUp) {
       this._link(nav, a, b);
       return;
     }
     const keep = this.stepUp * 0.8;
-    const k = Math.max(2, Math.ceil(Math.abs(pa.y - pb.y) / keep));
+    const k = Math.max(2, Math.ceil(dy / keep));
+    const hasBuildings = !!this.buildings?.length;
+    const simpleGround = !this.prisms?.length && !this.sweeps?.length && !(this.tunnelZones?.length || this.tunnelHoles?.length) && !(this.holes?.length || this.channelSegs?.length);
+    const noSurfaces = !this.surfaces?.length;
+    const simpleBlock = !this.blockers?.length && !this.rails?.length;
+    const radius = CONFIG.radius, eyeH = CONFIG.eyeHeight, half = this.half;
     let prev = a;
     for (let s = 1; s < k; s++) {
       const t = s / k;
       const x = pa.x + (pb.x - pa.x) * t;
       const z = pa.z + (pb.z - pa.z) * t;
-      if (this._inBuilding(x, z)) return;
+      if (hasBuildings && this._inBuilding(x, z)) return;
       const terrainY = this.relief.heightAt(x, z);
-      const y = this.groundHeightAt(x, z, terrainY, terrainY);
-      if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) return;
+      const y = (simpleGround && noSurfaces) ? terrainY : this.groundHeightAt(x, z, terrainY, terrainY);
+      if (simpleGround && noSurfaces && simpleBlock) {
+        if (x - radius < -half || x + radius > half || z - radius < -half || z + radius > half) return;
+      } else if (this.isBlocked(x, z, radius, y, eyeH)) return;
       const id = nav.add(x, y, z, `ws:${tag}:${s}`);
       if (!this._linkOk(nav, prev, id)) return;
       prev = id;
@@ -1514,7 +1537,7 @@ export class JsonMap extends SurfaceField {
     // и поперечный срез/подсыпку под дорогой (полоса коридора уже клетки);
     // сплошное мельчение всей плиты дорого. Русла без реки и без коридоров
     // идут прежней сеткой, поэтому главы без них собираются как раньше.
-    const cell = J.relief.meshCell;
+    const cell = this.reliefMeshCell ?? J.relief.meshCell;
     const hasCurved = this.channelSegs?.length > 0;
     const riverAt = this.relief.riverAt;
     const roadAt = this.relief.roadAt;
@@ -1575,7 +1598,7 @@ export class JsonMap extends SurfaceField {
   _riverGroundGeo(rect, cell, riverAt, roadAt = null) {
     const gY = this.groundY;
     const surfaceY = gY - 0.2;
-    const fine = J.relief.riverMeshCell ?? 1;
+    const fine = this.reliefRiverMeshCell ?? J.relief.riverMeshCell ?? 1;
     const nx = Math.max(1, Math.round((rect.maxX - rect.minX) / cell));
     const nz = Math.max(1, Math.round((rect.maxZ - rect.minZ) / cell));
     const dx = (rect.maxX - rect.minX) / nx;

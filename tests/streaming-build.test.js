@@ -99,7 +99,11 @@ export async function runStreamingBuildTests(arg) {
       const chunks = Array.isArray(stats.chunks) ? stats.chunks : [];
       const perTile = chunks
         .filter(r => r.kind !== 'unload')
-        .map(r => ({ id: r.id, kind: r.kind, ms: +(+r.ms).toFixed(2), slices: r.slices, readyAtMs: r.readyAtMs != null ? +(+r.readyAtMs).toFixed(2) : null }));
+        .map(r => ({
+          id: r.id, kind: r.kind, ms: +(+r.ms).toFixed(2), slices: r.slices,
+          readyAtMs: r.readyAtMs != null ? +(+r.readyAtMs).toFixed(2) : null,
+          costTotal: r.costTotal || null,
+        }));
       const totalMs = perTile.reduce((s, r) => s + (r.ms || 0), 0);
       const worst = perTile.reduce((a, b) => (b.ms > (a?.ms ?? -1) ? b : a), null);
       const worstSlice = { label: stats.worstSlice, ms: stats.worstSliceMs };
@@ -107,10 +111,40 @@ export async function runStreamingBuildTests(arg) {
       if (map.pump?.costWorst && typeof map.pump.costWorst.forEach === 'function') {
         map.pump.costWorst.forEach((v, k) => { costWorst[k] = +(+v).toFixed(2); });
       }
+      // Кумулятивное время по меткам на тайл (сумма срезов) — для профилирования TASK-001
+      const labelTotals = {};
+      const labelMax = {};
+      const labelCount = {};
+      const tileLabelTotals = perTile.map(r => {
+        const src = r.costTotal || {};
+        const out = {};
+        for (const [k, v] of Object.entries(src)) {
+          const ms = +v || 0;
+          out[k] = +ms.toFixed(2);
+          labelTotals[k] = (labelTotals[k] || 0) + ms;
+          labelMax[k] = Math.max(labelMax[k] || 0, ms);
+          labelCount[k] = (labelCount[k] || 0) + 1;
+        }
+        return [r.id, out];
+      });
+      const labelTotalsRounded = Object.fromEntries(Object.entries(labelTotals).map(([k, v]) => [k, +v.toFixed(2)]));
+      const labelAvg = Object.fromEntries(Object.entries(labelTotals).map(([k, v]) => [k, +(v / Math.max(1, labelCount[k] || 1)).toFixed(2)]));
+      const labelMaxRounded = Object.fromEntries(Object.entries(labelMax).map(([k, v]) => [k, +v.toFixed(2)]));
+      const labelShare = Object.fromEntries(Object.entries(labelTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => [k, +((v / Math.max(1, totalMs)) * 100).toFixed(2)]));
+      const topLabelsByTotal = Object.entries(labelTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 12)
+        .map(([k, v]) => ({ label: k, totalMs: +v.toFixed(2), avgPerTileMs: labelAvg[k], maxPerTileMs: labelMaxRounded[k], sharePct: labelShare[k] }));
 
       console.group('[streaming-build] per-tile build times (budgeted batches)');
       console.table(perTile.map(r => ({ id: r.id, kind: r.kind, ms: r.ms, slices: r.slices, readyAtMs: r.readyAtMs })));
       console.log('costWorst', costWorst);
+      console.log('topLabelsByTotal', topLabelsByTotal);
+      console.log('labelTotals', labelTotalsRounded);
+      console.log('labelAvgPerTileMs', labelAvg);
+      console.log('labelMaxPerTileMs', labelMaxRounded);
       console.log('summary', { tiles: perTile.length, totalMs: +totalMs.toFixed(2), worst, worstSlice, maxBatchMs: +maxBatchMs.toFixed(2), budgetMs });
       console.groupEnd();
 
@@ -132,6 +166,12 @@ export async function runStreamingBuildTests(arg) {
         worstTile: worst,
         worstSlice,
         costWorst,
+        labelTotals: labelTotalsRounded,
+        labelAvgPerTileMs: labelAvg,
+        labelMaxPerTileMs: labelMaxRounded,
+        labelSharePct: labelShare,
+        topLabelsByTotal,
+        tileLabelTotals,
         tilePeakMs: +tilePeakMs.toFixed(2), // cumulative, not a blocking peak when budgeted
         slicePeakMs: +slicePeakMs.toFixed(2),
         perTile: perTileCompact,

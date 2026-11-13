@@ -432,6 +432,7 @@ export class WorldMap extends JsonMap {
     this.pump.task = {
       id, kind, slices, sliceTotal: slices.length, sliceDone: 0,
       startedAt: performance.now(), readAt,
+      costTotal: Object.create(null),
     };
     this._syncTask(id);
   }
@@ -619,7 +620,7 @@ export class WorldMap extends JsonMap {
    * создаст ребро, если её очередь ещё не пришла.
    */
   _latticeStrips(rect) {
-    const step = J.navStep;
+    const step = this.navStep ?? J.navStep;
     // 1 ряд на полосу => минимальный worst-case атом lattice-среза (защита от всплесков)
     const rows = 1;
     const n = Math.floor(this.width / step);
@@ -1012,6 +1013,7 @@ export class WorldMap extends JsonMap {
       pump.task = {
         id: cell.id, kind: 'build', slices: built.slices, sliceTotal: built.slices.length,
         sliceDone: 0, startedAt: performance.now(), readAt: req.t0,
+        costTotal: Object.create(null),
       };
       return pump.task.slices[0];
     }
@@ -1026,6 +1028,7 @@ export class WorldMap extends JsonMap {
       pump.task = {
         id: far.id, kind: 'unload', slices, sliceTotal: slices.length,
         sliceDone: 0, startedAt: performance.now(), readAt: undefined,
+        costTotal: Object.create(null),
       };
       return pump.task.slices[0];
     }
@@ -1057,6 +1060,8 @@ export class WorldMap extends JsonMap {
     // вместе с ней: держать среднее вместо максимума — значит каждый раз
     // начинать дорогой срез «вслепую»
     pump.costWorst.set(slice.label, prev === undefined ? ms : Math.max(prev, ms));
+    if (!task.costTotal) task.costTotal = Object.create(null);
+    task.costTotal[slice.label] = (task.costTotal[slice.label] || 0) + ms;
     if (!task.slices.length) this._finishTask();
   }
 
@@ -1090,6 +1095,7 @@ export class WorldMap extends JsonMap {
       // сеть и разбор, которые в бюджет кадра не входят
       sinceReadMs: task.readAt === undefined ? null : now - task.readAt,
       readyAtMs: now - st.startedAt,
+      costTotal: task.costTotal || null,
     });
     if (st.chunks.length > 64) st.chunks.shift();
     pump.task = null;
