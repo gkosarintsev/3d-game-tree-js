@@ -9,10 +9,10 @@
  *
  * Scope (v3/v4, TASK-001): legacy главы 01,02,04,06,11,12,13,14 удалены (см. ADR-001,
  * .ai/plans/01-city-generator-districts.md). Главы 03,05 удалены по запросу. В реестре остаются
- * v3 CityForge/open: 07,08,09,10,15 и пилот v4 — глава 16.
+ * v3 CityForge/open: 07,08,09,10,15, пилот v4 — глава 16, тестовая копия — глава 17 (4 чанка).
  *
- * Главы 07,08,09,10,15,16 — **открытый мир** (`kind: 'open'`): v3 CityForge
- * (07,08,09,10,15) и v4 citygen pilot (16). Источник `src/levels/level-NN.json`,
+ * Главы 07,08,09,10,15,16,17 — **открытый мир** (`kind: 'open'`): v3 CityForge
+ * (07,08,09,10,15) и v4 citygen pilot/test (16,17). Источник `src/levels/level-NN.json`,
  * скомпилированный каталог `src/levels/level-NN/`
  * (`node tools/build-level.mjs src/levels/level-NN.json`).
  */
@@ -22,10 +22,11 @@ import { LEVEL_09 } from './level-09/index.js';
 import { LEVEL_10 } from './level-10/index.js';
 import { LEVEL_15 } from './level-15/index.js';
 import { LEVEL_16 } from './level-16/index.js';
+import { LEVEL_17 } from './level-17/index.js';
 
 export const LEVELS = [
-  LEVEL_07, LEVEL_08, LEVEL_09, LEVEL_10, LEVEL_15, LEVEL_16,
+  LEVEL_07, LEVEL_08, LEVEL_09, LEVEL_10, LEVEL_15, LEVEL_16, LEVEL_17,
 ];
 
 /** Номер главы для каждой позиции `LEVELS` (файлы/каталоги `level-NN`). */
-export const LEVEL_NUMBERS = [7, 8, 9, 10, 15, 16];
+export const LEVEL_NUMBERS = [7, 8, 9, 10, 15, 16, 17];

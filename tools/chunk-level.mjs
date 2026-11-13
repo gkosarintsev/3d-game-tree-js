@@ -41,7 +41,7 @@ const J = CONFIG.jsonMap;
 
 /** м: пределы стороны клетки, которые принимает схема (`stream.chunk`). */
 export const CHUNK_MIN = 40;
-export const CHUNK_MAX = 600;
+export const CHUNK_MAX = 640;
 
 /**
  * м: маргин, на который план объекта должен перерасти границу клетки, чтобы

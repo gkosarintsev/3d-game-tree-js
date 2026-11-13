@@ -1,0 +1,213 @@
+{
+  "$schema": "./level-v4.schema.json",
+  "kind": "cityforge",
+  "schemaVersion": 4,
+  "metadata": {
+    "levelName": "level-17",
+    "name": "Глава 17. Тест стриминга (2×2 чанка, копия гл.16)",
+    "hint": "Тест загрузки: копия главы 16 с 4 чанками (640 м). Доберитесь до маяка.",
+    "units": "meters",
+    "notes": "Копия level-16 (v4/citygen, плита 1280×1280 м) для сравнения скорости загрузки: стриминг 2×2×640 (4 чанка) вместо 5×5×256."
+  },
+  "ground": {
+    "y": 0,
+    "size": 1280,
+    "color": 7322954
+  },
+  "windows": {
+    "spacing": 12
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -520,
+      "z": -520
+    },
+    "exit": {
+      "x": 520,
+      "z": 520
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 6
+    },
+    "alienEnemies": {
+      "count": 0
+    },
+    "cars": {
+      "count": 1,
+      "spots": [
+        {
+          "x": -560,
+          "z": -520,
+          "yaw": 90
+        }
+      ]
+    }
+  },
+  "stream": {
+    "chunk": 640,
+    "keep": 1,
+    "aheadMin": 200,
+    "aheadMax": 900,
+    "budgetMs": 120
+  },
+  "cityforge": {
+    "format": "cityforge",
+    "version": "0.1",
+    "world": {
+      "units": "meters",
+      "coordinateSystem": {
+        "type": "local",
+        "handedness": "right",
+        "up": "Z"
+      },
+      "origin": [
+        0,
+        0,
+        0
+      ],
+      "bounds": {
+        "min": [
+          -640,
+          -640,
+          -80
+        ],
+        "max": [
+          640,
+          640,
+          160
+        ]
+      }
+    },
+    "assets": [
+      {
+        "id": "ground.placeholder",
+        "kind": "procedural",
+        "generator": "placeholder.flat",
+        "bounds": [
+          1280,
+          1280,
+          1
+        ]
+      }
+    ],
+    "terrain": {
+      "base": {
+        "type": "heightfield",
+        "source": "procedural",
+        "resolution": 4
+      },
+      "modifiers": [
+        {
+          "id": "seed_hill",
+          "type": "mountain",
+          "center": [
+            0,
+            0
+          ],
+          "radius": 120,
+          "height": 8,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        }
+      ]
+    },
+    "hydrology": {
+      "rivers": [],
+      "lakes": []
+    },
+    "networks": {
+      "roads": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      },
+      "railways": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      },
+      "paths": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      }
+    },
+    "structures": {
+      "bridges": [],
+      "tunnels": []
+    },
+    "instances": [],
+    "chunks": []
+  },
+  "generator": {
+    "generatorVersion": "0.1.0",
+    "seed": 16,
+    "deterministic": true,
+    "stages": [],
+    "layers": [],
+    "budgets": {},
+    "districts": [],
+    "profiles": {},
+    "catalogs": {},
+    "refs": {},
+    "policies": {},
+    "landscape": {
+      "generate": true,
+      "hills": {
+        "count": 10,
+        "minHeight": 10,
+        "maxHeight": 40,
+        "minRadius": 120,
+        "maxRadius": 320
+      },
+      "river": {
+        "enabled": true,
+        "width": 22,
+        "depth": 4,
+        "points": 7,
+        "axis": "z"
+      }
+    },
+    "transport": {
+      "generate": true,
+      "width": 8,
+      "branches": 3,
+      "cornerFillet": {
+        "radius": 8,
+        "segmentTypes": [
+          "local"
+        ],
+        "excludeSegmentIds": []
+      },
+      "roundabouts": [
+        {
+          "center": [
+            360,
+            360
+          ],
+          "size": 24,
+          "width": 8,
+          "connect": true
+        },
+        {
+          "center": [
+            440,
+            360
+          ],
+          "size": 20,
+          "width": 8,
+          "connect": true
+        }
+      ],
+      "turnarounds": {
+        "count": 1
+      }
+    }
+  },
+  "navEdgeProbe": 1.2,
+  "bodyProbe": 1.2
+}

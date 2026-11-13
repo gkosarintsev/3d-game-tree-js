@@ -265,7 +265,7 @@
         "chunk": {
           "type": "number",
           "minimum": 40,
-          "maximum": 600,
+          "maximum": 640,
           "description": "Cell side in meters; must divide ground.size."
         },
         "keep": {
