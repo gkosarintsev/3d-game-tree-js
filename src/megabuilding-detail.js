@@ -7,9 +7,6 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
  * Локальные координаты: центр XZ в (0,0), низ в y=0.
  */
 
-import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-
 class MegabuildingBatcher {
   buckets = {
     wall: [],
