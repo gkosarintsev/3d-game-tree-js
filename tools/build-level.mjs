@@ -313,6 +313,22 @@ function generateCityforge(raw, sourceName, opts = {}) {
   // For generated v4 content, placement conflicts (water/road) can slip through
   // coarse stage checks; deterministically drop offending buildings and retry.
   let engine = compiled.engine;
+  // Level 17: панельки — детальная модель (docs/houses soviet-panel) с 3 подъездами.
+  if (/level-17/i.test(String(sourceName ?? ''))) {
+    const fixPanelkas = (list) => (Array.isArray(list) ? list.map(b => {
+      const isPanelka = b?.houseKind === 'panelka' || b?.facadeMaterial === 'panel_block';
+      if (!isPanelka) return b;
+      return { ...b, entrances: 3, detailedVisual: 'soviet_panel', foundation: 'terrain' };
+    }) : list);
+    if (Array.isArray(engine?.buildings)) engine = { ...engine, buildings: fixPanelkas(engine.buildings) };
+    // чанковые миры могут хранить здания в другой структуре — пройдёмся рекурсивно неглубоко
+    if (Array.isArray(engine?.chunks)) {
+      engine = {
+        ...engine,
+        chunks: engine.chunks.map(ch => ch?.buildings ? { ...ch, buildings: fixPanelkas(ch.buildings) } : ch),
+      };
+    }
+  }
   let out = null;
   let dropped = [];
   let droppedProps = [];

@@ -10,6 +10,7 @@ import { r3, subtractRect, rotatePoint, arcBankAt } from './geo2d.js';
 import { buildProps } from './props.js';
 import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
 import { buildPanelkaDecor } from './panelka-decor.js';
+import { buildDetailedSovietPanel, makeSovietPanelMaterials } from './soviet-panel-detail.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -1920,6 +1921,7 @@ export class JsonMap extends SurfaceField {
     };
     for (const b of (this._iterBuildings ?? this.buildings)) {
       if (!this._drawn(b)) continue;
+      if (b.detailedVisual === 'soviet_panel') continue; // окна встроены в детальную модель
       const style = W.byMaterial?.[b.facadeMaterial];
       const cfg = style ? { ...W, ...style } : W;
       if (!(cfg.spacing > 0) || !b.floorsCount) continue;
@@ -2368,6 +2370,50 @@ export class JsonMap extends SurfaceField {
   }
 
   /**
+   * Детальная визуальная модель панельного дома (docs/houses soviet-panel):
+   * полная геометрия секций/подъездов/окон/балконов/кровли вместо стандартных
+   * мешей. Коллизии и навигация — по данным здания (собраны в surfaces).
+   */
+  _buildDetailedPanelkas(scene, buildings, objs) {
+    const rad = d => d * Math.PI / 180;
+    for (const b of buildings) {
+      if (!b.bounds) continue;
+      const bw = b.bounds.maxX - b.bounds.minX;
+      const bd = b.bounds.maxZ - b.bounds.minZ;
+      if (!(bw > 0) || !(bd > 0)) continue;
+      const entrances = Math.max(1, Math.round(b.entrances || 3));
+      const sectionW = bw / entrances;
+      const mats = makeSovietPanelMaterials(b.wallColor || '#d6d0c4');
+      const meshes = buildDetailedSovietPanel({
+        width: sectionW,
+        depth: bd,
+        floorHeight: b.floorHeight || 2.8,
+        floors: b.floorsCount || 5,
+        entrances,
+        foundationHeight: 0.7,
+        windowDensity: b.windowDensity || 2,
+        windowScale: b.windowScale || 1.0,
+        baseY: b.baseY,
+        hasPorch: true,
+        hasChimney: true,
+        hasCornerAccents: true,
+        hasBalcony: true,
+      }, mats);
+      const cx = (b.bounds.minX + b.bounds.maxX) / 2;
+      const cz = (b.bounds.minZ + b.bounds.maxZ) / 2;
+      const ry = b.rotation ? -rad(b.rotation) : 0;
+      for (const m of meshes) {
+        if (ry) m.rotation.y = ry;
+        m.position.x += cx;
+        m.position.z += cz;
+        m.userData.sovietPanel = true;
+        scene.add(m);
+        objs.push(m);
+      }
+    }
+  }
+
+  /**
    * Меши квадов: по одному `InstancedMesh` на цвет палитры, а не на окно, и общая
    * геометрия. Окна рисуются процедурным шейдером (рама, переплёты, стекло),
    * вывески — сплошным цветом. Материал без освещения сцены: горящее окно и неон
@@ -2591,8 +2637,14 @@ export class JsonMap extends SurfaceField {
       mesh.userData.sharedMaterial = true;
       objs.push(mesh);
     }
-    // Декор панелек (балконы, швы, карниз) — визуал без коллизий/навигации.
-    const panelka = buildPanelkaDecor(scene, this._drawable(this._iterBuildings ?? this.buildings ?? []));
+    const drawableBuildings = this._drawable(this._iterBuildings ?? this.buildings ?? []);
+    // Детальные панельки (docs/houses soviet-panel): полная визуальная модель
+    // вместо стандартных стен/окон/декора. Коллизии собраны в surfaces (geo muted).
+    const detailed = drawableBuildings.filter(b => b.detailedVisual === 'soviet_panel');
+    if (detailed.length) this._buildDetailedPanelkas(scene, detailed, objs);
+    // Декор панелек (балконы, швы, карниз) — только для недетальных панелек.
+    const decorBuildings = drawableBuildings.filter(b => b.detailedVisual !== 'soviet_panel');
+    const panelka = buildPanelkaDecor(scene, decorBuildings);
     for (const m of panelka) objs.push(m);
     const windows = this._buildWindows(scene, objs);
     const signage = this._buildSignage(scene, objs);

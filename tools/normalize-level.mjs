@@ -393,6 +393,7 @@ function normalizeBuilding(b, ground, warnings) {
   if (b.houseStyleId) houseStyle.houseStyleId = String(b.houseStyleId);
   if (b.houseKind) houseStyle.houseKind = String(b.houseKind);
   if (b.entrances != null) houseStyle.entrances = Math.max(1, Math.round(+b.entrances));
+  if (b.detailedVisual) houseStyle.detailedVisual = String(b.detailedVisual);
   if (b.windowDensity != null) houseStyle.windowDensity = +b.windowDensity;
   if (b.windowScale != null) houseStyle.windowScale = +b.windowScale;
   if (b.houseFeatures && typeof b.houseFeatures === 'object') houseStyle.houseFeatures = b.houseFeatures;

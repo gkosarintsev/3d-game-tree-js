@@ -8,6 +8,7 @@ import { decodeChunk } from './level-bin.js';
 import { buildProps } from './props.js';
 import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
 import { buildPanelkaDecor } from './panelka-decor.js';
+import { buildDetailedSovietPanel, makeSovietPanelMaterials } from './soviet-panel-detail.js';
 
 const J = CONFIG.jsonMap;
 
@@ -609,9 +610,12 @@ export class WorldMap extends JsonMap {
           mesh.userData.sharedMaterial = true;
           pic.objs.push(mesh);
         }
-        // Декор панелек (балконы, швы, карниз) для владельцев клетки — визуал без коллизий.
         const ownedBuildings = (entry.data?.buildings ?? []).filter(b => entry.owned.has(b));
-        for (const m of buildPanelkaDecor(this.scene, ownedBuildings)) pic.objs.push(m);
+        // Детальные панельки (docs/houses): полная модель вместо стен/окон/декора.
+        const detailed = ownedBuildings.filter(b => b.detailedVisual === 'soviet_panel');
+        if (detailed.length) this._buildDetailedPanelkas(this.scene, detailed, pic.objs);
+        // Декор панелек — только для недетальных панелек.
+        for (const m of buildPanelkaDecor(this.scene, ownedBuildings.filter(b => b.detailedVisual !== 'soviet_panel'))) pic.objs.push(m);
         pic.windows = this._buildWindows(this.scene, pic.objs);
         pic.signage = this._buildSignage(this.scene, pic.objs);
         pic.lights = this._buildLights(this.scene, pic.objs);
