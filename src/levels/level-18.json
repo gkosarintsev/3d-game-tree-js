@@ -1,0 +1,584 @@
+{
+  "$schema": "./level-v4.schema.json",
+  "kind": "cityforge",
+  "schemaVersion": 4,
+  "metadata": {
+    "levelName": "level-18",
+    "name": "Глава 18. Песочница развязок",
+    "hint": "Песочница: холмы и транспортные развязки (путепровод/эстакада). База для добавления развязок и отладки дорог и мостов.",
+    "units": "meters",
+    "notes": "Песочница развязок: холмистый рельеф + базовый узел (путепровод: шоссе поверх пересекающей дороги) по мотивам docs/roads.html. Назначение: площадка для добавления различных развязок (клеверный лист, петли, съезды, трубы, SPUI) и отладки дорог, мостов, рельефа и навигации. Представление сложной дорожной сети в JSON (v4/cityforge) на произвольном рельефе — рекомендуемый гибрид: 1) Рельеф (холмы/долины) — generator.landscape.hills и/или cityforge.terrain.modifiers (mountain/valley, center/radius/height/falloff) + при необходимости river; terrain произвольной формы задаётся модификаторами. 2) Инженерные развязки и сложные геометрии — cityforge.networks.roads.nodes + segments с явными elements (v2 plate/arc), компилируются как есть (compileCityforge):    - segment: {id, from, to, type, layer, path, elements, lanes:[...]}. type: highway|arterial|ramp|merge|split|connector|local; layer: ground, embankment, bridge_01,... (ярусы).    - plate: {x,z,yaw,length,width,y,rise,rails} — прямая плита, ось вдоль yaw; y на локальном начале, rise — перепад по длине (уклон=rise/length).    - arc: {cx,cz,radius,from,to,width,y:[y0,y1],bank,rails} — дуга по центру/радиусу/углам (град), y на концах, bank — крен; подходит для петель 270° (клеверный лист) и виражей.    - connect:\"tangent\" (вместо plate/arc) переносит касательную предыдущего элемента следующей пластине; позицию задаёт автор. Цепочка elements образует непрерывное полотно.    - Непрерывные эстакады лучше делать одной цепочкой elements в одном segment (без свободных носов между частями); наземные подходы — отдельными ground-segments, на которые опираются концы подъёмов. 3) Процедурная уличная сеть фона — generator.transport/citygen stages (можно отключить generate:false на песочнице, чтобы не конфликтовать с авторской геометрией на рельефе). 4) Логика отделена от формы: nodes/segments/junctions задают топологию/связность, elements — точную 3D-геометрию (высоты, уклоны, радиусы), terrain — опорную поверхность. Это позволяет комбинировать произвольный рельеф с точными развязками."
+  },
+  "ground": {
+    "y": 0,
+    "size": 1280,
+    "color": 7322954
+  },
+  "windows": {
+    "spacing": 12
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -520,
+      "z": -520
+    },
+    "exit": {
+      "x": 520,
+      "z": 520
+    },
+    "exitRadius": 4,
+    "enemies": {
+      "count": 4
+    },
+    "alienEnemies": {
+      "count": 0
+    },
+    "cars": {
+      "count": 1,
+      "spots": [
+        {
+          "x": -560,
+          "z": -520,
+          "yaw": 90
+        }
+      ]
+    }
+  },
+  "stream": {
+    "chunk": 640,
+    "keep": 1,
+    "aheadMin": 200,
+    "aheadMax": 900,
+    "budgetMs": 120
+  },
+  "cityforge": {
+    "format": "cityforge",
+    "version": "0.1",
+    "world": {
+      "units": "meters",
+      "coordinateSystem": {
+        "type": "local",
+        "handedness": "right",
+        "up": "Z"
+      },
+      "origin": [
+        0,
+        0,
+        0
+      ],
+      "bounds": {
+        "min": [
+          -640,
+          -640,
+          -80
+        ],
+        "max": [
+          640,
+          640,
+          160
+        ]
+      }
+    },
+    "assets": [
+      {
+        "id": "ground.placeholder",
+        "kind": "procedural",
+        "generator": "placeholder.flat",
+        "bounds": [
+          1280,
+          1280,
+          1
+        ]
+      }
+    ],
+    "terrain": {
+      "base": {
+        "type": "heightfield",
+        "source": "procedural",
+        "resolution": 4
+      },
+      "modifiers": [
+        {
+          "id": "hill_west",
+          "type": "mountain",
+          "center": [
+            -350,
+            200
+          ],
+          "radius": 140,
+          "height": 22,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "hill_east",
+          "type": "mountain",
+          "center": [
+            350,
+            -220
+          ],
+          "radius": 160,
+          "height": 28,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "hill_north",
+          "type": "mountain",
+          "center": [
+            120,
+            380
+          ],
+          "radius": 130,
+          "height": 18,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        },
+        {
+          "id": "valley_south",
+          "type": "valley",
+          "center": [
+            -120,
+            -350
+          ],
+          "radius": 150,
+          "height": 10,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        }
+      ]
+    },
+    "hydrology": {
+      "rivers": [],
+      "lakes": []
+    },
+    "networks": {
+      "roads": {
+        "nodes": [
+          {
+            "id": "cr_s",
+            "position": [
+              0,
+              0,
+              -220
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "cr_n",
+            "position": [
+              0,
+              0,
+              220
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "hw_w",
+            "position": [
+              -220,
+              0,
+              0
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "hw_w1",
+            "position": [
+              -70,
+              0,
+              0
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "hw_e1",
+            "position": [
+              70,
+              0,
+              0
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "hw_e",
+            "position": [
+              220,
+              0,
+              0
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "hw_w2",
+            "position": [
+              -70,
+              0,
+              0
+            ],
+            "layer": "embankment"
+          },
+          {
+            "id": "hw_e2",
+            "position": [
+              70,
+              0,
+              0
+            ],
+            "layer": "embankment"
+          },
+          {
+            "id": "svc_w",
+            "position": [
+              -150,
+              0,
+              -60
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "svc_e",
+            "position": [
+              150,
+              0,
+              -60
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "svc_s",
+            "position": [
+              80,
+              0,
+              -150
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "svc_n",
+            "position": [
+              80,
+              0,
+              150
+            ],
+            "layer": "ground"
+          }
+        ],
+        "segments": [
+          {
+            "id": "ix_cross_ns",
+            "from": "cr_s",
+            "to": "cr_n",
+            "type": "arterial",
+            "layer": "ground",
+            "path": [
+              [
+                0,
+                0,
+                -220
+              ],
+              [
+                0,
+                0,
+                220
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": 0,
+                  "z": 0,
+                  "yaw": 90,
+                  "length": 440,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "ix_hw_ground_w",
+            "from": "hw_w",
+            "to": "hw_w1",
+            "type": "arterial",
+            "layer": "ground",
+            "path": [
+              [
+                -220,
+                0,
+                0
+              ],
+              [
+                -70,
+                0,
+                0
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": -145,
+                  "z": 0,
+                  "yaw": 0,
+                  "length": 150,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "ix_hw_overpass",
+            "from": "hw_w2",
+            "to": "hw_e2",
+            "type": "highway",
+            "layer": "bridge_01",
+            "path": [
+              [
+                -70,
+                0,
+                0
+              ],
+              [
+                -25,
+                7,
+                0
+              ],
+              [
+                25,
+                7,
+                0
+              ],
+              [
+                70,
+                0,
+                0
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -47.5,
+                  "z": 0,
+                  "yaw": 0,
+                  "length": 45,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 7
+                }
+              },
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 0,
+                  "z": 0,
+                  "yaw": 0,
+                  "length": 50,
+                  "width": 10,
+                  "y": 7,
+                  "rise": 0
+                }
+              },
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 47.5,
+                  "z": 0,
+                  "yaw": 0,
+                  "length": 45,
+                  "width": 10,
+                  "y": 7,
+                  "rise": -7
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "ix_hw_ground_e",
+            "from": "hw_e1",
+            "to": "hw_e",
+            "type": "arterial",
+            "layer": "ground",
+            "path": [
+              [
+                70,
+                0,
+                0
+              ],
+              [
+                220,
+                0,
+                0
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": 145,
+                  "z": 0,
+                  "yaw": 0,
+                  "length": 150,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "ix_service_s",
+            "from": "svc_w",
+            "to": "svc_e",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -150,
+                0,
+                -60
+              ],
+              [
+                150,
+                0,
+                -60
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": 0,
+                  "z": -60,
+                  "yaw": 0,
+                  "length": 300,
+                  "width": 7,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "ix_service_e",
+            "from": "svc_s",
+            "to": "svc_n",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                80,
+                0,
+                -150
+              ],
+              [
+                80,
+                0,
+                150
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": 80,
+                  "z": 0,
+                  "yaw": 90,
+                  "length": 300,
+                  "width": 7,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          }
+        ],
+        "junctions": []
+      },
+      "railways": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      },
+      "paths": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      }
+    },
+    "structures": {
+      "bridges": [],
+      "tunnels": []
+    },
+    "instances": [],
+    "chunks": []
+  },
+  "generator": {
+    "generatorVersion": "0.1.0",
+    "seed": 18,
+    "deterministic": true,
+    "stages": [],
+    "layers": [],
+    "budgets": {},
+    "districts": [],
+    "profiles": {},
+    "catalogs": {},
+    "refs": {},
+    "policies": {},
+    "landscape": {
+      "generate": true,
+      "hills": {
+        "count": 12,
+        "minHeight": 12,
+        "maxHeight": 45,
+        "minRadius": 100,
+        "maxRadius": 300
+      },
+      "river": {
+        "enabled": false,
+        "width": 18,
+        "depth": 3,
+        "points": 5,
+        "axis": "z"
+      }
+    },
+    "transport": {
+      "generate": false,
+      "width": 8,
+      "branches": 0,
+      "cornerFillet": {
+        "radius": 8,
+        "segmentTypes": [
+          "local"
+        ],
+        "excludeSegmentIds": []
+      },
+      "roundabouts": [],
+      "turnarounds": {
+        "count": 0
+      }
+    }
+  },
+  "navEdgeProbe": 1.2,
+  "bodyProbe": 1.2
+}
