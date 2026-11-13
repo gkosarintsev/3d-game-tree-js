@@ -44,10 +44,9 @@ export const BONE_SPECS = {
   shinR:    { parent: 'thighR',   pivotOffset: [0, -0.42, 0],    comOffset: [0, -0.24, 0.02],halfExtents: [0.065, 0.24, 0.08] },
 };
 
-/** Поза (локальные повороты костей) для idle/walk/patrol. */
+/** Поза (локальные повороты костей) для idle/run. */
 export function computeCharacterPose(phase, walkSpeed, mode) {
   const isMoving = mode !== 'idle' && walkSpeed > 0.05;
-  const speedNorm = isMoving ? Math.min(Math.max(walkSpeed, 0.2), 2.2) : 0;
 
   if (!isMoving) {
     const breath = Math.sin(phase * 1.6);
@@ -71,34 +70,41 @@ export function computeCharacterPose(phase, walkSpeed, mode) {
     };
   }
 
-  const strideAmp = 0.46 * (0.55 + 0.45 * Math.min(speedNorm, 1.5));
+  // Бег вместо ходьбы: больший вынос/подъём ног и выраженный мах рук,
+  // чтобы не было «скольжения на лыжах» при перемещении.
+  const speedNorm = Math.min(Math.max(walkSpeed, 0.4), 2.4);
+  const run = Math.min(1, (speedNorm - 0.2) / 1.4);
+  const strideAmp = 0.62 + 0.22 * run; // амплитуда бедра
   const leftSwing = Math.sin(phase);
   const rightSwing = Math.sin(phase + Math.PI);
-  const kneeL = Math.max(0.06, Math.sin(phase - 0.85) * 0.68 + 0.22);
-  const kneeR = Math.max(0.06, Math.sin(phase + Math.PI - 0.85) * 0.68 + 0.22);
-  const bobY = -0.045 + Math.abs(Math.cos(phase)) * 0.036 * Math.min(speedNorm, 1.4);
-  const swayX = Math.sin(phase) * 0.022;
-  const pelvisYaw = Math.sin(phase) * 0.09;
-  const pelvisRoll = Math.cos(phase) * 0.035;
-  const torsoYaw = -Math.sin(phase) * 0.11;
-  const torsoLean = 0.08 + 0.05 * Math.min(speedNorm, 1.4);
-  const armBounce = Math.cos(phase * 2) * 0.03;
-  const armSway = Math.sin(phase) * 0.055;
+  const liftL = Math.max(0, -Math.cos(phase));
+  const liftR = Math.max(0, Math.cos(phase));
+  const kneeL = 0.18 + liftL * (0.95 + 0.25 * run) + Math.max(0, -Math.sin(phase)) * 0.18;
+  const kneeR = 0.18 + liftR * (0.95 + 0.25 * run) + Math.max(0, Math.sin(phase)) * 0.18;
+  const bobY = -0.05 + Math.abs(Math.sin(phase)) * (0.055 + 0.02 * run);
+  const swayX = Math.sin(phase) * 0.03;
+  const pelvisYaw = Math.sin(phase) * 0.12;
+  const pelvisRoll = Math.cos(phase) * 0.055;
+  const torsoYaw = -Math.sin(phase) * 0.14;
+  const torsoLean = 0.16 + 0.08 * run;
+  const armSwing = Math.sin(phase) * (0.22 + 0.12 * run);
+  const armBounce = Math.cos(phase * 2) * 0.04;
 
   return {
     pelvisOffsetY: bobY,
     pelvisOffsetX: swayX,
     bones: {
-      pelvis:    { rot: [0.03, pelvisYaw, pelvisRoll] },
-      torso:     { rot: [torsoLean, torsoYaw, -pelvisRoll * 0.7] },
-      head:      { rot: [-torsoLean * 0.75, -torsoYaw * 0.6, 0] },
-      upperArmR: { rot: [-0.40 + armBounce + armSway * 0.45, -0.14, -0.16] },
-      forearmR:  { rot: [-1.14 - armBounce * 0.5, 0.08, 0.14] },
-      upperArmL: { rot: [-0.60 + armBounce - armSway * 0.45, 0.48, 0.12] },
-      forearmL:  { rot: [-1.02 - armBounce * 0.5, -0.18, -0.22] },
-      thighL:    { rot: [-leftSwing * strideAmp - 0.05, 0.03, 0.025] },
+      pelvis:    { rot: [0.05, pelvisYaw, pelvisRoll] },
+      torso:     { rot: [torsoLean, torsoYaw, -pelvisRoll * 0.6] },
+      head:      { rot: [-torsoLean * 0.55, -torsoYaw * 0.45, 0] },
+      // Правая рука держит оружие — мах умеренный, левая работает свободнее.
+      upperArmR: { rot: [-0.34 + armBounce + armSwing * 0.25, -0.12, -0.14] },
+      forearmR:  { rot: [-1.08 - armBounce * 0.4, 0.08, 0.12] },
+      upperArmL: { rot: [-0.45 + armBounce - armSwing * 0.75, 0.38, 0.10] },
+      forearmL:  { rot: [-0.95 - armBounce * 0.5 - Math.max(0, armSwing) * 0.15, -0.14, -0.18] },
+      thighL:    { rot: [-leftSwing * strideAmp - 0.04, 0.03, 0.03] },
       shinL:     { rot: [kneeL, 0, 0] },
-      thighR:    { rot: [-rightSwing * strideAmp - 0.05, -0.03, -0.025] },
+      thighR:    { rot: [-rightSwing * strideAmp - 0.04, -0.03, -0.03] },
       shinR:     { rot: [kneeR, 0, 0] },
     },
   };
@@ -292,12 +298,21 @@ export function buildEnemySoldier(variantId = 'assault') {
   root.add(contactShadow);
 
   let flashTimer = 0;
+  let locPhase = 0;
   return {
     root, bones, rifleGroup, contactShadow,
     applyPose(dt, t, move01, attackW, deadW) {
-      const mode = move01 > 0.08 ? 'walk' : 'idle';
-      const speed = 0.6 + move01 * 1.1;
-      const pose = computeCharacterPose(t, speed, mode);
+      // Фаза локомоции накапливается от скорости движения: частота шага
+      // совпадает с перемещением и убирает визуальное «скольжение на лыжах».
+      if (move01 > 0.05) {
+        locPhase = (locPhase + dt * (7.5 + move01 * 5.5)) % (Math.PI * 200);
+      } else {
+        // в покое медленно выравниваем фазу к нейтральной стойке
+        locPhase += (0 - Math.sin(locPhase)) * Math.min(1, dt * 4);
+      }
+      const mode = move01 > 0.08 ? 'run' : 'idle';
+      const speed = 0.8 + move01 * 1.4;
+      const pose = computeCharacterPose(mode === 'idle' ? t : locPhase, speed, mode);
       // pelvis base
       const ps = BONE_SPECS.pelvis.pivotOffset;
       bones.pelvis.position.set(ps[0] + pose.pelvisOffsetX, ps[1] + pose.pelvisOffsetY, ps[2]);
