@@ -806,7 +806,7 @@ export class SurfaceField extends SolidField {
    * холма отвечал бы нулём, и нога повисла бы над склоном.
    */
   groundHeightAt(x, z, fromY = 0, terrainY) {
-    const plate = this.plateHeightAt(x, z, fromY);
+    const plate = this.surfaces?.length ? this.plateHeightAt(x, z, fromY) : null;
     const relief = terrainY !== undefined ? terrainY : (this.relief ? this.relief.heightAt(x, z) : 0);
     const lim = fromY + this.stepUp;
     // берётся высшая опора в пределах шага ноги, а не просто высшая: на развязке

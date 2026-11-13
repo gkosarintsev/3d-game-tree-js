@@ -149,6 +149,7 @@ export class SolidField {
    * руслом прорезанного склона ноль — не опора, а воздух над дном.
    */
   plateHeightAt(x, z, fromY = 0) {
+    if (!this.surfaces.length) return null;
     const list = this.index.get(this._key(Math.floor(x / this.bucket), Math.floor(z / this.bucket)));
     if (!list) return null;
     const limit = fromY + this.stepUp;
