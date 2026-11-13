@@ -1498,9 +1498,10 @@ export class JsonMap extends SurfaceField {
       rects = rects.flatMap(r => subtractRect(r, h));
     }
     if (!this.relief) {
-      const geo = mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
+      const make = (r) => new THREE.PlaneGeometry(
         r.maxX - r.minX, r.maxZ - r.minZ,
-      ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0)), false);
+      ).translate((r.minX + r.maxX) / 2, -(r.minZ + r.maxZ) / 2, 0);
+      const geo = rects.length === 1 ? make(rects[0]) : mergeGeometries(rects.map(make), false);
       geo?.computeBoundingSphere();
       return geo;
     }
@@ -1513,9 +1514,10 @@ export class JsonMap extends SurfaceField {
     const hasCurved = this.channelSegs?.length > 0;
     const riverAt = this.relief.riverAt;
     const roadAt = this.relief.roadAt;
-    const geo = mergeGeometries(rects.map(r => (riverAt || roadAt)
+    const makeR = (r) => (riverAt || roadAt)
       ? this._riverGroundGeo(r, cell, riverAt, roadAt)
-      : this._plainGroundGeo(r, cell, hasCurved)), false);
+      : this._plainGroundGeo(r, cell, hasCurved);
+    const geo = rects.length === 1 ? makeR(rects[0]) : mergeGeometries(rects.map(makeR), false);
     geo?.computeBoundingSphere();
     return geo;
   }

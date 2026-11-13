@@ -1105,26 +1105,33 @@ export class WorldMap extends JsonMap {
    */
   _prepareWorldState() {
     const order = this._order();
-    const take = (key, field) => {
-      const out = [];
-      for (const id of order) {
-        const entry = this.loaded.get(id);
-        const list = field ? entry.records[key] : (entry.data[key] ?? []);
-        for (const rec of list) out.push(rec);
+    const entries = [];
+    for (const id of order) {
+      const e = this.loaded.get(id);
+      if (e) entries.push(e);
+    }
+    const flatInto = (key, field) => {
+      let n = 0;
+      for (const e of entries) n += (field ? (e.records[key] ?? []) : (e.data[key] ?? [])).length;
+      const out = new Array(n);
+      let p = 0;
+      for (const e of entries) {
+        const list = field ? (e.records[key] ?? []) : (e.data[key] ?? []);
+        for (let i = 0; i < list.length; i++) out[p++] = list[i];
       }
       return out;
     };
     const next = {
       order,
       inputs: {
-        buildings: take('buildings'), roads: take('roads'), channels: take('channels'),
-        tunnels: take('tunnels'),
+        buildings: flatInto('buildings'), roads: flatInto('roads'), channels: flatInto('channels'),
+        tunnels: flatInto('tunnels'),
       },
-      props: take('props'),
-      lightSpecs: take('lights'),
+      props: flatInto('props'),
+      lightSpecs: flatInto('lights'),
       _deckFrames: new Map(),
     };
-    for (const key of DATA_SINKS) next[key] = take(key, true);
+    for (const key of DATA_SINKS) next[key] = flatInto(key, true);
     // производные от inputs, нужные индексаторам (_frames, _buildingBoxes, channelSegs)
     next.buildings = next.inputs.buildings;
     next._frames = new Map(next.buildings.map(b => [b, (typeof frameOf === 'function' ? frameOf(b.bounds, b.rotation ?? 0) : null)]));
@@ -1132,7 +1139,17 @@ export class WorldMap extends JsonMap {
     next.roads = next.inputs.roads;
     next.channels = next.inputs.channels;
     next.tunnels = next.inputs.tunnels;
-    next.channelSegs = next.channels.flatMap(ch => (ch.segments ?? []).filter(s => !s.axis));
+    let segN = 0;
+    for (const ch of next.channels) {
+      const segs = ch.segments ?? [];
+      for (let i = 0; i < segs.length; i++) if (!segs[i].axis) segN++;
+    }
+    const channelSegs = new Array(segN); let si = 0;
+    for (const ch of next.channels) {
+      const segs = ch.segments ?? [];
+      for (let i = 0; i < segs.length; i++) if (!segs[i].axis) channelSegs[si++] = segs[i];
+    }
+    next.channelSegs = channelSegs;
     const b = this._boundsOf(order);
     next.bounds = b ?? this.spec.bounds;
     return next;
@@ -1170,14 +1187,61 @@ export class WorldMap extends JsonMap {
   // (индексы: пересборка из кешированных бакетов записей; append-merge отложен до корректной реализации)
 
   _buildSolidsIndexState(next) {
-    next.solidIndex = this._rebuildSolidIndexFromEntries(next.order);
+    const prev = next._commitPrev;
+    const append = prev?.appendSafe
+      && prev.solids === (this.solids?.length ?? 0);
+    if (append) {
+      const idx = new Map(prev.solidIndex || []);
+      const contrib = this._entryBuckets(this.loaded.get(prev.id)).solidCells;
+      for (const [k, locals] of contrib.entries()) {
+        const prevList = prev.solidIndex?.get(k);
+        if (!prevList) {
+          const list = new Array(locals.length);
+          for (let i = 0; i < locals.length; i++) list[i] = locals[i] + prev.solids;
+          idx.set(k, list);
+        } else {
+          const list = prevList.slice(0, prevList.length + locals.length);
+          for (let i = 0; i < locals.length; i++) list[prevList.length + i] = locals[i] + prev.solids;
+          idx.set(k, list);
+        }
+      }
+      next.solidIndex = idx;
+    } else {
+      next.solidIndex = this._rebuildSolidIndexFromEntries(next.order);
+    }
     next._rayStamp = new Int32Array((next.solids || []).length);
   }
 
   _buildSurfacesBlockersIndexState(next) {
-    const rebuilt = this._rebuildSurfaceBlockIndexesFromEntries(next.order);
-    next.index = rebuilt.sIdx;
-    next._blockIndex = rebuilt.bIdx;
+    const prev = next._commitPrev;
+    const append = prev?.appendSafe
+      && prev.surfaces === (this.surfaces?.length ?? 0)
+      && prev.blockers === (this.blockers?.length ?? 0);
+    if (append) {
+      const eb = this._entryBuckets(this.loaded.get(prev.id));
+      const merge = (prevIdx, contrib, off) => {
+        const out = new Map(prevIdx || []);
+        for (const [k, locals] of contrib.entries()) {
+          const prevList = prevIdx?.get(k);
+          if (!prevList) {
+            const list = new Array(locals.length);
+            for (let i = 0; i < locals.length; i++) list[i] = locals[i] + off;
+            out.set(k, list);
+          } else {
+            const list = prevList.slice(0, prevList.length + locals.length);
+            for (let i = 0; i < locals.length; i++) list[prevList.length + i] = locals[i] + off;
+            out.set(k, list);
+          }
+        }
+        return out;
+      };
+      next.index = merge(prev.surfaceIndex, eb.surfaceCells, prev.surfaces);
+      next._blockIndex = merge(prev.blockIndex, eb.blockCells, prev.blockers);
+    } else {
+      const rebuilt = this._rebuildSurfaceBlockIndexesFromEntries(next.order);
+      next.index = rebuilt.sIdx;
+      next._blockIndex = rebuilt.bIdx;
+    }
   }
 
   /** Атомарная установка полностью подготовленного состояния мира. */
@@ -1210,11 +1274,34 @@ export class WorldMap extends JsonMap {
       clutter: this.clutterCount ?? 0,
       anchorsLen: this.anchors?.length ?? 0,
     };
+    // Безопасность append: у build новый чанк должен оказаться последним в
+    // каноническом порядке `cells[]` среди загруженных, иначе глобальные массивы
+    // solids/surfaces/blockers и их индексы идут в другом порядке, чем полный rebuild.
+    let appendSafe = false;
+    if (mode === 'build' && id && entry && !this.loaded.has(id)) {
+      appendSafe = true;
+      let seen = false;
+      for (const c of this.cells) {
+        if (c.id === id) { seen = true; continue; }
+        if (!seen) continue;
+        if (this.loaded.has(c.id)) { appendSafe = false; break; }
+      }
+    }
+    const prevState = {
+      mode, id, appendSafe,
+      solids: this.solids?.length ?? 0,
+      surfaces: this.surfaces?.length ?? 0,
+      blockers: this.blockers?.length ?? 0,
+      solidIndex: this.solidIndex,
+      surfaceIndex: this.index,
+      blockIndex: this._blockIndex,
+    };
     slices.push({ label: 'commit-merge', run: () => {
       if (mode === 'build' && id && entry) this.loaded.set(id, entry);
       else if (mode === 'unload' && id) this.loaded.delete(id);
       next = this._prepareWorldState();
       next._commitMeta = { mode, id, prevCounts };
+      next._commitPrev = prevState;
     } });
     slices.push({ label: 'commit-plans', run: () => { this._buildPlansIndexState(next); } });
     slices.push({ label: 'commit-solids', run: () => { this._buildSolidsIndexState(next); } });
