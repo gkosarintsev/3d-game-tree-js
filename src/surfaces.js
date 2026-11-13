@@ -1386,10 +1386,10 @@ export class SurfaceField extends SolidField {
       const wallMat = b.facadeMaterial
         ? b.facadeMaterial + (b.wallColor ? `::${b.wallColor}` : '')
         : null;
-      // Детальная визуальная модель (панелька из docs/houses): стены/плиты/кровля/
-      // фундамент рендерятся отдельным мешем, но коллизии и навигация должны
-      // остаться по данным здания — подавляем только картинку (_addGeo).
-      const detailed = b.detailedVisual === 'soviet_panel';
+      // Детальная визуальная модель (docs/houses): стены/плиты/кровля надстройки
+      // рендерятся отдельным мешем, но коллизии и навигация должны остаться по
+      // данным здания — подавляем только картинку (_addGeo).
+      const detailed = !!b.detailedVisual;
       const prevMute = this._muteGeo;
       try {
         // Фундамент дома на неровной поверхности (baseY поднят до наивысшей точки

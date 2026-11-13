@@ -445,6 +445,8 @@ export function makeStage4() {
         }
         const isL17Panelka = panelkaL17;
         if (isL17Panelka) entrances = 3;
+        // Детальная визуальная модель (docs/houses): небоскрёб получает полную модель.
+        const detailedVisual = isL17Panelka ? 'soviet_panel' : (kind === 'skyscraper' ? 'skyscraper' : null);
         out.push({
           id,
           name: `B ${placed + 1}`,
@@ -455,7 +457,8 @@ export function makeStage4() {
           facadeMaterial,
           ...(wallColor ? { wallColor } : {}),
           houseKind: kind,
-          ...(isL17Panelka ? { entrances, detailedVisual: 'soviet_panel' } : (entrances > 1 ? { entrances } : (kind === 'panelka' ? { entrances: 1 } : {}))),
+          ...(isL17Panelka ? { entrances } : (entrances > 1 ? { entrances } : (kind === 'panelka' ? { entrances: 1 } : {}))),
+          ...(detailedVisual ? { detailedVisual } : {}),
           windowDensity: 1 + Math.floor(rng() * 3),
           windowScale: +(0.85 + rng() * 0.35).toFixed(2),
           footprint,
@@ -551,6 +554,7 @@ export function makeStage4() {
             const id = `b_${d.id}_${placed + 1}`;
             const facadeMaterial = materialFor(profile, kind, () => 0);
             const isL17PanelkaFallback = kind === 'panelka' && /level-17/i.test(levelName);
+            const detailedVisual = isL17PanelkaFallback ? 'soviet_panel' : (kind === 'skyscraper' ? 'skyscraper' : null);
             out.push({
               id,
               name: `B ${placed + 1}`,
@@ -561,7 +565,8 @@ export function makeStage4() {
               facadeMaterial,
               ...(pickWallColor(facadeMaterial, () => 0) ? { wallColor: pickWallColor(facadeMaterial, () => 0) } : {}),
               houseKind: kind,
-              ...(isL17PanelkaFallback ? { entrances: 3, detailedVisual: 'soviet_panel' } : (kind === 'panelka' ? { entrances: 1 } : {})),
+              ...(isL17PanelkaFallback ? { entrances: 3 } : (kind === 'panelka' ? { entrances: 1 } : {})),
+              ...(detailedVisual ? { detailedVisual } : {}),
               windowDensity: 2,
               windowScale: 1,
               footprint,

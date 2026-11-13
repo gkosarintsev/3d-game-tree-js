@@ -611,9 +611,9 @@ export class WorldMap extends JsonMap {
           pic.objs.push(mesh);
         }
         const ownedBuildings = (entry.data?.buildings ?? []).filter(b => entry.owned.has(b));
-        // Детальные панельки (docs/houses): полная модель вместо стен/окон/декора.
-        const detailed = ownedBuildings.filter(b => b.detailedVisual === 'soviet_panel');
-        if (detailed.length) this._buildDetailedPanelkas(this.scene, detailed, pic.objs);
+        // Детальные модели (docs/houses): полная модель вместо стен/окон/декора.
+        const detailed = ownedBuildings.filter(b => b.detailedVisual);
+        if (detailed.length) this._buildDetailedBuildings(this.scene, detailed, pic.objs);
         // Декор панелек — только для недетальных панелек.
         for (const m of buildPanelkaDecor(this.scene, ownedBuildings.filter(b => b.detailedVisual !== 'soviet_panel'))) pic.objs.push(m);
         pic.windows = this._buildWindows(this.scene, pic.objs);

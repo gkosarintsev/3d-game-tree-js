@@ -11,6 +11,7 @@ import { buildProps } from './props.js';
 import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
 import { buildPanelkaDecor } from './panelka-decor.js';
 import { buildDetailedSovietPanel, makeSovietPanelMaterials } from './soviet-panel-detail.js';
+import { buildDetailedSkyscraper, makeSkyscraperMaterials } from './skyscraper-detail.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -1921,7 +1922,7 @@ export class JsonMap extends SurfaceField {
     };
     for (const b of (this._iterBuildings ?? this.buildings)) {
       if (!this._drawn(b)) continue;
-      if (b.detailedVisual === 'soviet_panel') continue; // окна встроены в детальную модель
+      if (b.detailedVisual) continue; // окна/фасад встроены в детальную модель
       const style = W.byMaterial?.[b.facadeMaterial];
       const cfg = style ? { ...W, ...style } : W;
       if (!(cfg.spacing > 0) || !b.floorsCount) continue;
@@ -2370,43 +2371,73 @@ export class JsonMap extends SurfaceField {
   }
 
   /**
-   * Детальная визуальная модель панельного дома (docs/houses soviet-panel):
-   * полная геометрия секций/подъездов/окон/балконов/кровли вместо стандартных
-   * мешей. Коллизии и навигация — по данным здания (собраны в surfaces).
+   * Детальные визуальные модели зданий (docs/houses): полная геометрия вместо
+   * стандартных стен/окон/декора. Коллизии и навигация — по данным (surfaces).
    */
-  _buildDetailedPanelkas(scene, buildings, objs) {
+  _buildDetailedBuildings(scene, buildings, objs) {
     const rad = d => d * Math.PI / 180;
     for (const b of buildings) {
       if (!b.bounds) continue;
       const bw = b.bounds.maxX - b.bounds.minX;
       const bd = b.bounds.maxZ - b.bounds.minZ;
       if (!(bw > 0) || !(bd > 0)) continue;
-      const entrances = Math.max(1, Math.round(b.entrances || 3));
-      const sectionW = bw / entrances;
-      const mats = makeSovietPanelMaterials(b.wallColor || '#d6d0c4');
-      const meshes = buildDetailedSovietPanel({
-        width: sectionW,
-        depth: bd,
-        floorHeight: b.floorHeight || 2.8,
-        floors: b.floorsCount || 5,
-        entrances,
-        foundationHeight: 0.7,
-        windowDensity: b.windowDensity || 2,
-        windowScale: b.windowScale || 1.0,
-        baseY: b.baseY,
-        hasPorch: true,
-        hasChimney: true,
-        hasCornerAccents: true,
-        hasBalcony: true,
-      }, mats);
       const cx = (b.bounds.minX + b.bounds.maxX) / 2;
       const cz = (b.bounds.minZ + b.bounds.maxZ) / 2;
       const ry = b.rotation ? -rad(b.rotation) : 0;
+      let meshes = null;
+      let yOffset = 0;
+
+      if (b.detailedVisual === 'soviet_panel') {
+        const entrances = Math.max(1, Math.round(b.entrances || 3));
+        const sectionW = bw / entrances;
+        const mats = makeSovietPanelMaterials(b.wallColor || '#d6d0c4');
+        meshes = buildDetailedSovietPanel({
+          width: sectionW,
+          depth: bd,
+          floorHeight: b.floorHeight || 2.8,
+          floors: b.floorsCount || 5,
+          entrances,
+          foundationHeight: 0.7,
+          windowDensity: b.windowDensity || 2,
+          windowScale: b.windowScale || 1.0,
+          baseY: b.baseY,
+          hasPorch: true,
+          hasChimney: true,
+          hasCornerAccents: true,
+          hasBalcony: true,
+        }, mats);
+      } else if (b.detailedVisual === 'skyscraper') {
+        const fndH = 1.2;
+        const mats = makeSkyscraperMaterials(b.wallColor || '#4b5563');
+        meshes = buildDetailedSkyscraper({
+          width: bw,
+          depth: bd,
+          floorHeight: b.floorHeight || 3.6,
+          floors: b.floorsCount || 20,
+          foundationHeight: fndH,
+          roofPitchDeg: 28,
+          roofType: b.floorsCount >= 20 ? 'stepped' : 'flat',
+          windowDensity: b.windowDensity || 2,
+          windowScale: b.windowScale || 1.05,
+          hasPorch: true,
+          hasChimney: true,
+          hasCornerAccents: true,
+          hasBalcony: true,
+        }, mats);
+        // модель строится от y=0 (плинт/фундамент) с этажами от foundationHeight;
+        // совмещаем начало этажей с baseY здания
+        yOffset = b.baseY - fndH;
+      } else {
+        continue;
+      }
+
+      if (!meshes) continue;
       for (const m of meshes) {
         if (ry) m.rotation.y = ry;
         m.position.x += cx;
+        m.position.y += yOffset;
         m.position.z += cz;
-        m.userData.sovietPanel = true;
+        m.userData.detailedBuilding = b.detailedVisual;
         scene.add(m);
         objs.push(m);
       }
@@ -2638,10 +2669,10 @@ export class JsonMap extends SurfaceField {
       objs.push(mesh);
     }
     const drawableBuildings = this._drawable(this._iterBuildings ?? this.buildings ?? []);
-    // Детальные панельки (docs/houses soviet-panel): полная визуальная модель
-    // вместо стандартных стен/окон/декора. Коллизии собраны в surfaces (geo muted).
-    const detailed = drawableBuildings.filter(b => b.detailedVisual === 'soviet_panel');
-    if (detailed.length) this._buildDetailedPanelkas(scene, detailed, objs);
+    // Детальные модели (docs/houses): полная визуальная модель вместо стандартных
+    // стен/окон/декора. Коллизии собраны в surfaces (geo muted).
+    const detailed = drawableBuildings.filter(b => b.detailedVisual);
+    if (detailed.length) this._buildDetailedBuildings(scene, detailed, objs);
     // Декор панелек (балконы, швы, карниз) — только для недетальных панелек.
     const decorBuildings = drawableBuildings.filter(b => b.detailedVisual !== 'soviet_panel');
     const panelka = buildPanelkaDecor(scene, decorBuildings);
