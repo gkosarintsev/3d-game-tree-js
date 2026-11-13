@@ -131,16 +131,31 @@ export class SurfaceField extends SolidField {
     // угла, поэтому весь код ниже для модулей v1-глав идёт ровно прежней веткой.
     // Считается один раз на дом — `cos`/`sin` нужны и картинке, и твёрдости, и
     // навигации, и выводить их дважды значило бы держать два разных угла.
-    this._frames = new Map(this.buildings.map(b => [b, frameOf(b.bounds, b.rotation ?? 0)]));
+    if (!this._frameCache) this._frameCache = new WeakMap();
+    if (!this._boxCache) this._boxCache = new WeakMap();
+    if (!this._channelSegCache) this._channelSegCache = new WeakMap();
+    this._frames = new Map(this.buildings.map(b => {
+      let f = this._frameCache.get(b);
+      if (f === undefined) { f = frameOf(b.bounds, b.rotation ?? 0); this._frameCache.set(b, f); }
+      return [b, f];
+    }));
     // мировой план каждого дома: габарит повёрнутого корпуса плюс `obb`. По нему
     // раскладываются клетки `_buildingCells` (индекс — broadphase, консервативно),
     // а точку «внутри плана» решает `obbHitsRect` уже по своим осям
-    this._buildingBoxes = this.buildings.map(b => obbOf(b.bounds, this._frames.get(b)));
+    this._buildingBoxes = this.buildings.map(b => {
+      let box = this._boxCache.get(b);
+      if (box === undefined) { box = obbOf(b.bounds, this._frames.get(b)); this._boxCache.set(b, box); }
+      return box;
+    });
     this.roads = src.roads ?? [];
     this.channels = src.channels ?? [];
     this.tunnels = src.tunnels ?? [];
     /** сегменты кривых русел (плоская принадлежность по расстоянию до оси) */
-    this.channelSegs = this.channels.flatMap(ch => (ch.segments ?? []).filter(s => !s.axis));
+    this.channelSegs = this.channels.flatMap(ch => {
+      let segs = this._channelSegCache.get(ch);
+      if (segs === undefined) { segs = (ch.segments ?? []).filter(s => !s.axis); this._channelSegCache.set(ch, segs); }
+      return segs;
+    });
   }
 
   /**
@@ -211,13 +226,27 @@ export class SurfaceField extends SolidField {
    * остаются на проборе флага.
    */
   _drawOwnersOnly(fn, own) {
-    const held = [this._ownerOnly, this._drawOwn];
+    const held = [this._ownerOnly, this._drawOwn, this._iterBuildings, this._iterRoads];
     this._ownerOnly = true;
     this._drawOwn = own ?? null;
+    // для WorldMap: выводимые ряды по зданиям/дорогам могут итерироваться
+    // только по владельцам клетки, не сканируя весь загруженный мир
+    if (own) {
+      this._iterBuildings = [];
+      this._iterRoads = [];
+      for (const r of own) {
+        if (!r) continue;
+        if (r.bounds && Array.isArray(r.rooms)) this._iterBuildings.push(r);
+        else if (Array.isArray(r.decks) || r.type === 'ground' || r.type === 'elevated') this._iterRoads.push(r);
+      }
+    } else {
+      this._iterBuildings = null;
+      this._iterRoads = null;
+    }
     try {
       return fn();
     } finally {
-      [this._ownerOnly, this._drawOwn] = held;
+      [this._ownerOnly, this._drawOwn, this._iterBuildings, this._iterRoads] = held;
     }
   }
 

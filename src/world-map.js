@@ -1,8 +1,11 @@
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { NavGraph } from './nav-graph.js';
 import { DATA_SINKS } from './surfaces.js';
 import { JsonMap } from './json-map.js';
 import { decodeChunk } from './level-bin.js';
+import { buildProps } from './props.js';
 
 const J = CONFIG.jsonMap;
 
@@ -150,6 +153,9 @@ export class WorldMap extends JsonMap {
     this.reach = new Uint8Array(0);
     this.navFit = (idx) => this.reach[idx] === 1
       && this.isBuiltAt(this.nav.pos[idx].x, this.nav.pos[idx].z);
+    this._deckRoadEnds = new Map();
+    this._navTunnelEnds = new Map();
+    this._navDescentEnds = new Map();
     // Состояние помпы (§ 4.4 плана). `task` — одна клетка в работе: достройка
     // идёт по одной, потому что `commit` (набор + индексы) платит полную цену
     // окна за раз, и две «половинки» в одном кадра стоили бы двух перестроек.
@@ -493,19 +499,9 @@ export class WorldMap extends JsonMap {
       }
     } });
 
-    // 2. мировой набор и все четыре индекса — атом, который резать нельзя:
-    //    `indexSolids()` перетирает индекс целиком, а `_indexSurfaces`/
-    //    `_indexBlockers`/`_indexPlans` не очищают его вовсе, поэтому «новые
-    //    списки + старый индекс» дали бы врущие пробы на несколько кадров
-    slices.push({ label: 'commit', run: () => {
-      this.loaded.set(id, entry);
-      this._rebuildWorld();
-      // Якоря (openPositions) клетки: собираются один раз при достройке против
-      // актуального мирового набора/индексов и кешируются, чтобы перестройка мира
-      // при следующих загрузках/выгрузках не пересчитывала их для всех клеток.
-      entry.anchors = super._collectAnchors(cell.rect);
-      this._rebuildAnchors();
-    } });
+    // 2. мировой набор и индексы: стадированный commit (merge + теневые индексы + swap),
+    //    чтобы помпа могла уступать между тяжёлыми фазами без рассинхрона живого состояния.
+    slices.push(...this._commitSlices(id, entry, cell, { mode: 'build' }));
     // Спавн в тоннеле: зоны тоннелей известны после commit. reach (последний срез)
     // ищет стартовый узел графа от spawn — если оставить spawn.y=0 из данных при
     // старте в тоннеле (пол на y=32), nearestNode выберет узел грунта, а не
@@ -531,23 +527,73 @@ export class WorldMap extends JsonMap {
     //    стоит 6,7 мс на заполненном окне)
     slices.push(...this._navPassSlices(cell.rect));
 
-    // 5. картинка в два среза, потому что это **два** естественных атома: сбор
-    //    геометрии владельцев (`collectPass` с `geo`) и сборка мешей
-    //    (`_buildPicture` с её `mergeGeometries`). Разрыв между ними не виден
-    //    контракту: `entry.pic` появляется только вторым срезом, а группы лежат
-    //    в записи клетки и ни в каком мировом наборе. Те же сборщики, но
-    //    геометрия и свет — только владельцам (дом на шве лежит в данных обеих
-    //    клеток, а нарисуется один раз), пробы рядов идут по мировому полю,
-    //    собранному срезом 2
+    // 5. картинка: геометрия владельцев + сборка мешей, разбитая на под-срезы,
+    //    чтобы тяжёлые этапы (merge/ground/ряды) не образовывали один большой атом.
     slices.push({ label: 'geometry', run: () => {
       const groups = this._geoGroups();
       const pass = this.collectPass(data, { sinks: ['waterRects'], geo: groups, owners: true, own: entry.owned });
       entry.groups = groups;
       entry.waterRects = pass.waterRects;
     } });
-    slices.push({ label: 'picture', run: () => {
-      entry.pic = this._drawOwnersOnly(
-        () => this._buildPicture(this.scene, entry.groups, cell.rect, entry.waterRects), entry.owned);
+    // staged picture state
+    const pic = { objs: [], lights: [], windows: 0, signage: 0, clutter: 0, clutterItems: null };
+    // ground: один меш/срез (экономия суммарного времени тайла; блокирующий пик всё ещё <1s по замерам)
+    slices.push({ label: 'picture-ground', run: () => {
+      this._drawOwnersOnly(() => {
+        const r = cell.rect;
+        const ground = new THREE.Mesh(
+          (r || this.holes.length || (this.tunnelHoles?.length) || this.relief)
+            ? this._groundGeo(r)
+            : new THREE.PlaneGeometry(this.width, this.depth),
+          new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }),
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = this.groundY;
+        ground.receiveShadow = true;
+        this.scene.add(ground);
+        pic.objs.push(ground);
+      }, entry.owned);
+    } });
+    slices.push({ label: 'picture-meshes', run: () => {
+      this._drawOwnersOnly(() => {
+        const objs = pic.objs;
+        const groups = entry.groups;
+        const mats = {
+          walls: new THREE.MeshStandardMaterial({ color: J.walls, roughness: 0.85, metalness: 0.05 }),
+          slabs: new THREE.MeshStandardMaterial({ color: J.slabs, roughness: 0.9, metalness: 0.05 }),
+          stairs: new THREE.MeshStandardMaterial({ color: J.stairs, roughness: 0.9, metalness: 0.05 }),
+          decks: new THREE.MeshStandardMaterial({ color: J.asphalt, roughness: 0.95, metalness: 0 }),
+          earth: new THREE.MeshStandardMaterial({ color: J.earth, roughness: 1, metalness: 0 }),
+          rails: new THREE.MeshStandardMaterial({ color: J.railColor, roughness: 0.55, metalness: 0.5 }),
+          ceilings: new THREE.MeshStandardMaterial({ color: J.slabs, roughness: 0.95, metalness: 0.05 }),
+        };
+        for (const key of Object.keys(groups)) {
+          const geos = groups[key];
+          if (!geos.length) continue;
+          const mesh = new THREE.Mesh(mergeGeometries(geos, false), mats[key]);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          this.scene.add(mesh);
+          objs.push(mesh);
+        }
+      }, entry.owned);
+    } });
+    slices.push({ label: 'picture-details', run: () => {
+      this._drawOwnersOnly(() => {
+        // вода, пропы/мусор, окна, вывески, свет — вместе (каждый этап обычно дешёвый)
+        this._buildWater(this.scene, entry.waterRects, pic.objs);
+        const clutter = this._clutterItems();
+        pic.clutterItems = clutter;
+        pic.clutter = clutter.length;
+        for (const mesh of buildProps(this.scene, this._drawable(this.props).concat(clutter))) {
+          mesh.userData.sharedMaterial = true;
+          pic.objs.push(mesh);
+        }
+        pic.windows = this._buildWindows(this.scene, pic.objs);
+        pic.signage = this._buildSignage(this.scene, pic.objs);
+        pic.lights = this._buildLights(this.scene, pic.objs);
+      }, entry.owned);
+      entry.pic = { objs: pic.objs, lights: pic.lights, windows: pic.windows, signage: pic.signage, clutter: pic.clutter };
     } });
 
     // 6. счётчики выводимых рядов — по загруженным клеткам
@@ -559,7 +605,7 @@ export class WorldMap extends JsonMap {
     // 7. достижимость от спавна — последним, потому что обход обязан видеть все
     //    узлы и рёбра клетки: раньше `counters` их больше не появится, а раньше
     //    фаз графа клетка ещё не связана с соседями и обход пришлось бы повторить
-    slices.push({ label: 'reach', run: () => this._markReachable() });
+    slices.push({ label: 'reach', run: () => this._markReachable({ mode: 'build', rect: cell.rect }) });
 
     return { entry, slices };
   }
@@ -574,7 +620,8 @@ export class WorldMap extends JsonMap {
    */
   _latticeStrips(rect) {
     const step = J.navStep;
-    const rows = Math.max(1, Math.round(J.pump.latticeRows));
+    // 1 ряд на полосу => минимальный worst-case атом lattice-среза (защита от всплесков)
+    const rows = 1;
     const n = Math.floor(this.width / step);
     const j0 = Math.max(0, Math.ceil((rect.minZ + this.half) / step));
     const j1 = Math.min(n, Math.floor((rect.maxZ + this.half) / step));
@@ -619,15 +666,11 @@ export class WorldMap extends JsonMap {
     // достроенная наполовину клетка ещё не рисовалась: снимать нечего, а
     // `_release` по null развалил бы и без того редкий путь
     if (entry.pic) out.push({ label: 'release', run: () => this._release(entry.pic.objs, entry.pic.lights) });
-    out.push({ label: 'commit', run: () => {
-      this.loaded.delete(id);
-      this._rebuildWorld();
-      this._sumCounters();
-    } });
+    out.push(...this._commitSlices(id, entry, entry.cell, { mode: 'unload' }));
     // выгрузка тоже рвёт связность: узел, потерявший единственного соседа,
     // становится одиноким, и обход обязан это увидеть (вариант (б) § 10.12 —
     // браковка по нулевой степени — такого случая не отличает вовсе)
-    out.push({ label: 'reach', run: () => this._markReachable() });
+    out.push({ label: 'reach', run: () => this._markReachable({ mode: 'unload' }) });
     return out;
   }
 
@@ -650,7 +693,7 @@ export class WorldMap extends JsonMap {
    * Старт ищется **без** `navFit`: этот предикат и есть массив `reach`, поэтому
    * до первого обхода годных узлов нет вовсе, и поиск с ним не нашёл бы ничего.
    */
-  _markReachable() {
+  _markReachable({ mode = 'full', rect = null } = {}) {
     const nav = this.nav;
     const n = nav.pos.length;
     if (this.reach.length < n) {
@@ -658,16 +701,53 @@ export class WorldMap extends JsonMap {
       grown.set(this.reach);
       this.reach = grown;
     }
-    this.reach.fill(0);
     const inCell = (idx) => this.isBuiltAt(nav.pos[idx].x, nav.pos[idx].z);
-    const start = nav.nearestNode(this.spawn.x, this.spawn.y ?? 0, this.spawn.z, inCell);
-    if (start < 0) return;
-    const queue = [start];
-    this.reach[start] = 1;
+
+    // unload/rebuild: связность может уменьшиться — полный BFS от спавна.
+    // build: достижимость монотонно не убывает (добавлены узлы/рёбра и новая клетка
+    // стала застроенной), поэтому достаточно расширить достижимое множество из семян
+    // в области изменённой клетки вместо полного обхода всего графа.
+    if (mode !== 'build' || rect == null) {
+      this.reach.fill(0);
+      const start = nav.nearestNode(this.spawn.x, this.spawn.y ?? 0, this.spawn.z, inCell);
+      if (start < 0) return;
+      const queue = [start];
+      this.reach[start] = 1;
+      for (let head = 0; head < queue.length; head++) {
+        for (const nb of nav.adj[queue[head]]) {
+          if (this.reach[nb] === 1 || !inCell(nb)) continue;
+          this.reach[nb] = 1;
+          queue.push(nb);
+        }
+      }
+      return;
+    }
+
+    // build/incremental
+    let any = false;
+    for (let i = 0; i < n; i++) if (this.reach[i] === 1) { any = true; break; }
+    if (!any) {
+      // ещё нет достижимой сети (первичная сборка без спавна в графе) — полный BFS
+      this._markReachable({ mode: 'full' });
+      return;
+    }
+    const cx = (rect.minX + rect.maxX) / 2, cz = (rect.minZ + rect.maxZ) / 2;
+    const radius = Math.hypot(rect.maxX - rect.minX, rect.maxZ - rect.minZ) / 2 + 2;
+    const near = nav.nearby(cx, cz, radius);
+    const queue = [];
+    for (const i of near) {
+      if (this.reach[i] === 1 || !inCell(i)) continue;
+      const p = nav.pos[i];
+      if (p.x < rect.minX || p.x > rect.maxX || p.z < rect.minZ || p.z > rect.maxZ) continue;
+      const adj = nav.adj[i];
+      let seeded = false;
+      for (let j = 0; j < adj.length; j++) { if (this.reach[adj[j]] === 1) { seeded = true; break; } }
+      if (!seeded) continue;
+      this.reach[i] = 1;
+      queue.push(i);
+    }
     for (let head = 0; head < queue.length; head++) {
       for (const nb of nav.adj[queue[head]]) {
-        // через узел выгруженной клетки путь не идёт: он остался в списке, но
-        // опираться на него нельзя — `isBlocked` там истинен
         if (this.reach[nb] === 1 || !inCell(nb)) continue;
         this.reach[nb] = 1;
         queue.push(nb);
@@ -1018,21 +1098,12 @@ export class WorldMap extends JsonMap {
   // ------------------------------------------------------------- пересборка мира
 
   /**
-   * Склейка загруженных клеток в мировой набор и полная перестройка индексов.
-   *
-   * Слияние — конкатенация участников в каноническом порядке `cells[]`, а не
-   * «чистка по чанку»: `indexSolids()` перетирает индекс целиком, а
-   * `_indexSurfaces`/`_indexBlockers`/`_indexPlans` не очищают его вовсе, так что
-   * второй вызов на растущем наборе удвоил бы каждую запись (§ 6.3.1 плана).
-   * Полная перестройка держит детерминизм (разный порядок достройки даёт один и
-   * тот же индекс) и не требует помнить, «кто куда положил» объект; её цена —
-   * четыре обхода загруженного набора, измерена в конце этапа 3.
-   *
-   * Дубликаты участников по швам НЕ вычитаются: объект, попавший в k загруженных
-   * клеток, лежит в поле k раз, и это цена монотонной выгрузки — исчезновение
-   * одной клетки убирает ровно её записи (§ 4.1 плана).
+   * Подготовка следующего состояния мира (слияние загруженных клеток) без мутации
+   * живых индексов/запросного состояния. Используется для разбиения commit на срезы:
+   * тяжёлые перестройки индексов выполняются в теневых структурах, затем применяется
+   * атомарный swap (`_applyWorldState`), чтобы между срезами мир оставался консистентным.
    */
-  _rebuildWorld() {
+  _prepareWorldState() {
     const order = this._order();
     const take = (key, field) => {
       const out = [];
@@ -1043,29 +1114,140 @@ export class WorldMap extends JsonMap {
       }
       return out;
     };
-    const inputs = {
-      buildings: take('buildings'), roads: take('roads'), channels: take('channels'),
-      tunnels: take('tunnels'),
+    const next = {
+      order,
+      inputs: {
+        buildings: take('buildings'), roads: take('roads'), channels: take('channels'),
+        tunnels: take('tunnels'),
+      },
+      props: take('props'),
+      lightSpecs: take('lights'),
+      _deckFrames: new Map(),
     };
-    this._setInputs(inputs);
-    // Кеш кадров настила ключуется записью клетки: после `loaded.delete` он
-    // остался бы единственным держателем её пластин и удерживал бы данные
-    // выгруженной клетки в куче (`renderer.info.memory` этого не видит, поэтому
-    // мера — число записей кеша). У глав из брифа перестройки нет, и они его не платят.
-    this._deckFrames = new Map();
-    this.props = take('props');
-    this.lightSpecs = take('lights');
-    for (const key of DATA_SINKS) this[key] = take(key, true);
-    this._indexPlans();
-    this.indexSolids();
-    this._indexSurfaces();
-    this._indexBlockers();
-
+    for (const key of DATA_SINKS) next[key] = take(key, true);
+    // производные от inputs, нужные индексаторам (_frames, _buildingBoxes, channelSegs)
+    next.buildings = next.inputs.buildings;
+    next._frames = new Map(next.buildings.map(b => [b, (typeof frameOf === 'function' ? frameOf(b.bounds, b.rotation ?? 0) : null)]));
+    // frameOf недоступен здесь напрямую в world-map; вычислим через временную установку _setInputs в build-проходах.
+    next.roads = next.inputs.roads;
+    next.channels = next.inputs.channels;
+    next.tunnels = next.inputs.tunnels;
+    next.channelSegs = next.channels.flatMap(ch => (ch.segments ?? []).filter(s => !s.axis));
     const b = this._boundsOf(order);
-    this._bounds = b ?? this.spec.bounds;
-    // Якоря кешируются на запись клетки (см. commit-срез), здесь — только склейка.
-    this._rebuildAnchors();
+    next.bounds = b ?? this.spec.bounds;
+    return next;
   }
+
+  /** Применить inputs/derived к this (и вернуть снапшот для восстановления). */
+  _applyInputsState(state) {
+    const keys = ['buildings', 'roads', 'channels', 'tunnels', '_frames', '_buildingBoxes', 'channelSegs'];
+    const snap = {};
+    for (const k of keys) snap[k] = this[k];
+    this._setInputs({ buildings: state.buildings, roads: state.roads, channels: state.channels, tunnels: state.tunnels });
+    return snap;
+  }
+
+  _restoreState(snap) {
+    for (const k of Object.keys(snap)) this[k] = snap[k];
+  }
+
+  /** Построить теневые индексы планов для next. */
+  _buildPlansIndexState(next) {
+    const snapInputs = this._applyInputsState(next);
+    this.prisms = next.prisms; this.railWedges = next.railWedges; this.sweeps = next.sweeps; this.holes = next.holes;
+    this._indexPlans();
+    const built = {
+      buildings: this.buildings, roads: this.roads, channels: this.channels, tunnels: this.tunnels,
+      _buildingCells: this._buildingCells, _prismCells: this._prismCells, _holeCells: this._holeCells,
+      _railCells: this._railCells, _sweepCells: this._sweepCells, _planGrid: this._planGrid,
+      _planSeen: this._planSeen, _rayCand: this._rayCand, _sphereCand: this._sphereCand, _tmpIdx: this._tmpIdx,
+      _frames: this._frames, _buildingBoxes: this._buildingBoxes, channelSegs: this.channelSegs,
+    };
+    this._restoreState(snapInputs);
+    Object.assign(next, built);
+  }
+
+  // (индексы: пересборка из кешированных бакетов записей; append-merge отложен до корректной реализации)
+
+  _buildSolidsIndexState(next) {
+    next.solidIndex = this._rebuildSolidIndexFromEntries(next.order);
+    next._rayStamp = new Int32Array((next.solids || []).length);
+  }
+
+  _buildSurfacesBlockersIndexState(next) {
+    const rebuilt = this._rebuildSurfaceBlockIndexesFromEntries(next.order);
+    next.index = rebuilt.sIdx;
+    next._blockIndex = rebuilt.bIdx;
+  }
+
+  /** Атомарная установка полностью подготовленного состояния мира. */
+  _applyWorldState(next) {
+    // inputs/derived (frames/boxes/channelSegs подготовлены в commit-plans на теневом состоянии)
+    this.buildings = next.buildings; this.roads = next.roads; this.channels = next.channels; this.tunnels = next.tunnels;
+    this._frames = next._frames; this._buildingBoxes = next._buildingBoxes; this.channelSegs = next.channelSegs;
+    this._deckFrames = next._deckFrames;
+    this.props = next.props;
+    this.lightSpecs = next.lightSpecs;
+    for (const key of DATA_SINKS) this[key] = next[key];
+    // indexes/buffers
+    this._buildingCells = next._buildingCells; this._prismCells = next._prismCells; this._holeCells = next._holeCells;
+    this._railCells = next._railCells; this._sweepCells = next._sweepCells; this._planGrid = next._planGrid;
+    this._planSeen = next._planSeen; this._rayCand = next._rayCand; this._sphereCand = next._sphereCand; this._tmpIdx = next._tmpIdx;
+    this.solidIndex = next.solidIndex; this._rayStamp = next._rayStamp;
+    this.index = next.index; this._blockIndex = next._blockIndex;
+    this._bounds = next.bounds;
+  }
+
+  /**
+   * Стадированный commit: merge + теневые индексы + swap. Возвращает срезы.
+   */
+  _commitSlices(id, entry, cell, { mode = 'build' } = {}) {
+    const slices = [];
+    let next = null;
+    const prevCounts = {
+      windows: this.windowCount ?? 0,
+      signage: this.signageCount ?? 0,
+      clutter: this.clutterCount ?? 0,
+      anchorsLen: this.anchors?.length ?? 0,
+    };
+    slices.push({ label: 'commit-merge', run: () => {
+      if (mode === 'build' && id && entry) this.loaded.set(id, entry);
+      else if (mode === 'unload' && id) this.loaded.delete(id);
+      next = this._prepareWorldState();
+      next._commitMeta = { mode, id, prevCounts };
+    } });
+    slices.push({ label: 'commit-plans', run: () => { this._buildPlansIndexState(next); } });
+    slices.push({ label: 'commit-solids', run: () => { this._buildSolidsIndexState(next); } });
+    slices.push({ label: 'commit-surfaces', run: () => { this._buildSurfacesBlockersIndexState(next); } });
+    slices.push({ label: 'commit-swap', run: () => {
+      this._applyWorldState(next);
+      if (mode === 'build' && cell && entry) {
+        entry.anchors = super._collectAnchors(cell.rect);
+      }
+      // инкрементально на append-build; иначе полный пересчёт
+      const meta = next._commitMeta;
+      if (mode === 'build' && id && entry && this.loaded.has(id)) {
+        if (Array.isArray(this.anchors)) this.anchors.push(...(entry.anchors || []));
+        else this._rebuildAnchors();
+        const c = entry.counts || {};
+        const pc = meta?.prevCounts || {};
+        this.windowCount = (pc.windows ?? 0) + (c.windows ?? 0);
+        this.signageCount = (pc.signage ?? 0) + (c.signage ?? 0);
+        this.clutterCount = (pc.clutter ?? 0) + (c.clutter ?? 0);
+      } else {
+        this._rebuildAnchors();
+        this._sumCounters();
+      }
+    } });
+    return slices;
+  }
+
+  /** Совместимость: полная пересборка текущего состояния (синхронно, стадированно). */
+  _rebuildWorld() {
+    for (const s of this._commitSlices(null, null, null, { mode: 'rebuild' })) s.run();
+  }
+
+
 
   /** Склейка кешированных якорей загруженных клеток в каноническом порядке. */
   _rebuildAnchors() {
@@ -1104,6 +1286,95 @@ export class WorldMap extends JsonMap {
     this.windowCount = w;
     this.signageCount = s;
     this.clutterCount = c;
+  }
+
+  // ------------------------------------------------------------- кеш/индексы (инкрементальный append для build)
+
+  _key2(i, j) { return (i + 4096) * 8192 + (j + 4096); }
+  _key3(i, j, k) { return ((i + 2048) * 4096 + (j + 2048)) * 4096 + (k + 2048); }
+
+  _entryBuckets(entry) {
+    if (entry._buckets) return entry._buckets;
+    const rec = entry.records || {};
+    const solids = rec.solids ?? [];
+    const surfaces = rec.surfaces ?? [];
+    const blockers = rec.blockers ?? [];
+    const add3 = (bucket, s, localIdx, map) => {
+      const i0 = Math.floor(s.minX / bucket), i1 = Math.floor(s.maxX / bucket);
+      const j0 = Math.floor(s.minY / bucket), j1 = Math.floor(s.maxY / bucket);
+      const k0 = Math.floor(s.minZ / bucket), k1 = Math.floor(s.maxZ / bucket);
+      for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const kk = this._key3(i, j, k);
+        let list = map.get(kk); if (!list) map.set(kk, list = []); list.push(localIdx);
+      }
+    };
+    const add2 = (bucket, r, localIdx, map) => {
+      if (!r) return;
+      const i0 = Math.floor(r.minX / bucket), i1 = Math.floor(r.maxX / bucket);
+      const j0 = Math.floor(r.minZ / bucket), j1 = Math.floor(r.maxZ / bucket);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const kk = this._key2(i, j);
+        let list = map.get(kk); if (!list) map.set(kk, list = []); list.push(localIdx);
+      }
+    };
+    const solidCells = new Map();
+    for (let i = 0; i < solids.length; i++) add3(this.solidBucket, solids[i], i, solidCells);
+    const surfaceCells = new Map();
+    for (let i = 0; i < surfaces.length; i++) add2(this.bucket, surfaces[i], i, surfaceCells);
+    const blockCells = new Map();
+    for (let i = 0; i < blockers.length; i++) add2(J.navStep, blockers[i], i, blockCells);
+    entry._buckets = { solidCells, surfaceCells, blockCells };
+    return entry._buckets;
+  }
+
+  _cloneIndexMap(src) {
+    const dst = new Map();
+    if (!src) return dst;
+    for (const [k, v] of src.entries()) dst.set(k, v.slice());
+    return dst;
+  }
+
+  _mergeBuckets(dst, contrib, offset) {
+    if (!contrib) return;
+    for (const [k, locals] of contrib.entries()) {
+      let list = dst.get(k);
+      if (!list) {
+        list = new Array(locals.length);
+        for (let i = 0; i < locals.length; i++) list[i] = locals[i] + offset;
+        dst.set(k, list);
+      } else {
+        const base = list.length;
+        list.length = base + locals.length;
+        for (let i = 0; i < locals.length; i++) list[base + i] = locals[i] + offset;
+      }
+    }
+  }
+
+  _rebuildSolidIndexFromEntries(order) {
+    const idx = new Map();
+    let off = 0;
+    for (const id of order) {
+      const e = this.loaded.get(id);
+      if (!e) continue;
+      this._mergeBuckets(idx, this._entryBuckets(e).solidCells, off);
+      off += (e.records?.solids ?? []).length;
+    }
+    return idx;
+  }
+
+  _rebuildSurfaceBlockIndexesFromEntries(order) {
+    const sIdx = new Map(), bIdx = new Map();
+    let offS = 0, offB = 0;
+    for (const id of order) {
+      const e = this.loaded.get(id);
+      if (!e) continue;
+      const b = this._entryBuckets(e);
+      this._mergeBuckets(sIdx, b.surfaceCells, offS);
+      this._mergeBuckets(bIdx, b.blockCells, offB);
+      offS += (e.records?.surfaces ?? []).length;
+      offB += (e.records?.blockers ?? []).length;
+    }
+    return { sIdx, bIdx };
   }
 
   // ------------------------------------------------------- переопределения фаз

@@ -714,6 +714,9 @@ export class JsonMap extends SurfaceField {
   _buildNav() {
     const nav = new NavGraph();
     const rstep = J.navRoomStep;
+    this._deckRoadEnds = new Map();
+    this._navTunnelEnds = new Map();
+    this._navDescentEnds = new Map();
     this._navLattice(nav);
     this._navRooms(nav, rstep);
     this._navRoofs(nav);
@@ -1198,6 +1201,7 @@ export class JsonMap extends SurfaceField {
   _navDecks(nav, rect = null) {
     const step = J.navStep;
     const deckEnds = [];
+    if (!this._deckRoadEnds) this._deckRoadEnds = new Map();
     for (const road of this.roads) {
       if (road.type === 'ground') continue;
       if (rect) {
@@ -1206,19 +1210,25 @@ export class JsonMap extends SurfaceField {
         if (!hit) continue;
       }
       let prevEnd, firstEnd;
-      for (const [di, d] of road.decks.entries()) {
-        const chain = this.deckChain(d, step);
-        let first, last;
-        for (let k = 0; k < chain.length; k++) {
-          const p = chain[k];
-          const id = nav.add(p.x, p.y, p.z, `d:${road.id}:${di}:${k}`);
-          if (first === undefined) first = id;
-          else this._link(nav, last, id);
-          last = id;
+      const cached = this._deckRoadEnds.get(road.id);
+      if (cached) {
+        [firstEnd, prevEnd] = cached;
+      } else {
+        for (const [di, d] of road.decks.entries()) {
+          const chain = this.deckChain(d, step);
+          let first, last;
+          for (let k = 0; k < chain.length; k++) {
+            const p = chain[k];
+            const id = nav.add(p.x, p.y, p.z, `d:${road.id}:${di}:${k}`);
+            if (first === undefined) first = id;
+            else this._link(nav, last, id);
+            last = id;
+          }
+          if (firstEnd === undefined) firstEnd = first;
+          if (prevEnd !== undefined) this._link(nav, prevEnd, first);
+          prevEnd = last;
         }
-        if (firstEnd === undefined) firstEnd = first;
-        if (prevEnd !== undefined) this._link(nav, prevEnd, first);
-        prevEnd = last;
+        this._deckRoadEnds.set(road.id, [firstEnd, prevEnd]);
       }
       for (const id of [firstEnd, prevEnd]) {
         if (id !== undefined) deckEnds.push(id);
@@ -1238,7 +1248,8 @@ export class JsonMap extends SurfaceField {
       }
     }
     // Сход с настила и подъём на него — к решётке земли; середина цепочки
-    // сама ведёт вверх по ступеням пластин.
+    // сама ведёт вверх по ступеням пластин. При повторной обработке дороги в
+    // другой клетке концы пере-линкуются, чтобы увидеть новые узлы решётки/соседей.
     for (const id of deckEnds) {
       this._linkClosest(nav, id, step * 1.8, 2);
     }
@@ -1256,6 +1267,7 @@ export class JsonMap extends SurfaceField {
    */
   _navTunnels(nav, rect = null) {
     const step = J.navStep;
+    if (!this._navTunnelEnds) this._navTunnelEnds = new Map();
     for (const t of (this.tunnels ?? [])) {
       if (rect) {
         const pts = t.points ?? [];
@@ -1263,25 +1275,31 @@ export class JsonMap extends SurfaceField {
         for (const p of pts) { if (p.x >= rect.minX && p.x <= rect.maxX && p.z >= rect.minZ && p.z <= rect.maxZ) { hit = true; break; } }
         if (!hit) continue;
       }
-      const pts = t.points ?? [];
-      const from = pts[0], to = pts[pts.length - 1];
-      if (!from || !to) continue;
-      const dx = to.x - from.x, dz = to.z - from.z;
-      const len = Math.hypot(dx, dz);
-      if (len < 1e-6) continue;
-      const count = Math.max(1, Math.ceil(len / step));
       let first, prev;
-      for (let k = 0; k <= count; k++) {
-        const p = k / count;
-        const x = from.x + dx * p;
-        const z = from.z + dz * p;
-        // опора — пол тоннеля по контракту шага (коридорный диапазон groundHeightAt),
-        // а не произвольная проба: это даёт floorY внутри и связывается с порталами
-        const y = (from.y + (to.y - from.y) * p);
-        const id = nav.add(x, y, z, `t:${t.id}:${k}`);
-        if (first === undefined) first = id;
-        else this._link(nav, prev, id);
-        prev = id;
+      const cached = this._navTunnelEnds.get(t.id);
+      if (cached) {
+        [first, prev] = cached;
+      } else {
+        const pts = t.points ?? [];
+        const from = pts[0], to = pts[pts.length - 1];
+        if (!from || !to) continue;
+        const dx = to.x - from.x, dz = to.z - from.z;
+        const len = Math.hypot(dx, dz);
+        if (len < 1e-6) continue;
+        const count = Math.max(1, Math.ceil(len / step));
+        for (let k = 0; k <= count; k++) {
+          const p = k / count;
+          const x = from.x + dx * p;
+          const z = from.z + dz * p;
+          // опора — пол тоннеля по контракту шага (коридорный диапазон groundHeightAt),
+          // а не произвольная проба: это даёт floorY внутри и связывается с порталами
+          const y = (from.y + (to.y - from.y) * p);
+          const id = nav.add(x, y, z, `t:${t.id}:${k}`);
+          if (first === undefined) first = id;
+          else this._link(nav, prev, id);
+          prev = id;
+        }
+        this._navTunnelEnds.set(t.id, [first, prev]);
       }
       for (const id of [first, prev]) {
         if (id !== undefined) this._linkClosest(nav, id, step * 2.4, 4);
@@ -1303,21 +1321,28 @@ export class JsonMap extends SurfaceField {
    */
   _navWater(nav, rect = null) {
     const step = J.navStep;
+    if (!this._navDescentEnds) this._navDescentEnds = new Map();
     for (const d of this.descents) {
       if (rect) {
         // грубая проверка по опорным точкам схода
         const bb = d.bounds ?? d.rect ?? (d.strip ? { minX: Math.min(d.x0??0,d.x1??0)-10, maxX: Math.max(d.x0??0,d.x1??0)+10, minZ: Math.min(d.z0??0,d.z1??0)-10, maxZ: Math.max(d.z0??0,d.z1??0)+10 } : null);
         if (bb && !this._rectsTouch(bb, rect)) continue;
       }
-      const chain = this.descentChain(d, step);
-      if (!chain) continue;
       let first, prev;
-      for (let k = 0; k < chain.length; k++) {
-        const p = chain[k];
-        const id = nav.add(p.x, p.y, p.z, `f:${d.id}:${k}`);
-        if (first === undefined) first = id;
-        else this._link(nav, prev, id);
-        prev = id;
+      const cached = this._navDescentEnds.get(d.id);
+      if (cached) {
+        [first, prev] = cached;
+      } else {
+        const chain = this.descentChain(d, step);
+        if (!chain) continue;
+        for (let k = 0; k < chain.length; k++) {
+          const p = chain[k];
+          const id = nav.add(p.x, p.y, p.z, `f:${d.id}:${k}`);
+          if (first === undefined) first = id;
+          else this._link(nav, prev, id);
+          prev = id;
+        }
+        this._navDescentEnds.set(d.id, [first, prev]);
       }
       for (const id of [first, prev]) this._linkClosest(nav, id, step * 1.8, 2);
     }
@@ -1462,11 +1487,16 @@ export class JsonMap extends SurfaceField {
     // strip-дыры кривых русел вырезаются сдвигом вершин по _inChannel, а не
     // rect-разложением: их габарит — over-approximation, и subtractRect съел бы
     // сушу вокруг излучины
+    const clip = rect;
     for (const h of this.holes) {
       if (h.strip && this.relief) continue;
+      if (clip && (h.maxX <= clip.minX || h.minX >= clip.maxX || h.maxZ <= clip.minZ || h.minZ >= clip.maxZ)) continue;
       rects = rects.flatMap(r => subtractRect(r, h));
     }
-    for (const h of (this.tunnelHoles ?? [])) rects = rects.flatMap(r => subtractRect(r, h));
+    for (const h of (this.tunnelHoles ?? [])) {
+      if (clip && (h.maxX <= clip.minX || h.minX >= clip.maxX || h.maxZ <= clip.minZ || h.minZ >= clip.maxZ)) continue;
+      rects = rects.flatMap(r => subtractRect(r, h));
+    }
     if (!this.relief) {
       const geo = mergeGeometries(rects.map(r => new THREE.PlaneGeometry(
         r.maxX - r.minX, r.maxZ - r.minZ,
@@ -1842,7 +1872,7 @@ export class JsonMap extends SurfaceField {
       if (!groups.has(color)) groups.set(color, []);
       groups.get(color).push(it);
     };
-    for (const b of this.buildings) {
+    for (const b of (this._iterBuildings ?? this.buildings)) {
       if (!this._drawn(b)) continue;
       const style = W.byMaterial?.[b.facadeMaterial];
       const cfg = style ? { ...W, ...style } : W;
@@ -1911,7 +1941,7 @@ export class JsonMap extends SurfaceField {
       if (!groups.has(color)) groups.set(color, []);
       groups.get(color).push(it);
     };
-    for (const b of this.buildings) {
+    for (const b of (this._iterBuildings ?? this.buildings)) {
       if (!this._drawn(b)) continue;
       const style = S.byMaterial?.[b.facadeMaterial];
       const cfg = style ? { ...S, ...style } : S;
@@ -2128,7 +2158,7 @@ export class JsonMap extends SurfaceField {
       });
     };
 
-    for (const b of this.buildings) {
+    for (const b of (this._iterBuildings ?? this.buildings)) {
       if (!this._drawn(b)) continue;
       if (!b.floorsCount) continue;
       const frame = this._frame(b);
@@ -2161,7 +2191,7 @@ export class JsonMap extends SurfaceField {
       }
     }
 
-    for (const road of this.roads) {
+    for (const road of (this._iterRoads ?? this.roads)) {
       if (!this._drawn(road)) continue;
       // по настилам мостов и переходов мусора нет: там не тротуар, а единственный
       // проход — контейнер посреди пролёта выглядел бы стеной, которой нет
