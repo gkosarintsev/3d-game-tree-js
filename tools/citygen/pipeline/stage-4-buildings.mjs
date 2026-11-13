@@ -258,6 +258,7 @@ export function makeStage4() {
       const rng = makeRng(seed);
       const out = [];
       const size = ctx.meta.worldBounds?.size ?? ctx.input?.ground?.size ?? 256;
+      const levelName = String(ctx.input?.metadata?.levelName ?? '');
       const budget = Math.min(420, Math.max(40, Math.floor(size * size / 3000))); // overall cap (+headroom for district representation)
       const normalBudget = Math.min(budget, 400);
       const rivers = ctx.masks?.easement?.rivers ?? ctx.hydrology?.rivers ?? ctx.input?.cityforge?.hydrology?.rivers ?? [];
@@ -337,19 +338,43 @@ export function makeStage4() {
           else if (p.type === 'campus' || p.type === 'old_town') scaleBase = 0.5 + rng() * 0.28;
         }
         const aspect = arch ? rangePick(arch.aspect, rng) : (0.8 + rng() * 0.6);
+        // Level 17: панельки — 3 подъезда и пропорции оригинала (docs/houses soviet-panel)
+        const panelkaL17 = kind === 'panelka' && /level-17/i.test(levelName);
+        const panelkaSectionW = 13.6, panelkaDepth = 11.8, panelkaEntrances = 3;
         let footprint = null;
-        for (const scaleMul of [1, 0.82, 0.68]) {
-          const s = scaleBase * scaleMul;
-          let w = clamp(maxW * s * Math.sqrt(Math.max(0.4, aspect)), 4, maxW);
-          let d = clamp(maxD * s / Math.sqrt(Math.max(0.4, aspect)), 4, maxD);
-          // If aspect pushes out of bounds, rebalance.
-          if (w >= maxW - 0.01) d = clamp(maxD * s * s / (w / maxW || 1), 4, maxD);
-          if (d >= maxD - 0.01) w = clamp(maxW * s * s / (d / maxD || 1), 4, maxW);
-          const fp = footprintRect(cx, cz, w, d);
-          const riverIndex = (rivers === (ctx.hydrology?.rivers ?? null) || rivers === (ctx.masks?.easement?.rivers ?? null)) ? (ctx.spatial?.riverSegments ?? null) : null;
-          if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers, riverIndex) || footprintIntersectsRoad(fp, roads, roadSegments, ctx.spatial?.roadEasements, { ignoreEasements: !!force && !!relaxChunk })) continue;
-          footprint = fp;
-          break;
+        if (panelkaL17) {
+          // оригинал: 3 секции × 13.6м = 40.8м, глубина 11.8м. Ищем максимально широкое
+          // размещение в рамках участка (пропорции 3-секционной панельки), не уже ~24м.
+          const targetRatio = (panelkaSectionW * panelkaEntrances) / panelkaDepth; // ~3.46
+          for (const m of [1, 0.92, 0.84, 0.76, 0.68, 0.6, 0.52]) {
+            let w = panelkaSectionW * panelkaEntrances * m;
+            let d = panelkaDepth * m;
+            // подгоняем под границы участка, сохраняя вытянутость 3-секционного дома
+            if (w > maxW) { const s = maxW / w; w = maxW; d *= s; }
+            if (d > maxD) { const s = maxD / d; d = maxD; w *= s; }
+            // шире для 3 подъездов (оригинальные пропорции), но допускаем ужатие под участок
+            if (w < 18 || d < 7) continue;
+            const fp = footprintRect(cx, cz, w, d);
+            const riverIndex = (rivers === (ctx.hydrology?.rivers ?? null) || rivers === (ctx.masks?.easement?.rivers ?? null)) ? (ctx.spatial?.riverSegments ?? null) : null;
+            if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers, riverIndex) || footprintIntersectsRoad(fp, roads, roadSegments, ctx.spatial?.roadEasements, { ignoreEasements: !!force && !!relaxChunk })) continue;
+            footprint = fp;
+            break;
+          }
+        }
+        if (!footprint) {
+          for (const scaleMul of [1, 0.82, 0.68]) {
+            const s = scaleBase * scaleMul;
+            let w = clamp(maxW * s * Math.sqrt(Math.max(0.4, aspect)), 4, maxW);
+            let d = clamp(maxD * s / Math.sqrt(Math.max(0.4, aspect)), 4, maxD);
+            // If aspect pushes out of bounds, rebalance.
+            if (w >= maxW - 0.01) d = clamp(maxD * s * s / (w / maxW || 1), 4, maxD);
+            if (d >= maxD - 0.01) w = clamp(maxW * s * s / (d / maxD || 1), 4, maxW);
+            const fp = footprintRect(cx, cz, w, d);
+            const riverIndex = (rivers === (ctx.hydrology?.rivers ?? null) || rivers === (ctx.masks?.easement?.rivers ?? null)) ? (ctx.spatial?.riverSegments ?? null) : null;
+            if (footprintNearAnchors(fp, anchors, 10) || footprintIntersectsRiver(fp, rivers, riverIndex) || footprintIntersectsRoad(fp, roads, roadSegments, ctx.spatial?.roadEasements, { ignoreEasements: !!force && !!relaxChunk })) continue;
+            footprint = fp;
+            break;
+          }
         }
         if (!footprint) {
           if (!conflictParcel.has(p)) { conflictParcel.add(p); skippedConflict++; }
@@ -418,6 +443,8 @@ export function makeStage4() {
           const maxE = Math.max(1, Math.min(4, Math.floor(longSide / 10)));
           entrances = 1 + Math.floor(rng() * maxE);
         }
+        const isL17Panelka = panelkaL17;
+        if (isL17Panelka) entrances = 3;
         out.push({
           id,
           name: `B ${placed + 1}`,
@@ -428,7 +455,7 @@ export function makeStage4() {
           facadeMaterial,
           ...(wallColor ? { wallColor } : {}),
           houseKind: kind,
-          ...(entrances > 1 ? { entrances } : (kind === 'panelka' ? { entrances: 1 } : {})),
+          ...(isL17Panelka ? { entrances, detailedVisual: 'soviet_panel' } : (entrances > 1 ? { entrances } : (kind === 'panelka' ? { entrances: 1 } : {}))),
           windowDensity: 1 + Math.floor(rng() * 3),
           windowScale: +(0.85 + rng() * 0.35).toFixed(2),
           footprint,
@@ -523,6 +550,7 @@ export function makeStage4() {
             const floorHeight = arch ? +Number(arch.floorHeight[0]).toFixed(2) : (d.type === 'industrial' ? 4.5 : 3.3);
             const id = `b_${d.id}_${placed + 1}`;
             const facadeMaterial = materialFor(profile, kind, () => 0);
+            const isL17PanelkaFallback = kind === 'panelka' && /level-17/i.test(levelName);
             out.push({
               id,
               name: `B ${placed + 1}`,
@@ -533,7 +561,7 @@ export function makeStage4() {
               facadeMaterial,
               ...(pickWallColor(facadeMaterial, () => 0) ? { wallColor: pickWallColor(facadeMaterial, () => 0) } : {}),
               houseKind: kind,
-              ...(kind === 'panelka' ? { entrances: 1 } : {}),
+              ...(isL17PanelkaFallback ? { entrances: 3, detailedVisual: 'soviet_panel' } : (kind === 'panelka' ? { entrances: 1 } : {})),
               windowDensity: 2,
               windowScale: 1,
               footprint,

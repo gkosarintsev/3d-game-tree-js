@@ -126,7 +126,7 @@ export const LEVEL_17 = {
           "buildings": 140,
           "channels": 1,
           "lights": 2,
-          "props": 96,
+          "props": 94,
           "roads": 109
         },
         "rect": {

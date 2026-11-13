@@ -2019,6 +2019,17 @@
         "b_district_3_3_272",
         "b_district_3_3_97"
       ]
+    },
+    {
+      "severity": "warning",
+      "code": "build_conflicting_props_dropped",
+      "stage": "build",
+      "message": "dropped landscapeObjects with parser warnings",
+      "count": 2,
+      "ids": [
+        "prop_48",
+        "prop_49"
+      ]
     }
   ],
   "repairs": [
@@ -2110,13 +2121,23 @@
       "stage": "build",
       "id": "b_district_3_3_97",
       "code": "drop_conflicting_building"
+    },
+    {
+      "stage": "build",
+      "id": "prop_48",
+      "code": "drop_conflicting_prop"
+    },
+    {
+      "stage": "build",
+      "id": "prop_49",
+      "code": "drop_conflicting_prop"
     }
   ],
   "drops": [],
   "summary": {
     "errors": 0,
-    "warnings": 10,
-    "repairs": 16,
+    "warnings": 11,
+    "repairs": 18,
     "drops": 0
   }
 }

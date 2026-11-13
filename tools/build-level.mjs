@@ -313,15 +313,32 @@ function generateCityforge(raw, sourceName, opts = {}) {
   // For generated v4 content, placement conflicts (water/road) can slip through
   // coarse stage checks; deterministically drop offending buildings and retry.
   let engine = compiled.engine;
-  // Level 17: панельки — детальная модель (docs/houses soviet-panel) с 3 подъездами.
+  // Level 17: панельки — детальная модель (docs/houses soviet-panel) с 3 подъездами
+  // и пропорциями оригинала (3 секции × 13.6 м = 40.8 м, глубина 11.8 м).
   if (/level-17/i.test(String(sourceName ?? ''))) {
+    const W = 13.6 * 3, D = 11.8;
     const fixPanelkas = (list) => (Array.isArray(list) ? list.map(b => {
       const isPanelka = b?.houseKind === 'panelka' || b?.facadeMaterial === 'panel_block';
       if (!isPanelka) return b;
-      return { ...b, entrances: 3, detailedVisual: 'soviet_panel', foundation: 'terrain' };
+      let nb = { ...b, entrances: 3, detailedVisual: 'soviet_panel', foundation: 'terrain' };
+      // расширяем footprint до пропорций 3-секционной панельки (без поворота)
+      const fp = b.footprint;
+      if (Array.isArray(fp) && fp.length >= 3 && !b.rotation) {
+        const xs = fp.map(p => p.x), zs = fp.map(p => p.z);
+        const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+        const cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+        const hw = W / 2, hd = D / 2;
+        nb.footprint = [
+          { x: +(cx - hw).toFixed(3), z: +(cz - hd).toFixed(3) },
+          { x: +(cx + hw).toFixed(3), z: +(cz - hd).toFixed(3) },
+          { x: +(cx + hw).toFixed(3), z: +(cz + hd).toFixed(3) },
+          { x: +(cx - hw).toFixed(3), z: +(cz + hd).toFixed(3) },
+        ];
+        // bounds/rects/walls пересчитает нормализация из footprint
+      }
+      return nb;
     }) : list);
     if (Array.isArray(engine?.buildings)) engine = { ...engine, buildings: fixPanelkas(engine.buildings) };
-    // чанковые миры могут хранить здания в другой структуре — пройдёмся рекурсивно неглубоко
     if (Array.isArray(engine?.chunks)) {
       engine = {
         ...engine,

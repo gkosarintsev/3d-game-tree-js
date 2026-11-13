@@ -1391,14 +1391,14 @@ export class SurfaceField extends SolidField {
       // остаться по данным здания — подавляем только картинку (_addGeo).
       const detailed = b.detailedVisual === 'soviet_panel';
       const prevMute = this._muteGeo;
-      if (detailed) this._muteGeo = true;
       try {
         // Фундамент дома на неровной поверхности (baseY поднят до наивысшей точки
         // контакта, дом не зарывается). podium — плоский прямоугольный блок от
         // нижней точки земли до baseY (уходит в склон); terrain — низ следует
         // форме ландшафта (картинка/твёрдость ячейками по рельефу).
-        // Для детальной панели terrain-фундамент не рисуем как ступенчатые earth-
-        // блоки (визуал даёт модель), но солиды/blockers нужны для опоры на склоне.
+        // Для детальной панели фундамент рисуем (terrain-заполнение), чтобы дом
+        // не «висел» на склоне; стены/плиты/кровля — только коллизии, картинку
+        // даёт детальная модель.
         if (b.foundation === 'terrain') {
           const step = 2;
           for (const rect of b.rects) {
@@ -1423,6 +1423,7 @@ export class SurfaceField extends SolidField {
             this._box(rect, b.foundationBottomY, b.baseY, 'earth', { collide: true, frame });
           }
         }
+        if (detailed) this._muteGeo = true;
         for (const w of b.walls) this._wall(w, b, frame, wallMat);
         for (const r of b.rooms) this._floorPlate(b, r, frame);
         this._stair(b, frame);
