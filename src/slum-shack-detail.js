@@ -147,27 +147,20 @@ function createShedWedge(width, depth, rise) {
  *   crooked stovepipe chimney, TV antenna, or offset upper shack hut ('stepped')
  */
 export function buildDetailedSlumShack(config, materials) {
-  const group = new THREE.Group();
-  group.name = 'SlumShackModel';
-
-  const {
-    width,
-    depth,
-    floorHeight,
-    floors,
-    foundationHeight,
-    roofPitchDeg,
-    roofOverhang,
-  } = config.dimensions;
-  const {
-    roofType,
-    windowDensity,
-    windowScale,
-    hasPorch,
-    hasChimney,
-    hasCornerAccents,
-    hasBalcony,
-  } = config.features;
+  const width = config.width;
+  const depth = config.depth;
+  const floorHeight = config.floorHeight;
+  const floors = config.floors;
+  const foundationHeight = config.foundationHeight ?? 0.2;
+  const roofPitchDeg = config.roofPitchDeg ?? 18;
+  const roofOverhang = config.roofOverhang ?? 0.5;
+  const roofType = config.roofType ?? 'shed';
+  const windowDensity = config.windowDensity ?? 1;
+  const windowScale = config.windowScale ?? 0.9;
+  const hasPorch = config.hasPorch === true;
+  const hasChimney = config.hasChimney !== false;
+  const hasCornerAccents = config.hasCornerAccents === true;
+  const hasBalcony = config.hasBalcony === true;
 
   // материалы передаются снаружи (rustPlate, waterTank)
 

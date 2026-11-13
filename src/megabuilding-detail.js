@@ -181,19 +181,19 @@ function createArmoredWedgeCrown(width, depth, rise) {
  * - Procedural emissive neon billboards, vertical light strips, AV landing pads & relay spire
  */
 export function buildDetailedMegabuilding(config, materials) {
-  const group = new THREE.Group();
-  group.name = 'MegabuildingModel';
-
-  const {
-    width,
-    depth,
-    floorHeight,
-    floors,
-    foundationHeight,
-    roofPitchDeg,
-  } = config.dimensions;
-  const { roofType, windowDensity, windowScale, hasPorch, hasChimney, hasCornerAccents, hasBalcony } =
-    config.features;
+  const width = config.width;
+  const depth = config.depth;
+  const floorHeight = config.floorHeight;
+  const floors = config.floors;
+  const foundationHeight = config.foundationHeight ?? 1.6;
+  const roofPitchDeg = config.roofPitchDeg ?? 14;
+  const roofType = config.roofType ?? 'flat';
+  const windowDensity = config.windowDensity ?? 3;
+  const windowScale = config.windowScale ?? 1.02;
+  const hasPorch = config.hasPorch !== false;
+  const hasChimney = config.hasChimney !== false;
+  const hasCornerAccents = config.hasCornerAccents !== false;
+  const hasBalcony = config.hasBalcony !== false;
 
   // материалы (в т.ч. неон/билборды) передаются снаружи via materials
 
