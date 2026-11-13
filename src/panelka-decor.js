@@ -142,8 +142,9 @@ export function buildPanelkaDecor(scene, buildings, panelMatColor = 0xd6d0c4) {
     const mainMin = main.axis === 'x' ? main.minX : main.minZ;
     const mainMax = main.axis === 'x' ? main.maxX : main.maxZ;
 
-    // Подъезды вдоль главного фасада (секционность)
-    const entrances = Math.max(1, Math.min(4, Math.round(mainLen / 13)));
+    // Подъезды вдоль главного фасада (параметр дома, рандомизируемый; fallback по длине)
+    let entrances = Number.isFinite(b.entrances) ? Math.max(1, Math.round(b.entrances)) : Math.max(1, Math.min(4, Math.round(mainLen / 13)));
+    entrances = Math.max(1, Math.min(entrances, Math.max(1, Math.floor(mainLen / 6))));
     for (let e = 0; e < entrances; e++) {
       const t = (e + 0.5) / entrances;
       const ax = mainMin + (mainMax - mainMin) * t;

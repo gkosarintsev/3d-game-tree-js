@@ -392,6 +392,7 @@ function normalizeBuilding(b, ground, warnings) {
   if (b.trimFinish) houseStyle.trimFinish = String(b.trimFinish);
   if (b.houseStyleId) houseStyle.houseStyleId = String(b.houseStyleId);
   if (b.houseKind) houseStyle.houseKind = String(b.houseKind);
+  if (b.entrances != null) houseStyle.entrances = Math.max(1, Math.round(+b.entrances));
   if (b.windowDensity != null) houseStyle.windowDensity = +b.windowDensity;
   if (b.windowScale != null) houseStyle.windowScale = +b.windowScale;
   if (b.houseFeatures && typeof b.houseFeatures === 'object') houseStyle.houseFeatures = b.houseFeatures;
@@ -402,8 +403,8 @@ function normalizeBuilding(b, ground, warnings) {
     ...(b.buildingType ? { buildingType: b.buildingType } : {}),
     isEnterable: b.isEnterable !== false,
     baseY,
-    ...(b.foundation === 'terrain' && baseY - groundMin > 0.05 ? { foundation: 'terrain' } : {}),
-    ...(b.foundation !== 'terrain' && baseY - groundMin > 0.05 ? { foundationBottomY: r3(Math.min(groundMin, baseY - 0.01)) } : {}),
+    // terrain-фундамент для всех домов: низ следует форме поверхности (без подиума-юбки)
+    foundation: 'terrain',
     floorHeight,
     floorsCount: b.floorsCount,
     roofY: r3(baseY + b.floorsCount * floorHeight),

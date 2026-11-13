@@ -411,6 +411,13 @@ export function makeStage4() {
         const id = `b_${p.districtId}_${placed + 1}`;
         const facadeMaterial = materialFor(profile, kind, rng);
         const wallColor = pickWallColor(facadeMaterial, rng);
+        // Подъезды (docs/houses): для панельки рандомизируемо по длине фасада, иначе 1
+        let entrances = 1;
+        if (kind === 'panelka') {
+          const longSide = Math.max(footprint ? Math.abs(footprint[1].x - footprint[0].x) : 0, footprint ? Math.abs(footprint[2].z - footprint[1].z) : 0);
+          const maxE = Math.max(1, Math.min(4, Math.floor(longSide / 10)));
+          entrances = 1 + Math.floor(rng() * maxE);
+        }
         out.push({
           id,
           name: `B ${placed + 1}`,
@@ -421,6 +428,7 @@ export function makeStage4() {
           facadeMaterial,
           ...(wallColor ? { wallColor } : {}),
           houseKind: kind,
+          ...(entrances > 1 ? { entrances } : (kind === 'panelka' ? { entrances: 1 } : {})),
           windowDensity: 1 + Math.floor(rng() * 3),
           windowScale: +(0.85 + rng() * 0.35).toFixed(2),
           footprint,
@@ -525,6 +533,7 @@ export function makeStage4() {
               facadeMaterial,
               ...(pickWallColor(facadeMaterial, () => 0) ? { wallColor: pickWallColor(facadeMaterial, () => 0) } : {}),
               houseKind: kind,
+              ...(kind === 'panelka' ? { entrances: 1 } : {}),
               windowDensity: 2,
               windowScale: 1,
               footprint,

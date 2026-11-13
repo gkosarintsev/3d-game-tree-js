@@ -1947,8 +1947,10 @@ export class JsonMap extends SurfaceField {
             const r = fnvUnit(fnvMix(fnvMix(hf, k), slot));
             const lit = r < cfg.lit;
             const q = this._quadToWorld(b, face.axis === 'x' ? p : line, face.axis === 'x' ? line : p, face.c, face.s);
-            put(lit ? W.litColors[Math.min(W.litColors.length - 1, Math.floor(r / cfg.lit * W.litColors.length))]
-              : W.darkColor, {
+            const litColors = cfg.litColors || W.litColors;
+            const darkColor = cfg.darkColor ?? W.darkColor;
+            put(lit ? litColors[Math.min(litColors.length - 1, Math.floor((r / cfg.lit) * litColors.length))]
+              : darkColor, {
               x: q.x,
               y: cy,
               z: q.z,

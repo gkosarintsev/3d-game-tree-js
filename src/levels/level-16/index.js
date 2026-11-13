@@ -74,7 +74,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 28,
           "lights": 1,
-          "props": 15,
+          "props": 21,
           "roads": 13
         },
         "rect": {
@@ -88,8 +88,8 @@ export const LEVEL_16 = {
         "file": "chunk-0-1.l14b",
         "id": "0_1",
         "objects": {
-          "buildings": 15,
-          "props": 9,
+          "buildings": 16,
+          "props": 4,
           "roads": 1
         },
         "rect": {
@@ -104,7 +104,7 @@ export const LEVEL_16 = {
         "id": "0_2",
         "objects": {
           "buildings": 13,
-          "props": 7,
+          "props": 8,
           "roads": 1
         },
         "rect": {
@@ -118,7 +118,7 @@ export const LEVEL_16 = {
         "file": "chunk-0-3.l14b",
         "id": "0_3",
         "objects": {
-          "buildings": 9,
+          "buildings": 7,
           "lights": 1,
           "props": 95,
           "roads": 2
@@ -134,8 +134,8 @@ export const LEVEL_16 = {
         "file": "chunk-0-4.l14b",
         "id": "0_4",
         "objects": {
-          "buildings": 9,
-          "props": 65,
+          "buildings": 5,
+          "props": 66,
           "roads": 2
         },
         "rect": {
@@ -149,8 +149,8 @@ export const LEVEL_16 = {
         "file": "chunk-1-0.l14b",
         "id": "1_0",
         "objects": {
-          "buildings": 8,
-          "props": 10,
+          "buildings": 6,
+          "props": 6,
           "roads": 4
         },
         "rect": {
@@ -165,7 +165,7 @@ export const LEVEL_16 = {
         "id": "1_1",
         "objects": {
           "buildings": 1,
-          "props": 2,
+          "props": 4,
           "roads": 9
         },
         "rect": {
@@ -180,7 +180,7 @@ export const LEVEL_16 = {
         "id": "1_2",
         "objects": {
           "lights": 1,
-          "props": 6,
+          "props": 14,
           "roads": 3
         },
         "rect": {
@@ -195,7 +195,7 @@ export const LEVEL_16 = {
         "id": "1_3",
         "objects": {
           "buildings": 1,
-          "props": 27,
+          "props": 30,
           "roads": 8
         },
         "rect": {
@@ -209,8 +209,8 @@ export const LEVEL_16 = {
         "file": "chunk-1-4.l14b",
         "id": "1_4",
         "objects": {
-          "buildings": 22,
-          "props": 28,
+          "buildings": 24,
+          "props": 27,
           "roads": 5
         },
         "rect": {
@@ -224,9 +224,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-0.l14b",
         "id": "2_0",
         "objects": {
-          "buildings": 5,
+          "buildings": 3,
           "channels": 1,
-          "props": 18,
+          "props": 20,
           "roads": 1
         },
         "rect": {
@@ -240,9 +240,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-1.l14b",
         "id": "2_1",
         "objects": {
-          "buildings": 10,
+          "buildings": 9,
           "channels": 1,
-          "props": 7,
+          "props": 13,
           "roads": 1
         },
         "rect": {
@@ -256,9 +256,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-2.l14b",
         "id": "2_2",
         "objects": {
-          "buildings": 15,
+          "buildings": 19,
           "channels": 1,
-          "props": 20
+          "props": 13
         },
         "rect": {
           "maxX": 128,
@@ -271,9 +271,9 @@ export const LEVEL_16 = {
         "file": "chunk-2-3.l14b",
         "id": "2_3",
         "objects": {
-          "buildings": 13,
+          "buildings": 14,
           "channels": 1,
-          "props": 12,
+          "props": 7,
           "roads": 2
         },
         "rect": {
@@ -287,10 +287,10 @@ export const LEVEL_16 = {
         "file": "chunk-2-4.l14b",
         "id": "2_4",
         "objects": {
-          "buildings": 14,
+          "buildings": 17,
           "channels": 1,
           "lights": 1,
-          "props": 17,
+          "props": 12,
           "roads": 4
         },
         "rect": {
@@ -304,8 +304,8 @@ export const LEVEL_16 = {
         "file": "chunk-3-0.l14b",
         "id": "3_0",
         "objects": {
-          "buildings": 20,
-          "props": 16,
+          "buildings": 17,
+          "props": 22,
           "roads": 13
         },
         "rect": {
@@ -321,7 +321,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 32,
           "lights": 1,
-          "props": 26,
+          "props": 24,
           "roads": 12
         },
         "rect": {
@@ -335,8 +335,8 @@ export const LEVEL_16 = {
         "file": "chunk-3-2.l14b",
         "id": "3_2",
         "objects": {
-          "buildings": 31,
-          "props": 23,
+          "buildings": 33,
+          "props": 17,
           "roads": 10
         },
         "rect": {
@@ -350,8 +350,8 @@ export const LEVEL_16 = {
         "file": "chunk-3-3.l14b",
         "id": "3_3",
         "objects": {
-          "buildings": 22,
-          "props": 17,
+          "buildings": 23,
+          "props": 16,
           "roads": 15
         },
         "rect": {
@@ -365,7 +365,7 @@ export const LEVEL_16 = {
         "file": "chunk-3-4.l14b",
         "id": "3_4",
         "objects": {
-          "buildings": 29,
+          "buildings": 28,
           "props": 17,
           "roads": 3
         },
@@ -380,7 +380,7 @@ export const LEVEL_16 = {
         "file": "chunk-4-0.l14b",
         "id": "4_0",
         "objects": {
-          "buildings": 26,
+          "buildings": 30,
           "lights": 1,
           "props": 34,
           "roads": 3
@@ -396,8 +396,8 @@ export const LEVEL_16 = {
         "file": "chunk-4-1.l14b",
         "id": "4_1",
         "objects": {
-          "buildings": 37,
-          "props": 34,
+          "buildings": 33,
+          "props": 23,
           "roads": 1
         },
         "rect": {
@@ -411,9 +411,9 @@ export const LEVEL_16 = {
         "file": "chunk-4-2.l14b",
         "id": "4_2",
         "objects": {
-          "buildings": 29,
+          "buildings": 30,
           "lights": 1,
-          "props": 25,
+          "props": 41,
           "roads": 11
         },
         "rect": {
@@ -427,8 +427,8 @@ export const LEVEL_16 = {
         "file": "chunk-4-3.l14b",
         "id": "4_3",
         "objects": {
-          "buildings": 31,
-          "props": 19,
+          "buildings": 30,
+          "props": 16,
           "roads": 16
         },
         "rect": {
@@ -444,7 +444,7 @@ export const LEVEL_16 = {
         "objects": {
           "buildings": 19,
           "lights": 1,
-          "props": 20,
+          "props": 21,
           "roads": 72
         },
         "rect": {
@@ -559,1286 +559,7 @@ export const LEVEL_16 = {
         }
       ],
       "maxSlope": 0.47,
-      "pads": [
-        {
-          "blend": 14,
-          "id": "b_district_0_0_5:площадка",
-          "maxX": -503.793,
-          "maxZ": -591.944,
-          "minX": -514.388,
-          "minZ": -600.783,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_6:площадка",
-          "maxX": -562.172,
-          "maxZ": -504.024,
-          "minX": -572.373,
-          "minZ": -514.158,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_23:площадка",
-          "maxX": -617.456,
-          "maxZ": -503.873,
-          "minX": -633.453,
-          "minZ": -514.309,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_34:площадка",
-          "maxX": 506.363,
-          "maxZ": -165.217,
-          "minX": 501.637,
-          "minZ": -170.783,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_35:площадка",
-          "maxX": 506.924,
-          "maxZ": -149.847,
-          "minX": 501.076,
-          "minZ": -154.153,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_36:площадка",
-          "maxX": 539.129,
-          "maxZ": -149.882,
-          "minX": 532.871,
-          "minZ": -154.118,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_37:площадка",
-          "maxX": 507.563,
-          "maxZ": -132.309,
-          "minX": 500.437,
-          "minZ": -139.691,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_38:площадка",
-          "maxX": 539.279,
-          "maxZ": -133.151,
-          "minX": 532.721,
-          "minZ": -138.849,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_39:площадка",
-          "maxX": 508.136,
-          "maxZ": -116.928,
-          "minX": 499.864,
-          "minZ": -123.072,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_40:площадка",
-          "maxX": 539.756,
-          "maxZ": -116.596,
-          "minX": 532.244,
-          "minZ": -123.404,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_41:площадка",
-          "maxX": 506.985,
-          "maxZ": -101.011,
-          "minX": 501.015,
-          "minZ": -106.989,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_42:площадка",
-          "maxX": 506.249,
-          "maxZ": -86,
-          "minX": 501.751,
-          "minZ": -90,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_43:площадка",
-          "maxX": 538.257,
-          "maxZ": -85.559,
-          "minX": 533.743,
-          "minZ": -90.441,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_44:площадка",
-          "maxX": 507.061,
-          "maxZ": -69.508,
-          "minX": 500.939,
-          "minZ": -74.492,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_45:площадка",
-          "maxX": 538,
-          "maxZ": -69.476,
-          "minX": 534,
-          "minZ": -74.524,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_46:площадка",
-          "maxX": 507.88,
-          "maxZ": -52.733,
-          "minX": 500.12,
-          "minZ": -59.267,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_47:площадка",
-          "maxX": 538,
-          "maxZ": -54,
-          "minX": 534,
-          "minZ": -58,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_48:площадка",
-          "maxX": 506.712,
-          "maxZ": -36.703,
-          "minX": 501.288,
-          "minZ": -43.297,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_49:площадка",
-          "maxX": 538.642,
-          "maxZ": -37.269,
-          "minX": 533.358,
-          "minZ": -42.731,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_50:площадка",
-          "maxX": 539.796,
-          "maxZ": -21.138,
-          "minX": 532.204,
-          "minZ": -26.862,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_51:площадка",
-          "maxX": 331.386,
-          "maxZ": -5.087,
-          "minX": 324.614,
-          "minZ": -10.913,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_52:площадка",
-          "maxX": 346.135,
-          "maxZ": -5.707,
-          "minX": 341.865,
-          "minZ": -10.293,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_53:площадка",
-          "maxX": 363.967,
-          "maxZ": -4.833,
-          "minX": 356.033,
-          "minZ": -11.167,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_54:площадка",
-          "maxX": 380.021,
-          "maxZ": -4.581,
-          "minX": 371.979,
-          "minZ": -11.419,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_55:площадка",
-          "maxX": 394.936,
-          "maxZ": -5.25,
-          "minX": 389.064,
-          "minZ": -10.75,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_56:площадка",
-          "maxX": 410.788,
-          "maxZ": -5.326,
-          "minX": 405.212,
-          "minZ": -10.674,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_57:площадка",
-          "maxX": 426.272,
-          "maxZ": -4.966,
-          "minX": 421.728,
-          "minZ": -11.034,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_58:площадка",
-          "maxX": 443.109,
-          "maxZ": -5.719,
-          "minX": 436.891,
-          "minZ": -10.281,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_59:площадка",
-          "maxX": 475.511,
-          "maxZ": -4.34,
-          "minX": 468.489,
-          "minZ": -11.66,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_60:площадка",
-          "maxX": 506.848,
-          "maxZ": -5.607,
-          "minX": 501.152,
-          "minZ": -10.393,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_61:площадка",
-          "maxX": 539.12,
-          "maxZ": -5.846,
-          "minX": 532.88,
-          "minZ": -10.154,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_71:площадка",
-          "maxX": -587.226,
-          "maxZ": -529.367,
-          "minX": -605.502,
-          "minZ": -546.997,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_72:площадка",
-          "maxX": -556.914,
-          "maxZ": -530.406,
-          "minX": -577.631,
-          "minZ": -545.958,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_73:площадка",
-          "maxX": -471.72,
-          "maxZ": -530.725,
-          "minX": -488.28,
-          "minZ": -545.638,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_74:площадка",
-          "maxX": -530.008,
-          "maxZ": -473.521,
-          "minX": -546.356,
-          "minZ": -486.479,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_75:площадка",
-          "maxX": -532.291,
-          "maxZ": -444.148,
-          "minX": -544.073,
-          "minZ": -457.671,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_76:площадка",
-          "maxX": -531.723,
-          "maxZ": -415.447,
-          "minX": -544.641,
-          "minZ": -428.19,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_77:площадка",
-          "maxX": -532.94,
-          "maxZ": -387.083,
-          "minX": -543.424,
-          "minZ": -398.371,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_78:площадка",
-          "maxX": -532.257,
-          "maxZ": -327.921,
-          "minX": -544.107,
-          "minZ": -341.17,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_84:площадка",
-          "maxX": -410.489,
-          "maxZ": -529.065,
-          "minX": -433.148,
-          "minZ": -547.299,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_85:площадка",
-          "maxX": 508.022,
-          "maxZ": 57.873,
-          "minX": 494.644,
-          "minZ": 48.793,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_86:площадка",
-          "maxX": 507.151,
-          "maxZ": 185.562,
-          "minX": 495.516,
-          "minZ": 177.105,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_98:площадка",
-          "maxX": -526.577,
-          "maxZ": -289.26,
-          "minX": -553.423,
-          "minZ": -310.74,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_99:площадка",
-          "maxX": -526.515,
-          "maxZ": -210.009,
-          "minX": -553.485,
-          "minZ": -229.991,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_100:площадка",
-          "maxX": -527.078,
-          "maxZ": -170.463,
-          "minX": -552.922,
-          "minZ": -189.537,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_101:площадка",
-          "maxX": -526.418,
-          "maxZ": -128.67,
-          "minX": -553.582,
-          "minZ": -151.33,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_102:площадка",
-          "maxX": -527.592,
-          "maxZ": -92.132,
-          "minX": -552.408,
-          "minZ": -107.868,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_103:площадка",
-          "maxX": -527.815,
-          "maxZ": -49.581,
-          "minX": -552.185,
-          "minZ": -70.419,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_104:площадка",
-          "maxX": -527.135,
-          "maxZ": -12.708,
-          "minX": -552.865,
-          "minZ": -27.292,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_105:площадка",
-          "maxX": -535.23,
-          "maxZ": 25.187,
-          "minX": -544.77,
-          "minZ": 14.813,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_106:площадка",
-          "maxX": -535.733,
-          "maxZ": 185.761,
-          "minX": -544.267,
-          "minZ": 174.239,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_107:площадка",
-          "maxX": -535.406,
-          "maxZ": 224.104,
-          "minX": -544.594,
-          "minZ": 215.896,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_110:площадка",
-          "maxX": -530.133,
-          "maxZ": -618.223,
-          "minX": -546.23,
-          "minZ": -632.687,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_111:площадка",
-          "maxX": -615.147,
-          "maxZ": -530.918,
-          "minX": -635.762,
-          "minZ": -545.445,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_3_117:площадка",
-          "maxX": 393.963,
-          "maxZ": 606.739,
-          "minX": 379.37,
-          "minZ": 593.261,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_3_118:площадка",
-          "maxX": 397.201,
-          "maxZ": 634.489,
-          "minX": 376.133,
-          "minZ": 618.844,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_3_133:площадка",
-          "maxX": 635.431,
-          "maxZ": 392.058,
-          "minX": 617.903,
-          "minZ": 381.275,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_138:площадка",
-          "maxX": 538.999,
-          "maxZ": -181.757,
-          "minX": 533.001,
-          "minZ": -186.243,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_148:площадка",
-          "maxX": 335.033,
-          "maxZ": 36.248,
-          "minX": 326.3,
-          "minZ": 27.752,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_149:площадка",
-          "maxX": 358.325,
-          "maxZ": 36.916,
-          "minX": 345.675,
-          "minZ": 27.084,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_150:площадка",
-          "maxX": 378.068,
-          "maxZ": 37.067,
-          "minX": 368.599,
-          "minZ": 26.933,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_151:площадка",
-          "maxX": 399.934,
-          "maxZ": 36.218,
-          "minX": 389.399,
-          "minZ": 27.782,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_152:площадка",
-          "maxX": 422.316,
-          "maxZ": 36.103,
-          "minX": 409.684,
-          "minZ": 27.897,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_153:площадка",
-          "maxX": 549.449,
-          "maxZ": 59.453,
-          "minX": 538.551,
-          "minZ": 47.213,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_154:площадка",
-          "maxX": 552.167,
-          "maxZ": 79.207,
-          "minX": 535.833,
-          "minZ": 70.126,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_155:площадка",
-          "maxX": 549.408,
-          "maxZ": 144.871,
-          "minX": 538.592,
-          "minZ": 132.462,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_156:площадка",
-          "maxX": 550.266,
-          "maxZ": 228.836,
-          "minX": 537.734,
-          "minZ": 219.164,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_157:площадка",
-          "maxX": 549.779,
-          "maxZ": 250.046,
-          "minX": 538.221,
-          "minZ": 240.621,
-          "y": 0.001
-        },
-        {
-          "blend": 14,
-          "id": "b_district_1_3_167:площадка",
-          "maxX": -134.567,
-          "maxZ": 548.763,
-          "minX": -142.766,
-          "minZ": 539.237,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_2_1_198:площадка",
-          "maxX": 314.953,
-          "maxZ": -29.787,
-          "minX": 302.19,
-          "minZ": -38.785,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_202:площадка",
-          "maxX": 490.784,
-          "maxZ": -166,
-          "minX": 485.216,
-          "minZ": -170,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_203:площадка",
-          "maxX": 555.306,
-          "maxZ": -164.521,
-          "minX": 548.694,
-          "minZ": -171.479,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_204:площадка",
-          "maxX": 490.72,
-          "maxZ": -148.917,
-          "minX": 485.28,
-          "minZ": -155.083,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_205:площадка",
-          "maxX": 490.708,
-          "maxZ": -133.063,
-          "minX": 485.292,
-          "minZ": -138.937,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_206:площадка",
-          "maxX": 554.811,
-          "maxZ": -133.361,
-          "minX": 549.189,
-          "minZ": -138.639,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_207:площадка",
-          "maxX": 490.811,
-          "maxZ": -69.113,
-          "minX": 485.189,
-          "minZ": -74.887,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_215:площадка",
-          "maxX": 554.89,
-          "maxZ": -180.887,
-          "minX": 549.11,
-          "minZ": -187.113,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_217:площадка",
-          "maxX": -387.667,
-          "maxZ": -531.031,
-          "minX": -397.788,
-          "minZ": -545.333,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_221:площадка",
-          "maxX": -469.021,
-          "maxZ": -588.958,
-          "minX": -490.979,
-          "minZ": -603.769,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_222:площадка",
-          "maxX": -473.238,
-          "maxZ": -560.997,
-          "minX": -486.762,
-          "minZ": -573.549,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_223:площадка",
-          "maxX": -591.121,
-          "maxZ": -472.957,
-          "minX": -601.606,
-          "minZ": -487.043,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_224:площадка",
-          "maxX": -559.34,
-          "maxZ": -472.7,
-          "minX": -575.206,
-          "minZ": -487.3,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_225:площадка",
-          "maxX": 485.274,
-          "maxZ": 143.523,
-          "minX": 474.726,
-          "minZ": 133.81,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_226:площадка",
-          "maxX": 485.254,
-          "maxZ": 165.043,
-          "minX": 474.746,
-          "minZ": 154.957,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_227:площадка",
-          "maxX": 485.512,
-          "maxZ": 185.612,
-          "minX": 474.488,
-          "minZ": 177.055,
-          "y": 0.013
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_236:площадка",
-          "maxX": -474.095,
-          "maxZ": -618.12,
-          "minX": -485.905,
-          "minZ": -632.789,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_237:площадка",
-          "maxX": -618.012,
-          "maxZ": -473.08,
-          "minX": -632.897,
-          "minZ": -486.92,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_249:площадка",
-          "maxX": 555.289,
-          "maxZ": -197.57,
-          "minX": 548.711,
-          "minZ": -202.43,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_250:площадка",
-          "maxX": 378.229,
-          "maxZ": 57.813,
-          "minX": 368.437,
-          "minZ": 48.854,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_1_3_256:площадка",
-          "maxX": -89.494,
-          "maxZ": 569.875,
-          "minX": -102.506,
-          "minZ": 560.792,
-          "y": 0.01
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_262:площадка",
-          "maxX": -558.408,
-          "maxZ": -589.829,
-          "minX": -576.138,
-          "minZ": -602.898,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_263:площадка",
-          "maxX": -560.196,
-          "maxZ": -412.784,
-          "minX": -574.35,
-          "minZ": -430.852,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_264:площадка",
-          "maxX": -558.432,
-          "maxZ": -357.675,
-          "minX": -576.113,
-          "minZ": -369.597,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_265:площадка",
-          "maxX": -558.966,
-          "maxZ": -326.311,
-          "minX": -575.58,
-          "minZ": -342.78,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_268:площадка",
-          "maxX": 330.78,
-          "maxZ": -53.967,
-          "minX": 325.22,
-          "minZ": -58.033,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_269:площадка",
-          "maxX": 331.288,
-          "maxZ": -36.556,
-          "minX": 324.712,
-          "minZ": -43.444,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_270:площадка",
-          "maxX": 426.893,
-          "maxZ": -37.546,
-          "minX": 421.107,
-          "minZ": -42.454,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_271:площадка",
-          "maxX": 570.808,
-          "maxZ": -20.873,
-          "minX": 565.192,
-          "minZ": -27.127,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_272:площадка",
-          "maxX": -616.296,
-          "maxZ": -558.732,
-          "minX": -634.613,
-          "minZ": -575.814,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_292:площадка",
-          "maxX": -564.109,
-          "maxZ": -250.007,
-          "minX": -595.891,
-          "minZ": -269.993,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_293:площадка",
-          "maxX": -569.615,
-          "maxZ": -211.945,
-          "minX": -590.385,
-          "minZ": -228.055,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_294:площадка",
-          "maxX": -570.543,
-          "maxZ": -171.527,
-          "minX": -589.457,
-          "minZ": -188.473,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_295:площадка",
-          "maxX": -565.658,
-          "maxZ": -8.785,
-          "minX": -594.342,
-          "minZ": -31.215,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_296:площадка",
-          "maxX": -576.27,
-          "maxZ": 23.584,
-          "minX": -583.73,
-          "minZ": 16.416,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_297:площадка",
-          "maxX": -575.597,
-          "maxZ": 143.946,
-          "minX": -584.403,
-          "minZ": 136.054,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_298:площадка",
-          "maxX": -576.252,
-          "maxZ": 224.433,
-          "minX": -583.748,
-          "minZ": 215.567,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_300:площадка",
-          "maxX": 464.102,
-          "maxZ": 100.204,
-          "minX": 453.231,
-          "minZ": 91.796,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_301:площадка",
-          "maxX": 464.172,
-          "maxZ": 142.706,
-          "minX": 453.161,
-          "minZ": 134.628,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_305:площадка",
-          "maxX": -357.519,
-          "maxZ": -530.537,
-          "minX": -369.754,
-          "minZ": -545.826,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_307:площадка",
-          "maxX": 586.947,
-          "maxZ": -101.344,
-          "minX": 581.053,
-          "minZ": -106.656,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_2_309:площадка",
-          "maxX": 594.81,
-          "maxZ": 228.673,
-          "minX": 578.523,
-          "minZ": 219.327,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_1_3_313:площадка",
-          "maxX": -155.236,
-          "maxZ": 591.617,
-          "minX": -164.764,
-          "minZ": 581.716,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_322:площадка",
-          "maxX": 554.285,
-          "maxZ": -230,
-          "minX": 549.715,
-          "minZ": -234,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_3_327:площадка",
-          "maxX": 339.969,
-          "maxZ": 631.988,
-          "minX": 326.698,
-          "minZ": 621.345,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_328:площадка",
-          "maxX": -590.662,
-          "maxZ": -590.415,
-          "minX": -602.065,
-          "minZ": -602.312,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_329:площадка",
-          "maxX": -585.957,
-          "maxZ": -386.224,
-          "minX": -606.77,
-          "minZ": -399.23,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_330:площадка",
-          "maxX": -588.625,
-          "maxZ": -355.431,
-          "minX": -604.102,
-          "minZ": -371.842,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_331:площадка",
-          "maxX": -589.289,
-          "maxZ": -329.038,
-          "minX": -603.439,
-          "minZ": -340.053,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_332:площадка",
-          "maxX": -356.692,
-          "maxZ": -560.466,
-          "minX": -370.581,
-          "minZ": -574.079,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_333:площадка",
-          "maxX": -589.935,
-          "maxZ": -620.028,
-          "minX": -602.792,
-          "minZ": -630.881,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_0_339:площадка",
-          "maxX": 576.96,
-          "maxZ": -513.778,
-          "minX": 571.275,
-          "minZ": -521.516,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_354:площадка",
-          "maxX": -355.415,
-          "maxZ": -587.797,
-          "minX": -371.858,
-          "minZ": -604.93,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_0_355:площадка",
-          "maxX": 561.571,
-          "maxZ": -551.426,
-          "minX": 549.017,
-          "minZ": -559.162,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_359:площадка",
-          "maxX": -619.681,
-          "maxZ": -416.722,
-          "minX": -631.228,
-          "minZ": -426.915,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_361:площадка",
-          "maxX": -604.079,
-          "maxZ": -249.926,
-          "minX": -635.921,
-          "minZ": -270.074,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_362:площадка",
-          "maxX": -606.227,
-          "maxZ": -129.127,
-          "minX": -633.773,
-          "minZ": -150.873,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_363:площадка",
-          "maxX": -609.392,
-          "maxZ": -92.664,
-          "minX": -630.608,
-          "minZ": -107.336,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_364:площадка",
-          "maxX": -603.068,
-          "maxZ": -49.074,
-          "minX": -636.932,
-          "minZ": -70.926,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_1_365:площадка",
-          "maxX": -605.365,
-          "maxZ": -10.544,
-          "minX": -634.635,
-          "minZ": -29.456,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_366:площадка",
-          "maxX": -616.545,
-          "maxZ": 24.572,
-          "minX": -623.455,
-          "minZ": 15.428,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_367:площадка",
-          "maxX": -615.26,
-          "maxZ": 103.849,
-          "minX": -624.74,
-          "minZ": 96.151,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_368:площадка",
-          "maxX": -614.471,
-          "maxZ": 185.319,
-          "minX": -625.529,
-          "minZ": 174.681,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_369:площадка",
-          "maxX": -615.254,
-          "maxZ": 224.898,
-          "minX": -624.746,
-          "minZ": 215.102,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_2_370:площадка",
-          "maxX": -615.464,
-          "maxZ": 303.406,
-          "minX": -624.536,
-          "minZ": 296.594,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_373:площадка",
-          "maxX": -616.367,
-          "maxZ": -386.151,
-          "minX": -634.542,
-          "minZ": -399.304,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_374:площадка",
-          "maxX": -619.394,
-          "maxZ": -357.688,
-          "minX": -631.515,
-          "minZ": -369.585,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_0_375:площадка",
-          "maxX": 539.56,
-          "maxZ": -570.984,
-          "minX": 533.382,
-          "minZ": -577.251,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_2_0_382:площадка",
-          "maxX": 129.954,
-          "maxZ": -561.856,
-          "minX": 98.617,
-          "minZ": -581.001,
-          "y": 0.036
-        },
-        {
-          "blend": 14,
-          "id": "b_district_3_1_385:площадка",
-          "maxX": 619.193,
-          "maxZ": -229.857,
-          "minX": 612.807,
-          "minZ": -234.143,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_386:площадка",
-          "maxX": -325.316,
-          "maxZ": -589.516,
-          "minX": -343.775,
-          "minZ": -603.211,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_389:площадка",
-          "maxX": -356.543,
-          "maxZ": -618.501,
-          "minX": -370.73,
-          "minZ": -632.408,
-          "y": 0
-        },
-        {
-          "blend": 14,
-          "id": "b_district_0_0_398:площадка",
-          "maxX": -325.633,
-          "maxZ": -618.675,
-          "minX": -343.458,
-          "minZ": -632.234,
-          "y": 0
-        }
-      ],
+      "pads": [],
       "rivers": [
         {
           "bankY": 0,

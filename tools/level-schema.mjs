@@ -231,6 +231,7 @@ const LEVEL_SPEC = obj({
     wallColor: str({ doc: 'hex-цвет фасада (свотч docs/houses) для вариации материала' }),
     houseKind: str({ doc: 'вид/архетип дома (docs/houses), служебный для рендера/рандомизации' }),
     houseStyleId: str({ doc: 'стиль дома (docs/houses ArchitecturalStyleId)' }),
+    entrances: num({ min: 1, max: 8, doc: 'число подъездов/секций (docs/houses, рандомизируемо)' }),
     windowDensity: num({ min: 1, max: 3, doc: 'плотность окон на фасаде (docs/houses)' }),
     windowScale: num({ min: 0.5, max: 2, doc: 'масштаб окон (docs/houses)' }),
     roofMaterial: str({ doc: 'материал кровли (docs/houses)' }),
