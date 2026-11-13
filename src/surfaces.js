@@ -806,17 +806,24 @@ export class SurfaceField extends SolidField {
    * холма отвечал бы нулём, и нога повисла бы над склоном.
    */
   groundHeightAt(x, z, fromY = 0, terrainY) {
-    const plate = this.surfaces?.length ? this.plateHeightAt(x, z, fromY) : null;
     const relief = terrainY !== undefined ? terrainY : (this.relief ? this.relief.heightAt(x, z) : 0);
+    const hasPrisms = !!this.prisms?.length;
+    const hasSweeps = !!this.sweeps?.length;
+    const hasTunnel = !!(this.tunnelZones?.length || this.tunnelHoles?.length);
+    const hasChannels = !!(this.holes?.length || this.channelSegs?.length);
+    const simple = !hasPrisms && !hasSweeps && !hasTunnel && !hasChannels;
+    const plate = this.surfaces?.length ? this.plateHeightAt(x, z, fromY) : null;
+    if (simple) return plate === null ? relief : Math.max(plate, relief);
+
     const lim = fromY + this.stepUp;
     // берётся высшая опора в пределах шага ноги, а не просто высшая: на развязке
     // полотно дуги висит над улицей, и её 8 м не должны прятать асфальт под ногой
     let top = null;
-    if (this.prisms?.length) {
+    if (hasPrisms) {
       const t = this._prismTopAt(x, z);
       if (t !== null && t <= lim) top = t;
     }
-    if (this.sweeps?.length) {
+    if (hasSweeps) {
       const t = this._sweepTopAt(x, z);
       if (t !== null && t <= lim && (top === null || t > top)) top = t;
     }
@@ -825,7 +832,7 @@ export class SurfaceField extends SolidField {
     // (б) над потолком (проба с горы) — реальный рельеф/гору, (в) под поднятым
     // полом на выходе портала — рельеф/грунт, а не пол; иначе решётка навигации
     // и опора ломаются (ложные узлы/залипание).
-    const th = (this.tunnelZones?.length || this.tunnelHoles?.length) ? this._tunnelHoleAt(x, z, fromY) : null;
+    const th = hasTunnel ? this._tunnelHoleAt(x, z, fromY) : null;
     if (th && th.ceilY != null) {
       const { floorY, ceilY } = th;
       const inBand = lim <= ceilY + 1e-6 && fromY >= floorY - this.stepUp - 0.05;
@@ -843,7 +850,7 @@ export class SurfaceField extends SolidField {
     // в русле «пол мира» (ноль без рельефа, отметка поля с ним) ноги не держит:
     // грунт там срезан руслом, и опора ровно та, что отдаёт призма дна или схода.
     // Над водой настил моста остаётся опорой — его плита выше дна
-    if ((this.holes?.length || this.channelSegs?.length) && this._inChannel(x, z)) {
+    if (hasChannels && this._inChannel(x, z)) {
       const hold = plate !== null && plate > floor ? plate : null;
       return hold !== null && hold > top ? hold : top;
     }
