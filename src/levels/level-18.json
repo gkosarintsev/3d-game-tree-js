@@ -5,7 +5,7 @@
   "metadata": {
     "levelName": "level-18",
     "name": "Глава 18. Песочница развязок",
-    "hint": "Песочница: холмы и транспортные развязки (путепровод/эстакада). База для добавления развязок и отладки дорог и мостов.",
+    "hint": "Песочница: клеверная развязка — 4 петли (кривые 270° дуги, подъём 0→7→0 м) вокруг центрального путепровода. Холмы в центре убраны.",
     "units": "meters",
     "notes": "Песочница развязок: холмистый рельеф + базовый узел (путепровод: шоссе поверх пересекающей дороги) по мотивам docs/roads.html. Назначение: площадка для добавления различных развязок (клеверный лист, петли, съезды, трубы, SPUI) и отладки дорог, мостов, рельефа и навигации. Представление сложной дорожной сети в JSON (v4/cityforge) на произвольном рельефе — рекомендуемый гибрид: 1) Рельеф (холмы/долины) — generator.landscape.hills и/или cityforge.terrain.modifiers (mountain/valley, center/radius/height/falloff) + при необходимости river; terrain произвольной формы задаётся модификаторами. 2) Инженерные развязки и сложные геометрии — cityforge.networks.roads.nodes + segments с явными elements (v2 plate/arc), компилируются как есть (compileCityforge):    - segment: {id, from, to, type, layer, path, elements, lanes:[...]}. type: highway|arterial|ramp|merge|split|connector|local; layer: ground, embankment, bridge_01,... (ярусы).    - plate: {x,z,yaw,length,width,y,rise,rails} — прямая плита, ось вдоль yaw; y на локальном начале, rise — перепад по длине (уклон=rise/length).    - arc: {cx,cz,radius,from,to,width,y:[y0,y1],bank,rails} — дуга по центру/радиусу/углам (град), y на концах, bank — крен; подходит для петель 270° (клеверный лист) и виражей.    - connect:\"tangent\" (вместо plate/arc) переносит касательную предыдущего элемента следующей пластине; позицию задаёт автор. Цепочка elements образует непрерывное полотно.    - Непрерывные эстакады лучше делать одной цепочкой elements в одном segment (без свободных носов между частями); наземные подходы — отдельными ground-segments, на которые опираются концы подъёмов. 3) Процедурная уличная сеть фона — generator.transport/citygen stages (можно отключить generate:false на песочнице, чтобы не конфликтовать с авторской геометрией на рельефе). 4) Логика отделена от формы: nodes/segments/junctions задают топологию/связность, elements — точную 3D-геометрию (высоты, уклоны, радиусы), terrain — опорную поверхность. Это позволяет комбинировать произвольный рельеф с точными развязками."
   },
@@ -271,6 +271,78 @@
               150
             ],
             "layer": "ground"
+          },
+          {
+            "id": "clover_ne_a",
+            "position": [
+              75,
+              0,
+              0
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "clover_ne_b",
+            "position": [
+              0,
+              0,
+              75
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "clover_nw_a",
+            "position": [
+              -75,
+              0,
+              0
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "clover_nw_b",
+            "position": [
+              0,
+              0,
+              75
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "clover_sw_a",
+            "position": [
+              -75,
+              0,
+              0
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "clover_sw_b",
+            "position": [
+              0,
+              0,
+              -75
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "clover_se_a",
+            "position": [
+              75,
+              0,
+              0
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "clover_se_b",
+            "position": [
+              0,
+              0,
+              -75
+            ],
+            "layer": "ground"
           }
         ],
         "segments": [
@@ -511,6 +583,222 @@
               }
             ],
             "lanes": []
+          },
+          {
+            "id": "clover_loop_ne",
+            "from": "clover_ne_a",
+            "to": "clover_ne_b",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                75,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                75
+              ]
+            ],
+            "elements": [
+              {
+                "arc": {
+                  "cx": 75,
+                  "cz": 75,
+                  "radius": 75,
+                  "from": -90,
+                  "to": 45,
+                  "width": 6,
+                  "y": [
+                    0,
+                    7
+                  ],
+                  "bank": 0,
+                  "rails": false
+                }
+              },
+              {
+                "arc": {
+                  "cx": 75,
+                  "cz": 75,
+                  "radius": 75,
+                  "from": 45,
+                  "to": 180,
+                  "width": 6,
+                  "y": [
+                    7,
+                    0
+                  ],
+                  "bank": 0,
+                  "rails": false
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "clover_loop_nw",
+            "from": "clover_nw_a",
+            "to": "clover_nw_b",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -75,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                75
+              ]
+            ],
+            "elements": [
+              {
+                "arc": {
+                  "cx": -75,
+                  "cz": 75,
+                  "radius": 75,
+                  "from": -90,
+                  "to": -225,
+                  "width": 6,
+                  "y": [
+                    0,
+                    7
+                  ],
+                  "bank": 0,
+                  "rails": false
+                }
+              },
+              {
+                "arc": {
+                  "cx": -75,
+                  "cz": 75,
+                  "radius": 75,
+                  "from": -225,
+                  "to": -360,
+                  "width": 6,
+                  "y": [
+                    7,
+                    0
+                  ],
+                  "bank": 0,
+                  "rails": false
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "clover_loop_sw",
+            "from": "clover_sw_a",
+            "to": "clover_sw_b",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -75,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                -75
+              ]
+            ],
+            "elements": [
+              {
+                "arc": {
+                  "cx": -75,
+                  "cz": -75,
+                  "radius": 75,
+                  "from": 90,
+                  "to": 225,
+                  "width": 6,
+                  "y": [
+                    0,
+                    7
+                  ],
+                  "bank": 0,
+                  "rails": false
+                }
+              },
+              {
+                "arc": {
+                  "cx": -75,
+                  "cz": -75,
+                  "radius": 75,
+                  "from": 225,
+                  "to": 360,
+                  "width": 6,
+                  "y": [
+                    7,
+                    0
+                  ],
+                  "bank": 0,
+                  "rails": false
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "clover_loop_se",
+            "from": "clover_se_a",
+            "to": "clover_se_b",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                75,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                -75
+              ]
+            ],
+            "elements": [
+              {
+                "arc": {
+                  "cx": 75,
+                  "cz": -75,
+                  "radius": 75,
+                  "from": 90,
+                  "to": -45,
+                  "width": 6,
+                  "y": [
+                    0,
+                    7
+                  ],
+                  "bank": 0,
+                  "rails": false
+                }
+              },
+              {
+                "arc": {
+                  "cx": 75,
+                  "cz": -75,
+                  "radius": 75,
+                  "from": -45,
+                  "to": -180,
+                  "width": 6,
+                  "y": [
+                    7,
+                    0
+                  ],
+                  "bank": 0,
+                  "rails": false
+                }
+              }
+            ],
+            "lanes": []
           }
         ],
         "junctions": []
@@ -548,7 +836,7 @@
     "landscape": {
       "generate": true,
       "hills": {
-        "count": 12,
+        "count": 0,
         "minHeight": 12,
         "maxHeight": 45,
         "minRadius": 100,
