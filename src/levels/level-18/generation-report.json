@@ -143,7 +143,7 @@
       "profileId": "luxury",
       "cells": 1,
       "parcels": 121,
-      "reservedParcels": 6
+      "reservedParcels": 2
     },
     {
       "id": "district_2_3",
@@ -205,8 +205,8 @@
       "severity": "warn",
       "code": "chunk_buildings_heavy",
       "stage": "6_finalize_emit",
-      "message": "high building count in a single chunk (130)",
-      "maxBuildings": 130,
+      "message": "high building count in a single chunk (137)",
+      "maxBuildings": 137,
       "chunk": 640,
       "grid": 2
     },
@@ -245,8 +245,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 7,
-      "segments": 6,
+      "nodes": 8,
+      "segments": 7,
       "components": 1
     },
     {
@@ -260,8 +260,8 @@
       "code": "transport_passthrough",
       "stage": "2_transport",
       "message": "stage 2 using provided road network (procedural generation pending)",
-      "nodes": 7,
-      "segments": 6
+      "nodes": 8,
+      "segments": 7
     },
     {
       "severity": "info",
@@ -338,9 +338,9 @@
       "code": "buildings_generated",
       "stage": "4_buildings_structures",
       "message": "generated buildings from parcels",
-      "count": 400,
+      "count": 401,
       "budget": 420,
-      "skippedConflict": 25
+      "skippedConflict": 28
     },
     {
       "severity": "info",
@@ -386,10 +386,10 @@
         "grid": 2,
         "total": 4
       },
-      "roadNodes": 25,
-      "roadSegments": 24,
+      "roadNodes": 26,
+      "roadSegments": 25,
       "roadComponents": 1,
-      "roadGraphNodes": 25,
+      "roadGraphNodes": 26,
       "districts": 16,
       "districtTypes": [
         "campus",
@@ -408,11 +408,11 @@
         "suburb"
       ],
       "parcels": 2274,
-      "reservedParcels": 428,
+      "reservedParcels": 424,
       "parcelAccess": {
-        "near": 190,
-        "mid": 235,
-        "far": 1849
+        "near": 192,
+        "mid": 231,
+        "far": 1851
       },
       "roadAccessByType": {
         "industrial": {
@@ -427,12 +427,12 @@
         },
         "luxury": {
           "parcels": 121,
-          "unreserved": 115,
-          "good": 20,
-          "mid": 38,
-          "far": 57,
-          "reserved": 6,
-          "goodOrMid": 58,
+          "unreserved": 119,
+          "good": 25,
+          "mid": 35,
+          "far": 59,
+          "reserved": 2,
+          "goodOrMid": 60,
           "accessibleRatio": 0.504
         },
         "office": {
@@ -478,39 +478,39 @@
         "sports": {
           "parcels": 49,
           "unreserved": 48,
-          "good": 7,
-          "mid": 15,
+          "good": 8,
+          "mid": 14,
           "far": 26,
           "reserved": 1,
           "goodOrMid": 22,
           "accessibleRatio": 0.458
         }
       },
-      "buildings": 400,
+      "buildings": 401,
       "buildingsByDistrictType": {
-        "market": 47,
-        "office": 57,
-        "luxury": 44,
-        "industrial": 14,
-        "sports": 9,
-        "parking": 5,
-        "residential": 98,
-        "forest": 6,
-        "commercial": 42,
-        "park": 11,
-        "suburb": 25,
-        "slums": 25,
-        "old_town": 16,
+        "market": 54,
+        "luxury": 45,
+        "office": 61,
+        "sports": 15,
+        "industrial": 10,
+        "parking": 6,
+        "residential": 88,
+        "commercial": 38,
+        "forest": 5,
+        "park": 7,
+        "suburb": 26,
+        "slums": 32,
+        "old_town": 13,
         "campus": 1
       },
       "lights": 0,
       "props": 0,
       "chunkLoad": {
         "nonEmptyChunks": 4,
-        "maxBuildings": 130,
+        "maxBuildings": 137,
         "maxProps": 0,
         "maxLights": 0,
-        "avgBuildings": 100,
+        "avgBuildings": 100.25,
         "avgProps": 0
       }
     },
