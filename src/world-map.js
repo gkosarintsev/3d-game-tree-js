@@ -1103,53 +1103,104 @@ export class WorldMap extends JsonMap {
    * тяжёлые перестройки индексов выполняются в теневых структурах, затем применяется
    * атомарный swap (`_applyWorldState`), чтобы между срезами мир оставался консистентным.
    */
-  _prepareWorldState() {
+  _prepareWorldState(prevState = null) {
     const order = this._order();
-    const entries = [];
-    for (const id of order) {
-      const e = this.loaded.get(id);
-      if (e) entries.push(e);
-    }
-    const flatInto = (key, field) => {
-      let n = 0;
-      for (const e of entries) n += (field ? (e.records[key] ?? []) : (e.data[key] ?? [])).length;
-      const out = new Array(n);
-      let p = 0;
-      for (const e of entries) {
-        const list = field ? (e.records[key] ?? []) : (e.data[key] ?? []);
-        for (let i = 0; i < list.length; i++) out[p++] = list[i];
-      }
+    const id = prevState?.id;
+    const entry = id ? this.loaded.get(id) : null;
+    const append = prevState?.appendSafe && entry
+      && (prevState.buildings ?? this.buildings?.length ?? 0) === (this.buildings?.length ?? 0);
+    const appendArr = (base, add) => {
+      if (!add?.length) return base ? base.slice() : [];
+      const out = new Array((base?.length ?? 0) + add.length);
+      if (base?.length) for (let i = 0; i < base.length; i++) out[i] = base[i];
+      for (let i = 0; i < add.length; i++) out[base.length + i] = add[i];
       return out;
     };
-    const next = {
-      order,
-      inputs: {
-        buildings: flatInto('buildings'), roads: flatInto('roads'), channels: flatInto('channels'),
-        tunnels: flatInto('tunnels'),
-      },
-      props: flatInto('props'),
-      lightSpecs: flatInto('lights'),
-      _deckFrames: new Map(),
-    };
-    for (const key of DATA_SINKS) next[key] = flatInto(key, true);
-    // производные от inputs, нужные индексаторам (_frames, _buildingBoxes, channelSegs)
-    next.buildings = next.inputs.buildings;
-    next._frames = new Map(next.buildings.map(b => [b, (typeof frameOf === 'function' ? frameOf(b.bounds, b.rotation ?? 0) : null)]));
-    // frameOf недоступен здесь напрямую в world-map; вычислим через временную установку _setInputs в build-проходах.
-    next.roads = next.inputs.roads;
-    next.channels = next.inputs.channels;
-    next.tunnels = next.inputs.tunnels;
-    let segN = 0;
-    for (const ch of next.channels) {
-      const segs = ch.segments ?? [];
-      for (let i = 0; i < segs.length; i++) if (!segs[i].axis) segN++;
+    let next;
+    if (append) {
+      // Инкрементальный append в каноническом хвосте: избегаем полного concat всех загруженных записей.
+      const bAdd = entry.data?.buildings ?? [];
+      const rAdd = entry.data?.roads ?? [];
+      const cAdd = entry.data?.channels ?? [];
+      const tAdd = entry.data?.tunnels ?? [];
+      const buildings = appendArr(this.buildings, bAdd);
+      const roads = appendArr(this.roads, rAdd);
+      const channels = appendArr(this.channels, cAdd);
+      const tunnels = appendArr(this.tunnels, tAdd);
+      next = {
+        order,
+        inputs: { buildings, roads, channels, tunnels },
+        props: appendArr(this.props, entry.data?.props ?? []),
+        lightSpecs: appendArr(this.lightSpecs, entry.data?.lights ?? []),
+        _deckFrames: new Map(),
+      };
+      for (const key of DATA_SINKS) next[key] = appendArr(this[key], entry.records?.[key] ?? []);
+      next.buildings = buildings; next.roads = roads; next.channels = channels; next.tunnels = tunnels;
+      // frames: копируем существующие и дописываем новые здания
+      const frames = new Map(this._frames || []);
+      for (const b of bAdd) frames.set(b, (typeof frameOf === 'function' ? frameOf(b.bounds, b.rotation ?? 0) : null));
+      next._frames = frames;
+      // channelSegs: дописываем сегменты новых каналов
+      let segAdd = 0;
+      for (const ch of cAdd) { const segs = ch.segments ?? []; for (let i = 0; i < segs.length; i++) if (!segs[i].axis) segAdd++; }
+      if (segAdd) {
+        const prevSegs = this.channelSegs ?? [];
+        const channelSegs = new Array(prevSegs.length + segAdd);
+        for (let i = 0; i < prevSegs.length; i++) channelSegs[i] = prevSegs[i];
+        let si = prevSegs.length;
+        for (const ch of cAdd) {
+          const segs = ch.segments ?? [];
+          for (let i = 0; i < segs.length; i++) if (!segs[i].axis) channelSegs[si++] = segs[i];
+        }
+        next.channelSegs = channelSegs;
+      } else {
+        next.channelSegs = (this.channelSegs ?? []).slice();
+      }
+    } else {
+      const entries = [];
+      for (const oid of order) {
+        const e = this.loaded.get(oid);
+        if (e) entries.push(e);
+      }
+      const flatInto = (key, field) => {
+        let n = 0;
+        for (const e of entries) n += (field ? (e.records[key] ?? []) : (e.data[key] ?? [])).length;
+        const out = new Array(n);
+        let p = 0;
+        for (const e of entries) {
+          const list = field ? (e.records[key] ?? []) : (e.data[key] ?? []);
+          for (let i = 0; i < list.length; i++) out[p++] = list[i];
+        }
+        return out;
+      };
+      next = {
+        order,
+        inputs: {
+          buildings: flatInto('buildings'), roads: flatInto('roads'), channels: flatInto('channels'),
+          tunnels: flatInto('tunnels'),
+        },
+        props: flatInto('props'),
+        lightSpecs: flatInto('lights'),
+        _deckFrames: new Map(),
+      };
+      for (const key of DATA_SINKS) next[key] = flatInto(key, true);
+      next.buildings = next.inputs.buildings;
+      next._frames = new Map(next.buildings.map(b => [b, (typeof frameOf === 'function' ? frameOf(b.bounds, b.rotation ?? 0) : null)]));
+      next.roads = next.inputs.roads;
+      next.channels = next.inputs.channels;
+      next.tunnels = next.inputs.tunnels;
+      let segN = 0;
+      for (const ch of next.channels) {
+        const segs = ch.segments ?? [];
+        for (let i = 0; i < segs.length; i++) if (!segs[i].axis) segN++;
+      }
+      const channelSegs = new Array(segN); let si = 0;
+      for (const ch of next.channels) {
+        const segs = ch.segments ?? [];
+        for (let i = 0; i < segs.length; i++) if (!segs[i].axis) channelSegs[si++] = segs[i];
+      }
+      next.channelSegs = channelSegs;
     }
-    const channelSegs = new Array(segN); let si = 0;
-    for (const ch of next.channels) {
-      const segs = ch.segments ?? [];
-      for (let i = 0; i < segs.length; i++) if (!segs[i].axis) channelSegs[si++] = segs[i];
-    }
-    next.channelSegs = channelSegs;
     const b = this._boundsOf(order);
     next.bounds = b ?? this.spec.bounds;
     return next;
@@ -1289,6 +1340,7 @@ export class WorldMap extends JsonMap {
     }
     const prevState = {
       mode, id, appendSafe,
+      buildings: this.buildings?.length ?? 0,
       solids: this.solids?.length ?? 0,
       surfaces: this.surfaces?.length ?? 0,
       blockers: this.blockers?.length ?? 0,
@@ -1299,7 +1351,7 @@ export class WorldMap extends JsonMap {
     slices.push({ label: 'commit-merge', run: () => {
       if (mode === 'build' && id && entry) this.loaded.set(id, entry);
       else if (mode === 'unload' && id) this.loaded.delete(id);
-      next = this._prepareWorldState();
+      next = this._prepareWorldState(prevState);
       next._commitMeta = { mode, id, prevCounts };
       next._commitPrev = prevState;
     } });
