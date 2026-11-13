@@ -508,6 +508,9 @@ export const LEVEL_SPEC_V2 = {
         doc: 'мс: потолок одного кадра достройки. Разделимая работа (полосы решётки, фазы графа) останавливается раньше — на меньшем из этого числа и просьбы движка (`CONFIG.jsonMap.pump.frameBudgetMs`), а неразделимый атом обязан влезть в кадр один: по шести прогонам гейта этапа 4 на клетке 200 м медиана…хвост у `commit` 13,7…39,0 мс, у `picture` — 5,1…25,0 мс, и на кадры они не режутся (цена `commit` ∝ **площади загруженного окна**, § 6.4; 30 мс отсеяны именно его хвостом, и потолок 40 держит худший замер с запасом 2,5 % — это не запас по железу, а признак того, что предел стоит на хвосте `commit` и остаётся открытым решением § 10.14). Кадр 60 Гц — 16,7 мс, а худший чанк (§ 2.7) стоил 1 401 мс, поэтому достройка растягивается на кадры в любом случае: на клетке 200 м это 92…231 мс wall-clock',
       }),
     }, { doc: 'разрезка и достройка открытого мира (`kind: open`): парсер режет мир на клетки `chunk`, движок держит окно `keep` и догружает вперёд на `aheadMin`/`aheadMax`, тратя на кадр не больше `budgetMs`. Числа — воля автора; маргин дублирования чанков выводится из проходовости (tools/chunk-level.mjs), а не отсюда' }),
+    // Runtime/perf overrides for nav/build probes (optional; default from CONFIG).
+    navEdgeProbe: num({ min: 0.1, doc: 'Шаг проб опоры вдоль навигационных рёбер (м). Меньше — точнее, больше — быстрее сборка.' }),
+    bodyProbe: num({ min: 0.1, doc: 'Шаг проб габарита тела вдоль навигационных рёбер (м). Меньше — точнее, больше — быстрее сборка.' }),
     relief: V2_RELIEF,
     city: CITY_SPEC_V2,
     roads: {
@@ -1105,6 +1108,9 @@ export const LEVEL_SPEC_V4 = obj({
   sky: LEVEL_SPEC_V2.fields.sky,
   // Optional hooks for future behavior/assets; static in MVP (ADR-001).
   properties: V4_OPEN,
+  // Runtime/perf overrides for open-world nav/build probes (optional; default from CONFIG).
+  navEdgeProbe: num({ min: 0.1, doc: 'Шаг проб опоры вдоль навигационных рёбер (м). Меньше — точнее, больше — быстрее сборка.' }),
+  bodyProbe: num({ min: 0.1, doc: 'Шаг проб габарита тела вдоль навигационных рёбер (м). Меньше — точнее, больше — быстрее сборка.' }),
   buildings: LEVEL_SPEC_V2.fields.buildings,
   cityforge: ref('cityforge', { req: true }),
   generator: V4_GENERATOR,

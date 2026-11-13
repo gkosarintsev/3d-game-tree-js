@@ -52,6 +52,8 @@ export class SurfaceField extends SolidField {
     this.depth = ground.size;
     this.half = ground.size / 2;
     this.stepUp = CONFIG.building.stepUp;
+    this.navEdgeProbe = J.navEdgeProbe;
+    this.navEdgeDrop = J.navEdgeDrop;
 
     /**
      * Плавный рельеф главы (секция `relief`, `src/relief.js`): null у глав без
@@ -1148,7 +1150,9 @@ export class SurfaceField extends SolidField {
   _edgeWalk(a, b) {
     const dx = b.x - a.x, dz = b.z - a.z;
     const dist = Math.hypot(dx, dz);
-    const steps = Math.max(1, Math.ceil(dist / J.navEdgeProbe));
+    const navEdgeProbe = this.navEdgeProbe ?? J.navEdgeProbe;
+    const navEdgeDrop = this.navEdgeDrop ?? J.navEdgeDrop;
+    const steps = Math.max(1, Math.ceil(dist / navEdgeProbe));
     const cap = Math.max(a.y, b.y);
     let feet = a.y;
     const simpleGround = !this.prisms?.length && !this.sweeps?.length && !(this.tunnelZones?.length || this.tunnelHoles?.length) && !(this.holes?.length || this.channelSegs?.length);
@@ -1159,7 +1163,7 @@ export class SurfaceField extends SolidField {
       const t = s / steps;
       const x = a.x + dx * t, z = a.z + dz * t;
       const y = simple ? (relief ? relief.heightAt(x, z) : 0) : this.groundHeightAt(x, z, Math.max(feet, a.y));
-      if (feet - y > J.navEdgeDrop) return false;
+      if (feet - y > navEdgeDrop) return false;
       feet = Math.min(y, cap);
     }
     return b.y - feet <= this.stepUp;

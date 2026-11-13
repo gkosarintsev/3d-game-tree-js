@@ -178,7 +178,9 @@
       "branches": 3,
       "cornerFillet": {
         "radius": 8,
-        "segmentTypes": ["local"],
+        "segmentTypes": [
+          "local"
+        ],
         "excludeSegmentIds": []
       },
       "roundabouts": [
@@ -205,5 +207,7 @@
         "count": 1
       }
     }
-  }
+  },
+  "navEdgeProbe": 1.2,
+  "bodyProbe": 1.2
 }

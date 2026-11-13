@@ -255,6 +255,16 @@
       "type": "object",
       "properties": {}
     },
+    "navEdgeProbe": {
+      "type": "number",
+      "minimum": 0.1,
+      "description": "Шаг проб опоры вдоль навигационных рёбер (м). Меньше — точнее, больше — быстрее сборка."
+    },
+    "bodyProbe": {
+      "type": "number",
+      "minimum": 0.1,
+      "description": "Шаг проб габарита тела вдоль навигационных рёбер (м). Меньше — точнее, больше — быстрее сборка."
+    },
     "buildings": {
       "type": "array",
       "items": {
@@ -732,51 +742,6 @@
         "policies": {
           "type": "object",
           "properties": {}
-        },
-        "transport": {
-          "type": "object",
-          "properties": {
-            "generate": {
-              "type": "boolean",
-              "description": "включить/отключить процедурную генерацию транспортной сети (если поддерживается стадией)."
-            },
-            "width": { "type": "number", "minimum": 4, "maximum": 20 },
-            "branches": { "type": "integer", "minimum": 0, "maximum": 16 },
-            "seedOffset": { "type": "number" },
-            "roundabouts": {
-              "type": "array",
-              "items": { "type": "object", "properties": {}, "additionalProperties": true }
-            },
-            "cornerFillet": {
-              "type": "object",
-              "properties": {
-                "radius": {
-                  "type": "number",
-                  "minimum": 0,
-                  "description": "м: радиус скругления прямых поворотов (филет) для выбранных генерируемых сегментов. 0/отсутствие — не скруглять."
-                },
-                "segmentTypes": {
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "description": "типы сегментов, которые скруглять (например local, collector). Если пусто/отсутствует — скруглять все подходящие path-сегменты (кроме исключённых)."
-                },
-                "includeSegmentIds": {
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "description": "явно включить сегменты по id (в дополнение к segmentTypes)."
-                },
-                "excludeSegmentIds": {
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "description": "явно исключить сегменты по id (не скруглять)."
-                }
-              },
-              "additionalProperties": false,
-              "description": "селективное скругление углов (L-поворотов) у процедурно генерируемых path-дорог."
-            }
-          },
-          "additionalProperties": true,
-          "description": "параметры генерации транспорта (v4/citygen, стадия 2)."
         }
       },
       "required": [

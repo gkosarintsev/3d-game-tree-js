@@ -111,6 +111,11 @@ export class JsonMap extends SurfaceField {
     // Шаг решётки навигации: по умолчанию из CONFIG, но может быть переопределён
     // данными уровня/карты (open-world: более крупная сетка снижает стоимость сборки).
     this.navStep = +(spec.navStep ?? spec.nav?.step ?? J.navStep);
+    // Плотность проб навигационных рёбер/габарита: переопределяется данными уровня
+    // для снижения стоимости сборки (с сохранением эквивалентности/контракта по гейтам).
+    this.navEdgeProbe = +(spec.navEdgeProbe ?? spec.nav?.edgeProbe ?? J.navEdgeProbe);
+    this.navEdgeDrop = +(spec.navEdgeDrop ?? spec.nav?.edgeDrop ?? J.navEdgeDrop);
+    this.bodyProbe = +(spec.bodyProbe ?? spec.nav?.bodyProbe ?? CONFIG.nav.bodyProbe);
     // Предикат пригодности узла для движка (`randomNavPoint` и `findPath`). У
     // `JsonMap` он `null`: глава собирается целиком, а изолированные карманы уже
     // отрезаны `_pruneToSpawn`, поэтому годен каждый узел графа. `WorldMap`

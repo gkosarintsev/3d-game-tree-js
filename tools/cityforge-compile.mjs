@@ -441,6 +441,8 @@ export function compileCityforge(raw) {
     // v3: окна фасадов включены по умолчанию (программная текстура/ритм из движка).
     // Явное null/false в источнике отключает окна (perf-тюнинг); отсутствие поля = defaults.
     windows: raw.windows === undefined ? {} : raw.windows,
+    ...(raw.navEdgeProbe != null ? { navEdgeProbe: +raw.navEdgeProbe } : {}),
+    ...(raw.bodyProbe != null ? { bodyProbe: +raw.bodyProbe } : {}),
     metadata: {
       levelName: raw.metadata?.levelName,
       name: raw.metadata?.name,

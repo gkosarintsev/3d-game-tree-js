@@ -1,7 +1,7 @@
 # План: оптимизация стриминга и сборки открытого мира (устранение пиков >1s)
 
-Дата: 2026-11-13. Статус: **в работе (продолжение после серии инкрементальных оптимизаций)**.  
-Связанный контекст: `docs/open-world-plan.md`, `docs/architecture-map-contract.md`, `docs/architecture-json-levels.md`, `tests/streaming-build.test.js`, `src/world-map.js`, `src/json-map.js`, `src/surfaces.js`, `src/solids.js`.
+Дата: 2026-11-13. Статус: **выполнено (целевые критерии достигнуты, multi-run подтверждено)**.  
+Связанный контекст: `docs/open-world-plan.md`, `docs/architecture-map-contract.md`, `docs/architecture-json-levels.md`, `tests/streaming-build.test.js`, `src/world-map.js`, `src/json-map.js`, `src/surfaces.js`, `src/solids.js`, `.ai/state/streaming-build-optimization.md`.
 
 ## 0. Цель и критерии успеха
 
@@ -43,46 +43,37 @@
 
 ## 4. Задачи
 
-### [TASK-001] Профилирование суммарного времени по фазам/тайл
-- [ ] Расширить отчёт `streaming-build` (или добавить временную диагностику) суммой времени по меткам на тайл и по чанкам (не только `costWorst` peak): вклад `lattice`, `picture-ground`, `geometry`, `picture-*`, `commit-*`, nav-проходов, `reach`.
-- [ ] Зафиксировать базовую разбивку (2–3 прогона) в `.ai/state/streaming-build-optimization.md` для приоритизации.
-- [ ] Убедиться, что диагностика не влияет на гейты/детерминизм (или выключаема).
+### [TASK-001] Профилирование суммарного времени по фазам/тайл — [x]
+- [x] Расширен отчёт `streaming-build` суммой времени по меткам на тайл/задачу: `costTotal`, `labelTotals/Avg/Max/Share`, `topLabelsByTotal`, `tileLabelTotals`.
+- [x] Зафиксирована разбивка и доли в `.ai/state/streaming-build-optimization.md` (baseline + финальный профиль).
+- [x] Диагностика не влияет на гейты/детерминизм.
 
-### [TASK-002] Оптимизация `_navLattice` / нав-сетап (кумулятивно)
-- [ ] Проанализировать горячий путь: `_inBuilding`, `relief.heightAt`, `groundHeightAt/plateHeightAt`, `isBlocked/_railsBlock`, `nav.add/link`, `_linkRise/edgeOk` (подъёмы/семплирование рёбер).
-- [ ] Внедрить эквивалентные удешевления: ранние отсевы/локальные fast-paths по данным клетки, сокращение повторных запросов в пределах точки/ребра, более дешёвые проверки там, где структуры отсутствуют, батчинг/упорядочивание без смены результата графа.
-- [ ] Оценить допустимость параметризации шага/плотности **через данные/спек** (не хардкодом по главе) и влияние на связность/контракт; при изменении — обновить источник, пересобрать `build-level`, сохранить parity.
-- [ ] Проверить: связность/проходимость/`level-contract` не хуже, суммарный вклад lattice снижен (multi-run).
+### [TASK-002] Оптимизация `_navLattice` / нав-сетап (кумулятивно) — [x]
+- [x] Проанализирован горячий путь (`_inBuilding`, `relief.heightAt`, `groundHeightAt/plateHeightAt`, `isBlocked`, `nav.add/link`, `_linkRise/edgeOk`).
+- [x] Внедрены эквивалентные удешевления: fast-paths/hoist в `_navLattice` и `_linkRise` (`src/json-map.js`), fast-paths `_edgeWalk` и `bodyClearLine` (`src/surfaces.js`), instance/spec-override `navEdgeProbe`/`bodyProbe`.
+- [x] Параметризация плотности проб применена для level 16 **через данные/спек/пайплайн**: `src/levels/level-16.json` (`navEdgeProbe: 1.2`, `bodyProbe: 1.2`), schema/compile/normalize/chunk/build обновлены, `build-level` пересобран, `--check` OK.
+- [x] Суммарный вклад lattice снижен ~2.1× (23716 ms → 11099–13392 ms), `tilePeakMs` < 1000 ms (multi-run), `level-contract` зелёный.
 
-### [TASK-003] Оптимизация `picture-ground` (`_groundGeo`)
-- [ ] Профилировать `_plainGroundGeo` vs `_riverGroundGeo`: вершины/`heightAt`/`normalAt`, refinement у рек/дорог, вырезы дыр/туннелей, merge.
-- [ ] Снизить работу эквивалентно: пропуск лишних проверок по rect (расширить существующие отборы), переиспользование/кэш промежуточных результатов в пределах неизменного контекста, уменьшение аллокаций, упрощение путей без refinement.
-- [ ] (Опционально, через данные/пайплайн) согласованные параметры mesh/refinement, если дают выигрыш и проходят `--check`, визуальную/шовную корректность и контракт; изменения — детерминированно в источнике и артефактах.
-- [ ] Верификация: `picture-ground` peak/сумма ниже, швы/опоры/картинка корректны.
+### [TASK-003] Оптимизация `picture-ground` (`_groundGeo`) — [~]
+- [~] Профилирование: ~4–8% суммы, worst atomic slice ~208–237 ms < 1000. Доп. эквивалентные рефакторинги не потребовались для критериев; возможны как follow-up.
 
-### [TASK-004] Устранение дублирования `geometry`/`collectPass` и удешевление picture-фаз
-- [ ] Исследовать совмещение/переиспользование проходов `data` и `geometry` (владельцы/geo/waterRects/sinks) без изменения состава записей и выводимых owner-объектов.
-- [ ] Удешевить `picture-meshes/details` (merge, создание объектов/рядов) эквивалентно: меньше аллокаций, переиспользование там, где безопасно в рамках жизненного цикла чанка.
-- [ ] Контроль: `level-contract`/`level-lifecycle`, отсутствие утечек, детерминизм.
+### [TASK-004] Устранение дублирования `geometry`/`collectPass` и удешевление picture-фаз — [~]
+- [~] Исследовано: `data`/`geometry` проходы различаются режимами и побочными эффектами; безопасное совмещение не реализовано (риск эквивалентности).
 
-### [TASK-005] Commit, nav-проходы, помпа
-- [ ] Удержать/расширить инкрементальность (append-safe) для merge индексов и состояния; минимизировать полные пересборки и копирование при росте мира.
-- [ ] Проверить стоимость `commit-swap`, nav-проходов (`rooms/roofs/stairs/decks/tunnels/water/doors/seal`, `reach`) и `_markReachable` на поздних тайлах; оптимизировать эквивалентно (инкрементальные обновления, пропуск пустых/неизменённых подфаз — при доказуемой эквивалентности).
-- [ ] Настроить/проверить нарезку срезов и оценку `costWorst` так, чтобы батчи оставались < бюджета при снижении среднего.
+### [TASK-005] Commit, nav-проходы, помпа — [~]
+- [x] Append-safe инкрементальность, бюджетная нарезка и учёт `costWorst` сохранены. `commit-swap`/nav-подфазы/`reach`/`decks` минорны.
 
-### [TASK-006] Параметры стриминга и чанков (данные/конфиг, при обосновании)
-- [ ] Смоделировать/протестировать влияние `stream.chunk/keep/ahead*` и размеров окна: мелкие чанки → меньше работа/тайл, но больше commit/швов/объектов; подобрать баланс под цель `tilePeakMs` и приемлемый churn.
-- [ ] Любые изменения данных level 15/16 — через исходники + `build-level` + `--check` (parity), с перезамером multi-run и проверкой нав/швов/контракта.
+### [TASK-006] Параметры стриминга и чанков (данные/конфиг, при обосновании) — [~]
+- [x] Применён data-driven параметр `navEdgeProbe`/`bodyProbe` для level 16 через source+schema+tooling+`build-level`+`--check` с multi-run и контрактной верификацией.
+- [ ] `stream.chunk/keep/ahead*` не менялись (не потребовалось).
 
-### [TASK-007] (Опционально, высокий риск) Предподготовка в воркере / бэкинг
-- [ ] **Worker:** выделить вычислимое в переносимых буферах (вершины/нормали/индексы, промежуточные массивы) с интеграцией и commit/swap на main thread в бюджет; обеспечить идентичность результатов и порядок.
-- [ ] **Бэкинг:** оценить, что переносимо в артефакты пайплайна (гео-буферы, индексы, локальные нав-данные) с учётом размера, формата, parity/детерминизма и необходимости runtime-склейки; внедрять только с обновлением инструментов/проверок.
-- [ ] Принять решение по cost/benefit; не блокирует обязательные гейты.
+### [TASK-007] (Опционально, высокий риск) Предподготовка в воркере / бэкинг — [ ]
+- [ ] Не выполнялось (цель достигнута).
 
-### [TASK-008] Верификация, регрессии и отчётность
-- [ ] Прогоны (несколько, фиксировать дисперсию): `node tools/ci-browser.mjs --level 16 --suites streaming-build --details`, `--level 16 --suites level-contract`.
-- [ ] Обязательные проверки: `node tools/check-levels.mjs`, `node --test tools/citygen.test.mjs`, `node tools/build-level.mjs src/levels/level-15.json --check`, `node tools/build-level.mjs src/levels/level-16.json --check`.
-- [ ] Обновить `.ai/state/streaming-build-optimization.md` (метрики до/после, риски, остаток) и при необходимости `docs/*`/ADR при архитектурных решениях.
+### [TASK-008] Верификация, регрессии и отчётность — [x]
+- [x] Multi-run `streaming-build` (level 16, 25/25): `tilePeakMs` 989.0 / 981.9 / 879.0 ms, `maxBatchMs` 273.6 / 234.5 / 279.4, `slicePeakMs` 237.4 / 234.5 / 219.9. `level-contract` 8/8.
+- [x] Обязательные проверки: `check-levels` 24/24, `citygen` 42/42, `build-level --check` level-15/16 OK, `export-schema --check` OK.
+- [x] `.ai/state/streaming-build-optimization.md` обновлён (метрики до/после, профиль, tradeoff, остаток).
 
 ## 5. Порядок выполнения (рекомендуемый)
 

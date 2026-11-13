@@ -102,6 +102,7 @@ export class SolidField {
     this.bucket = bucket;
     this.index = new Map();
     this.stepUp = CONFIG.building.stepUp;
+    this.bodyProbe = CONFIG.nav.bodyProbe;
   }
 
   /** Ключ ячейки трёхмерной сетки солидов. */
@@ -194,7 +195,7 @@ export class SolidField {
     }
     const dx = b.x - a.x, dz = b.z - a.z;
     const feet = Math.max(a.y, b.y);
-    const probe = CONFIG.nav.bodyProbe;
+    const probe = this.bodyProbe ?? CONFIG.nav.bodyProbe;
     const steps = Math.max(2, Math.ceil(Math.hypot(dx, dz) / probe));
     for (let s = 1; s < steps; s++) {
       const t = s / steps;

@@ -295,6 +295,8 @@ export function splitLevel(map, stream, opts = {}) {
       ...(map.windows ? { windows: map.windows } : {}),
       ...(map.clutter ? { clutter: map.clutter } : {}),
       ...(map.signage ? { signage: map.signage } : {}),
+      ...(map.navEdgeProbe != null ? { navEdgeProbe: map.navEdgeProbe } : {}),
+      ...(map.bodyProbe != null ? { bodyProbe: map.bodyProbe } : {}),
       // `overlap` — выведенное парсером число, и в `index.js` оно лежит ровно
       // по той же причине, по какой в модуле главы лежат выведенные отметки:
       // движок не должен второй раз считать арифметику маргина по CONFIG

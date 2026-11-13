@@ -59,6 +59,7 @@ export const LEVEL_16 = {
   },
   "hint": "Доберитесь до маяка, пересекая районы сгенерированного города.",
   "map": {
+    "bodyProbe": 1.2,
     "bounds": {
       "maxX": 640,
       "maxZ": 640,
@@ -459,6 +460,7 @@ export const LEVEL_16 = {
       "y": 0
     },
     "kind": "open",
+    "navEdgeProbe": 1.2,
     "relief": {
       "baseY": 0,
       "blend": 14,
