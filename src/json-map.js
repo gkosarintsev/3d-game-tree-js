@@ -765,8 +765,9 @@ export class JsonMap extends SurfaceField {
         // на склоне отсчёт опоры ведётся от местности, а не от `groundY`: плита
         // тротуара на холме +14 м лежит в пределе шага от поля и обязана быть
         // принята, иначе узел встал бы на голый склон под ногами
-        const fromY = this.relief ? this.relief.heightAt(x, z) : this.groundY;
-        const y = this.groundHeightAt(x, z, fromY);
+        const terrainY = this.relief ? this.relief.heightAt(x, z) : 0;
+        const fromY = this.relief ? terrainY : this.groundY;
+        const y = this.groundHeightAt(x, z, fromY, terrainY);
         if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) continue;
         row[i - i0] = nav.add(x, y, z, `w:${i}:${j}`);
       }
@@ -840,8 +841,8 @@ export class JsonMap extends SurfaceField {
       const x = pa.x + (pb.x - pa.x) * t;
       const z = pa.z + (pb.z - pa.z) * t;
       if (this._inBuilding(x, z)) return;
-      const fromY = this.relief.heightAt(x, z);
-      const y = this.groundHeightAt(x, z, fromY);
+      const terrainY = this.relief.heightAt(x, z);
+      const y = this.groundHeightAt(x, z, terrainY, terrainY);
       if (this.isBlocked(x, z, CONFIG.radius, y, CONFIG.eyeHeight)) return;
       const id = nav.add(x, y, z, `ws:${tag}:${s}`);
       if (!this._linkOk(nav, prev, id)) return;

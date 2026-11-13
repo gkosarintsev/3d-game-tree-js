@@ -805,14 +805,19 @@ export class SurfaceField extends SolidField {
    * единственная отметка, а не «высшая опора в пределах ноги». Иначе спуск с
    * холма отвечал бы нулём, и нога повисла бы над склоном.
    */
-  groundHeightAt(x, z, fromY = 0) {
+  groundHeightAt(x, z, fromY = 0, terrainY) {
     const plate = this.plateHeightAt(x, z, fromY);
-    const relief = this.relief ? this.relief.heightAt(x, z) : 0;
+    const relief = terrainY !== undefined ? terrainY : (this.relief ? this.relief.heightAt(x, z) : 0);
     const lim = fromY + this.stepUp;
     // берётся высшая опора в пределах шага ноги, а не просто высшая: на развязке
     // полотно дуги висит над улицей, и её 8 м не должны прятать асфальт под ногой
     let top = null;
-    for (const t of [this._prismTopAt(x, z), this._sweepTopAt(x, z)]) {
+    if (this.prisms?.length) {
+      const t = this._prismTopAt(x, z);
+      if (t !== null && t <= lim) top = t;
+    }
+    if (this.sweeps?.length) {
+      const t = this._sweepTopAt(x, z);
       if (t !== null && t <= lim && (top === null || t > top)) top = t;
     }
     // Тоннель: подавляем аналитический рельеф только в «коридоре» (диапазон ног
@@ -820,7 +825,7 @@ export class SurfaceField extends SolidField {
     // (б) над потолком (проба с горы) — реальный рельеф/гору, (в) под поднятым
     // полом на выходе портала — рельеф/грунт, а не пол; иначе решётка навигации
     // и опора ломаются (ложные узлы/залипание).
-    const th = this._tunnelHoleAt(x, z, fromY);
+    const th = (this.tunnelZones?.length || this.tunnelHoles?.length) ? this._tunnelHoleAt(x, z, fromY) : null;
     if (th && th.ceilY != null) {
       const { floorY, ceilY } = th;
       const inBand = lim <= ceilY + 1e-6 && fromY >= floorY - this.stepUp - 0.05;
@@ -838,7 +843,7 @@ export class SurfaceField extends SolidField {
     // в русле «пол мира» (ноль без рельефа, отметка поля с ним) ноги не держит:
     // грунт там срезан руслом, и опора ровно та, что отдаёт призма дна или схода.
     // Над водой настил моста остаётся опорой — его плита выше дна
-    if (this._inChannel(x, z)) {
+    if ((this.holes?.length || this.channelSegs?.length) && this._inChannel(x, z)) {
       const hold = plate !== null && plate > floor ? plate : null;
       return hold !== null && hold > top ? hold : top;
     }
@@ -857,22 +862,24 @@ export class SurfaceField extends SolidField {
   isBlocked(x, z, radius = CONFIG.radius, feetY = 0, height = CONFIG.eyeHeight) {
     const half = this.half;
     if (x - radius < -half || x + radius > half || z - radius < -half || z + radius > half) return true;
-    const b = this._blockBucket;
-    const i0 = Math.floor((x - radius) / b), i1 = Math.floor((x + radius) / b);
-    const j0 = Math.floor((z - radius) / b), j1 = Math.floor((z + radius) / b);
-    for (let j = j0; j <= j1; j++) {
-      for (let i = i0; i <= i1; i++) {
-        const list = this._blockIndex.get(this._key(i, j));
-        if (!list) continue;
-        for (const idx of list) {
-          const w = this.blockers[idx];
-          // порог 0.05: ступень стоит ровно под ногами и телу не препятствие
-          if (w.y1 <= feetY + 0.05 || w.y0 >= feetY + height - 0.05) continue;
-          if (circleHitsBox(x, z, w, radius)) return true;
+    if (this.blockers?.length) {
+      const b = this._blockBucket;
+      const i0 = Math.floor((x - radius) / b), i1 = Math.floor((x + radius) / b);
+      const j0 = Math.floor((z - radius) / b), j1 = Math.floor((z + radius) / b);
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          const list = this._blockIndex.get(this._key(i, j));
+          if (!list) continue;
+          for (const idx of list) {
+            const w = this.blockers[idx];
+            // порог 0.05: ступень стоит ровно под ногами и телу не препятствие
+            if (w.y1 <= feetY + 0.05 || w.y0 >= feetY + height - 0.05) continue;
+            if (circleHitsBox(x, z, w, radius)) return true;
+          }
         }
       }
     }
-    return this._railsBlock(x, z, radius, feetY, height);
+    return this.rails?.length ? this._railsBlock(x, z, radius, feetY, height) : false;
   }
 
   /**
