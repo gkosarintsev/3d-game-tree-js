@@ -1,0 +1,6 @@
+{
+  "name": "Xenomorph XX121 — 3D Shooter Rig & Ragdoll",
+  "description": "Procedural 3D Xenomorph character model for a 3D shooter with walk, run, claw attack, forward leap, death animations, and articulated ragdoll physics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
