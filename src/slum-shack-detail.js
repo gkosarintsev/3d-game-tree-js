@@ -251,13 +251,6 @@ export function buildDetailedSlumShack(config, materials) {
   };
 
   // 2. Build Each Level with Asymmetric Favela Overhangs & Patchwork Facades
-  interface LevelSpec {
-    w;
-    d;
-    ox;
-    oz;
-    bottomY;
-  }
   const levels = [];
 
   for (let f = 0; f < floors; f++) {
