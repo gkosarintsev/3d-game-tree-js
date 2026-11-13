@@ -132,16 +132,26 @@ function materialFor(profile, kind, rng) {
   const ARCH_MATS = {
     office_tower: ['glass_and_concrete', 'concrete'],
     office_mid: ['glass_and_concrete', 'concrete', 'painted_brick'],
+    office_block: ['glass_and_concrete', 'concrete'],
+    skyscraper: ['glass_steel', 'glass_and_concrete'],
+    megablock: ['concrete', 'glass_and_concrete'],
     apartment_block: ['painted_brick', 'concrete'],
+    panelka: ['panel_block', 'concrete'],
     residential_low: ['painted_brick', 'stone_base'],
     residential_mid: ['painted_brick', 'concrete'],
     townhouse: ['painted_brick', 'stone_base'],
     cottage: ['painted_brick', 'stone_base'],
+    classic_cottage: ['painted_brick', 'stone_base'],
+    barn_house: ['painted_brick', 'concrete'],
+    aframe: ['painted_brick', 'concrete'],
+    chalet: ['stone_base', 'painted_brick'],
+    mansard_house: ['painted_brick', 'stone_base'],
     villa: ['stone_base', 'glass_and_concrete', 'painted_brick'],
     historic_block: ['stone_base', 'painted_brick'],
     shop_row: ['painted_brick', 'concrete', 'glass_and_concrete'],
     mall: ['concrete', 'glass_and_concrete'],
     market_hall: ['painted_brick', 'rusted_metal', 'concrete'],
+    modern_pavilion: ['glass_and_concrete', 'concrete'],
     warehouse: ['concrete', 'rusted_metal'],
     factory: ['concrete', 'rusted_metal'],
     workshop: ['concrete', 'rusted_metal', 'painted_brick'],
@@ -149,6 +159,7 @@ function materialFor(profile, kind, rng) {
     pavilion: ['painted_brick', 'concrete'],
     campus_hall: ['concrete', 'painted_brick', 'glass_and_concrete'],
     shack: ['rusted_metal', 'painted_brick'],
+    slum_shack: ['rusted_metal', 'painted_brick'],
     booth: ['concrete', 'painted_brick'],
   };
   const km = ARCH_MATS[kind];
@@ -161,16 +172,36 @@ function materialFor(profile, kind, rng) {
 const ARCHETYPES = {
   office_tower:    { floors: [10, 20], floorHeight: [3.5, 3.8], scale: [0.45, 0.62], aspect: [0.7, 1.3] },
   office_mid:      { floors: [4, 9],   floorHeight: [3.4, 3.7], scale: [0.5, 0.72],  aspect: [0.75, 1.35] },
+  // Офисное здание (docs/houses office-building): средне-высокий деловой блок
+  office_block:    { floors: [4, 12],  floorHeight: [3.4, 4.0], scale: [0.52, 0.76], aspect: [1.0, 1.7] },
+  // Небоскрёб (docs/houses skyscraper): высокая башня
+  skyscraper:      { floors: [14, 30], floorHeight: [3.4, 4.0], scale: [0.46, 0.66], aspect: [0.75, 1.2] },
+  // Мегастроение H10 (docs/houses megabuilding): массивный многоэтажный мегаблок
+  megablock:       { floors: [18, 36], floorHeight: [3.2, 3.8], scale: [0.62, 0.86], aspect: [0.9, 1.5] },
   apartment_block: { floors: [4, 9],   floorHeight: [3.1, 3.4], scale: [0.58, 0.78], aspect: [1.2, 2.1] },
+  // Панелька (docs/houses soviet-panel): многоэтажный жилой панельный дом
+  panelka:         { floors: [5, 16],  floorHeight: [2.7, 3.1], scale: [0.6, 0.84],  aspect: [1.4, 2.6] },
   residential_low: { floors: [1, 3],   floorHeight: [3.0, 3.3], scale: [0.45, 0.68], aspect: [0.8, 1.4] },
   residential_mid: { floors: [3, 7],   floorHeight: [3.1, 3.4], scale: [0.5, 0.72],  aspect: [0.85, 1.5] },
   townhouse:       { floors: [2, 4],   floorHeight: [3.0, 3.3], scale: [0.42, 0.62], aspect: [0.55, 0.95] },
   cottage:         { floors: [1, 2],   floorHeight: [3.0, 3.3], scale: [0.38, 0.58], aspect: [0.75, 1.35] },
+  // Классик-коттедж (docs/houses classic-cottage)
+  classic_cottage: { floors: [1, 2],   floorHeight: [2.8, 3.1], scale: [0.4, 0.58],  aspect: [0.8, 1.35] },
+  // Сканди-барн (docs/houses nordic-barn): вытянутый низкий дом
+  barn_house:      { floors: [1, 2],   floorHeight: [3.0, 3.4], scale: [0.45, 0.66], aspect: [1.3, 2.0] },
+  // А-фрейм (docs/houses a-frame): компактный высокий силуэт
+  aframe:          { floors: [1, 2],   floorHeight: [3.2, 3.8], scale: [0.34, 0.52], aspect: [0.7, 1.1] },
+  // Альпийское шале (docs/houses alpine-chalet)
+  chalet:          { floors: [2, 3],   floorHeight: [2.8, 3.2], scale: [0.42, 0.62], aspect: [0.8, 1.3] },
+  // Мансардный дом (docs/houses mansard-house)
+  mansard_house:   { floors: [2, 4],   floorHeight: [2.8, 3.2], scale: [0.44, 0.64], aspect: [0.8, 1.3] },
   villa:           { floors: [1, 3],   floorHeight: [3.2, 3.6], scale: [0.4, 0.6],   aspect: [0.8, 1.25] },
   historic_block:  { floors: [2, 5],   floorHeight: [3.2, 3.5], scale: [0.52, 0.72], aspect: [0.7, 1.2] },
   shop_row:        { floors: [1, 3],   floorHeight: [3.4, 3.8], scale: [0.55, 0.78], aspect: [1.4, 2.4] },
   mall:            { floors: [1, 3],   floorHeight: [4.0, 5.0], scale: [0.68, 0.86], aspect: [0.9, 1.6] },
   market_hall:     { floors: [1, 2],   floorHeight: [3.8, 4.6], scale: [0.58, 0.8],  aspect: [0.9, 1.5] },
+  // Модерн-павильон (docs/houses modern-pavilion): широкий низкий павильон
+  modern_pavilion: { floors: [1, 2],   floorHeight: [3.2, 4.0], scale: [0.5, 0.72],  aspect: [1.1, 1.8] },
   warehouse:       { floors: [1, 2],   floorHeight: [4.5, 6.0], scale: [0.65, 0.86], aspect: [1.0, 1.8] },
   factory:         { floors: [1, 3],   floorHeight: [4.5, 6.5], scale: [0.66, 0.86], aspect: [1.0, 1.9] },
   workshop:        { floors: [1, 2],   floorHeight: [3.8, 4.8], scale: [0.5, 0.74],  aspect: [0.8, 1.5] },
@@ -178,6 +209,8 @@ const ARCHETYPES = {
   pavilion:        { floors: [1, 1],   floorHeight: [3.2, 4.0], scale: [0.35, 0.55], aspect: [0.8, 1.3] },
   campus_hall:     { floors: [2, 5],   floorHeight: [3.6, 4.2], scale: [0.58, 0.8],  aspect: [0.9, 1.7] },
   shack:           { floors: [1, 2],   floorHeight: [2.8, 3.2], scale: [0.38, 0.58], aspect: [0.7, 1.5] },
+  // Трущобы (docs/houses slum-shack): самострой/фавела
+  slum_shack:      { floors: [1, 4],   floorHeight: [2.4, 3.0], scale: [0.34, 0.56], aspect: [0.7, 1.5] },
   booth:           { floors: [1, 1],   floorHeight: [2.8, 3.2], scale: [0.18, 0.32], aspect: [0.7, 1.4] },
 };
 

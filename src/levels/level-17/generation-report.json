@@ -240,8 +240,8 @@
       "severity": "warn",
       "code": "chunk_buildings_heavy",
       "stage": "6_finalize_emit",
-      "message": "high building count in a single chunk (153)",
-      "maxBuildings": 153,
+      "message": "high building count in a single chunk (150)",
+      "maxBuildings": 150,
       "chunk": 640,
       "grid": 2
     },
@@ -249,8 +249,8 @@
       "severity": "warn",
       "code": "chunk_props_heavy",
       "stage": "6_finalize_emit",
-      "message": "high prop count in a single chunk (146)",
-      "maxProps": 146,
+      "message": "high prop count in a single chunk (151)",
+      "maxProps": 151,
       "chunk": 640,
       "grid": 2
     },
@@ -1752,9 +1752,9 @@
       "code": "buildings_generated",
       "stage": "4_buildings_structures",
       "message": "generated buildings from parcels",
-      "count": 402,
+      "count": 403,
       "budget": 420,
-      "skippedConflict": 322
+      "skippedConflict": 347
     },
     {
       "severity": "info",
@@ -1769,22 +1769,22 @@
       "message": "generated district props",
       "count": 360,
       "budget": 360,
-      "attempts": 954,
+      "attempts": 999,
       "byDistrictType": {
-        "luxury": 43,
-        "suburb": 25,
-        "old_town": 43,
-        "commercial": 10,
-        "industrial": 8,
+        "luxury": 36,
+        "suburb": 21,
+        "old_town": 44,
+        "commercial": 14,
+        "industrial": 7,
         "slums": 57,
-        "market": 33,
+        "market": 32,
         "sports": 9,
-        "parking": 9,
-        "residential": 71,
-        "park": 12,
+        "parking": 10,
+        "residential": 72,
+        "park": 17,
         "office": 20,
-        "campus": 7,
-        "forest": 12
+        "campus": 9,
+        "forest": 11
       }
     },
     {
@@ -1934,46 +1934,47 @@
           "accessibleRatio": 0.941
         }
       },
-      "buildings": 402,
+      "buildings": 403,
       "buildingsByDistrictType": {
-        "old_town": 45,
-        "office": 46,
-        "luxury": 53,
-        "commercial": 39,
-        "slums": 70,
-        "residential": 86,
-        "park": 1,
-        "market": 31,
-        "industrial": 12,
-        "parking": 3,
-        "campus": 14,
+        "old_town": 42,
+        "commercial": 38,
+        "office": 48,
+        "luxury": 54,
+        "slums": 71,
+        "residential": 80,
+        "park": 3,
+        "market": 34,
+        "industrial": 16,
+        "parking": 5,
+        "campus": 9,
         "suburb": 1,
+        "forest": 1,
         "sports": 1
       },
       "lights": 8,
       "props": 360,
       "propsByDistrictType": {
-        "luxury": 43,
-        "suburb": 25,
-        "old_town": 43,
-        "commercial": 10,
-        "industrial": 8,
+        "luxury": 36,
+        "suburb": 21,
+        "old_town": 44,
+        "commercial": 14,
+        "industrial": 7,
         "slums": 57,
-        "market": 33,
+        "market": 32,
         "sports": 9,
-        "parking": 9,
-        "residential": 71,
-        "park": 12,
+        "parking": 10,
+        "residential": 72,
+        "park": 17,
         "office": 20,
-        "campus": 7,
-        "forest": 12
+        "campus": 9,
+        "forest": 11
       },
       "chunkLoad": {
         "nonEmptyChunks": 4,
-        "maxBuildings": 153,
-        "maxProps": 146,
+        "maxBuildings": 150,
+        "maxProps": 151,
         "maxLights": 2,
-        "avgBuildings": 100.5,
+        "avgBuildings": 100.75,
         "avgProps": 90
       }
     },
@@ -2008,16 +2009,15 @@
       "code": "build_conflicting_buildings_dropped",
       "stage": "build",
       "message": "dropped buildings conflicting with compiled/normalized placement",
-      "count": 8,
+      "count": 7,
       "ids": [
-        "b_district_1_3_165",
-        "b_district_1_3_166",
-        "b_district_3_3_167",
-        "b_district_3_3_22",
+        "b_district_1_3_168",
+        "b_district_1_3_169",
+        "b_district_3_3_170",
+        "b_district_3_3_24",
         "b_district_3_3_256",
-        "b_district_3_3_262",
-        "b_district_3_3_90",
-        "b_district_3_3_95"
+        "b_district_3_3_89",
+        "b_district_3_3_94"
       ]
     }
   ],
@@ -2078,22 +2078,22 @@
     },
     {
       "stage": "build",
-      "id": "b_district_1_3_165",
+      "id": "b_district_1_3_168",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_1_3_166",
+      "id": "b_district_1_3_169",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_3_3_167",
+      "id": "b_district_3_3_170",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_3_3_22",
+      "id": "b_district_3_3_24",
       "code": "drop_conflicting_building"
     },
     {
@@ -2103,17 +2103,12 @@
     },
     {
       "stage": "build",
-      "id": "b_district_3_3_262",
+      "id": "b_district_3_3_89",
       "code": "drop_conflicting_building"
     },
     {
       "stage": "build",
-      "id": "b_district_3_3_90",
-      "code": "drop_conflicting_building"
-    },
-    {
-      "stage": "build",
-      "id": "b_district_3_3_95",
+      "id": "b_district_3_3_94",
       "code": "drop_conflicting_building"
     }
   ],
@@ -2121,7 +2116,7 @@
   "summary": {
     "errors": 0,
     "warnings": 10,
-    "repairs": 17,
+    "repairs": 16,
     "drops": 0
   }
 }

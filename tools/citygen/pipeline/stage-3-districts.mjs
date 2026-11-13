@@ -28,19 +28,19 @@ function minRoadDist(x, z, segments = []) {
 }
 
 export const DEFAULT_PROFILES = {
-  office: { id: 'office', label: 'Офисный', weight: 1.1, parcels: { min: 18, max: 42, coverage: 0.55 }, buildings: { kinds: ['office_tower', 'office_mid'], maxFloors: 20, materials: ['glass_and_concrete', 'concrete'] } },
-  park: { id: 'park', label: 'Парк', weight: 0.9, parcels: { min: 24, max: 64, coverage: 0.12 }, buildings: { kinds: ['pavilion'], maxFloors: 2, materials: ['painted_brick', 'concrete'] } },
+  office: { id: 'office', label: 'Офисный', weight: 1.1, parcels: { min: 18, max: 42, coverage: 0.55 }, buildings: { kinds: ['office_tower', 'office_mid', 'office_block', 'skyscraper', 'megablock'], maxFloors: 40, materials: ['glass_and_concrete', 'concrete'] } },
+  park: { id: 'park', label: 'Парк', weight: 0.9, parcels: { min: 24, max: 64, coverage: 0.12 }, buildings: { kinds: ['pavilion', 'modern_pavilion', 'aframe'], maxFloors: 2, materials: ['painted_brick', 'concrete'] } },
   industrial: { id: 'industrial', label: 'Промышленный', weight: 1.0, parcels: { min: 24, max: 56, coverage: 0.45 }, buildings: { kinds: ['warehouse', 'factory', 'workshop'], maxFloors: 5, materials: ['concrete', 'rusted_metal'] } },
-  luxury: { id: 'luxury', label: 'Лакшери', weight: 0.8, parcels: { min: 18, max: 38, coverage: 0.38 }, buildings: { kinds: ['residential_mid', 'villa'], maxFloors: 14, materials: ['stone_base', 'glass_and_concrete'] } },
-  residential: { id: 'residential', label: 'Жилой', weight: 1.0, parcels: { min: 14, max: 30, coverage: 0.42 }, buildings: { kinds: ['residential_low', 'residential_mid', 'apartment_block'], maxFloors: 9, materials: ['painted_brick', 'concrete'] } },
-  slums: { id: 'slums', label: 'Трущобы', weight: 0.7, parcels: { min: 10, max: 22, coverage: 0.5 }, buildings: { kinds: ['shack', 'residential_low'], maxFloors: 3, materials: ['rusted_metal', 'painted_brick'] } },
-  forest: { id: 'forest', label: 'Лес/поле', weight: 0.8, parcels: { min: 30, max: 80, coverage: 0.04 }, buildings: { kinds: [], maxFloors: 1, materials: [] } },
+  luxury: { id: 'luxury', label: 'Лакшери', weight: 0.8, parcels: { min: 18, max: 38, coverage: 0.38 }, buildings: { kinds: ['residential_mid', 'villa', 'chalet', 'modern_pavilion'], maxFloors: 14, materials: ['stone_base', 'glass_and_concrete'] } },
+  residential: { id: 'residential', label: 'Жилой', weight: 1.0, parcels: { min: 14, max: 30, coverage: 0.42 }, buildings: { kinds: ['residential_low', 'residential_mid', 'apartment_block', 'panelka'], maxFloors: 16, materials: ['painted_brick', 'concrete'] } },
+  slums: { id: 'slums', label: 'Трущобы', weight: 0.7, parcels: { min: 10, max: 22, coverage: 0.5 }, buildings: { kinds: ['shack', 'residential_low', 'slum_shack'], maxFloors: 4, materials: ['rusted_metal', 'painted_brick'] } },
+  forest: { id: 'forest', label: 'Лес/поле', weight: 0.8, parcels: { min: 30, max: 80, coverage: 0.04 }, buildings: { kinds: ['aframe'], maxFloors: 2, materials: ['painted_brick'] } },
   parking: { id: 'parking', label: 'Парковки', weight: 0.8, parcels: { min: 22, max: 56, coverage: 0.08 }, buildings: { kinds: ['booth'], maxFloors: 2, materials: ['concrete'] } },
-  sports: { id: 'sports', label: 'Спорт', weight: 0.6, parcels: { min: 26, max: 60, coverage: 0.2 }, buildings: { kinds: ['sports_hall', 'pavilion'], maxFloors: 3, materials: ['concrete', 'glass_and_concrete'] } },
-  commercial: { id: 'commercial', label: 'Коммерческий', weight: 0.9, parcels: { min: 16, max: 36, coverage: 0.48 }, buildings: { kinds: ['mall', 'shop_row', 'office_mid'], maxFloors: 8, materials: ['glass_and_concrete', 'painted_brick', 'concrete'] } },
-  suburb: { id: 'suburb', label: 'Пригород', weight: 0.9, parcels: { min: 18, max: 40, coverage: 0.28 }, buildings: { kinds: ['cottage', 'townhouse', 'residential_low'], maxFloors: 3, materials: ['painted_brick', 'stone_base'] } },
-  old_town: { id: 'old_town', label: 'Старый город', weight: 0.7, parcels: { min: 12, max: 26, coverage: 0.5 }, buildings: { kinds: ['townhouse', 'historic_block', 'shop_row'], maxFloors: 5, materials: ['stone_base', 'painted_brick'] } },
-  campus: { id: 'campus', label: 'Кампус', weight: 0.6, parcels: { min: 28, max: 64, coverage: 0.22 }, buildings: { kinds: ['campus_hall', 'pavilion', 'office_mid'], maxFloors: 5, materials: ['concrete', 'glass_and_concrete', 'painted_brick'] } },
+  sports: { id: 'sports', label: 'Спорт', weight: 0.6, parcels: { min: 26, max: 60, coverage: 0.2 }, buildings: { kinds: ['sports_hall', 'pavilion', 'modern_pavilion'], maxFloors: 3, materials: ['concrete', 'glass_and_concrete'] } },
+  commercial: { id: 'commercial', label: 'Коммерческий', weight: 0.9, parcels: { min: 16, max: 36, coverage: 0.48 }, buildings: { kinds: ['mall', 'shop_row', 'office_mid', 'office_block', 'modern_pavilion'], maxFloors: 12, materials: ['glass_and_concrete', 'painted_brick', 'concrete'] } },
+  suburb: { id: 'suburb', label: 'Пригород', weight: 0.9, parcels: { min: 18, max: 40, coverage: 0.28 }, buildings: { kinds: ['cottage', 'townhouse', 'residential_low', 'classic_cottage', 'barn_house', 'chalet'], maxFloors: 3, materials: ['painted_brick', 'stone_base'] } },
+  old_town: { id: 'old_town', label: 'Старый город', weight: 0.7, parcels: { min: 12, max: 26, coverage: 0.5 }, buildings: { kinds: ['townhouse', 'historic_block', 'shop_row', 'mansard_house', 'classic_cottage'], maxFloors: 5, materials: ['stone_base', 'painted_brick'] } },
+  campus: { id: 'campus', label: 'Кампус', weight: 0.6, parcels: { min: 28, max: 64, coverage: 0.22 }, buildings: { kinds: ['campus_hall', 'pavilion', 'office_mid', 'modern_pavilion'], maxFloors: 6, materials: ['concrete', 'glass_and_concrete', 'painted_brick'] } },
   market: { id: 'market', label: 'Рынок', weight: 0.7, parcels: { min: 14, max: 32, coverage: 0.42 }, buildings: { kinds: ['market_hall', 'shop_row', 'shack'], maxFloors: 3, materials: ['painted_brick', 'rusted_metal', 'concrete'] } },
 };
 
