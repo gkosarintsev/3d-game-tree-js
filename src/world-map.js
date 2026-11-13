@@ -6,6 +6,7 @@ import { DATA_SINKS } from './surfaces.js';
 import { JsonMap } from './json-map.js';
 import { decodeChunk } from './level-bin.js';
 import { buildProps } from './props.js';
+import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
 
 const J = CONFIG.jsonMap;
 
@@ -302,6 +303,8 @@ export class WorldMap extends JsonMap {
     this.pump.requests.clear();
     for (const id of [...this.loaded.keys()]) this.unloadChunk(id);
     this.scene = null;
+    this.houseTex?.dispose?.();
+    this.houseTex = null;
   }
 
   // ------------------------------------------------------------------ миникарта
@@ -569,13 +572,28 @@ export class WorldMap extends JsonMap {
           ceilings: new THREE.MeshStandardMaterial({ color: J.slabs, roughness: 0.95, metalness: 0.05 }),
         };
         for (const key of Object.keys(groups)) {
+          if (key === '_wallMats') continue;
           const geos = groups[key];
-          if (!geos.length) continue;
+          if (!geos || !geos.length) continue;
           const mesh = new THREE.Mesh(mergeGeometries(geos, false), mats[key]);
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           this.scene.add(mesh);
           objs.push(mesh);
+        }
+        // Стены по фасадным материалам домов (docs/houses): процедурные текстуры/цвета.
+        const wallMats = groups._wallMats;
+        if (wallMats && wallMats.size) {
+          if (!this.houseTex) this.houseTex = new HouseTextureLibrary(4);
+          for (const [matKey, geos] of wallMats) {
+            if (!geos.length) continue;
+            const { material } = makeFacadeMaterial(matKey, this.houseTex, J.walls);
+            const mesh = new THREE.Mesh(mergeGeometries(geos, false), material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            this.scene.add(mesh);
+            objs.push(mesh);
+          }
         }
       }, entry.owned);
     } });
