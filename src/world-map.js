@@ -7,6 +7,7 @@ import { JsonMap } from './json-map.js';
 import { decodeChunk } from './level-bin.js';
 import { buildProps } from './props.js';
 import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
+import { buildPanelkaDecor } from './panelka-decor.js';
 
 const J = CONFIG.jsonMap;
 
@@ -608,6 +609,9 @@ export class WorldMap extends JsonMap {
           mesh.userData.sharedMaterial = true;
           pic.objs.push(mesh);
         }
+        // Декор панелек (балконы, швы, карниз) для владельцев клетки — визуал без коллизий.
+        const ownedBuildings = (entry.data?.buildings ?? []).filter(b => entry.owned.has(b));
+        for (const m of buildPanelkaDecor(this.scene, ownedBuildings)) pic.objs.push(m);
         pic.windows = this._buildWindows(this.scene, pic.objs);
         pic.signage = this._buildSignage(this.scene, pic.objs);
         pic.lights = this._buildLights(this.scene, pic.objs);

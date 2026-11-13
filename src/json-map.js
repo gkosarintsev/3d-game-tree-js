@@ -9,6 +9,7 @@ import {
 import { r3, subtractRect, rotatePoint, arcBankAt } from './geo2d.js';
 import { buildProps } from './props.js';
 import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
+import { buildPanelkaDecor } from './panelka-decor.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -2588,6 +2589,9 @@ export class JsonMap extends SurfaceField {
       mesh.userData.sharedMaterial = true;
       objs.push(mesh);
     }
+    // Декор панелек (балконы, швы, карниз) — визуал без коллизий/навигации.
+    const panelka = buildPanelkaDecor(scene, this._drawable(this._iterBuildings ?? this.buildings ?? []));
+    for (const m of panelka) objs.push(m);
     const windows = this._buildWindows(scene, objs);
     const signage = this._buildSignage(scene, objs);
     const lights = this._buildLights(scene, objs);
