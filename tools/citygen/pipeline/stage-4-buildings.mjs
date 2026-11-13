@@ -169,6 +169,22 @@ function materialFor(profile, kind, rng) {
   return 'concrete';
 }
 
+  // Свотчи цветов стен из docs/houses (materialsRegistry) — детерминированная вариация фасада.
+  const FACADE_SWATCHES = {
+    panel_block:        ['#d6d0c4', '#9eb5c4', '#9db6a8', '#d4be8c', '#b4bac0', '#c5998d'],
+    painted_brick:      ['#a95842', '#7b493b', '#c8ab89', '#4b4e54'],
+    stone_base:         ['#d9dde2', '#adb5bd', '#5f6770', '#d5cbb8'],
+    concrete:           ['#d9dde2', '#adb5bd', '#5f6770', '#d5cbb8'],
+    glass_and_concrete: ['#b8c2cc', '#8899ab', '#c9bfae', '#4b5563'],
+    glass_steel:        ['#4b5563', '#8899ab', '#b8c2cc'],
+    rusted_metal:       ['#5a8a92', '#8e5a44', '#8d949b', '#b88a56', '#484e57'],
+    neon_panel:         ['#4b5563', '#8899ab', '#c9bfae'],
+  };
+  function pickWallColor(mat, rng) {
+    const s = FACADE_SWATCHES[mat];
+    return s ? s[Math.floor(rng() * s.length) % s.length] : null;
+  }
+
 const ARCHETYPES = {
   office_tower:    { floors: [10, 20], floorHeight: [3.5, 3.8], scale: [0.45, 0.62], aspect: [0.7, 1.3] },
   office_mid:      { floors: [4, 9],   floorHeight: [3.4, 3.7], scale: [0.5, 0.72],  aspect: [0.75, 1.35] },
@@ -393,6 +409,8 @@ export function makeStage4() {
         if (p.type === 'industrial' && floorHeight < 4.2) floorHeight = +(4.2 + rng() * 1.2).toFixed(2);
         if ((p.type === 'sports' || p.type === 'campus') && floorHeight < 3.8) floorHeight = +(3.8 + rng() * 1.4).toFixed(2);
         const id = `b_${p.districtId}_${placed + 1}`;
+        const facadeMaterial = materialFor(profile, kind, rng);
+        const wallColor = pickWallColor(facadeMaterial, rng);
         out.push({
           id,
           name: `B ${placed + 1}`,
@@ -400,7 +418,11 @@ export function makeStage4() {
           floorsCount: floors,
           floorHeight,
           foundation: 'terrain',
-          facadeMaterial: materialFor(profile, kind, rng),
+          facadeMaterial,
+          ...(wallColor ? { wallColor } : {}),
+          houseKind: kind,
+          windowDensity: 1 + Math.floor(rng() * 3),
+          windowScale: +(0.85 + rng() * 0.35).toFixed(2),
           footprint,
           rooms: [],
           stairs: [],
@@ -492,6 +514,7 @@ export function makeStage4() {
             const floors = clamp(arch ? arch.floors[0] : 1, 1, maxFloors);
             const floorHeight = arch ? +Number(arch.floorHeight[0]).toFixed(2) : (d.type === 'industrial' ? 4.5 : 3.3);
             const id = `b_${d.id}_${placed + 1}`;
+            const facadeMaterial = materialFor(profile, kind, () => 0);
             out.push({
               id,
               name: `B ${placed + 1}`,
@@ -499,7 +522,11 @@ export function makeStage4() {
               floorsCount: floors,
               floorHeight,
               foundation: 'terrain',
-              facadeMaterial: (materialFor(profile, kind, () => 0)),
+              facadeMaterial,
+              ...(pickWallColor(facadeMaterial, () => 0) ? { wallColor: pickWallColor(facadeMaterial, () => 0) } : {}),
+              houseKind: kind,
+              windowDensity: 2,
+              windowScale: 1,
               footprint,
               rooms: [],
               stairs: [],

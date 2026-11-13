@@ -258,7 +258,7 @@ export const CONFIG = {
         glass_steel: { spacing: 2.4, lit: 0.5 },
         glass_and_concrete: { spacing: 2.6, lit: 0.45 },
         neon_panel: { spacing: 2.2, lit: 0.7 },
-        panel_block: { spacing: 3.4, width: 1.35 },
+        panel_block: { spacing: 3.2, width: 1.4, height: 1.3, lit: 0.38 },
         painted_brick: { spacing: 3.2, lit: 0.35 },
         rusted_metal: { spacing: 3.6, lit: 0.3, width: 0.95 },
         stone_base: { spacing: 3.4, height: 1.9, sill: 1.1 },

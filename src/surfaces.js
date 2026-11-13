@@ -354,10 +354,10 @@ export class SurfaceField extends SolidField {
    * коллизия обязана остаться на настоящей отметке — срезанный солид пропустил
    * бы идущего с крыши сквозь парапет.
    */
-  _box(plan, y0, y1, group, { collide = false, surface = false, geoTop = null, frame = null } = {}) {
+  _box(plan, y0, y1, group, { collide = false, surface = false, geoTop = null, frame = null, material = null } = {}) {
     if (plan.maxX - plan.minX <= 1e-6 || plan.maxZ - plan.minZ <= 1e-6 || y1 - y0 <= 1e-6) return;
     const g1 = Math.max(y0 + 1e-6, geoTop ?? y1);
-    this._addGeo(group, { kind: 'box', plan, y0, g1, frame });
+    this._addGeo(group, { kind: 'box', plan, y0, g1, frame, material });
     const world = frame ? obbOf(plan, frame) : plan;
     this.solids.push({
       minX: world.minX, maxX: world.maxX, minY: y0, maxY: y1, minZ: world.minZ, maxZ: world.maxZ,
@@ -1383,6 +1383,9 @@ export class SurfaceField extends SolidField {
     for (const b of this.buildings) {
       if (!this._drawn(b)) continue;
       const frame = this._frame(b);
+      const wallMat = b.facadeMaterial
+        ? b.facadeMaterial + (b.wallColor ? `::${b.wallColor}` : '')
+        : null;
       // Фундамент дома на неровной поверхности (baseY поднят до наивысшей точки
       // контакта, дом не зарывается). podium — плоский прямоугольный блок от
       // нижней точки земли до baseY (уходит в склон); terrain — низ следует
@@ -1411,7 +1414,7 @@ export class SurfaceField extends SolidField {
           this._box(rect, b.foundationBottomY, b.baseY, 'earth', { collide: true, frame });
         }
       }
-      for (const w of b.walls) this._wall(w, b, frame);
+      for (const w of b.walls) this._wall(w, b, frame, wallMat);
       for (const r of b.rooms) this._floorPlate(b, r, frame);
       this._stair(b, frame);
       this._roof(b, frame);
@@ -1484,10 +1487,10 @@ export class SurfaceField extends SolidField {
    * высоты, а план режется на участки только там, где эта граница есть. Иначе
    * на этаже со свободным пространством выросла бы невидимая перегородка.
    */
-  _wall(w, b, frame) {
+  _wall(w, b, frame, material = null) {
     const plan = { minX: w.minX, maxX: w.maxX, minZ: w.minZ, maxZ: w.maxZ };
     if (!b.rooms.length) {
-      this._wallBand({ ...plan, y0: b.baseY, y1: b.roofY }, b.doors, b.roofY - J.roofSeam, frame);
+      this._wallBand({ ...plan, y0: b.baseY, y1: b.roofY }, b.doors, b.roofY - J.roofSeam, frame, material);
       return;
     }
     const byLevel = new Map();
@@ -1519,7 +1522,7 @@ export class SurfaceField extends SolidField {
         // поэтому верх последней полосы совпадает с верхом её плиты — картинку
         // полосы опускаем на шов, солид остаётся до кровли
         const seam = Math.abs(y1 - b.roofY) < 1e-6 ? y1 - J.roofSeam : null;
-        this._wallBand({ ...plan, ...band, y0: Number(y), y1 }, b.doors, seam, frame);
+        this._wallBand({ ...plan, ...band, y0: Number(y), y1 }, b.doors, seam, frame, material);
       }
     }
   }
@@ -1542,19 +1545,19 @@ export class SurfaceField extends SolidField {
    * остаёт свой блок — перемычка (до потолка этажа) и подоконник, если дверь
    * не на уровне пола.
    */
-  _wallBand(band, doors, geoTop = null, frame = null) {
+  _wallBand(band, doors, geoTop = null, frame = null, material = null) {
     const inBand = doors.filter(d =>
       d.y >= band.y0 - 0.01 && d.y < band.y1 - 0.01 && this._clip(band, d.rect));
     let pieces = [{ minX: band.minX, maxX: band.maxX, minZ: band.minZ, maxZ: band.maxZ }];
     for (const d of inBand) {
       const gap = this._clip(band, d.rect);
       pieces = pieces.flatMap(p => subtractRect(p, gap));
-      if (d.y - band.y0 > 0.02) this._box(gap, band.y0, d.y, 'walls', { collide: true, frame });
+      if (d.y - band.y0 > 0.02) this._box(gap, band.y0, d.y, 'walls', { collide: true, frame, material });
       const head = d.y + (d.height ?? J.doorHeight);
       // перемычка доходит до верха полосы — шов только у той, что упирается в кровлю
-      if (band.y1 - head > 0.02) this._box(gap, head, band.y1, 'walls', { collide: true, geoTop, frame });
+      if (band.y1 - head > 0.02) this._box(gap, head, band.y1, 'walls', { collide: true, geoTop, frame, material });
     }
-    for (const p of pieces) this._box(p, band.y0, band.y1, 'walls', { collide: true, geoTop, frame });
+    for (const p of pieces) this._box(p, band.y0, band.y1, 'walls', { collide: true, geoTop, frame, material });
   }
 
   /**

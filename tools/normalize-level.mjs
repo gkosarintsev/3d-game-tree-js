@@ -383,6 +383,19 @@ function normalizeBuilding(b, ground, warnings) {
     }
   }
 
+  // Доп. параметры дома (docs/houses): цвет/материалы/фичи для рендера и рандомизации.
+  // Переносятся опционально, чтобы старые брифы нормализовались как раньше.
+  const houseStyle = {};
+  if (b.wallColor) houseStyle.wallColor = String(b.wallColor);
+  if (b.roofMaterial) houseStyle.roofMaterial = String(b.roofMaterial);
+  if (b.roofColor) houseStyle.roofColor = String(b.roofColor);
+  if (b.trimFinish) houseStyle.trimFinish = String(b.trimFinish);
+  if (b.houseStyleId) houseStyle.houseStyleId = String(b.houseStyleId);
+  if (b.houseKind) houseStyle.houseKind = String(b.houseKind);
+  if (b.windowDensity != null) houseStyle.windowDensity = +b.windowDensity;
+  if (b.windowScale != null) houseStyle.windowScale = +b.windowScale;
+  if (b.houseFeatures && typeof b.houseFeatures === 'object') houseStyle.houseFeatures = b.houseFeatures;
+
   return {
     id: b.id,
     name: b.name ?? b.id,
@@ -395,6 +408,7 @@ function normalizeBuilding(b, ground, warnings) {
     floorsCount: b.floorsCount,
     roofY: r3(baseY + b.floorsCount * floorHeight),
     facadeMaterial: b.facadeMaterial ?? 'concrete',
+    ...houseStyle,
     // секция `roof` появляется только у дома, где она задана в брифе: бриф
     // без неё обязан нормализоваться побайтово как раньше (плиты кровли тогда
     // не опоры, а просто солиды)

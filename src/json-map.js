@@ -8,6 +8,7 @@ import {
 } from './surfaces.js';
 import { r3, subtractRect, rotatePoint, arcBankAt } from './geo2d.js';
 import { buildProps } from './props.js';
+import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -139,7 +140,7 @@ export class JsonMap extends SurfaceField {
    * ошибку.
    */
   _geoGroups() {
-    return { walls: [], slabs: [], stairs: [], decks: [], earth: [], rails: [], ceilings: [] };
+    return { walls: [], slabs: [], stairs: [], decks: [], earth: [], rails: [], ceilings: [], _wallMats: new Map() };
   }
 
   /**
@@ -156,8 +157,14 @@ export class JsonMap extends SurfaceField {
     // и это твёрдость полотна, а не картинка
     if (d.kind === 'arc') { this._sweepMesh(d.s); return; }
     if (this._muteGeo) return;
-    if (d.kind === 'box') this.geo[group].push(this._boxGeo(d.plan, d.y0, d.g1, d.frame));
-    else this.geo[group].push(this._prismGeo(d.w));
+    const g = d.kind === 'box' ? this._boxGeo(d.plan, d.y0, d.g1, d.frame) : this._prismGeo(d.w);
+    if (group === 'walls' && d.material) {
+      const m = this.geo._wallMats;
+      if (!m.has(d.material)) m.set(d.material, []);
+      m.get(d.material).push(g);
+    } else {
+      this.geo[group].push(g);
+    }
   }
 
   /**
@@ -2549,13 +2556,29 @@ export class JsonMap extends SurfaceField {
       ceilings: new THREE.MeshStandardMaterial({ color: J.slabs, roughness: 0.95, metalness: 0.05 }),
     };
     for (const key of Object.keys(groups)) {
+      if (key === '_wallMats') continue;
       const geos = groups[key];
-      if (!geos.length) continue;
+      if (!geos || !geos.length) continue;
       const mesh = new THREE.Mesh(mergeGeometries(geos, false), mats[key]);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
       objs.push(mesh);
+    }
+    // Стены по фасадным материалам домов (docs/houses: рецепт + цвет). Текстуры
+    // кэшируются на карту и отдаются в dispose(); материалы мешей — локальные.
+    const wallMats = groups._wallMats;
+    if (wallMats && wallMats.size) {
+      if (!this.houseTex) this.houseTex = new HouseTextureLibrary(4);
+      for (const [matKey, geos] of wallMats) {
+        if (!geos.length) continue;
+        const { material } = makeFacadeMaterial(matKey, this.houseTex, J.walls);
+        const mesh = new THREE.Mesh(mergeGeometries(geos, false), material);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        scene.add(mesh);
+        objs.push(mesh);
+      }
     }
 
     const clutter = this._clutterItems();
@@ -2601,6 +2624,8 @@ export class JsonMap extends SurfaceField {
     this._release(this.sceneObjects, this.realLights);
     this.sceneObjects = [];
     this.realLights = [];
+    this.houseTex?.dispose?.();
+    this.houseTex = null;
   }
 
   /**
