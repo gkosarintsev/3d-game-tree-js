@@ -23,8 +23,8 @@
     {
       "id": "2_transport",
       "status": "ok",
-      "diagnostics": 17,
-      "repairs": 13,
+      "diagnostics": 10,
+      "repairs": 6,
       "drops": 0
     },
     {
@@ -52,7 +52,7 @@
       "id": "6_finalize_emit",
       "status": "ok",
       "diagnostics": 15,
-      "repairs": 7,
+      "repairs": 5,
       "drops": 0
     }
   ],
@@ -111,7 +111,7 @@
       "profileId": "sports",
       "cells": 1,
       "parcels": 49,
-      "reservedParcels": 1
+      "reservedParcels": 0
     },
     {
       "id": "district_1_3",
@@ -143,7 +143,7 @@
       "profileId": "luxury",
       "cells": 1,
       "parcels": 121,
-      "reservedParcels": 13
+      "reservedParcels": 3
     },
     {
       "id": "district_2_3",
@@ -151,7 +151,7 @@
       "profileId": "luxury",
       "cells": 1,
       "parcels": 121,
-      "reservedParcels": 7
+      "reservedParcels": 0
     },
     {
       "id": "district_3_0",
@@ -205,15 +205,15 @@
       "severity": "warn",
       "code": "road_graph_disconnected",
       "stage": "2_transport",
-      "message": "road graph has 10 connected components",
-      "components": 10
+      "message": "road graph has 3 connected components",
+      "components": 3
     },
     {
       "severity": "warn",
       "code": "chunk_buildings_heavy",
       "stage": "6_finalize_emit",
-      "message": "high building count in a single chunk (153)",
-      "maxBuildings": 153,
+      "message": "high building count in a single chunk (149)",
+      "maxBuildings": 149,
       "chunk": 640,
       "grid": 2
     },
@@ -221,17 +221,44 @@
       "severity": "warn",
       "code": "chunk_props_heavy",
       "stage": "6_finalize_emit",
-      "message": "high prop count in a single chunk (140)",
-      "maxProps": 140,
+      "message": "high prop count in a single chunk (142)",
+      "maxProps": 142,
       "chunk": 640,
       "grid": 2
     },
     {
       "severity": "warn",
+      "code": "road_conflicts_unresolved",
+      "stage": "6_finalize_emit",
+      "message": "could not safely repair 2 same-layer crossing conflict(s)",
+      "count": 2
+    },
+    {
+      "severity": "warn",
+      "code": "road_crossing_repair_skipped",
+      "stage": "6_finalize_emit",
+      "message": "skipped crossing repair for 'ix_service_s_a_a' x 'outer_Sside_to_W' (would violate slope/geometry constraints)",
+      "segments": [
+        "ix_service_s_a_a",
+        "outer_Sside_to_W"
+      ]
+    },
+    {
+      "severity": "warn",
+      "code": "road_crossing_repair_skipped",
+      "stage": "6_finalize_emit",
+      "message": "skipped crossing repair for 'ix_service_s_a_a' x 'turbine_SW' (would violate slope/geometry constraints)",
+      "segments": [
+        "ix_service_s_a_a",
+        "turbine_SW"
+      ]
+    },
+    {
+      "severity": "warn",
       "code": "road_same_level_conflict",
       "stage": "6_finalize_emit",
-      "message": "detected 7 same-layer road crossing conflict(s) without shared junction",
-      "count": 7
+      "message": "detected 8 same-layer road crossing conflict(s) without shared junction",
+      "count": 8
     },
     {
       "severity": "info",
@@ -259,9 +286,9 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 20,
-      "segments": 10,
-      "components": 10
+      "nodes": 14,
+      "segments": 18,
+      "components": 3
     },
     {
       "severity": "info",
@@ -274,8 +301,8 @@
       "code": "transport_passthrough",
       "stage": "2_transport",
       "message": "stage 2 using provided road network (procedural generation pending)",
-      "nodes": 20,
-      "segments": 10
+      "nodes": 14,
+      "segments": 18
     },
     {
       "severity": "info",
@@ -297,55 +324,6 @@
       "stage": "2_transport",
       "message": "added connector segment to join disconnected road component",
       "id": "tr_repair_connect_extra_3"
-    },
-    {
-      "severity": "info",
-      "code": "transport_repaired_connectivity",
-      "stage": "2_transport",
-      "message": "added connector segment to join disconnected road component",
-      "id": "tr_repair_connect_extra_4"
-    },
-    {
-      "severity": "info",
-      "code": "transport_repaired_connectivity",
-      "stage": "2_transport",
-      "message": "added connector segment to join disconnected road component",
-      "id": "tr_repair_connect_extra_5"
-    },
-    {
-      "severity": "info",
-      "code": "transport_repaired_connectivity",
-      "stage": "2_transport",
-      "message": "added connector segment to join disconnected road component",
-      "id": "tr_repair_connect_extra_6"
-    },
-    {
-      "severity": "info",
-      "code": "transport_repaired_connectivity",
-      "stage": "2_transport",
-      "message": "added connector segment to join disconnected road component",
-      "id": "tr_repair_connect_extra_7"
-    },
-    {
-      "severity": "info",
-      "code": "transport_repaired_connectivity",
-      "stage": "2_transport",
-      "message": "added connector segment to join disconnected road component",
-      "id": "tr_repair_connect_extra_8"
-    },
-    {
-      "severity": "info",
-      "code": "transport_repaired_connectivity",
-      "stage": "2_transport",
-      "message": "added connector segment to join disconnected road component",
-      "id": "tr_repair_connect_extra_9"
-    },
-    {
-      "severity": "info",
-      "code": "transport_repaired_connectivity",
-      "stage": "2_transport",
-      "message": "added connector segment to join disconnected road component",
-      "id": "tr_repair_connect_extra_10"
     },
     {
       "severity": "info",
@@ -431,7 +409,7 @@
       "message": "generated buildings from parcels",
       "count": 405,
       "budget": 420,
-      "skippedConflict": 1366
+      "skippedConflict": 1383
     },
     {
       "severity": "info",
@@ -446,22 +424,22 @@
       "message": "generated district props",
       "count": 360,
       "budget": 360,
-      "attempts": 888,
+      "attempts": 792,
       "byDistrictType": {
-        "market": 32,
-        "office": 15,
-        "parking": 10,
+        "luxury": 42,
+        "industrial": 9,
+        "residential": 63,
+        "market": 33,
+        "slums": 51,
+        "suburb": 20,
         "old_town": 44,
-        "slums": 47,
-        "suburb": 22,
-        "commercial": 15,
-        "residential": 71,
-        "sports": 6,
-        "park": 14,
-        "luxury": 47,
-        "campus": 11,
-        "forest": 8,
-        "industrial": 10
+        "commercial": 19,
+        "office": 15,
+        "forest": 14,
+        "sports": 9,
+        "park": 12,
+        "parking": 8,
+        "campus": 11
       }
     },
     {
@@ -505,10 +483,10 @@
         "grid": 2,
         "total": 4
       },
-      "roadNodes": 47,
-      "roadSegments": 53,
+      "roadNodes": 39,
+      "roadSegments": 50,
       "roadComponents": 1,
-      "roadGraphNodes": 47,
+      "roadGraphNodes": 39,
       "districts": 16,
       "districtTypes": [
         "campus",
@@ -527,11 +505,11 @@
         "suburb"
       ],
       "parcels": 2274,
-      "reservedParcels": 177,
+      "reservedParcels": 159,
       "parcelAccess": {
-        "near": 951,
-        "mid": 980,
-        "far": 343
+        "near": 968,
+        "mid": 960,
+        "far": 346
       },
       "roadAccessByType": {
         "industrial": {
@@ -546,13 +524,13 @@
         },
         "luxury": {
           "parcels": 242,
-          "unreserved": 222,
-          "good": 112,
-          "mid": 87,
-          "far": 23,
-          "reserved": 20,
-          "goodOrMid": 199,
-          "accessibleRatio": 0.896
+          "unreserved": 239,
+          "good": 119,
+          "mid": 94,
+          "far": 26,
+          "reserved": 3,
+          "goodOrMid": 213,
+          "accessibleRatio": 0.891
         },
         "office": {
           "parcels": 121,
@@ -577,12 +555,12 @@
         "residential": {
           "parcels": 450,
           "unreserved": 435,
-          "good": 173,
-          "mid": 242,
-          "far": 20,
+          "good": 200,
+          "mid": 216,
+          "far": 19,
           "reserved": 15,
-          "goodOrMid": 415,
-          "accessibleRatio": 0.954
+          "goodOrMid": 416,
+          "accessibleRatio": 0.956
         },
         "slums": {
           "parcels": 400,
@@ -596,27 +574,27 @@
         },
         "sports": {
           "parcels": 49,
-          "unreserved": 48,
+          "unreserved": 49,
           "good": 21,
-          "mid": 23,
+          "mid": 24,
           "far": 4,
-          "reserved": 1,
-          "goodOrMid": 44,
-          "accessibleRatio": 0.917
+          "reserved": 0,
+          "goodOrMid": 45,
+          "accessibleRatio": 0.918
         }
       },
       "buildings": 405,
       "buildingsByDistrictType": {
-        "slums": 73,
-        "old_town": 73,
-        "office": 52,
-        "suburb": 31,
-        "luxury": 36,
-        "residential": 76,
+        "slums": 69,
+        "old_town": 75,
+        "office": 48,
+        "suburb": 29,
+        "luxury": 38,
+        "residential": 81,
         "commercial": 47,
-        "park": 6,
+        "park": 4,
         "industrial": 5,
-        "campus": 2,
+        "campus": 5,
         "forest": 1,
         "market": 1,
         "parking": 1,
@@ -625,25 +603,25 @@
       "lights": 8,
       "props": 360,
       "propsByDistrictType": {
-        "market": 32,
-        "office": 15,
-        "parking": 10,
+        "luxury": 42,
+        "industrial": 9,
+        "residential": 63,
+        "market": 33,
+        "slums": 51,
+        "suburb": 20,
         "old_town": 44,
-        "slums": 47,
-        "suburb": 22,
-        "commercial": 15,
-        "residential": 71,
-        "sports": 6,
-        "park": 14,
-        "luxury": 47,
-        "campus": 11,
-        "forest": 8,
-        "industrial": 10
+        "commercial": 19,
+        "office": 15,
+        "forest": 14,
+        "sports": 9,
+        "park": 12,
+        "parking": 8,
+        "campus": 11
       },
       "chunkLoad": {
         "nonEmptyChunks": 4,
-        "maxBuildings": 153,
-        "maxProps": 140,
+        "maxBuildings": 149,
+        "maxProps": 142,
         "maxLights": 3,
         "avgBuildings": 101.25,
         "avgProps": 90
@@ -654,14 +632,7 @@
       "code": "interchange_junction_candidates",
       "stage": "6_finalize_emit",
       "message": "identified junction nodes as grade-separation candidates",
-      "count": 2
-    },
-    {
-      "severity": "info",
-      "code": "road_conflicts_resolved",
-      "stage": "6_finalize_emit",
-      "message": "resolved detected same-layer road crossing conflicts",
-      "repairs": 7
+      "count": 5
     },
     {
       "severity": "info",
@@ -670,8 +641,8 @@
       "message": "repaired same-layer crossing by inserting junction 'tr_x_2'",
       "node": "tr_x_2",
       "segments": [
-        "ix_cross_ns_a",
-        "ix_service_s"
+        "ix_service_s_a",
+        "cr_ramp_up_s"
       ]
     },
     {
@@ -681,8 +652,8 @@
       "message": "repaired same-layer crossing by inserting junction 'tr_x_3'",
       "node": "tr_x_3",
       "segments": [
-        "ix_hw_ground_e",
-        "ix_service_e"
+        "ix_service_s_a_b",
+        "outer_E_to_Sside"
       ]
     },
     {
@@ -692,8 +663,8 @@
       "message": "repaired same-layer crossing by inserting junction 'tr_x_4'",
       "node": "tr_x_4",
       "segments": [
-        "ix_service_s_a",
-        "clover_loop_sw"
+        "ix_service_e_b",
+        "hw_main_e"
       ]
     },
     {
@@ -703,30 +674,8 @@
       "message": "repaired same-layer crossing by inserting junction 'tr_x_5'",
       "node": "tr_x_5",
       "segments": [
-        "ix_service_s_b",
-        "ix_service_e_a"
-      ]
-    },
-    {
-      "severity": "info",
-      "code": "road_crossing_repaired",
-      "stage": "6_finalize_emit",
-      "message": "repaired same-layer crossing by inserting junction 'tr_x_6'",
-      "node": "tr_x_6",
-      "segments": [
-        "ix_service_s_b_a",
-        "clover_loop_se"
-      ]
-    },
-    {
-      "severity": "info",
-      "code": "road_crossing_repaired",
-      "stage": "6_finalize_emit",
-      "message": "repaired same-layer crossing by inserting junction 'tr_x_7'",
-      "node": "tr_x_7",
-      "segments": [
-        "tr_repair_connect_extra_1",
-        "tr_repair_connect_extra_10"
+        "hw_main_c",
+        "cr_bridge"
       ]
     },
     {
@@ -736,8 +685,8 @@
       "message": "repaired same-layer crossing by inserting junction 'tr_x'",
       "node": "tr_x",
       "segments": [
-        "ix_cross_ns",
-        "ix_hw_overpass"
+        "ix_service_s",
+        "ix_service_e"
       ]
     },
     {
@@ -745,6 +694,16 @@
       "code": "stage_ok",
       "stage": "6_finalize_emit",
       "message": "stage 6_finalize_emit completed"
+    },
+    {
+      "severity": "warning",
+      "code": "build_conflicting_buildings_dropped",
+      "stage": "build",
+      "message": "dropped buildings conflicting with compiled/normalized placement",
+      "count": 1,
+      "ids": [
+        "b_district_1_2_404"
+      ]
     }
   ],
   "repairs": [
@@ -763,68 +722,19 @@
       "code": "connect_road_component",
       "id": "tr_repair_connect_extra_1",
       "from": "tr_n_exit",
-      "to": "clover_ne_a"
-    },
-    {
-      "stage": "2_transport",
-      "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_2",
-      "from": "clover_ne_b",
-      "to": "clover_nw_b"
-    },
-    {
-      "stage": "2_transport",
-      "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_3",
-      "from": "clover_ne_a",
-      "to": "clover_se_a"
-    },
-    {
-      "stage": "2_transport",
-      "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_4",
-      "from": "clover_nw_a",
-      "to": "clover_sw_a"
-    },
-    {
-      "stage": "2_transport",
-      "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_5",
-      "from": "clover_ne_b",
       "to": "cr_n"
     },
     {
       "stage": "2_transport",
       "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_6",
-      "from": "clover_ne_a",
-      "to": "hw_e1"
-    },
-    {
-      "stage": "2_transport",
-      "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_7",
-      "from": "hw_e1",
-      "to": "hw_e2"
-    },
-    {
-      "stage": "2_transport",
-      "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_8",
-      "from": "hw_w2",
-      "to": "hw_w1"
-    },
-    {
-      "stage": "2_transport",
-      "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_9",
+      "id": "tr_repair_connect_extra_2",
       "from": "hw_e",
       "to": "svc_e"
     },
     {
       "stage": "2_transport",
       "code": "connect_road_component",
-      "id": "tr_repair_connect_extra_10",
+      "id": "tr_repair_connect_extra_3",
       "from": "cr_n",
       "to": "svc_n"
     },
@@ -857,7 +767,7 @@
       "stage": "2_transport_access",
       "code": "access_roads_added",
       "id": "tr_acc_1_7,tr_acc_1_7_2",
-      "target": "district_1_3_p166"
+      "target": "district_1_3_p1"
     },
     {
       "stage": "2_transport_access",
@@ -869,7 +779,7 @@
       "stage": "2_transport_access",
       "code": "access_roads_added",
       "id": "tr_acc_1_11,tr_acc_1_11_2",
-      "target": "district_1_3_p61"
+      "target": "district_1_3_p46"
     },
     {
       "stage": "2_transport_access",
@@ -894,8 +804,8 @@
       "code": "resolve_road_crossing",
       "node": "tr_x",
       "segments": [
-        "ix_cross_ns",
-        "ix_hw_overpass"
+        "ix_service_s",
+        "ix_service_e"
       ]
     },
     {
@@ -903,8 +813,8 @@
       "code": "resolve_road_crossing",
       "node": "tr_x_2",
       "segments": [
-        "ix_cross_ns_a",
-        "ix_service_s"
+        "ix_service_s_a",
+        "cr_ramp_up_s"
       ]
     },
     {
@@ -912,8 +822,8 @@
       "code": "resolve_road_crossing",
       "node": "tr_x_3",
       "segments": [
-        "ix_hw_ground_e",
-        "ix_service_e"
+        "ix_service_s_a_b",
+        "outer_E_to_Sside"
       ]
     },
     {
@@ -921,8 +831,8 @@
       "code": "resolve_road_crossing",
       "node": "tr_x_4",
       "segments": [
-        "ix_service_s_a",
-        "clover_loop_sw"
+        "ix_service_e_b",
+        "hw_main_e"
       ]
     },
     {
@@ -930,34 +840,21 @@
       "code": "resolve_road_crossing",
       "node": "tr_x_5",
       "segments": [
-        "ix_service_s_b",
-        "ix_service_e_a"
+        "hw_main_c",
+        "cr_bridge"
       ]
     },
     {
-      "stage": "6_finalize_emit",
-      "code": "resolve_road_crossing",
-      "node": "tr_x_6",
-      "segments": [
-        "ix_service_s_b_a",
-        "clover_loop_se"
-      ]
-    },
-    {
-      "stage": "6_finalize_emit",
-      "code": "resolve_road_crossing",
-      "node": "tr_x_7",
-      "segments": [
-        "tr_repair_connect_extra_1",
-        "tr_repair_connect_extra_10"
-      ]
+      "stage": "build",
+      "id": "b_district_1_2_404",
+      "code": "drop_conflicting_building"
     }
   ],
   "drops": [],
   "summary": {
     "errors": 0,
-    "warnings": 6,
-    "repairs": 29,
+    "warnings": 10,
+    "repairs": 21,
     "drops": 0
   }
 }
