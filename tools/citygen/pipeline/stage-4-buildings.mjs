@@ -195,8 +195,8 @@ const ARCHETYPES = {
   // Мегастроение H10 (docs/houses megabuilding): массивный многоэтажный мегаблок
   megablock:       { floors: [18, 36], floorHeight: [3.2, 3.8], scale: [0.62, 0.86], aspect: [0.9, 1.5] },
   apartment_block: { floors: [4, 9],   floorHeight: [3.1, 3.4], scale: [0.58, 0.78], aspect: [1.2, 2.1] },
-  // Панелька (docs/houses soviet-panel): многоэтажный жилой панельный дом
-  panelka:         { floors: [5, 16],  floorHeight: [2.7, 3.1], scale: [0.6, 0.84],  aspect: [1.4, 2.6] },
+  // Панелька (docs/houses soviet-panel): многоэтажный жилой панельный дом (пропорции ближе к серии)
+  panelka:         { floors: [5, 16],  floorHeight: [2.65, 2.95], scale: [0.58, 0.82], aspect: [1.15, 1.9] },
   residential_low: { floors: [1, 3],   floorHeight: [3.0, 3.3], scale: [0.45, 0.68], aspect: [0.8, 1.4] },
   residential_mid: { floors: [3, 7],   floorHeight: [3.1, 3.4], scale: [0.5, 0.72],  aspect: [0.85, 1.5] },
   townhouse:       { floors: [2, 4],   floorHeight: [3.0, 3.3], scale: [0.42, 0.62], aspect: [0.55, 0.95] },
