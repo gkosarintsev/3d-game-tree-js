@@ -5,7 +5,8 @@ function isBrowser() { return typeof window !== 'undefined' && typeof document !
 
 export async function loadRegistry() {
   try {
-    const res = await fetch('../src/levels/index.js', { cache: 'no-store' });
+    const url = new URL('../../src/levels/index.js', import.meta.url);
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`index.js: ${res.status}`);
     const text = await res.text();
     const nums = parseLevelNumbers(text);
@@ -33,14 +34,14 @@ async function fetchBytes(url, { cacheBust = 0 } = {}) {
 
 export async function loadSource(level, { cacheBust = 0 } = {}) {
   const name = levelFileName(level);
-  const url = `../src/levels/${name}.json`;
-  const r = await fetchJson(url, { cacheBust });
+  const url = new URL(`../../src/levels/${name}.json`, import.meta.url);
+  const r = await fetchJson(url.href, { cacheBust });
   return { source: r.data, url: r.url };
 }
 
 export async function loadCompiled(level, { cacheBust = 0, onProgress } = {}) {
   const name = levelFileName(level);
-  const dirUrl = new URL(`../src/levels/${name}/index.js`, import.meta.url);
+  const dirUrl = new URL(`../../src/levels/${name}/index.js`, import.meta.url);
   let mod;
   try {
     mod = await import(dirUrl.href + (cacheBust ? `?v=${cacheBust}` : ''));
