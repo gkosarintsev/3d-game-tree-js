@@ -16,6 +16,7 @@ import { buildDetailedOfficeBuilding, makeOfficeBuildingMaterials } from './offi
 import { buildDetailedMegabuilding, makeMegabuildingMaterials } from './megabuilding-detail.js';
 import { buildDetailedSlumShack, makeSlumShackMaterials } from './slum-shack-detail.js';
 import { buildDetailedGenericHouse, makeGenericHouseMaterials } from './generic-house-detail.js';
+import { applyGrass } from './grass-material.js';
 
 const J = CONFIG.jsonMap;
 const DEG = Math.PI / 180;
@@ -2661,11 +2662,14 @@ export class JsonMap extends SurfaceField {
    */
   _buildPicture(scene, groups, rect, water) {
     const objs = [];
+    const groundMat = new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 });
+    // зелёные холмы (рельеф) — процедурная травяная текстура (лёгкий шейдер)
+    if (this.relief) applyGrass(groundMat, { scale: 0.38, strength: 0.22, dark: 0.18, slopeFade: false });
     const ground = new THREE.Mesh(
       (rect || this.holes.length || (this.tunnelHoles?.length) || this.relief)
         ? this._groundGeo(rect)
         : new THREE.PlaneGeometry(this.width, this.depth),
-      new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }),
+      groundMat,
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = this.groundY;
@@ -2674,12 +2678,15 @@ export class JsonMap extends SurfaceField {
     objs.push(ground);
     this._buildWater(scene, water, objs);
 
+    const earthMat = new THREE.MeshStandardMaterial({ color: J.earth, roughness: 1, metalness: 0 });
+    // грунт/откосы в рельефных главах — травянистый оттенок на склонах
+    if (this.relief) applyGrass(earthMat, { scale: 0.4, strength: 0.18, dark: 0.15, slopeFade: true });
     const mats = {
       walls: new THREE.MeshStandardMaterial({ color: J.walls, roughness: 0.85, metalness: 0.05 }),
       slabs: new THREE.MeshStandardMaterial({ color: J.slabs, roughness: 0.9, metalness: 0.05 }),
       stairs: new THREE.MeshStandardMaterial({ color: J.stairs, roughness: 0.9, metalness: 0.05 }),
       decks: new THREE.MeshStandardMaterial({ color: J.asphalt, roughness: 0.95, metalness: 0 }),
-      earth: new THREE.MeshStandardMaterial({ color: J.earth, roughness: 1, metalness: 0 }),
+      earth: earthMat,
       rails: new THREE.MeshStandardMaterial({ color: J.railColor, roughness: 0.55, metalness: 0.5 }),
       ceilings: new THREE.MeshStandardMaterial({ color: J.slabs, roughness: 0.95, metalness: 0.05 }),
     };

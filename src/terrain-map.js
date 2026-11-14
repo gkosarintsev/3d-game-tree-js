@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 import { makeRng } from './rng.js';
 import { SolidField, circleHitsRect } from './solids.js';
 import { NavGraph } from './nav-graph.js';
+import { makeGrassMaterial } from './grass-material.js';
 
 /**
  * Реализация контракта карты для уровней со сложным рельефом: холмы, горы с
@@ -655,16 +656,18 @@ export class TerrainMap extends SolidField {
     }
 
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x8f8577, roughness: 0.95, metalness: 0 });
+    // гладкая поверхность рельефа (зелёные холмы) — травяной шейдерный материал
+    const grassMat = makeGrassMaterial(0x4f7a35, { scale: 0.42, strength: 0.24, dark: 0.2 });
     if (tri.length) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(tri, 3));
       const welded = mergeVertices(g);
       welded.computeVertexNormals();
-      const mesh = new THREE.Mesh(welded, rockMat);
+      const mesh = new THREE.Mesh(welded, grassMat);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
-      this.sceneObjects.push({ mesh, geo: welded, mat: rockMat });
+      this.sceneObjects.push({ mesh, geo: welded, mat: grassMat });
     }
 
     const add = (geos, mat) => {

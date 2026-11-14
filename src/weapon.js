@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { beep } from './audio.js';
+import { buildRifleModel } from './soldier.js';
 
 /**
  * Оружие игрока: модель в руках, стрельба лучом из центра экрана, попадания по
@@ -41,38 +41,29 @@ export class Weapon {
     this._bindInput();
   }
 
-  /** Модель оружия в правом нижнем углу и вспышка у дула. */
+  /** Модель оружия (винтовка солдата-врага, только оружие) и вспышка у дула. */
   _buildViewModel() {
-    const box = (w, h, d, x, y, z) => {
-      const g = new THREE.BoxGeometry(w, h, d);
-      g.translate(x, y, z);
-      return g;
-    };
-    const gun = new THREE.Mesh(
-      mergeGeometries([
-        box(0.10, 0.12, 0.55, 0, 0, -0.18),    // корпус
-        box(0.05, 0.05, 0.34, 0, 0.02, -0.55), // ствол
-        box(0.09, 0.20, 0.12, 0, -0.14, -0.02),// рукоять
-        box(0.07, 0.07, 0.16, 0, -0.08, -0.34),// магазин
-        box(0.03, 0.05, 0.03, 0, 0.09, -0.40), // мушка
-      ], false),
-      new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: .55, metalness: .7 }),
-    );
-    gun.castShadow = false;
+    const rifle = buildRifleModel();
+    this._rifle = rifle;
+    const gun = rifle.group;
+    // ствол модели направлен вдоль +Z — разворачиваем в камеру (-Z) и ставим в угол вида
+    gun.rotation.set(0, Math.PI, 0);
+    gun.scale.setScalar(0.95);
 
     this.group = new THREE.Group();
     this.group.add(gun);
-    this.group.position.set(0.26, -0.22, -0.45);
+    this.group.position.set(0.24, -0.24, -0.48);
     this.camera.add(this.group);
 
     this.flash = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.34, 0.34),
+      new THREE.PlaneGeometry(0.32, 0.32),
       new THREE.MeshBasicMaterial({
         color: 0xffd27a, transparent: true, opacity: 0.9, depthWrite: false,
         blending: THREE.AdditiveBlending, fog: false,
       }),
     );
-    this.flash.position.set(0, 0.02, -0.74);
+    // дульный срез после разворота модели оказывается около -Z
+    this.flash.position.set(0, 0.03, -0.72);
     this.flash.visible = false;
     this.group.add(this.flash);
   }
@@ -102,8 +93,8 @@ export class Weapon {
     removeEventListener('mousedown', this._onMouseDown);
     removeEventListener('mouseup', this._onMouseUp);
     removeEventListener('blur', this._onBlur);
-    this.group.traverse(o => o.geometry?.dispose?.());
     this.camera.remove(this.group);
+    this._rifle?.dispose?.();
   }
 
   /** Выстрел, если пауза между выстрелами истекла. */

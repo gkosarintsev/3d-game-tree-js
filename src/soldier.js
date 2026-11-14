@@ -166,6 +166,46 @@ function makeRoundedPlateGeo(width, height, depth, bevel = 0.015) {
   return geo;
 }
 
+/**
+ * Строит модель винтовки солдата (визуал) — та же, что у врага; используется
+ * и как оружие от первого лица у игрока-человека (видно только оружие).
+ * @returns {{group: THREE.Group, dispose: Function}}
+ */
+export function buildRifleModel() {
+  const geos = [];
+  const t = (g) => { geos.push(g); return g; };
+  const armorSecondary = new THREE.MeshStandardMaterial({ color: 0x3b424d, roughness: 0.56, metalness: 0.16 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x5c6675, roughness: 0.24, metalness: 0.85 });
+  const bootRubber = new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 0.92, metalness: 0.05 });
+  const riflePolymer = new THREE.MeshStandardMaterial({ color: 0x1d2026, roughness: 0.65, metalness: 0.12 });
+  const opticGlass = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.9, roughness: 0.1, metalness: 0.4 });
+  const mats = [armorSecondary, metal, bootRubber, riflePolymer, opticGlass];
+  const group = new THREE.Group();
+  const addPart = (parent, geo, mat, pos = [0, 0, 0], rot = [0, 0, 0]) => {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...pos); mesh.rotation.set(...rot);
+    mesh.castShadow = false; mesh.receiveShadow = false;
+    parent.add(mesh);
+    return mesh;
+  };
+  addPart(group, t(makeRoundedPlateGeo(0.048, 0.085, 0.26, 0.006)), riflePolymer, [0, 0, 0]);
+  addPart(group, t(new THREE.BoxGeometry(0.042, 0.052, 0.22)), metal, [0, 0.015, 0.22]);
+  addPart(group, t(new THREE.CylinderGeometry(0.011, 0.013, 0.24, 10)), metal, [0, 0.015, 0.38], [Math.PI / 2, 0, 0]);
+  addPart(group, t(new THREE.CylinderGeometry(0.018, 0.018, 0.11, 12)), riflePolymer, [0, 0.015, 0.49], [Math.PI / 2, 0, 0]);
+  addPart(group, t(new THREE.BoxGeometry(0.032, 0.14, 0.058)), armorSecondary, [0, -0.095, 0.06], [0.22, 0, 0]);
+  addPart(group, t(new THREE.BoxGeometry(0.034, 0.10, 0.042)), bootRubber, [0, -0.075, -0.08], [-0.32, 0, 0]);
+  addPart(group, t(new THREE.BoxGeometry(0.036, 0.095, 0.18)), riflePolymer, [0, -0.005, -0.21]);
+  addPart(group, t(new THREE.BoxGeometry(0.036, 0.042, 0.07)), metal, [0, 0.062, 0.02]);
+  addPart(group, t(new THREE.BoxGeometry(0.028, 0.026, 0.012)), opticGlass, [0, 0.066, 0.045]);
+  return {
+    group,
+    dispose() {
+      for (const g of geos) g.dispose();
+      for (const m of mats) m.dispose();
+    },
+  };
+}
+
 /** Создаёт визуальный риг солдата (кости/меши/материалы). */
 export function buildEnemySoldier(variantId = 'assault') {
   const variant = SOLDIER_VARIANTS[variantId] || SOLDIER_VARIANTS.assault;

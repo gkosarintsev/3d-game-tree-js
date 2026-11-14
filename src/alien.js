@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { beep } from './audio.js';
 
@@ -926,7 +925,7 @@ export class Alien extends AlienBody {
     addEventListener('mousedown', this._onMouseDown);
   }
 
-  /** Снимает слушатели и модель руки с камеры при выгрузке уровня. */
+  /** Снимает слушатели и модель рук с камеры при выгрузке уровня. */
   dispose() {
     removeEventListener('keydown', this._onKeyDown);
     removeEventListener('keyup', this._onKeyUp);
@@ -934,7 +933,9 @@ export class Alien extends AlienBody {
     removeEventListener('mousemove', this._onMouseMoveBind);
     removeEventListener('mousedown', this._onMouseDown);
     this.controls.dispose();
-    this.camera.remove(this.claw);
+    if (this.claw) this.camera.remove(this.claw);
+    if (this._fpGeos) for (const g of this._fpGeos) g.dispose?.();
+    if (this._fpMats) for (const m of this._fpMats) m.dispose?.();
   }
 
   /** Обзор: поворот «вперёд» вокруг текущей опоры + наклон взгляда. */
@@ -1044,51 +1045,132 @@ export class Alien extends AlienBody {
     return true;
   }
 
-  /** Когтистая рука в правом нижнем углу вида — показывает замах по ЛКМ. */
+  /**
+   * Руки Чужого от первого лица (модель врага-ксеноморфа): видны только во время
+   * удара, когда не бьёт — скрыты.
+   */
   _buildClaw() {
-    const box = (w, h, d, x, y, z) => {
-      const g = new THREE.BoxGeometry(w, h, d);
-      g.translate(x, y, z);
+    this._fpGeos = [];
+    this._fpMats = [];
+    const trackGeo = (g) => { this._fpGeos.push(g); return g; };
+    const chitin = new THREE.MeshStandardMaterial({ color: 0x0a0d12, roughness: 0.38, metalness: 0.25 });
+    const rib = new THREE.MeshStandardMaterial({ color: 0x151b24, roughness: 0.45, metalness: 0.3 });
+    const clawMat = new THREE.MeshStandardMaterial({ color: 0x3b4552, roughness: 0.22, metalness: 0.75 });
+    this._fpMats.push(chitin, rib, clawMat);
+
+    const makeFinger = (length) => {
+      const g = new THREE.Group();
+      const p1 = new THREE.Mesh(trackGeo(new THREE.CapsuleGeometry(0.014, length * 0.44, 4, 6)), chitin);
+      p1.position.set(0, -length * 0.24, length * 0.06);
+      p1.rotation.x = -0.25;
+      g.add(p1);
+      const p2 = new THREE.Mesh(trackGeo(new THREE.CapsuleGeometry(0.011, length * 0.36, 4, 6)), chitin);
+      p2.position.set(0, -length * 0.62, length * 0.14);
+      p2.rotation.x = 0.36;
+      g.add(p2);
+      const claw = new THREE.Mesh(trackGeo(new THREE.ConeGeometry(0.012, length * 0.45, 6)), clawMat);
+      claw.position.set(0, -length * 0.92, length * 0.03);
+      claw.rotation.x = Math.PI + 0.58;
+      g.add(claw);
       return g;
     };
-    const mesh = new THREE.Mesh(
-      mergeGeometries([
-        box(0.09, 0.10, 0.42, 0, 0, 0.18),     // предплечье
-        box(0.13, 0.12, 0.20, 0, 0, -0.08),    // ладонь
-        box(0.03, 0.03, 0.24, -0.04, -0.02, -0.28), // когти
-        box(0.03, 0.03, 0.26, 0, -0.03, -0.30),
-        box(0.03, 0.03, 0.24, 0.04, -0.02, -0.28),
-      ], false),
-      new THREE.MeshStandardMaterial({ color: 0x241d28, roughness: 0.55 }),
-    );
-    mesh.castShadow = false;
+
+    const buildArm = (side) => {
+      const arm = new THREE.Group();
+      const fore = new THREE.Mesh(trackGeo(new THREE.CapsuleGeometry(0.055, 0.30, 5, 8)), chitin);
+      fore.position.set(0, 0.16, 0);
+      fore.castShadow = false; fore.receiveShadow = false;
+      arm.add(fore);
+      const spur = new THREE.Mesh(trackGeo(new THREE.ConeGeometry(0.018, 0.12, 6)), clawMat);
+      spur.position.set(side * 0.03, 0.06, -0.05);
+      spur.rotation.z = side * -0.9;
+      spur.rotation.x = -0.6;
+      arm.add(spur);
+      const hand = new THREE.Group();
+      hand.position.set(0, -0.02, 0);
+      const palm = new THREE.Mesh(trackGeo(new THREE.SphereGeometry(0.055, 8, 6)), chitin);
+      palm.scale.set(1.1, 0.7, 1.0);
+      hand.add(palm);
+      const offsets = [-0.036, 0, 0.036];
+      const splays = [-0.34, 0, 0.34];
+      const lengths = [0.19, 0.22, 0.18];
+      for (let f = 0; f < 3; f++) {
+        const finger = makeFinger(lengths[f]);
+        finger.position.set(offsets[f], -0.045, 0.02);
+        finger.rotation.z = splays[f];
+        finger.rotation.x = 0.18;
+        hand.add(finger);
+      }
+      const thumb = makeFinger(0.14);
+      thumb.position.set(side * -0.045, -0.03, 0.01);
+      thumb.rotation.z = side * 0.85;
+      thumb.rotation.y = side * -0.5;
+      thumb.rotation.x = 0.35;
+      hand.add(thumb);
+      // тонкая кистевая пластина
+      const plate = new THREE.Mesh(trackGeo(new THREE.BoxGeometry(0.12, 0.02, 0.07)), rib);
+      plate.position.set(0, 0.01, 0.02);
+      hand.add(plate);
+      arm.add(hand);
+      arm.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+      return { arm, hand };
+    };
+
+    const left = buildArm(1);
+    const right = buildArm(-1);
 
     this.claw = new THREE.Group();
-    this.claw.add(mesh);
-    this._clawHome = new THREE.Vector3(0.28, -0.26, -0.44);
-    this._clawPitch = 0.22;
-    this.claw.position.copy(this._clawHome);
-    this.claw.rotation.x = this._clawPitch;
-    this.claw.visible = false;  // до первого удара рука в покое и не видна
+    // правая рука (основной удар) и левая — вид от первого лица
+    left.arm.position.set(-0.34, -0.42, -0.48);
+    left.arm.rotation.set(0.55, 0.35, 0.25);
+    right.arm.position.set(0.34, -0.44, -0.46);
+    right.arm.rotation.set(0.50, -0.30, -0.20);
+    this.claw.add(left.arm);
+    this.claw.add(right.arm);
+    this._clawLeft = left.arm;
+    this._clawRight = right.arm;
+    this._clawLHome = left.arm.position.clone();
+    this._clawRHome = right.arm.position.clone();
+    this._clawLRot = left.arm.rotation.clone();
+    this._clawRRot = right.arm.rotation.clone();
+    this.claw.visible = false;  // до удара руки не видны
     this.camera.add(this.claw);
   }
 
   /**
-   * Замах: рука вылетает вперёд и возвращается за config.alien.strike.animTime.
-   * Вне замаха её не видно вовсе — профиль `k` начинается и кончается нулём,
-   * поэтому рука появляется и исчезает, лежа дома, без скачка в кадре.
+   * Замах: руки вылетают вперёд и возвращаются за config.alien.strike.animTime.
+   * Вне замаха их не видно вовсе.
    */
   _updateClaw(dt) {
     if (this.strikeAnim > 0) this.strikeAnim = Math.max(0, this.strikeAnim - dt);
-    const T = this.cfg.strike.animTime;
-    const k = Math.sin((1 - this.strikeAnim / T) * Math.PI);
-    this.claw.position.set(
-      this._clawHome.x,
-      this._clawHome.y + k * 0.06,
-      this._clawHome.z + k * 0.34,
-    );
-    this.claw.rotation.x = this._clawPitch - k * 1.15;
-    this.claw.visible = this.strikeAnim > 0;
+    const T = this.cfg.strike.animTime || 0.001;
+    const phase = 1 - this.strikeAnim / T;
+    const k = Math.sin(phase * Math.PI);
+    const show = this.strikeAnim > 0;
+    if (show && this._clawLeft && this._clawRight) {
+      // правая рука — основной рубящий удар, левая поддерживает
+      this._clawRight.position.set(
+        this._clawRHome.x - k * 0.06,
+        this._clawRHome.y + k * 0.10,
+        this._clawRHome.z + k * 0.42,
+      );
+      this._clawRight.rotation.set(
+        this._clawRRot.x - k * 1.35,
+        this._clawRRot.y + k * 0.25,
+        this._clawRRot.z + k * 0.15,
+      );
+      this._clawLeft.position.set(
+        this._clawLHome.x + k * 0.03,
+        this._clawLHome.y + k * 0.06,
+        this._clawLHome.z + k * 0.28,
+      );
+      this._clawLeft.rotation.set(
+        this._clawLRot.x - k * 0.9,
+        this._clawLRot.y - k * 0.15,
+        this._clawLRot.z - k * 0.10,
+      );
+    }
+    this.claw.visible = show;
   }
 
   /** Собирает камеру: позиция — вдоль нормали от центра тела, взгляд — по fwd/pitch. */
