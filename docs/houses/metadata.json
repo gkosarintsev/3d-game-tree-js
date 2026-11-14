@@ -1,0 +1,6 @@
+{
+  "name": "АрхиФорм — 3D Генератор домов",
+  "description": "Модульный 3D-генератор жилых домов с настройкой габаритов, материалов, архитектуры, сохранением проектов и экспортом в GLB.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

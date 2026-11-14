@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Витрина развязок</title>
+<style>
+:root{--bg:rgba(255,255,255,.9);--fg:#1c2430;--mu:#5b6675;--ac:#e8700a;--bd:rgba(0,0,0,.14);box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:rgba(24,28,36,.9);--fg:#e8ecf2;--mu:#9aa6b6;--bd:rgba(255,255,255,.16)}}
+:root[data-theme="dark"]{--bg:rgba(24,28,36,.9);--fg:#e8ecf2;--mu:#9aa6b6;--bd:rgba(255,255,255,.16)}
+html,body{height:100%;margin:0;overflow:hidden;background:#cfe3f2;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+canvas{display:block;position:fixed;inset:0;z-index:0}
+#ui{z-index:10;position:fixed;left:12px;top:calc(12px + env(safe-area-inset-top,0px));width:min(300px,calc(100vw - 24px));max-height:calc(100% - 24px - env(safe-area-inset-top,0px));overflow:auto;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px);font-size:13px;line-height:1.4}
+#ui h1{font-size:15px;margin:0 0 8px}
+#ui h2{font-size:11px;margin:12px 0 4px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em}
+.desc{color:var(--mu);margin:6px 0 0}
+#types button,#routes button{display:block;width:100%;text-align:left;margin:4px 0;padding:7px 9px;border-radius:8px;border:1px solid var(--bd);background:transparent;color:var(--fg);font:inherit;cursor:pointer}
+button.on{border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
+label{display:block;margin-top:10px;cursor:pointer}
+.hint{color:var(--mu);font-size:12px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>Витрина развязок</h1>
+  <h2>Тип развязки</h2><div id="types"></div>
+  <div class="desc" id="desc"></div>
+  <h2>Манёвры</h2><div id="routes"></div>
+  <label><input type="checkbox" id="tr" checked> Показывать движение</label>
+  <p class="hint">Мышь: вращение, колесо — масштаб, ПКМ — сдвиг. Правостороннее движение.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* =====================================================================
+   1. СЦЕНА
+   ===================================================================== */
+const V3 = THREE.Vector3;
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xcfe3f2);
+scene.fog = new THREE.Fog(0xcfe3f2,600,1400);
+const camera = new THREE.PerspectiveCamera(45,innerWidth/innerHeight,1,3000);
+camera.position.set(230,170,300);
+const controls = new THREE.OrbitControls(camera,renderer.domElement);
+controls.target.set(0,3,0); controls.enableDamping = true; controls.maxPolarAngle = 1.5;
+scene.add(new THREE.HemisphereLight(0xffffff,0x6d7a60,.85));
+const sun = new THREE.DirectionalLight(0xffffff,.9);
+sun.castShadow = true; sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-300,right:300,top:300,bottom:-300,near:10,far:700});
+scene.add(sun,sun.target);
+const world = new THREE.Group(); scene.add(world);
+
+/* =====================================================================
+   2. ОБЩИЕ ПРИМИТИВЫ: материалы, плита дороги, опоры
+   ===================================================================== */
+const H = 8, T = 1.4;                                   // высота эстакады, толщина плиты шоссе
+const sm = t => t*t*(3-2*t);
+const hwyY = x => H*sm(Math.min(1,Math.max(0,(235-Math.abs(x))/65)));   // профиль шоссе
+const conc = new THREE.MeshStandardMaterial({color:0xb9b6ae,roughness:.9});
+const pierM = new THREE.MeshStandardMaterial({color:0xa7a49c,roughness:.95});
+
+function roadTex(kind){
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'); g.fillStyle = '#3b3e44'; g.fillRect(0,0,128,128);
+  const ln = (x,col,dash)=>{g.fillStyle = col; g.fillRect(x-1.5,0,3,dash?64:128);};
+  if(kind!=='plain'){ln(4,'#eee'); ln(124,'#eee');}
+  if(kind==='hwy'){ln(61,'#e8c030');ln(67,'#e8c030');ln(32,'#eee',1);ln(96,'#eee',1);}
+  if(kind==='two') ln(64,'#eee',1);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 8;
+  return t;
+}
+const roadMat = k => new THREE.MeshStandardMaterial({map:roadTex(k),roughness:.95});
+function sideAt(p,i){                                    // вектор «вправо по ходу» в точке i
+  const a = p[Math.max(0,i-1)], b = p[Math.min(p.length-1,i+1)];
+  const tx = b.x-a.x, tz = b.z-a.z, l = Math.hypot(tx,tz)||1;
+  return new V3(-tz/l,0,tx/l);
+}
+const offsetPts = (p,o) => p.map((q,i)=>q.clone().addScaledVector(sideAt(p,i),o));
+
+// плита с толщиной вдоль ломаной pts; ws — ширина в каждой точке (необязательно)
+function ribbon(pts,{w,t,off=0,ws,topMat,sideMat=conc}){
+  const n = pts.length, R = [[],[],[],[]], D = [0];
+  for(let i=0;i<n;i++){
+    const s = sideAt(pts,i), c = pts[i].clone().addScaledVector(s,off), hw = (ws?ws[i]:w)/2;
+    const L = c.clone().addScaledVector(s,-hw), Rr = c.clone().addScaledVector(s,hw);
+    R[0].push(L); R[1].push(Rr); R[2].push(Rr.clone().setY(c.y-t)); R[3].push(L.clone().setY(c.y-t));
+    if(i) D.push(D[i-1]+pts[i].distanceTo(pts[i-1]));
+  }
+  const P=[],U=[],I=[];
+  const face = (A,B)=>{
+    const b = P.length/3;
+    for(let i=0;i<n;i++){P.push(A[i].x,A[i].y,A[i].z,B[i].x,B[i].y,B[i].z);U.push(0,D[i]/16,1,D[i]/16);}
+    for(let i=0;i<n-1;i++){const k=b+i*2;I.push(k,k+1,k+2,k+1,k+3,k+2);}
+  };
+  face(R[0],R[1]); const top = I.length;
+  face(R[1],R[2]); face(R[2],R[3]); face(R[3],R[0]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));
+  g.setIndex(I); g.computeVertexNormals();
+  g.addGroup(0,top,0); g.addGroup(top,I.length-top,1);
+  const m = new THREE.Mesh(g,[topMat,sideMat]); m.castShadow = m.receiveShadow = true;
+  return m;
+}
+function pier(g,p,yaw,w,cols,t){                         // ригель + колонны под плитой в точке p
+  const gr = new THREE.Group(); gr.position.set(p.x,0,p.z); gr.rotation.y = yaw;
+  const by = p.y-t, cap = new THREE.Mesh(new THREE.BoxGeometry(2.6,1.2,w),pierM);
+  cap.position.y = by-.6; gr.add(cap);
+  cols.forEach(c=>{
+    const h = by-1.2, m = new THREE.Mesh(new THREE.CylinderGeometry(.9,1.1,h,14),pierM);
+    m.position.set(0,h/2,c); gr.add(m);
+  });
+  gr.traverse(o=>{o.castShadow = o.receiveShadow = true;}); g.add(gr);
+}
+
+/* =====================================================================
+   3. ПОЛОСЫ И ТРАФИК (IDM + проверка просвета при слиянии)
+   ===================================================================== */
+// ---- светофоры: у каждого подхода своя фаза, поэтому конфликтующих потоков одновременно нет ----
+let simT = 0;
+const GREEN = 6.5, AMB = 2.5, PH = 12;                   // зелёный, жёлтый, остаток фазы — «всё красное»
+class Junction{
+  constructor(n){ this.n = n; }
+  go(g){ return Math.floor(simT/PH)%this.n===g && simT%PH<GREEN; }
+  state(g){ if(Math.floor(simT/PH)%this.n!==g) return 0; const l = simT%PH; return l<GREEN?2:l<GREEN+AMB?1:0; }   // 0 красный, 1 жёлтый, 2 зелёный
+}
+function mkPath(pts){
+  const cum = [0];
+  for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+pts[i].distanceTo(pts[i-1]));
+  return {pts,cum,len:cum[cum.length-1]};
+}
+// next — куда вливается в конце; div — где часть машин съезжает на другую полосу
+class Lane{ constructor(pts,v){ this.path = mkPath(pts); this.v = v; this.cars = []; this.next = null; this.divs = []; } }
+
+const carGeo = [new THREE.BoxGeometry(4.2,.9,1.9),new THREE.BoxGeometry(2.2,.8,1.6)];
+const cabM = new THREE.MeshStandardMaterial({color:0x222a33,roughness:.4});
+const carMats = {}, carMat = c => carMats[c] || (carMats[c] = new THREE.MeshStandardMaterial({color:c,roughness:.5}));
+const palette = [0xd64545,0x3b78d8,0xf2f2f2,0xe3b23c,0x4aa564,0x888d96,0x222222];
+const allLanes = [], cars = [], parked = [];
+function mkCar(l,s,v){
+  const m = new THREE.Group();
+  const b = new THREE.Mesh(carGeo[0],carMat(palette[Math.floor(Math.random()*palette.length)])); b.position.y = .5;
+  const c = new THREE.Mesh(carGeo[1],cabM); c.position.set(-.2,1.2,0);
+  b.castShadow = c.castShadow = true; m.add(b,c); scene.add(m);
+  const car = {m,l,s,v,f:.9+Math.random()*.2,off:new V3()}; l.cars.push(car); cars.push(car);
+}
+function pathAt(P,s,pos){
+  let i = 1; while(i<P.cum.length-1 && P.cum[i]<s) i++;
+  const a = P.pts[i-1], b = P.pts[i], f = Math.min(1,Math.max(0,(s-P.cum[i-1])/(P.cum[i]-P.cum[i-1])));
+  pos.lerpVectors(a,b,f);
+  return Math.atan2(-(b.z-a.z),b.x-a.x);
+}
+function move(c,L,B,s){                                  // смена полосы: логически сразу, на экране плавно
+  L.cars.splice(L.cars.indexOf(c),1); B.cars.push(c); c.l = B; c.s = s;
+  const np = new V3(); pathAt(B.path,s,np); c.off.set(c.m.position.x-np.x,0,c.m.position.z-np.z);
+}
+function gapOK(c,o,rel){                                 // rel — позиция машины o относительно точки слияния
+  return rel<0 ? -rel >= 6+o.v*.7+Math.max(0,o.v-c.v)*.6 : rel >= 8+c.v*.4+Math.max(0,c.v-o.v)*.6;
+}
+function canMerge(c,L){
+  const N = L.next.lane, sT = L.next.sTo, te = L.path.len-c.s, t = Math.min(4,te/Math.max(c.v,4));
+  return N.cars.every(o=>gapOK(c,o,o.s+o.v*t-sT));
+}
+function simStep(dt){
+  simT += dt;
+  allLanes.forEach(L=>L.cars.sort((a,b)=>a.s-b.s));
+  const virt = new Map();                                // основной поток уступает место ждущему слияния
+  allLanes.forEach(L=>{ if(L.next) L.cars.forEach(c=>{
+    const te = L.path.len-c.s;
+    if(te<70){ const N = L.next.lane; if(!virt.has(N)) virt.set(N,[]); virt.get(N).push({s:L.next.sTo-te,v:c.v}); }
+  }); });
+  const upd = [];
+  allLanes.forEach(L=>L.cars.forEach((c,i)=>{
+    let gap = 1e9, lv = c.v; const a = L.cars[i+1], te = L.path.len-c.s;
+    if(a){gap = a.s-c.s-4.6; lv = a.v;}
+    (virt.get(L)||[]).forEach(q=>{ const g = q.s-c.s-4.6; if(g>0 && g<gap){gap = g; lv = q.v;} });
+    if(L.next && te<150){
+      const N = L.next.lane, sT = L.next.sTo, f = N.cars.find(o=>o.s>=sT-1);
+      if(f){const g = te+f.s-sT-4.6; if(g<gap){gap = g; lv = f.v;}}
+      if(te<50 && !canMerge(c,L)){const g = te-3; if(g<gap){gap = g; lv = 0;}}
+    }
+    if(L.sig && !L.sig.go(L.grp) && te<80 && te>c.v*c.v/6+3){const g = te-1.5; if(g<gap){gap = g; lv = 0;}}   // красный: стоп-линия
+    const v0 = L.v*c.f, ss = Math.max(2,2+c.v*1.1+c.v*(c.v-lv)/4.9);
+    const acc = Math.max(-3,2*(1-Math.pow(c.v/v0,4)))-2*Math.pow(ss/Math.max(gap,.1),2);
+    const nv = Math.max(0,c.v+Math.max(-9,acc)*dt);
+    upd.push([c,nv,c.s+(c.v+nv)/2*dt]);
+  }));
+  upd.forEach(([c,nv,ns])=>{
+    const L = c.l; c.v = nv;
+    const d = L.divs.find(d=>c.s<d.s && ns>=d.s && Math.random()<d.p && !d.lane.cars.some(o=>o.s<d.sTo+(d.gap||25)));
+    if(d){ move(c,L,d.lane,d.sTo+ns-d.s); return; }
+    if(ns>=L.path.len){
+      if(L.next){
+        const B = L.next.lane, s2 = L.next.sTo+ns-L.path.len;
+        if(!B.cars.every(o=>gapOK(c,o,o.s-s2))){c.s = L.path.len-.5; c.v = 0;} else move(c,L,B,s2);
+      } else {L.cars.splice(L.cars.indexOf(c),1); c.m.visible = false; parked.push([c,L.rs||L]);}   // дорога обрывается
+      return;
+    }
+    c.s = ns;
+  });
+  for(let i=parked.length-1;i>=0;i--){
+    const [c,L] = parked[i];
+    if(!L.cars.some(o=>o.s<22)){L.cars.push(c); c.l = L; c.s = 0; c.v = L.v*.8; c.m.visible = true; parked.splice(i,1);}
+  }
+  cars.forEach(c=>{
+    if(!c.m.visible) return;
+    c.m.rotation.y = pathAt(c.l.path,c.s,c.m.position);
+    c.off.multiplyScalar(Math.exp(-2.5*dt)); c.m.position.add(c.off);
+  });
+}
+
+/* =====================================================================
+   4. КОМПЛЕКТ ДЛЯ СБОРКИ РАЗВЯЗОК (Plot) — всё общее живёт здесь
+   Система координат участка: шоссе вдоль X (z=0), поперечная дорога вдоль Z, север — в глубину (−Z).
+   Полосы шоссе: E1,E2 (на восток, E2 — правая), W1,W2 (на запад). Поперечная: CS (на юг), CN (на север).
+   ===================================================================== */
+// Профиль съезда — это строки [x, ось плиты z, ширина, ось полосы движения z] и высоты ys (в направлении «въезд» или «съезд»)
+function mkProf(rows,ys,pr,pi,hw,cr){
+  const P = [], Lp = [], W = [];
+  rows.forEach((r,i)=>{P.push(new V3(r[0],ys[i]-.02,r[1])); Lp.push(new V3(r[0],ys[i],r[3])); W.push(r[2]);});
+  return {P,Lp,W,pr,pi,hw,cr};   // pr/pi — диапазоны индексов парапетов и опор, hw/cr — индексы точек стыка с шоссе и с поперечной
+}
+const TAIL = [[158,11.25,4.5,11.25],[168,10.7,3.4,10.4],[178,10,2,9.2],[188,9.4,.8,7.9],[196,9,.1,6.75]];   // полоса разгона/клин у шоссе
+function directProfile(ctl,w0=.5,u0=0){   // w0 — ширина в начале, u0 — доля пути на земле до начала подъёма                             // прямой съезд: касательно от поперечной дороги до клина у шоссе (направление «въезд»)
+  const C = new THREE.CatmullRomCurve3(ctl.map(([x,z])=>new V3(x,0,z))).getSpacedPoints(70), rows = [], ys = [];
+  C.forEach((p,i)=>{rows.push([p.x,p.z,i<14?w0+(6-w0)*sm(i/14):i<48?6:6-1.5*(i-48)/22,p.z]); ys.push(H*sm(Math.max(0,(i/70-u0)/(1-u0))));});
+  TAIL.forEach(r=>{rows.push(r); ys.push(hwyY(r[0]));});
+  return mkProf(rows,ys,[16,50],[1,70],72,0);
+}
+function loopProfile(full){                                  // петля 270° (направление «съезд»): клин у шоссе → круг → соединение с поперечной
+  const rows = [], ys = [], cx = 41, cz = 42.25, r = 31, m = [];
+  [[10,9.05,.1,6.75],[18,9.6,1.2,7.2],[26,10.1,2.2,8.4],[34,10.7,3.4,10.4],[41,11.25,4.5,11.25]].forEach(w=>{rows.push(w); ys.push(H);});
+  for(let k=1;k<=48;k++){const a = (-90+270*k/48)*Math.PI/180; m.push([cx+r*Math.cos(a),cz+r*Math.sin(a),k<7?4.5+1.5*k/7:6]);}
+  (full?[[8.6,35,6],[5.6,28,6],[3.4,22,6],[3,20,6]]:[[8.6,35,6],[5.6,28,4],[3.4,22,2],[3,20,.5]]).forEach(q=>m.push(q));
+  let L = 0; const d = m.map((q,i)=>i ? (L += Math.hypot(q[0]-m[i-1][0],q[1]-m[i-1][1])) : 0);
+  m.forEach((q,i)=>{rows.push([q[0],q[1],q[2],q[1]]); ys.push(H*(1-sm(d[i]/L)));});
+  return mkProf(rows,ys,[8,50],[6,52],3,rows.length-1);
+}
+const PROFILES = {
+  RP:directProfile([[3,100],[8,80],[32,58],[70,40],[102,25],[125,15.5],[145,11.25]]),            // ближний (ромб)
+  RO:directProfile([[3,130],[10,108],[35,96],[75,86],[112,66],[134,42],[145,22],[152,12.6]]),    // внешний (обходит петлю)
+  RJ:directProfile([[14,100],[50,97],[90,76],[118,46],[136,22],[148,12.5],[152,11.25]],6),   // ромб: от перекрёстка у поперечной дороги к шоссе
+  RC:directProfile([[14,4.5],[45,4.6],[75,8.5],[105,13],[135,12.2],[152,11.25]],6,.3),       // SPUI: от центра под путепроводом, затем подъём
+  LP:loopProfile(),
+  LT:loopProfile(1)   // то же, но конец упирается в обрыв дороги на всю ширину полосы
+};
+// набор съездов: prof — профиль; t=[отражение x, отражение z, развернуть]; on — въезд на шоссе; hw/cr — к каким полосам подключён
+const RAMPS = {
+  DSW:{prof:'RJ',t:[-1,1,1],on:0,j:1,hw:'E2',label:'Шоссе (→) ➜ перекрёсток (юг)'},
+  DSE:{prof:'RJ',t:[1,1,0],on:1,j:1,hw:'E2',label:'Перекрёсток (юг) ➜ шоссе (→)'},
+  DNE:{prof:'RJ',t:[1,-1,1],on:0,j:1,hw:'W2',label:'Шоссе (←) ➜ перекрёсток (север)'},
+  DNW:{prof:'RJ',t:[-1,-1,0],on:1,j:1,hw:'W2',label:'Перекрёсток (север) ➜ шоссе (←)'},
+  QSW:{prof:'RC',t:[-1,1,1],on:0,j:1,hw:'E2',label:'Шоссе (→) ➜ центральный перекрёсток'},
+  QSE:{prof:'RC',t:[1,1,0],on:1,j:1,hw:'E2',label:'Центральный перекрёсток ➜ шоссе (→)'},
+  QNE:{prof:'RC',t:[1,-1,1],on:0,j:1,hw:'W2',label:'Шоссе (←) ➜ центральный перекрёсток'},
+  QNW:{prof:'RC',t:[-1,-1,0],on:1,j:1,hw:'W2',label:'Центральный перекрёсток ➜ шоссе (←)'},
+  SW:{prof:'RP',t:[-1,1,1],on:0,hw:'E2',cr:'CS',label:'Шоссе (→) ➜ поперечная дорога'},
+  SE:{prof:'RP',t:[1,1,0],on:1,hw:'E2',cr:'CN',label:'Поперечная дорога ➜ шоссе (→)'},
+  NE:{prof:'RP',t:[1,-1,1],on:0,hw:'W2',cr:'CN',label:'Шоссе (←) ➜ поперечная дорога'},
+  NW:{prof:'RP',t:[-1,-1,0],on:1,hw:'W2',cr:'CS',label:'Поперечная дорога ➜ шоссе (←)'},
+  ESW:{prof:'RO',t:[-1,1,1],on:0,hw:'E2',cr:'CS',label:'Шоссе (→) ➜ поперечная, направо'},
+  ESE:{prof:'RO',t:[1,1,0],on:1,hw:'E2',cr:'CN',label:'Поперечная ➜ шоссе (→), направо'},
+  ENE:{prof:'RO',t:[1,-1,1],on:0,hw:'W2',cr:'CN',label:'Шоссе (←) ➜ поперечная, направо'},
+  ENW:{prof:'RO',t:[-1,-1,0],on:1,hw:'W2',cr:'CS',label:'Поперечная ➜ шоссе (←), направо'},
+  LSE:{prof:'LP',t:[1,1,0],on:0,loop:1,hw:'E2',cr:'CN',label:'Шоссе (→) ➜ поперечная, налево (петля)'},
+  LSW:{prof:'LP',t:[-1,1,1],on:1,loop:1,hw:'E2',cr:'CS',label:'Поперечная ➜ шоссе (→), налево (петля)'},
+  LNW:{prof:'LP',t:[-1,-1,0],on:0,loop:1,hw:'W2',cr:'CS',label:'Шоссе (←) ➜ поперечная, налево (петля)'},
+  LNE:{prof:'LP',t:[1,-1,1],on:1,loop:1,hw:'W2',cr:'CN',label:'Поперечная ➜ шоссе (←), налево (петля)'},
+  TNW:{prof:'LT',t:[-1,-1,0],on:0,loop:1,hw:'W2',cr:'CS',label:'Шоссе (←) ➜ ветка, налево (петля)'},
+  TNE:{prof:'LT',t:[1,-1,1],on:1,loop:1,hw:'W2',cr:'CN',label:'Ветка ➜ шоссе (←), налево (петля)'},
+};
+
+class Plot{
+  constructor(type,x,z){
+    this.type = type; this.g = new THREE.Group(); this.g.position.set(x,0,z);
+    this.lanes = []; this.L = {}; this.ramps = []; this.heads = []; world.add(this.g);
+  }
+  lane(name,pts,v){ const l = new Lane(pts,v); this.L[name] = l; this.lanes.push(l); return l; }
+  base(){                                                // платформа участка
+    const b = new THREE.Mesh(new THREE.BoxGeometry(520,2,420),new THREE.MeshStandardMaterial({color:0x7f9470,roughness:1}));
+    b.position.y = -1.2; b.receiveShadow = true;
+    const r = new THREE.Mesh(new THREE.BoxGeometry(530,1,430),new THREE.MeshStandardMaterial({color:0x4a4f55}));
+    r.position.y = -2.2; this.g.add(b,r);
+  }
+  highway(ranges=[[-100,100]],piers=[[30,16],[55,16],[80,16],[105,16],[145,30],[175,30],[200,30]]){                                             // эстакада с опорами, концы спускаются и обрываются
+    const g = this.g, hwy = [];
+    for(let x=-244;x<=244;x+=4) hwy.push(new V3(x,hwyY(x),0));
+    g.add(ribbon(hwy,{w:18,t:T,topMat:roadMat('hwy')}));
+    ranges.forEach(([a,b])=>{                            // парапеты не ставим там, где примыкают полосы разгона/торможения
+      const par = hwy.filter(p=>p.x>=a && p.x<=b).map(p=>p.clone().setY(p.y+.9));
+      [-8.8,8.8].forEach(o=>g.add(ribbon(par,{w:.4,t:.9,off:o,topMat:conc})));
+    });
+    piers
+      .forEach(([x,w])=>[-x,x].forEach(xx=>pier(g,new V3(xx,hwyY(xx),0),0,w,[-4.5,4.5],T)));
+    const hr = hwy.slice().reverse();
+    this.lane('E1',offsetPts(hwy,2.25),24); this.lane('E2',offsetPts(hwy,6.75),21);
+    this.lane('W1',offsetPts(hr,2.25),24);  this.lane('W2',offsetPts(hr,6.75),21);
+  }
+  cross(z0=-190){                                               // поперечная дорога на земле
+    const cr = []; for(let z=z0;z<=190;z+=10) cr.push(new V3(0,0,z));
+    const cm = roadMat('two'); cm.polygonOffset = true; cm.polygonOffsetFactor = cm.polygonOffsetUnits = -2;
+    this.g.add(ribbon(cr,{w:12,t:.5,topMat:cm}));
+    this.lane('CS',offsetPts(cr,3),14); this.lane('CN',offsetPts(cr.slice().reverse(),3),14);
+  }
+  ramp(key,pd=.3){                                       // pd — доля машин, выбирающих этот съезд/въезд
+    const R = RAMPS[key], [fx,fz,rev] = R.t, pf = PROFILES[R.prof], {P,Lp,W} = pf, N = P.length, g = this.g;
+    const f = a=>a.map(p=>new V3(fx*p.x,p.y,fz*p.z));
+    const pp = f(P), lp = f(Lp), ww = W.slice();
+    if(rev){pp.reverse(); lp.reverse(); ww.reverse();}
+    const mat = roadMat('ramp');
+    g.add(ribbon(pp,{w:6,ws:ww,t:.9,topMat:mat}));
+    const pr = f(P.slice(pf.pr[0],pf.pr[1])).filter(p=>p.y>.9).map(p=>p.setY(p.y+.9));
+    if(pr.length>2) [-2.8,2.8].forEach(o=>g.add(ribbon(pr,{w:.4,t:.9,off:o,topMat:conc})));
+    let acc = 8;
+    for(let i=pf.pi[0];i<=pf.pi[1];i++){
+      acc += P[i].distanceTo(P[i-1]);
+      if(acc>=18 && P[i].y>2.2){acc = 0; const s = sideAt(P,i); pier(g,new V3(fx*P[i].x,P[i].y,fz*P[i].z),Math.atan2(fz*s.x,fx*s.z),8,[0],.9);}
+    }
+    const ln = this.lane(key,lp,R.on?(R.loop?17:22):(R.loop?11:13)), hw = this.L[R.hw], cr = this.L[R.cr]; ln.ramp = true;
+    const ix = i=>rev?N-1-i:i, hI = ix(pf.hw), cI = ix(pf.cr);
+    const near = (l,p)=>{let b = 0, d = 1e9; l.path.pts.forEach((q,i)=>{const e = (q.x-p.x)**2+(q.z-p.z)**2; if(e<d){d = e; b = i;}}); return l.path.cum[b];};
+    if(R.on){                                            // въезд: от поперечной на шоссе, слияние на клине
+      if(!R.j) cr.divs.push({s:near(cr,lp[cI]),lane:ln,sTo:ln.path.cum[cI],p:pd});
+      ln.path.len = ln.path.cum[hI]; ln.next = {lane:hw,sTo:near(hw,lp[hI])};
+    } else {                                             // съезд: от шоссе на поперечную
+      hw.divs.push({s:near(hw,lp[hI]),lane:ln,sTo:ln.path.cum[hI],p:pd});
+      if(!R.j) ln.next = {lane:cr,sTo:near(cr,lp[cI])};
+    }
+    this.ramps.push({key,label:R.label,mat});
+  }
+  crossJ(zs){                                            // поперечная дорога, разрезанная на участки между перекрёстками (zs — центры по убыванию z)
+    const g = this.g, k = zs.length, cr = [];
+    for(let z=-190;z<=190;z+=10) cr.push(new V3(0,0,z));
+    const cm = roadMat('two'); cm.polygonOffset = true; cm.polygonOffsetFactor = cm.polygonOffsetUnits = -2;
+    g.add(ribbon(cr,{w:12,t:.5,topMat:cm}));
+    const line = (x,a,b)=>{const d = Math.sign(b-a), r = []; for(let z=a;d*(b-z)>0;z+=10*d) r.push(new V3(x,0,z)); r.push(new V3(x,0,b)); return r;};
+    const mk = (n,x,a,b,pop)=>{const l = this.lane(n,line(x,a,b),14); l.ramp = !pop; return l;};
+    this.cn = []; this.cs = [];
+    for(let i=0;i<=k;i++){
+      this.cn.push(mk('CN'+i,3,i?zs[i-1]-12:190,i<k?zs[i]+12:-190,!i));
+      this.cs.push(mk('CS'+i,-3,i?zs[k-i]+12:-190,i<k?zs[k-1-i]-12:190,!i));
+    }
+    this.cs[k].rs = this.cn[0]; this.cn[k].rs = this.cs[0];   // у обрыва дороги машина «разворачивается» на встречную
+  }
+  head(l,jn,i){                                          // стоп-линия и светофор у конца подхода l
+    const P = l.path.pts, n = P.length, e = P[n-1], s = sideAt(P,n-1), gr = new THREE.Group();
+    gr.position.set(e.x,.03,e.z); gr.rotation.y = Math.atan2(s.x,s.z);
+    gr.add(new THREE.Mesh(new THREE.BoxGeometry(.5,.04,5.6),new THREE.MeshBasicMaterial({color:0xffffff})));
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,5,8),pierM); pole.position.set(0,2.5,5.6); gr.add(pole);
+    const lamps = [0xff2a2a,0xffc400,0x32e05a].map((c,k)=>{
+      const m = new THREE.MeshBasicMaterial({color:0x333333}), b = new THREE.Mesh(new THREE.SphereGeometry(.28,10,8),m);
+      b.position.set(-.35,5.7-k*.65,5.6); gr.add(b); return [m,c];
+    });
+    this.g.add(gr); this.heads.push({jn,i,lamps});
+  }
+  // перекрёсток: подходы A (у каждого свой сигнал) → выходы X; moves = [подход, выход, доля]; первый манёвр подхода — основной
+  junction(zc,A,X,moves){
+    const jn = new Junction(A.length);
+    this.g.add(ribbon([new V3(-14,-.01,zc),new V3(14,-.01,zc)],{w:24,t:.3,topMat:roadMat('plain')}));
+    A.forEach((l,i)=>{l.sig = jn; l.grp = i; this.head(l,jn,i);});
+    moves.forEach(([a,x,p])=>{
+      const P = A[a].path.pts, Q = X[x].path.pts, s0 = P[P.length-1], s1 = Q[0];
+      const t0 = s0.clone().sub(P[P.length-2]).setY(0).normalize(), t1 = Q[1].clone().sub(s1).setY(0).normalize();
+      const k = Math.hypot(s1.x-s0.x,s1.z-s0.z)*.45, z0 = s0.clone().setY(0), z1 = s1.clone().setY(0);
+      const c = new THREE.CubicBezierCurve3(z0,z0.clone().addScaledVector(t0,k),z1.clone().addScaledVector(t1,-k),z1);
+      const ln = this.lane('J'+this.lanes.length,c.getSpacedPoints(14),9); ln.ramp = true; ln.next = {lane:X[x],sTo:0};
+      const la = A[a];
+      if(!la.next) la.next = {lane:ln,sTo:0}; else la.divs.push({s:la.path.len,lane:ln,sTo:0,p,gap:8});
+    });
+  }
+  diamondJ(j){                                           // ромб: перекрёсток j (0 — южный, 1 — северный); подходы: дальний, от шоссе, съезд
+    const k = this.cn.length-1, cn = this.cn, cs = this.cs, L = this.L;
+    const [O,I,OX,IX] = j ? [cs[0],cn[1],cn[2],cs[1]] : [cn[0],cs[k-1],cs[k],cn[1]];
+    this.junction(j?-100:100,[O,I,j?L.DNE:L.DSW],[OX,IX,j?L.DNW:L.DSE],[[0,1,0],[0,2,.35],[1,0,0],[1,2,.3],[2,0,0],[2,1,.5]]);
+  }
+  spuiJ(){                                               // один перекрёсток из 4 подходов под путепроводом
+    const L = this.L, cn = this.cn, cs = this.cs;
+    this.junction(0,[cn[0],cs[0],L.QSW,L.QNE],[cs[1],cn[1],L.QNW,L.QSE],
+      [[0,1,0],[0,3,.3],[0,2,.3],[1,0,0],[1,2,.3],[1,3,.3],[2,0,0],[2,1,.4],[3,1,0],[3,0,.4]]);
+  }
+  finish(){                                              // привязать полосы к месту участка и запустить трафик
+    this.lanes.forEach(l=>{
+      l.path.pts.forEach(p=>p.add(this.g.position)); allLanes.push(l);
+      if(!l.ramp){ const n = Math.round(l.path.len/42); for(let k=0;k<n;k++) mkCar(l,(k+.3+Math.random()*.4)/n*l.path.len,l.v*.8); }
+    });
+  }
+}
+
+/* =====================================================================
+   5. РЕЕСТР РАЗВЯЗОК — чтобы добавить новый тип, достаточно ещё одной записи
+   ===================================================================== */
+const TYPES = [
+  {name:'Ромбовидная (diamond)',
+   desc:'Шоссе на эстакаде над поперечной дорогой. Съезды и въезды выходят на два перекрёстка со светофорами по обе стороны от шоссе: можно повернуть и направо, и налево.',
+   build:p=>{p.base(); p.highway(); p.crossJ([100,-100]); ['DSW','DSE','DNE','DNW'].forEach(k=>p.ramp(k)); p.diamondJ(0); p.diamondJ(1);}},
+  {name:'Неполная (полуромб)',
+   desc:'Съезд и въезд только с южной стороны, один перекрёсток со светофором. С северной стороны шоссе развязки нет.',
+   build:p=>{p.base(); p.highway(); p.crossJ([100]); ['DSW','DSE'].forEach(k=>p.ramp(k)); p.diamondJ(0);}},
+  {name:'Клеверный лист (cloverleaf)',
+   desc:'Без пересечений в одном уровне: левые повороты — петли на 270°, правые — внешние прямые съезды. Все 8 съездов/въездов.',
+   build:p=>{p.base(); p.highway([[-100,-45],[-8,8],[45,100]]); p.cross(); ['LSE','LSW','LNW','LNE','ESW','ESE','ENE','ENW'].forEach(k=>p.ramp(k));}},
+  {name:'Неполный клеверный лист (2 петли)',
+   desc:'Петли только в двух противоположных квадрантах: левый поворот с шоссе (→) на поперечную и с шоссе (←) на поперечную в другую сторону. Все правые повороты есть, остальные левые недоступны.',
+   build:p=>{p.base(); p.highway([[-100,-45],[-8,8],[45,100]]); p.cross(); ['LSE','LNW','ESW','ESE','ENE','ENW'].forEach(k=>p.ramp(k));}},
+  {name:'Трубка (T-образная)',
+   desc:'Ветка подходит с юга, проходит под шоссе и заканчивается за ним. Правые повороты — прямые съезды с южной стороны, левые — две петли с дальней (северной) стороны; все машины с ветки на север уходят на петлю.',
+   build:p=>{p.base(); p.highway([[-100,-45],[-8,8],[45,100]]); p.cross(-20); p.L.CS.rs = p.L.CN; ['SW','SE','TNW'].forEach(k=>p.ramp(k)); p.ramp('TNE',1);}},
+  {name:'Однополюсная (SPUI)',
+   desc:'Все четыре съезда/въезда сходятся в один перекрёсток со светофором прямо под путепроводом (опоры в средней части эстакады убраны ради проезда).',
+   build:p=>{p.base(); p.highway([[-100,100]],[[80,16],[105,16],[145,30],[175,30],[200,30]]); p.crossJ([0]); ['QSW','QSE','QNE','QNW'].forEach(k=>p.ramp(k)); p.spuiJ();}},
+  // {name:'Новая развязка', desc:'...', build:p=>{ p.base(); p.highway(); p.cross(); /* свои p.ramp(..) или свои ленты/опоры через ribbon, pier, p.lane */ }},
+];
+const SPACING = 620;                                     // шаг между участками вдоль X
+const plots = TYPES.map((t,i)=>{ const p = new Plot(t,i*SPACING,0); t.build(p); p.finish(); return p; });
+
+/* =====================================================================
+   6. ИНТЕРФЕЙС: меню типов, манёвры, перелёт камеры
+   ===================================================================== */
+let cur = null, fly = null, run = true; const active = new Set();
+const el = id => document.getElementById(id);
+function select(i){
+  cur = plots[i]; active.clear();
+  [...el('types').children].forEach((b,k)=>b.classList.toggle('on',k===i));
+  el('desc').textContent = cur.type.desc;
+  el('routes').innerHTML = '';
+  cur.ramps.forEach(r=>{
+    const b = document.createElement('button'); b.textContent = r.label;
+    b.onclick = ()=>{ b.classList.toggle('on'); active.has(r.key) ? active.delete(r.key) : active.add(r.key); };
+    el('routes').appendChild(b);
+  });
+  const c = cur.g.position, rel = camera.position.clone().sub(controls.target), t1 = new V3(c.x,3,c.z);
+  fly = {t:0,t0:controls.target.clone(),t1,c0:camera.position.clone(),c1:t1.clone().add(rel)};
+  sun.position.set(c.x+150,250,c.z+100); sun.target.position.copy(c);
+}
+TYPES.forEach((t,i)=>{
+  const b = document.createElement('button'); b.textContent = t.name; b.onclick = ()=>select(i); el('types').appendChild(b);
+});
+el('tr').onchange = e=>run = e.target.checked;
+addEventListener('resize',()=>{ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+select(0); fly = null;
+
+const clock = new THREE.Clock();
+(function loop(){
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(),.05), t = clock.elapsedTime;
+  if(run) simStep(dt);
+  if(fly){
+    fly.t = Math.min(1,fly.t+dt/1.1); const k = sm(fly.t);
+    controls.target.lerpVectors(fly.t0,fly.t1,k); camera.position.lerpVectors(fly.c0,fly.c1,k);
+    if(fly.t>=1) fly = null;
+  }
+  plots.forEach(p=>p.heads.forEach(h=>{const st = h.jn.state(h.i); h.lamps.forEach(([m,c],k)=>m.color.setHex(k===st?c:0x333333));}));
+  plots.forEach(p=>p.ramps.forEach(r=>{
+    r.mat.emissive.setHex(0xff7a00);
+    r.mat.emissiveIntensity = (p===cur && active.has(r.key)) ? .35+.25*Math.sin(t*5) : 0;
+  }));
+  controls.update(); renderer.render(scene,camera);
+})();
+</script>
+</body>
+</html>

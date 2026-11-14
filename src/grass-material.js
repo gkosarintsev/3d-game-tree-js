@@ -77,8 +77,8 @@ float grassNoise(vec2 p) {
   grassK *= mix(0.92, 1.08, grassPatch);
   if (uGrassSlope > 0.5) {
     float up = clamp(vGrassWorldNormal.y, 0.0, 1.0);
-    float flat = smoothstep(0.25, 0.85, up);
-    grassK = mix(1.0, grassK, flat);
+    float slopeFlat = smoothstep(0.25, 0.85, up);
+    grassK = mix(1.0, grassK, slopeFlat);
   }
   diffuseColor.rgb *= grassK;
 }`
