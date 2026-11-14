@@ -261,20 +261,32 @@ export class JsonMap extends SurfaceField {
 
   /** Меш ленты: плоские нормали граней — та же нарезка, что у луча. */
   _sweepGeo(tris) {
-    const pos = [], nor = [], uv = [];
-    for (const { a, b, c, n } of tris) {
-      pos.push(...a, ...b, ...c);
-      nor.push(...n, ...n, ...n);
-      uv.push(0, 0, 1, 0, 0.5, 1);
+    const n = tris.length;
+    const pos = new Float32Array(n * 9);
+    const nor = new Float32Array(n * 9);
+    const uv = new Float32Array(n * 6);
+    let pi = 0, ni = 0, ui = 0;
+    for (let i = 0; i < n; i++) {
+      const t = tris[i], a = t.a, b = t.b, c = t.c, nn = t.n;
+      pos[pi] = a[0]; pos[pi + 1] = a[1]; pos[pi + 2] = a[2];
+      pos[pi + 3] = b[0]; pos[pi + 4] = b[1]; pos[pi + 5] = b[2];
+      pos[pi + 6] = c[0]; pos[pi + 7] = c[1]; pos[pi + 8] = c[2];
+      nor[ni] = nn[0]; nor[ni + 1] = nn[1]; nor[ni + 2] = nn[2];
+      nor[ni + 3] = nn[0]; nor[ni + 4] = nn[1]; nor[ni + 5] = nn[2];
+      nor[ni + 6] = nn[0]; nor[ni + 7] = nn[1]; nor[ni + 8] = nn[2];
+      uv[ui] = 0; uv[ui + 1] = 0; uv[ui + 2] = 1; uv[ui + 3] = 0; uv[ui + 4] = 0.5; uv[ui + 5] = 1;
+      pi += 9; ni += 9; ui += 6;
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     // индекс обязателен: в общем ключе `decks` лента лежит рядом с призмами
     // настилов, а `mergeGeometries` отказывает смеси индексированных и нет
     // (возвращает null, и глава падает без единого меша)
-    geo.setIndex(Array.from({ length: pos.length / 3 }, (_, i) => i));
+    const idx = new Uint32Array(n * 3);
+    for (let i = 0, l = idx.length; i < l; i++) idx[i] = i;
+    geo.setIndex(new THREE.BufferAttribute(idx, 1));
     return geo;
   }
 
@@ -2634,12 +2646,19 @@ export class JsonMap extends SurfaceField {
   }
 
   build(scene) {
+    const prof = (typeof globalThis !== 'undefined' && globalThis.__mapBuildProfile);
+    const t0 = prof ? performance.now() : 0;
     const pic = this._buildPicture(scene, this.geo, null, this.waterRects);
     this.sceneObjects = pic.objs;
     this.realLights = pic.lights;
     this.windowCount = pic.windows;
     this.signageCount = pic.signage;
     this.clutterCount = pic.clutter;
+    if (prof) {
+      const p = this.lastBuildProfile || (this.lastBuildProfile = {});
+      p.pictureMs = performance.now() - t0;
+      if (typeof globalThis !== 'undefined') globalThis.__lastMapBuildProfile = p;
+    }
   }
 
   /**
