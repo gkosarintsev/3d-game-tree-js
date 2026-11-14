@@ -79,6 +79,12 @@ export class UI {
     this.search.className = 'viz-search';
     this.search.addEventListener('input', () => this.onChange({ type: 'search', value: this.search.value }));
 
+    const detailWrap = el('label', 'viz-inline');
+    this.detailCheck = document.createElement('input'); this.detailCheck.type = 'checkbox'; this.detailCheck.checked = false;
+    this.detailCheck.title = 'Детальная визуализация (текстуры/меши как в игре, тяжело для больших карт)';
+    this.detailCheck.addEventListener('change', () => this.onChange({ type: 'detail', value: this.detailCheck.checked }));
+    detailWrap.append(this.detailCheck, ' detail');
+
     const copyBtn = el('button', 'viz-btn', 'Copy link');
     copyBtn.addEventListener('click', () => this.onAction({ type: 'copyLink' }));
     const reloadBtn = el('button', 'viz-btn', 'Reload');
@@ -87,7 +93,7 @@ export class UI {
     this.toolbar.append(
       el('span', 'viz-tool-label', 'Level'), this.levelSelect,
       el('span', 'viz-tool-label', 'Mode'), this.modeSelect,
-      views, gridWrap, labelsWrap, this.labelBudget, this.search, copyBtn, reloadBtn,
+      views, gridWrap, labelsWrap, detailWrap, this.labelBudget, this.search, copyBtn, reloadBtn,
     );
   }
 

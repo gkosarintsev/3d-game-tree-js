@@ -20,6 +20,10 @@ Open: `http://localhost:8124/tools/level-visualizer.html?level=19`
 - `compiled` — what is actually built (decoded `chunk-*.l14b` + skeleton + report). Default when catalog exists.
 - `compare` — compiled + source matching context (declared-missing checks, provenance/source pointers).
 
+**Render mode:**
+- **Schematic** (default) — data/provenance visualization (colored decks, footprints, skeleton, etc.).
+- **Detail** (checkbox `detail`) — game-like textured visualization: buildings, roads/decks, props, channels with materials/textures/details built via engine rendering (`JsonMap`) from compiled chunk data (whole level). Available in `compiled`/`compare` when catalog chunks are loaded. Heavy on large levels (builds meshes/nav structures); schematic layers for geometry are hidden while detail is on.
+
 The source JSON is always loaded (it provides plate/bounds/anchors/district geometry/pointers).
 
 ## Supported levels
@@ -35,7 +39,8 @@ Files use zero-padding: `level-07.json`, `level-09.json`.
 - Views: `1` top (plan XZ), `2` front, `3` side, `4` free (orbit).
 - `F` focus selection, `Shift+F` facade/profile focus, `R` reset, `Backspace` back, `Esc` clear.
 - `G` grid, `L` labels, `/` search, mouse wheel zoom, MMB/RMB pan (ortho), OrbitControls in free.
-- URL state: `?level=&mode=&view=&labels=&grid=&budget=`. `Copy link` copies current URL. `Reload` refetches with cache-bust.
+- `detail` checkbox — toggle textured/detailed rendering (whole compiled map).
+- URL state: `?level=&mode=&view=&labels=&grid=&detail=&budget=`. `Copy link` copies current URL. `Reload` refetches with cache-bust.
 
 ## Provenance & legend
 
@@ -53,11 +58,12 @@ Notes:
 
 ## Limitations
 
-- Data visualization (decks/footprints/skeleton), not the game’s runtime render/collision/nav result.
+- Schematic mode is a data visualization (decks/footprints/skeleton), not the game’s runtime render/collision/nav result. Detail mode reuses engine mesh building for a closer look, but is still a dev visualizer (no gameplay simulation/streaming).
+- Detail mode merges and builds the whole loaded compiled level (may be slow/memory-heavy on large maps); chunk-by-chunk selective loading is not yet exposed as a separate UI control.
 - Source may declare `coordinateSystem.up: "Z"` while data is Y-up; visualizer normalizes to Y-up and warns.
 - Auto-district geometry is not persisted in 16/17 reports/chunks (pipeline change needed for true polygons, TASK-009).
 - After rebuilding level catalogs, browser ESM/import caches may keep old chunks: use **Reload** or hard refresh (Ctrl+F5).
-- Relief layer is an approximate context from `map.relief.hills`, not collision terrain.
+- Relief layer (schematic) is an approximate context from `map.relief.hills`, not collision terrain.
 
 ## Tests
 

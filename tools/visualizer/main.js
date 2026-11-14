@@ -5,6 +5,7 @@ import { SceneRenderer } from './render.js';
 import { ViewManager } from './views.js';
 import { LabelLayer, labelText, labelEligible, tierFromMetersPerPixel } from './labels.js';
 import { UI } from './ui.js';
+import { createDetailedView } from './detail.js';
 
 const appEl = document.getElementById('app');
 const ui = new UI(appEl, { onChange: handleUiChange, onAction: handleAction });
@@ -15,6 +16,7 @@ let state = {
   view: 'top',
   labels: true,
   grid: true,
+  detail: false,
   labelBudget: 60,
   selectedId: null,
   selectedKind: null,
@@ -29,6 +31,8 @@ let labelLayer = null;
 let raf = 0;
 let dirty = true;
 let loadingToken = 0;
+let detailHandle = null;
+let detailToken = 0;
 
 function readUrl() {
   const p = new URLSearchParams(location.search);
@@ -37,6 +41,7 @@ function readUrl() {
   if (p.has('view')) state.view = p.get('view') || state.view;
   if (p.has('labels')) state.labels = p.get('labels') !== '0';
   if (p.has('grid')) state.grid = p.get('grid') !== '0';
+  if (p.has('detail')) state.detail = p.get('detail') === '1';
   if (p.has('budget')) state.labelBudget = Number(p.get('budget')) || state.labelBudget;
 }
 
@@ -47,6 +52,7 @@ function writeUrl() {
   p.set('view', state.view);
   if (!state.labels) p.set('labels', '0');
   if (!state.grid) p.set('grid', '0');
+  if (state.detail) p.set('detail', '1');
   if (state.labelBudget !== 60) p.set('budget', String(state.labelBudget));
   const url = `${location.pathname}?${p.toString()}`;
   history.replaceState(null, '', url);
@@ -81,6 +87,7 @@ async function boot() {
   ui.modeSelect.value = state.mode;
   ui.gridCheck.checked = state.grid;
   ui.labelsCheck.checked = state.labels;
+  if (ui.detailCheck) ui.detailCheck.checked = state.detail;
   ui.labelBudget.value = String(state.labelBudget);
   ui.updateViewButtons(state.view);
   labelLayer = new LabelLayer(ui.labelsHost);
@@ -127,6 +134,57 @@ async function reloadLevel(cacheBust = 0) {
   }
 }
 
+function clearDetail() {
+  detailToken++;
+  if (detailHandle) {
+    try { detailHandle.dispose?.(); } catch {}
+    detailHandle = null;
+  }
+  if (renderer) renderer.setDetailGroup(null, false);
+}
+
+async function ensureDetail() {
+  if (!state.detail) { clearDetail(); markDirty(); return; }
+  if (!raw?.compiledIndex || !raw?.decodedCells) {
+    ui.addBanner('Детальный режим доступен только при загруженном compiled-каталоге (режим compiled/compare).', 'warn');
+    state.detail = false;
+    if (ui.detailCheck) ui.detailCheck.checked = false;
+    writeUrl();
+    clearDetail();
+    return;
+  }
+  clearDetail();
+  const token = ++detailToken;
+  ui.setLoading('Детализация: подготовка данных…');
+  try {
+    const handle = await createDetailedView({
+      source: raw.source,
+      compiledIndex: raw.compiledIndex,
+      decodedCells: raw.decodedCells,
+      onProgress: (p) => {
+        if (token !== detailToken) return;
+        if (p === 'build-spec') ui.setLoading('Детализация: построение карты/навигации…');
+        else if (p === 'build-visuals') ui.setLoading('Детализация: построение мешей и текстур…');
+      },
+    });
+    if (token !== detailToken) { try { handle.dispose(); } catch {} return; }
+    detailHandle = handle;
+    if (renderer) renderer.setDetailGroup(handle.group, true);
+    ui.setLoading('');
+    ui.addBanner('Детальный режим: показаны текстуры и меши как в игре (схематические слои скрыты).', 'info');
+  } catch (e) {
+    if (token !== detailToken) return;
+    console.error(e);
+    ui.setLoading('');
+    ui.addBanner(`Ошибка детализации: ${formatError(e)}`, 'error');
+    state.detail = false;
+    if (ui.detailCheck) ui.detailCheck.checked = false;
+    clearDetail();
+    writeUrl();
+  }
+  markDirty();
+}
+
 function buildAndMount() {
   const t0 = performance.now();
   model = buildModel({
@@ -141,6 +199,7 @@ function buildAndMount() {
   model.meta.phases = raw.phases || {};
   if (raw.decodedCells) model.stats.decodeMs = 0; // decode time not tracked per-chunk in loader; approximate later if needed
 
+  clearDetail();
   if (renderer) renderer.dispose();
   if (viewManager) viewManager.dispose();
   renderer = new SceneRenderer(ui.canvas, model);
@@ -157,15 +216,19 @@ function buildAndMount() {
   if (!raw.report && state.mode === 'compiled') {
     if (raw.source?.schemaVersion == null || raw.source?.schemaVersion < 4) ui.addBanner('v3: generation-report.json отсутствует (норма для v3).', 'info');
   }
-  if (raw.source && !raw.compiledIndex && state.mode === 'source') {
-    // ok
-  }
   ui.setLegend(model.stats.byOrigin);
   ui.setDiagnostics(model.diagnostics, { onFocus: focusDiagnostic });
   selectEntity(null);
   ui.updateViewButtons(state.view);
   writeUrl();
   markDirty();
+  // async detailed build if requested
+  if (state.detail) {
+    ensureDetail().catch(e => {
+      console.error(e);
+      ui.addBanner(`Ошибка детализации: ${formatError(e)}`, 'error');
+    });
+  }
   if (window.__viz) window.__viz.ready = true;
   console.log('visualizer ready', state.level, model.stats);
 }
@@ -206,6 +269,7 @@ function handleUiChange(ev) {
   if (ev.type === 'view') { state.view = ev.value; viewManager?.setView(ev.value); ui.updateViewButtons(ev.value); renderer?.updateGrid(viewManager); writeUrl(); markDirty(); }
   if (ev.type === 'grid') { state.grid = !!ev.value; renderer.gridOpts.enabled = state.grid; renderer.setLayer('grid', state.grid); renderer.updateGrid(viewManager); writeUrl(); markDirty(); }
   if (ev.type === 'labels') { state.labels = !!ev.value; labelLayer.setEnabled(state.labels); ui.layerChecks.labels.checked = state.labels; writeUrl(); markDirty(); }
+  if (ev.type === 'detail') { state.detail = !!ev.value; writeUrl(); ensureDetail(); }
   if (ev.type === 'labelBudget') { state.labelBudget = ev.value; labelLayer.setBudget(ev.value); writeUrl(); markDirty(); }
   if (ev.type === 'layer') {
     if (ev.key === 'labels') { state.labels = !!ev.value; labelLayer.setEnabled(state.labels); ui.labelsCheck.checked = state.labels; }

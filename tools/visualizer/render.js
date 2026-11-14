@@ -58,6 +58,8 @@ export class SceneRenderer {
       grid: new THREE.Group(),
     };
     for (const g of Object.values(this.layers)) this.scene.add(g);
+    this.detailGroup = null;
+    this.detailMode = false;
     this.pickables = [];
     this.selectedId = null;
     this.hoverId = null;
@@ -436,11 +438,22 @@ export class SceneRenderer {
   }
 
   applyLayerState() {
+    const schematicHidden = new Set(['plate', 'roads', 'rails', 'buildings', 'props', 'lights', 'channels', 'relief']);
     for (const [k, g] of Object.entries(this.layers)) {
       if (k === 'grid') { g.visible = !!(this.layerState.grid && this.gridOpts.enabled); continue; }
-      if (k === 'rails') { g.visible = !!this.layerState.roads && !!this.layerState.rails; continue; }
+      if (k === 'rails') { g.visible = !this.detailMode && !!this.layerState.roads && !!this.layerState.rails; continue; }
+      if (this.detailMode && schematicHidden.has(k)) { g.visible = false; continue; }
       g.visible = this.layerState[k] !== false;
     }
+    if (this.detailGroup) this.detailGroup.visible = !!this.detailMode;
+  }
+
+  setDetailGroup(group, on) {
+    if (this.detailGroup && this.detailGroup.parent) this.scene.remove(this.detailGroup);
+    this.detailGroup = group || null;
+    this.detailMode = !!on && !!group;
+    if (this.detailGroup) this.scene.add(this.detailGroup);
+    this.applyLayerState();
   }
 
   setLayer(name, on) { this.layerState[name] = !!on; this.applyLayerState(); }
@@ -472,6 +485,8 @@ export class SceneRenderer {
   }
 
   dispose() {
+    if (this.detailGroup && this.detailGroup.parent) this.scene.remove(this.detailGroup);
+    this.detailGroup = null;
     for (const g of Object.values(this.layers)) {
       this.scene.remove(g);
     }
