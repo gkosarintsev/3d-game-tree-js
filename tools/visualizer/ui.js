@@ -246,17 +246,34 @@ export class UI {
   setStatus(text) { this.status.textContent = text; }
 
   addBanner(text, kind = 'warn') {
-    const b = el('div', `viz-banner ${kind}`, text);
+    const b = el('div', `viz-banner ${kind}`);
+    const span = el('span', 'viz-banner-text', text);
+    const close = el('button', 'viz-banner-close', '×');
+    close.type = 'button';
+    close.title = 'Закрыть';
+    close.addEventListener('click', () => b.remove());
+    b.append(span, close);
     this.bannerHost.append(b);
     return b;
   }
-  clearBanners() { this.bannerHost.innerHTML = ''; }
+  clearBanners() { this.bannerHost.innerHTML = ''; this._loadingBanner = null; }
 
   setLoading(text) {
     let b = this._loadingBanner;
     if (!text) { if (b) b.remove(); this._loadingBanner = null; return; }
-    if (!b) { b = el('div', 'viz-banner info'); this.bannerHost.prepend(b); this._loadingBanner = b; }
-    b.textContent = text;
+    if (!b) {
+      b = el('div', 'viz-banner info');
+      const span = el('span', 'viz-banner-text');
+      const close = el('button', 'viz-banner-close', '×');
+      close.type = 'button';
+      close.title = 'Закрыть';
+      close.addEventListener('click', () => { b.remove(); if (this._loadingBanner === b) this._loadingBanner = null; });
+      b.append(span, close);
+      this.bannerHost.prepend(b);
+      this._loadingBanner = b;
+    }
+    const span = b.querySelector('.viz-banner-text');
+    if (span) span.textContent = text; else b.textContent = text;
   }
 
   updateViewButtons(view) {

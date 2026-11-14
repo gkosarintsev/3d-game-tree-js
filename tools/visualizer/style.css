@@ -26,7 +26,14 @@ html, body, #app { margin: 0; height: 100%; background: var(--bg); color: var(--
 .viz-banner {
   pointer-events: auto; padding: 6px 10px; border-radius: 4px; font-size: 12px;
   border: 1px solid var(--border); background: rgba(21,27,35,.95);
+  display: flex; align-items: flex-start; gap: 8px;
 }
+.viz-banner-text { flex: 1; min-width: 0; }
+.viz-banner-close {
+  background: transparent; border: none; color: inherit; cursor: pointer;
+  font-size: 16px; line-height: 1; padding: 0 2px; opacity: 0.8;
+}
+.viz-banner-close:hover { opacity: 1; }
 .viz-banner.warn { border-color: #7a5a20; color: #ffd38a; }
 .viz-banner.error { border-color: #7a2a30; color: #ff9aa8; }
 .viz-banner.info { border-color: #23466e; color: #9fd1ff; }
