@@ -149,8 +149,8 @@ function buildAndMount() {
   renderer.updateGrid(viewManager);
   renderer.applyLayerState();
 
-  for (const w of model.meta.warnings || []) ui.addBanner(w.message, 'warn');
-  if (!raw.report && state.mode !== 'source') {
+  for (const w of model.meta.warnings || []) ui.addBanner(w.message, w.code === 'source-generated-empty' ? 'info' : 'warn');
+  if (!raw.report && state.mode === 'compiled') {
     if (raw.source?.schemaVersion == null || raw.source?.schemaVersion < 4) ui.addBanner('v3: generation-report.json отсутствует (норма для v3).', 'info');
   }
   if (raw.source && !raw.compiledIndex && state.mode === 'source') {

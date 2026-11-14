@@ -652,8 +652,16 @@ export function buildModel({ level, mode, source, compiledIndex, decodedCells, r
   const declaredUp = source?.cityforge?.world?.coordinateSystem?.up || null;
   const mismatch = declaredUp === 'Z';
   if (mismatch) warnings.push({ code: 'coord-up-z', message: 'Источник объявляет coordinateSystem.up="Z", данные читаются как Y-up.' });
-  if (!report && source?.schemaVersion >= 4) warnings.push({ code: 'report-missing', message: 'generation-report.json не найден.' });
-  if (!report && (source?.schemaVersion == null || source?.schemaVersion < 4)) warnings.push({ code: 'v3-no-report', message: 'v3: отчёт/районы не предусмотрены.' });
+  if (mode !== 'source' && !report && source?.schemaVersion >= 4) warnings.push({ code: 'report-missing', message: 'generation-report.json не найден.' });
+  if (!report && (source?.schemaVersion == null || source?.schemaVersion < 4) && mode !== 'source') warnings.push({ code: 'v3-no-report', message: 'v3: отчёт/районы не предусмотрены.' });
+  if (mode === 'source' && source?.schemaVersion >= 4) {
+    const srcRoads = (source?.cityforge?.networks?.roads?.segments || []).length;
+    const srcBuildings = (source?.buildings || []).length;
+    const srcProps = (source?.props || []).length;
+    if (srcRoads === 0 && srcBuildings === 0 && srcProps === 0) {
+      warnings.push({ code: 'source-generated-empty', message: 'Source-режим: геометрия главы генерируется citygen и хранится в compiled-каталоге. Переключитесь в compiled, чтобы увидеть дороги/дома/пропы.' });
+    }
+  }
   if (report?.districts?.length && [...(entities.districts?.values() || [])].some(d => d.geometry?.type === 'none' || d.geometry?.inferred)) {
     warnings.push({ code: 'district-geometry-missing', message: 'Часть районов без сохранённой геометрии (показаны как список/ inferred hull).' });
   }
