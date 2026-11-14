@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { nice125, autoStep, buildGridLines } from './grid.js';
 
+function isNum(v) { return typeof v === 'number' && Number.isFinite(v); }
+
 const COLORS = {
   bg: 0x0d1117,
   plate: 0x1b2430,

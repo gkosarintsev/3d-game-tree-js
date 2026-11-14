@@ -107,7 +107,8 @@ async function reloadLevel(cacheBust = 0) {
   } catch (e) {
     if (token !== loadingToken) return;
     ui.setLoading('');
-    ui.addBanner(`Ошибка загрузки: ${e?.message || e}`, 'error');
+    console.error(e);
+    ui.addBanner(`Ошибка загрузки: ${formatError(e)}`, 'error');
     // fallback: if compiled failed, try source
     if (state.mode !== 'source') {
       try {
@@ -118,7 +119,10 @@ async function reloadLevel(cacheBust = 0) {
         state.mode = 'source';
         ui.modeSelect.value = 'source';
         buildAndMount();
-      } catch {}
+      } catch (e2) {
+        console.error(e2);
+        ui.addBanner(`Ошибка source-fallback: ${formatError(e2)}`, 'error');
+      }
     }
   }
 }
@@ -342,6 +346,18 @@ function loop() {
   }
 }
 
+function formatError(e) {
+  const msg = e?.message || String(e);
+  const stack = String(e?.stack || '');
+  const m = stack.match(/(?:https?:\/\/[^\s)]+|file:\/\/[^\s)]+|[A-Za-z]:\\[^\s)]+|\.{0,2}\/[^\s)]+):\d+(?::\d+)?/);
+  if (m) return `${msg} (${m[0]})`;
+  if (stack && stack !== msg) {
+    const line = stack.split('\n').find(l => l.includes(':') && !l.trim().startsWith(msg));
+    if (line) return `${msg} (${line.trim()})`;
+  }
+  return msg;
+}
+
 function exposeDebug() {
   window.__viz = {
     ready: false,
@@ -359,5 +375,5 @@ function exposeDebug() {
 
 boot().catch(e => {
   console.error(e);
-  ui.addBanner(`Fatal: ${e?.message || e}`, 'error');
+  ui.addBanner(`Fatal: ${formatError(e)}`, 'error');
 });
