@@ -1,0 +1,643 @@
+{
+  "version": 1,
+  "generator": {
+    "generatorVersion": "0.1.0",
+    "seed": 19,
+    "deterministic": true
+  },
+  "stages": [
+    {
+      "id": "0_input_space",
+      "status": "ok",
+      "diagnostics": 1,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "1_landscape_hydrology",
+      "status": "ok",
+      "diagnostics": 2,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "2_transport",
+      "status": "ok",
+      "diagnostics": 5,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "3_districts_parcels",
+      "status": "ok",
+      "diagnostics": 3,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "4_buildings_structures",
+      "status": "ok",
+      "diagnostics": 2,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "5_infrastructure_props",
+      "status": "ok",
+      "diagnostics": 2,
+      "repairs": 0,
+      "drops": 0
+    },
+    {
+      "id": "6_finalize_emit",
+      "status": "ok",
+      "diagnostics": 25,
+      "repairs": 18,
+      "drops": 0
+    }
+  ],
+  "districts": [
+    {
+      "id": "d0",
+      "type": "forest",
+      "profileId": "forest",
+      "cells": 0,
+      "parcels": 441,
+      "reservedParcels": 2
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warn",
+      "code": "anchor_far_from_roads",
+      "stage": "2_transport",
+      "message": "exit is >30m from any road path segment",
+      "anchor": "exit"
+    },
+    {
+      "severity": "warn",
+      "code": "anchor_far_from_roads",
+      "stage": "2_transport",
+      "message": "spawn is >30m from any road path segment",
+      "anchor": "spawn"
+    },
+    {
+      "severity": "warn",
+      "code": "road_conflicts_unresolved",
+      "stage": "6_finalize_emit",
+      "message": "could not safely repair 1 same-layer crossing conflict(s)",
+      "count": 1
+    },
+    {
+      "severity": "warn",
+      "code": "road_crossing_repair_skipped",
+      "stage": "6_finalize_emit",
+      "message": "skipped crossing repair for 'nb_9' x 'lt1_s4' (would violate slope/geometry constraints)",
+      "segments": [
+        "nb_9",
+        "lt1_s4"
+      ]
+    },
+    {
+      "severity": "warn",
+      "code": "road_same_level_conflict",
+      "stage": "6_finalize_emit",
+      "message": "detected 30 same-layer road crossing conflict(s) without shared junction",
+      "count": 30
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "0_input_space",
+      "message": "stage 0_input_space completed"
+    },
+    {
+      "severity": "info",
+      "code": "landscape_passthrough",
+      "stage": "1_landscape_hydrology",
+      "message": "stage 1 using provided terrain/hydrology (procedural generation pending)",
+      "modifiers": 1,
+      "rivers": 0,
+      "lakes": 0
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "1_landscape_hydrology",
+      "message": "stage 1_landscape_hydrology completed"
+    },
+    {
+      "severity": "info",
+      "code": "road_graph",
+      "stage": "2_transport",
+      "message": "road graph summary",
+      "nodes": 80,
+      "segments": 84,
+      "components": 1
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "2_transport",
+      "message": "stage 2_transport completed"
+    },
+    {
+      "severity": "info",
+      "code": "transport_passthrough",
+      "stage": "2_transport",
+      "message": "stage 2 using provided road network (procedural generation pending)",
+      "nodes": 80,
+      "segments": 84
+    },
+    {
+      "severity": "info",
+      "code": "districts_passthrough",
+      "stage": "3_districts_parcels",
+      "message": "using declared districts",
+      "count": 1
+    },
+    {
+      "severity": "info",
+      "code": "parcels_generated",
+      "stage": "3_districts_parcels",
+      "message": "generated parcels",
+      "districts": 1,
+      "parcels": 441,
+      "byType": {
+        "forest": 1
+      }
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "3_districts_parcels",
+      "message": "stage 3_districts_parcels completed"
+    },
+    {
+      "severity": "info",
+      "code": "buildings_generated",
+      "stage": "4_buildings_structures",
+      "message": "generated buildings from parcels",
+      "count": 28,
+      "budget": 420,
+      "skippedConflict": 7
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "4_buildings_structures",
+      "message": "stage 4_buildings_structures completed"
+    },
+    {
+      "severity": "info",
+      "code": "props_disabled",
+      "stage": "5_infrastructure_props",
+      "message": "infrastructure/props generation disabled"
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "5_infrastructure_props",
+      "message": "stage 5_infrastructure_props completed"
+    },
+    {
+      "severity": "info",
+      "code": "anchors_connected_network",
+      "stage": "6_finalize_emit",
+      "message": "spawn and exit are near a single connected road graph component",
+      "spawnDistance": 0,
+      "exitDistance": 0,
+      "roadComponents": 1
+    },
+    {
+      "severity": "info",
+      "code": "finalize_counts",
+      "stage": "6_finalize_emit",
+      "message": "generation summary",
+      "groundSize": 2560,
+      "stream": {
+        "chunk": 640,
+        "keep": 1,
+        "aheadMin": 260,
+        "aheadMax": 1000,
+        "budgetMs": 120
+      },
+      "chunks": {
+        "grid": 4,
+        "total": 16
+      },
+      "roadNodes": 98,
+      "roadSegments": 120,
+      "roadComponents": 1,
+      "roadGraphNodes": 98,
+      "districts": 1,
+      "districtTypes": [
+        "forest"
+      ],
+      "parcels": 441,
+      "reservedParcels": 2,
+      "parcelAccess": {
+        "near": 68,
+        "mid": 85,
+        "far": 288
+      },
+      "roadAccessByType": {},
+      "buildings": 28,
+      "buildingsByDistrictType": {
+        "forest": 28
+      },
+      "lights": 0,
+      "props": 0,
+      "chunkLoad": {
+        "nonEmptyChunks": 15,
+        "maxBuildings": 4,
+        "maxProps": 0,
+        "maxLights": 0,
+        "avgBuildings": 1.75,
+        "avgProps": 0
+      }
+    },
+    {
+      "severity": "info",
+      "code": "interchange_junction_candidates",
+      "stage": "6_finalize_emit",
+      "message": "identified junction nodes as grade-separation candidates",
+      "count": 2
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_10'",
+      "node": "tr_x_10",
+      "segments": [
+        "nb_br_b_b",
+        "rt2_m"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_11'",
+      "node": "tr_x_11",
+      "segments": [
+        "nb_6",
+        "rt2"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_12'",
+      "node": "tr_x_12",
+      "segments": [
+        "nb_9",
+        "lt3_s2"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_13'",
+      "node": "tr_x_13",
+      "segments": [
+        "sb_2",
+        "lt1_s4"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_14'",
+      "node": "tr_x_14",
+      "segments": [
+        "sb_br_a_a",
+        "rt2_m_b"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_15'",
+      "node": "tr_x_15",
+      "segments": [
+        "sb_7",
+        "rt4_m"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_16'",
+      "node": "tr_x_16",
+      "segments": [
+        "sb_9",
+        "lt1_s2_b"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_17'",
+      "node": "tr_x_17",
+      "segments": [
+        "lt1_s1",
+        "lt4_s1"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_18'",
+      "node": "tr_x_18",
+      "segments": [
+        "lt2_s1",
+        "lt3_s1"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_2'",
+      "node": "tr_x_2",
+      "segments": [
+        "eb_5",
+        "nb_br"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_3'",
+      "node": "tr_x_3",
+      "segments": [
+        "eb_5_b",
+        "sb_br"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_4'",
+      "node": "tr_x_4",
+      "segments": [
+        "eb_8",
+        "lt1_s3"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_5'",
+      "node": "tr_x_5",
+      "segments": [
+        "wb_2",
+        "lt1_s3_b"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_6'",
+      "node": "tr_x_6",
+      "segments": [
+        "wb_5",
+        "nb_br_b"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_7'",
+      "node": "tr_x_7",
+      "segments": [
+        "wb_5_a",
+        "sb_br_a"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_8'",
+      "node": "tr_x_8",
+      "segments": [
+        "wb_8",
+        "lt3_s3_a"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x_9'",
+      "node": "tr_x_9",
+      "segments": [
+        "nb_2",
+        "lt1_s2"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "road_crossing_repaired",
+      "stage": "6_finalize_emit",
+      "message": "repaired same-layer crossing by inserting junction 'tr_x'",
+      "node": "tr_x",
+      "segments": [
+        "eb_2",
+        "lt3_s3"
+      ]
+    },
+    {
+      "severity": "info",
+      "code": "stage_ok",
+      "stage": "6_finalize_emit",
+      "message": "stage 6_finalize_emit completed"
+    }
+  ],
+  "repairs": [
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x",
+      "segments": [
+        "eb_2",
+        "lt3_s3"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_2",
+      "segments": [
+        "eb_5",
+        "nb_br"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_3",
+      "segments": [
+        "eb_5_b",
+        "sb_br"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_4",
+      "segments": [
+        "eb_8",
+        "lt1_s3"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_5",
+      "segments": [
+        "wb_2",
+        "lt1_s3_b"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_6",
+      "segments": [
+        "wb_5",
+        "nb_br_b"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_7",
+      "segments": [
+        "wb_5_a",
+        "sb_br_a"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_8",
+      "segments": [
+        "wb_8",
+        "lt3_s3_a"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_9",
+      "segments": [
+        "nb_2",
+        "lt1_s2"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_10",
+      "segments": [
+        "nb_br_b_b",
+        "rt2_m"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_11",
+      "segments": [
+        "nb_6",
+        "rt2"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_12",
+      "segments": [
+        "nb_9",
+        "lt3_s2"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_13",
+      "segments": [
+        "sb_2",
+        "lt1_s4"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_14",
+      "segments": [
+        "sb_br_a_a",
+        "rt2_m_b"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_15",
+      "segments": [
+        "sb_7",
+        "rt4_m"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_16",
+      "segments": [
+        "sb_9",
+        "lt1_s2_b"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_17",
+      "segments": [
+        "lt1_s1",
+        "lt4_s1"
+      ]
+    },
+    {
+      "stage": "6_finalize_emit",
+      "code": "resolve_road_crossing",
+      "node": "tr_x_18",
+      "segments": [
+        "lt2_s1",
+        "lt3_s1"
+      ]
+    }
+  ],
+  "drops": [],
+  "summary": {
+    "errors": 0,
+    "warnings": 5,
+    "repairs": 18,
+    "drops": 0
+  }
+}

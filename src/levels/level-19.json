@@ -1,0 +1,3789 @@
+{
+  "$schema": "./level-v4.schema.json",
+  "kind": "cityforge",
+  "schemaVersion": 4,
+  "metadata": {
+    "levelName": "level-19",
+    "name": "Глава 19. Турбинная развязка",
+    "hint": "Большая турбинная развязка: правые съезды и спиральные левые рампы вокруг центрального путепровода.",
+    "units": "meters",
+    "notes": "Пустой уровень (без домов): турбинная развязка двух магистралей (З–В по земле, С–Ю по мосту в центре). 4 правых съезда с участками отгона/полосами торможения-разгона и 4 левоповоротные спиральные рампы, закрученные против часовой стрелки с разнесением по высоте. Геометрия и расстояния приближённые, с ограждениями по краям."
+  },
+  "ground": {
+    "y": 0,
+    "size": 2560,
+    "color": 7322954
+  },
+  "windows": {
+    "spacing": 12
+  },
+  "gameplay": {
+    "goal": "exit",
+    "spawn": {
+      "x": -1180,
+      "z": -12
+    },
+    "exit": {
+      "x": -12,
+      "z": 1180
+    },
+    "exitRadius": 5,
+    "enemies": {
+      "count": 0
+    },
+    "alienEnemies": {
+      "count": 0
+    },
+    "cars": {
+      "count": 0,
+      "spots": []
+    }
+  },
+  "stream": {
+    "chunk": 640,
+    "keep": 1,
+    "aheadMin": 260,
+    "aheadMax": 1000,
+    "budgetMs": 120
+  },
+  "cityforge": {
+    "format": "cityforge",
+    "version": "0.1",
+    "world": {
+      "units": "meters",
+      "coordinateSystem": {
+        "type": "local",
+        "handedness": "right",
+        "up": "Z"
+      },
+      "origin": [
+        0,
+        0,
+        0
+      ],
+      "bounds": {
+        "min": [
+          -1280,
+          -1280,
+          -80
+        ],
+        "max": [
+          1280,
+          1280,
+          160
+        ]
+      }
+    },
+    "assets": [
+      {
+        "id": "ground.placeholder",
+        "kind": "procedural",
+        "generator": "placeholder.flat",
+        "bounds": [
+          2560,
+          2560,
+          1
+        ]
+      }
+    ],
+    "terrain": {
+      "base": {
+        "type": "heightfield",
+        "source": "procedural",
+        "resolution": 4
+      },
+      "modifiers": [
+        {
+          "id": "flat_seed",
+          "type": "mountain",
+          "center": [
+            0,
+            0
+          ],
+          "radius": 2,
+          "height": 0.01,
+          "falloff": "smooth",
+          "operation": "add",
+          "sourceRef": "terrain.base",
+          "parameters": {}
+        }
+      ]
+    },
+    "hydrology": {
+      "rivers": [],
+      "lakes": []
+    },
+    "networks": {
+      "roads": {
+        "nodes": [
+          {
+            "id": "eb_ws",
+            "position": [
+              -1200,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_m450",
+            "position": [
+              -450,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_m350",
+            "position": [
+              -350,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_m310",
+            "position": [
+              -310,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_m210",
+            "position": [
+              -210,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_p210",
+            "position": [
+              210,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_p310",
+            "position": [
+              310,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_p350",
+            "position": [
+              350,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_p450",
+            "position": [
+              450,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "eb_es",
+            "position": [
+              1200,
+              0,
+              -12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_es",
+            "position": [
+              1200,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_p450",
+            "position": [
+              450,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_p350",
+            "position": [
+              350,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_p310",
+            "position": [
+              310,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_p210",
+            "position": [
+              210,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_m210",
+            "position": [
+              -210,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_m310",
+            "position": [
+              -310,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_m350",
+            "position": [
+              -350,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_m450",
+            "position": [
+              -450,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "wb_ws",
+            "position": [
+              -1200,
+              0,
+              12
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_ss",
+            "position": [
+              -12,
+              0,
+              -1200
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_m450",
+            "position": [
+              -12,
+              0,
+              -450
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_m350",
+            "position": [
+              -12,
+              0,
+              -350
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_m310",
+            "position": [
+              -12,
+              0,
+              -310
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_m210",
+            "position": [
+              288,
+              0,
+              -210
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_m120",
+            "position": [
+              -12,
+              0,
+              -120
+            ],
+            "layer": "bridge_01"
+          },
+          {
+            "id": "nb_b1",
+            "position": [
+              -12,
+              10,
+              -50
+            ],
+            "layer": "bridge_01"
+          },
+          {
+            "id": "nb_b2",
+            "position": [
+              -12,
+              10,
+              50
+            ],
+            "layer": "bridge_01"
+          },
+          {
+            "id": "nb_p120",
+            "position": [
+              -12,
+              0,
+              120
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_p210",
+            "position": [
+              -12,
+              0,
+              210
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_p310",
+            "position": [
+              -12,
+              0,
+              310
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_p350",
+            "position": [
+              -12,
+              0,
+              350
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_p450",
+            "position": [
+              -12,
+              0,
+              450
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "nb_ns",
+            "position": [
+              -12,
+              0,
+              1200
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_ns",
+            "position": [
+              12,
+              0,
+              1200
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_p450",
+            "position": [
+              12,
+              0,
+              450
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_p350",
+            "position": [
+              12,
+              0,
+              350
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_p310",
+            "position": [
+              12,
+              0,
+              310
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_p210",
+            "position": [
+              12,
+              0,
+              210
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_p120",
+            "position": [
+              12,
+              0,
+              120
+            ],
+            "layer": "bridge_01"
+          },
+          {
+            "id": "sb_b2",
+            "position": [
+              12,
+              10,
+              50
+            ],
+            "layer": "bridge_01"
+          },
+          {
+            "id": "sb_b1",
+            "position": [
+              12,
+              10,
+              -50
+            ],
+            "layer": "bridge_01"
+          },
+          {
+            "id": "sb_m120",
+            "position": [
+              12,
+              0,
+              -120
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_m210",
+            "position": [
+              12,
+              0,
+              -210
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_m310",
+            "position": [
+              12,
+              0,
+              -310
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_m350",
+            "position": [
+              12,
+              0,
+              -350
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_m450",
+            "position": [
+              12,
+              0,
+              -450
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "sb_ss",
+            "position": [
+              12,
+              0,
+              -1200
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "rt1_e",
+            "position": [
+              360,
+              0,
+              -162
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "rt2_e",
+            "position": [
+              -138,
+              0,
+              60
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "rt3_e",
+            "position": [
+              -360,
+              0,
+              162
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "rt4_e",
+            "position": [
+              138,
+              0,
+              -360
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "lt1_p1",
+            "position": [
+              -310,
+              0,
+              -60
+            ],
+            "layer": "bridge_02"
+          },
+          {
+            "id": "lt1_p2",
+            "position": [
+              -310,
+              16,
+              -140
+            ],
+            "layer": "bridge_02"
+          },
+          {
+            "id": "lt1_p3",
+            "position": [
+              -310,
+              16,
+              -400
+            ],
+            "layer": "bridge_02"
+          },
+          {
+            "id": "lt1_p4",
+            "position": [
+              400,
+              16,
+              -400
+            ],
+            "layer": "bridge_02"
+          },
+          {
+            "id": "lt1_p5",
+            "position": [
+              400,
+              16,
+              400
+            ],
+            "layer": "bridge_02"
+          },
+          {
+            "id": "lt1_p6",
+            "position": [
+              -60,
+              16,
+              400
+            ],
+            "layer": "bridge_02"
+          },
+          {
+            "id": "lt1_p7",
+            "position": [
+              -60,
+              0,
+              310
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "lt2_p1",
+            "position": [
+              60,
+              0,
+              310
+            ],
+            "layer": "bridge_03"
+          },
+          {
+            "id": "lt2_p2",
+            "position": [
+              140,
+              18,
+              310
+            ],
+            "layer": "bridge_03"
+          },
+          {
+            "id": "lt2_p3",
+            "position": [
+              400,
+              18,
+              310
+            ],
+            "layer": "bridge_03"
+          },
+          {
+            "id": "lt2_p4",
+            "position": [
+              400,
+              18,
+              -400
+            ],
+            "layer": "bridge_03"
+          },
+          {
+            "id": "lt2_p5",
+            "position": [
+              -400,
+              18,
+              -400
+            ],
+            "layer": "bridge_03"
+          },
+          {
+            "id": "lt2_p6",
+            "position": [
+              -400,
+              18,
+              -60
+            ],
+            "layer": "bridge_03"
+          },
+          {
+            "id": "lt2_p7",
+            "position": [
+              -310,
+              0,
+              -60
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "lt3_p1",
+            "position": [
+              310,
+              0,
+              60
+            ],
+            "layer": "bridge_04"
+          },
+          {
+            "id": "lt3_p2",
+            "position": [
+              310,
+              20,
+              140
+            ],
+            "layer": "bridge_04"
+          },
+          {
+            "id": "lt3_p3",
+            "position": [
+              310,
+              20,
+              400
+            ],
+            "layer": "bridge_04"
+          },
+          {
+            "id": "lt3_p4",
+            "position": [
+              -400,
+              20,
+              400
+            ],
+            "layer": "bridge_04"
+          },
+          {
+            "id": "lt3_p5",
+            "position": [
+              -400,
+              20,
+              -400
+            ],
+            "layer": "bridge_04"
+          },
+          {
+            "id": "lt3_p6",
+            "position": [
+              60,
+              20,
+              -400
+            ],
+            "layer": "bridge_04"
+          },
+          {
+            "id": "lt3_p7",
+            "position": [
+              60,
+              0,
+              -310
+            ],
+            "layer": "ground"
+          },
+          {
+            "id": "lt4_p1",
+            "position": [
+              -60,
+              0,
+              -310
+            ],
+            "layer": "bridge_05"
+          },
+          {
+            "id": "lt4_p2",
+            "position": [
+              -140,
+              22,
+              -310
+            ],
+            "layer": "bridge_05"
+          },
+          {
+            "id": "lt4_p3",
+            "position": [
+              -400,
+              22,
+              -310
+            ],
+            "layer": "bridge_05"
+          },
+          {
+            "id": "lt4_p4",
+            "position": [
+              -400,
+              22,
+              400
+            ],
+            "layer": "bridge_05"
+          },
+          {
+            "id": "lt4_p5",
+            "position": [
+              400,
+              22,
+              400
+            ],
+            "layer": "bridge_05"
+          },
+          {
+            "id": "lt4_p6",
+            "position": [
+              400,
+              22,
+              60
+            ],
+            "layer": "bridge_05"
+          },
+          {
+            "id": "lt4_p7",
+            "position": [
+              310,
+              0,
+              60
+            ],
+            "layer": "ground"
+          }
+        ],
+        "segments": [
+          {
+            "id": "eb_1",
+            "from": "eb_ws",
+            "to": "eb_m450",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -1200,
+                0,
+                -12
+              ],
+              [
+                -450,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": -825,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 750,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "eb_2",
+            "from": "eb_m450",
+            "to": "eb_m350",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -450,
+                0,
+                -12
+              ],
+              [
+                -350,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -400,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "eb_3",
+            "from": "eb_m350",
+            "to": "eb_m310",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -350,
+                0,
+                -12
+              ],
+              [
+                -310,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -330,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 40,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "eb_4",
+            "from": "eb_m310",
+            "to": "eb_m210",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -310,
+                0,
+                -12
+              ],
+              [
+                -210,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -260,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "eb_5",
+            "from": "eb_m210",
+            "to": "eb_p210",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -210,
+                0,
+                -12
+              ],
+              [
+                210,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 0,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 420,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "eb_6",
+            "from": "eb_p210",
+            "to": "eb_p310",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                210,
+                0,
+                -12
+              ],
+              [
+                310,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 260,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "eb_7",
+            "from": "eb_p310",
+            "to": "eb_p350",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                310,
+                0,
+                -12
+              ],
+              [
+                350,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 330,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 40,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "eb_8",
+            "from": "eb_p350",
+            "to": "eb_p450",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                350,
+                0,
+                -12
+              ],
+              [
+                450,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 400,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "eb_9",
+            "from": "eb_p450",
+            "to": "eb_es",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                450,
+                0,
+                -12
+              ],
+              [
+                1200,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": 825,
+                  "z": -12,
+                  "yaw": 0,
+                  "length": 750,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_1",
+            "from": "wb_es",
+            "to": "wb_p450",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                1200,
+                0,
+                12
+              ],
+              [
+                450,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": 825,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 750,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_2",
+            "from": "wb_p450",
+            "to": "wb_p350",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                450,
+                0,
+                12
+              ],
+              [
+                350,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 400,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_3",
+            "from": "wb_p350",
+            "to": "wb_p310",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                350,
+                0,
+                12
+              ],
+              [
+                310,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 330,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 40,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_4",
+            "from": "wb_p310",
+            "to": "wb_p210",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                310,
+                0,
+                12
+              ],
+              [
+                210,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 260,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_5",
+            "from": "wb_p210",
+            "to": "wb_m210",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                210,
+                0,
+                12
+              ],
+              [
+                -210,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 0,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 420,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_6",
+            "from": "wb_m210",
+            "to": "wb_m310",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -210,
+                0,
+                12
+              ],
+              [
+                -310,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -260,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_7",
+            "from": "wb_m310",
+            "to": "wb_m350",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -310,
+                0,
+                12
+              ],
+              [
+                -350,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -330,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 40,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_8",
+            "from": "wb_m350",
+            "to": "wb_m450",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -350,
+                0,
+                12
+              ],
+              [
+                -450,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -400,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "wb_9",
+            "from": "wb_m450",
+            "to": "wb_ws",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -450,
+                0,
+                12
+              ],
+              [
+                -1200,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": -825,
+                  "z": 12,
+                  "yaw": 180,
+                  "length": 750,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_1",
+            "from": "nb_ss",
+            "to": "nb_m450",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                -1200
+              ],
+              [
+                -12,
+                0,
+                -450
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": -12,
+                  "z": -825,
+                  "yaw": 90,
+                  "length": 750,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_2",
+            "from": "nb_m450",
+            "to": "nb_m350",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                -450
+              ],
+              [
+                -12,
+                0,
+                -350
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": -400,
+                  "yaw": 90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_3",
+            "from": "nb_m350",
+            "to": "nb_m310",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                -350
+              ],
+              [
+                -12,
+                0,
+                -310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": -330,
+                  "yaw": 90,
+                  "length": 40,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_4",
+            "from": "nb_m310",
+            "to": "nb_m210",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                -310
+              ],
+              [
+                -12,
+                0,
+                -210
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": -260,
+                  "yaw": 90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_5",
+            "from": "nb_m210",
+            "to": "nb_m120",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                -210
+              ],
+              [
+                -12,
+                0,
+                -120
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": -165,
+                  "yaw": 90,
+                  "length": 90,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_up",
+            "from": "nb_m120",
+            "to": "nb_b1",
+            "type": "ramp",
+            "layer": "bridge_01",
+            "path": [
+              [
+                -12,
+                0,
+                -120
+              ],
+              [
+                -12,
+                10,
+                -50
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": -85,
+                  "yaw": 90,
+                  "length": 70,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 10
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_br",
+            "from": "nb_b1",
+            "to": "nb_b2",
+            "type": "highway",
+            "layer": "bridge_01",
+            "path": [
+              [
+                -12,
+                10,
+                -50
+              ],
+              [
+                -12,
+                10,
+                50
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": 0,
+                  "yaw": 90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 10,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_dn",
+            "from": "nb_b2",
+            "to": "nb_p120",
+            "type": "ramp",
+            "layer": "bridge_01",
+            "path": [
+              [
+                -12,
+                10,
+                50
+              ],
+              [
+                -12,
+                0,
+                120
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": 85,
+                  "yaw": 90,
+                  "length": 70,
+                  "width": 20,
+                  "y": 10,
+                  "rise": -10
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_6",
+            "from": "nb_p120",
+            "to": "nb_p210",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                120
+              ],
+              [
+                -12,
+                0,
+                210
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": 165,
+                  "yaw": 90,
+                  "length": 90,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_7",
+            "from": "nb_p210",
+            "to": "nb_p310",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                210
+              ],
+              [
+                -12,
+                0,
+                310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": 260,
+                  "yaw": 90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_8",
+            "from": "nb_p310",
+            "to": "nb_p350",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                310
+              ],
+              [
+                -12,
+                0,
+                350
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": 330,
+                  "yaw": 90,
+                  "length": 40,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_9",
+            "from": "nb_p350",
+            "to": "nb_p450",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                350
+              ],
+              [
+                -12,
+                0,
+                450
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -12,
+                  "z": 400,
+                  "yaw": 90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "nb_10",
+            "from": "nb_p450",
+            "to": "nb_ns",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                450
+              ],
+              [
+                -12,
+                0,
+                1200
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": -12,
+                  "z": 825,
+                  "yaw": 90,
+                  "length": 750,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_1",
+            "from": "sb_ns",
+            "to": "sb_p450",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                1200
+              ],
+              [
+                12,
+                0,
+                450
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": 12,
+                  "z": 825,
+                  "yaw": -90,
+                  "length": 750,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_2",
+            "from": "sb_p450",
+            "to": "sb_p350",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                450
+              ],
+              [
+                12,
+                0,
+                350
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": 400,
+                  "yaw": -90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_3",
+            "from": "sb_p350",
+            "to": "sb_p310",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                350
+              ],
+              [
+                12,
+                0,
+                310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": 330,
+                  "yaw": -90,
+                  "length": 40,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_4",
+            "from": "sb_p310",
+            "to": "sb_p210",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                310
+              ],
+              [
+                12,
+                0,
+                210
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": 260,
+                  "yaw": -90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_5",
+            "from": "sb_p210",
+            "to": "sb_p120",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                210
+              ],
+              [
+                12,
+                0,
+                120
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": 165,
+                  "yaw": -90,
+                  "length": 90,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_up",
+            "from": "sb_p120",
+            "to": "sb_b2",
+            "type": "ramp",
+            "layer": "bridge_01",
+            "path": [
+              [
+                12,
+                0,
+                120
+              ],
+              [
+                12,
+                10,
+                50
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": 85,
+                  "yaw": -90,
+                  "length": 70,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 10
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_br",
+            "from": "sb_b2",
+            "to": "sb_b1",
+            "type": "highway",
+            "layer": "bridge_01",
+            "path": [
+              [
+                12,
+                10,
+                50
+              ],
+              [
+                12,
+                10,
+                -50
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": 0,
+                  "yaw": -90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 10,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_dn",
+            "from": "sb_b1",
+            "to": "sb_m120",
+            "type": "ramp",
+            "layer": "bridge_01",
+            "path": [
+              [
+                12,
+                10,
+                -50
+              ],
+              [
+                12,
+                0,
+                -120
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": -85,
+                  "yaw": -90,
+                  "length": 70,
+                  "width": 20,
+                  "y": 10,
+                  "rise": -10
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_6",
+            "from": "sb_m120",
+            "to": "sb_m210",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                -120
+              ],
+              [
+                12,
+                0,
+                -210
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": -165,
+                  "yaw": -90,
+                  "length": 90,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_7",
+            "from": "sb_m210",
+            "to": "sb_m310",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                -210
+              ],
+              [
+                12,
+                0,
+                -310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": -260,
+                  "yaw": -90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_8",
+            "from": "sb_m310",
+            "to": "sb_m350",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                -310
+              ],
+              [
+                12,
+                0,
+                -350
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": -330,
+                  "yaw": -90,
+                  "length": 40,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_9",
+            "from": "sb_m350",
+            "to": "sb_m450",
+            "type": "highway",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                -350
+              ],
+              [
+                12,
+                0,
+                -450
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 12,
+                  "z": -400,
+                  "yaw": -90,
+                  "length": 100,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "sb_10",
+            "from": "sb_m450",
+            "to": "sb_ss",
+            "type": "local",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                -450
+              ],
+              [
+                12,
+                0,
+                -1200
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": false,
+                  "x": 12,
+                  "z": -825,
+                  "yaw": -90,
+                  "length": 750,
+                  "width": 20,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "rt1",
+            "from": "eb_p210",
+            "to": "rt1_e",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                210,
+                0,
+                -12
+              ],
+              [
+                360,
+                0,
+                -162
+              ]
+            ],
+            "elements": [
+              {
+                "arc": {
+                  "cx": 210,
+                  "cz": -162,
+                  "radius": 150,
+                  "from": 90,
+                  "to": 0,
+                  "width": 10,
+                  "y": [
+                    0,
+                    0
+                  ],
+                  "bank": 0,
+                  "rails": true
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "rt1_m",
+            "from": "rt1_e",
+            "to": "sb_m210",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                360,
+                0,
+                -162
+              ],
+              [
+                12,
+                0,
+                -210
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 186,
+                  "z": -186,
+                  "yaw": -172.147,
+                  "length": 351.295,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "rt2",
+            "from": "sb_p210",
+            "to": "rt2_e",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                210
+              ],
+              [
+                -138,
+                0,
+                60
+              ]
+            ],
+            "elements": [
+              {
+                "arc": {
+                  "cx": -138,
+                  "cz": 210,
+                  "radius": 150,
+                  "from": 0,
+                  "to": -90,
+                  "width": 10,
+                  "y": [
+                    0,
+                    0
+                  ],
+                  "bank": 0,
+                  "rails": true
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "rt2_m",
+            "from": "rt2_e",
+            "to": "wb_p210",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -138,
+                0,
+                60
+              ],
+              [
+                210,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 36,
+                  "z": 36,
+                  "yaw": -7.853,
+                  "length": 351.295,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "rt3",
+            "from": "wb_m210",
+            "to": "rt3_e",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -210,
+                0,
+                12
+              ],
+              [
+                -360,
+                0,
+                162
+              ]
+            ],
+            "elements": [
+              {
+                "arc": {
+                  "cx": -210,
+                  "cz": 162,
+                  "radius": 150,
+                  "from": -90,
+                  "to": -180,
+                  "width": 10,
+                  "y": [
+                    0,
+                    0
+                  ],
+                  "bank": 0,
+                  "rails": true
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "rt3_m",
+            "from": "rt3_e",
+            "to": "nb_p210",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -360,
+                0,
+                162
+              ],
+              [
+                -12,
+                0,
+                210
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -186,
+                  "z": 186,
+                  "yaw": 7.853,
+                  "length": 351.295,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "rt4",
+            "from": "nb_m210",
+            "to": "rt4_e",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                288,
+                0,
+                -210
+              ],
+              [
+                138,
+                0,
+                -360
+              ]
+            ],
+            "elements": [
+              {
+                "arc": {
+                  "cx": 138,
+                  "cz": -210,
+                  "radius": 150,
+                  "from": 0,
+                  "to": -90,
+                  "width": 10,
+                  "y": [
+                    0,
+                    0
+                  ],
+                  "bank": 0,
+                  "rails": true
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "rt4_m",
+            "from": "rt4_e",
+            "to": "eb_m210",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                138,
+                0,
+                -360
+              ],
+              [
+                -210,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -36,
+                  "z": -186,
+                  "yaw": 135,
+                  "length": 492.146,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt1_in",
+            "from": "eb_m310",
+            "to": "lt1_p1",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -310,
+                0,
+                -12
+              ],
+              [
+                -310,
+                0,
+                -60
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -310,
+                  "z": -36,
+                  "yaw": -90,
+                  "length": 48,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt1_up1",
+            "from": "lt1_p1",
+            "to": "lt1_p2",
+            "type": "ramp",
+            "layer": "bridge_02",
+            "path": [
+              [
+                -310,
+                0,
+                -60
+              ],
+              [
+                -310,
+                16,
+                -140
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -310,
+                  "z": -100,
+                  "yaw": -90,
+                  "length": 80,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 16
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt1_s1",
+            "from": "lt1_p2",
+            "to": "lt1_p3",
+            "type": "ramp",
+            "layer": "bridge_02",
+            "path": [
+              [
+                -310,
+                16,
+                -140
+              ],
+              [
+                -310,
+                16,
+                -400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -310,
+                  "z": -270,
+                  "yaw": -90,
+                  "length": 260,
+                  "width": 10,
+                  "y": 16,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt1_s2",
+            "from": "lt1_p3",
+            "to": "lt1_p4",
+            "type": "ramp",
+            "layer": "bridge_02",
+            "path": [
+              [
+                -310,
+                16,
+                -400
+              ],
+              [
+                400,
+                16,
+                -400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 45,
+                  "z": -400,
+                  "yaw": 0,
+                  "length": 710,
+                  "width": 10,
+                  "y": 16,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt1_s3",
+            "from": "lt1_p4",
+            "to": "lt1_p5",
+            "type": "ramp",
+            "layer": "bridge_02",
+            "path": [
+              [
+                400,
+                16,
+                -400
+              ],
+              [
+                400,
+                16,
+                400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 400,
+                  "z": 0,
+                  "yaw": 90,
+                  "length": 800,
+                  "width": 10,
+                  "y": 16,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt1_s4",
+            "from": "lt1_p5",
+            "to": "lt1_p6",
+            "type": "ramp",
+            "layer": "bridge_02",
+            "path": [
+              [
+                400,
+                16,
+                400
+              ],
+              [
+                -60,
+                16,
+                400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 170,
+                  "z": 400,
+                  "yaw": 180,
+                  "length": 460,
+                  "width": 10,
+                  "y": 16,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt1_dn1",
+            "from": "lt1_p6",
+            "to": "lt1_p7",
+            "type": "ramp",
+            "layer": "bridge_02",
+            "path": [
+              [
+                -60,
+                16,
+                400
+              ],
+              [
+                -60,
+                0,
+                310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -60,
+                  "z": 355,
+                  "yaw": -90,
+                  "length": 90,
+                  "width": 10,
+                  "y": 16,
+                  "rise": -16
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt1_out",
+            "from": "lt1_p7",
+            "to": "nb_p310",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -60,
+                0,
+                310
+              ],
+              [
+                -12,
+                0,
+                310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -36,
+                  "z": 310,
+                  "yaw": 0,
+                  "length": 48,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt2_in",
+            "from": "sb_p310",
+            "to": "lt2_p1",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                12,
+                0,
+                310
+              ],
+              [
+                60,
+                0,
+                310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 36,
+                  "z": 310,
+                  "yaw": 0,
+                  "length": 48,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt2_up1",
+            "from": "lt2_p1",
+            "to": "lt2_p2",
+            "type": "ramp",
+            "layer": "bridge_03",
+            "path": [
+              [
+                60,
+                0,
+                310
+              ],
+              [
+                140,
+                18,
+                310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 100,
+                  "z": 310,
+                  "yaw": 0,
+                  "length": 80,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 18
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt2_s1",
+            "from": "lt2_p2",
+            "to": "lt2_p3",
+            "type": "ramp",
+            "layer": "bridge_03",
+            "path": [
+              [
+                140,
+                18,
+                310
+              ],
+              [
+                400,
+                18,
+                310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 270,
+                  "z": 310,
+                  "yaw": 0,
+                  "length": 260,
+                  "width": 10,
+                  "y": 18,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt2_s2",
+            "from": "lt2_p3",
+            "to": "lt2_p4",
+            "type": "ramp",
+            "layer": "bridge_03",
+            "path": [
+              [
+                400,
+                18,
+                310
+              ],
+              [
+                400,
+                18,
+                -400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 400,
+                  "z": -45,
+                  "yaw": -90,
+                  "length": 710,
+                  "width": 10,
+                  "y": 18,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt2_s3",
+            "from": "lt2_p4",
+            "to": "lt2_p5",
+            "type": "ramp",
+            "layer": "bridge_03",
+            "path": [
+              [
+                400,
+                18,
+                -400
+              ],
+              [
+                -400,
+                18,
+                -400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 0,
+                  "z": -400,
+                  "yaw": 180,
+                  "length": 800,
+                  "width": 10,
+                  "y": 18,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt2_s4",
+            "from": "lt2_p5",
+            "to": "lt2_p6",
+            "type": "ramp",
+            "layer": "bridge_03",
+            "path": [
+              [
+                -400,
+                18,
+                -400
+              ],
+              [
+                -400,
+                18,
+                -60
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -400,
+                  "z": -230,
+                  "yaw": 90,
+                  "length": 340,
+                  "width": 10,
+                  "y": 18,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt2_dn1",
+            "from": "lt2_p6",
+            "to": "lt2_p7",
+            "type": "ramp",
+            "layer": "bridge_03",
+            "path": [
+              [
+                -400,
+                18,
+                -60
+              ],
+              [
+                -310,
+                0,
+                -60
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -355,
+                  "z": -60,
+                  "yaw": 0,
+                  "length": 90,
+                  "width": 10,
+                  "y": 18,
+                  "rise": -18
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt2_out",
+            "from": "lt2_p7",
+            "to": "eb_m310",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -310,
+                0,
+                -60
+              ],
+              [
+                -310,
+                0,
+                -12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -310,
+                  "z": -36,
+                  "yaw": 90,
+                  "length": 48,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt3_in",
+            "from": "wb_p310",
+            "to": "lt3_p1",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                310,
+                0,
+                12
+              ],
+              [
+                310,
+                0,
+                60
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 310,
+                  "z": 36,
+                  "yaw": 90,
+                  "length": 48,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt3_up1",
+            "from": "lt3_p1",
+            "to": "lt3_p2",
+            "type": "ramp",
+            "layer": "bridge_04",
+            "path": [
+              [
+                310,
+                0,
+                60
+              ],
+              [
+                310,
+                20,
+                140
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 310,
+                  "z": 100,
+                  "yaw": 90,
+                  "length": 80,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 20
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt3_s1",
+            "from": "lt3_p2",
+            "to": "lt3_p3",
+            "type": "ramp",
+            "layer": "bridge_04",
+            "path": [
+              [
+                310,
+                20,
+                140
+              ],
+              [
+                310,
+                20,
+                400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 310,
+                  "z": 270,
+                  "yaw": 90,
+                  "length": 260,
+                  "width": 10,
+                  "y": 20,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt3_s2",
+            "from": "lt3_p3",
+            "to": "lt3_p4",
+            "type": "ramp",
+            "layer": "bridge_04",
+            "path": [
+              [
+                310,
+                20,
+                400
+              ],
+              [
+                -400,
+                20,
+                400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -45,
+                  "z": 400,
+                  "yaw": 180,
+                  "length": 710,
+                  "width": 10,
+                  "y": 20,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt3_s3",
+            "from": "lt3_p4",
+            "to": "lt3_p5",
+            "type": "ramp",
+            "layer": "bridge_04",
+            "path": [
+              [
+                -400,
+                20,
+                400
+              ],
+              [
+                -400,
+                20,
+                -400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -400,
+                  "z": 0,
+                  "yaw": -90,
+                  "length": 800,
+                  "width": 10,
+                  "y": 20,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt3_s4",
+            "from": "lt3_p5",
+            "to": "lt3_p6",
+            "type": "ramp",
+            "layer": "bridge_04",
+            "path": [
+              [
+                -400,
+                20,
+                -400
+              ],
+              [
+                60,
+                20,
+                -400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -170,
+                  "z": -400,
+                  "yaw": 0,
+                  "length": 460,
+                  "width": 10,
+                  "y": 20,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt3_dn1",
+            "from": "lt3_p6",
+            "to": "lt3_p7",
+            "type": "ramp",
+            "layer": "bridge_04",
+            "path": [
+              [
+                60,
+                20,
+                -400
+              ],
+              [
+                60,
+                0,
+                -310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 60,
+                  "z": -355,
+                  "yaw": 90,
+                  "length": 90,
+                  "width": 10,
+                  "y": 20,
+                  "rise": -20
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt3_out",
+            "from": "lt3_p7",
+            "to": "sb_m310",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                60,
+                0,
+                -310
+              ],
+              [
+                12,
+                0,
+                -310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 36,
+                  "z": -310,
+                  "yaw": 180,
+                  "length": 48,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt4_in",
+            "from": "nb_m310",
+            "to": "lt4_p1",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                -12,
+                0,
+                -310
+              ],
+              [
+                -60,
+                0,
+                -310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -36,
+                  "z": -310,
+                  "yaw": 180,
+                  "length": 48,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt4_up1",
+            "from": "lt4_p1",
+            "to": "lt4_p2",
+            "type": "ramp",
+            "layer": "bridge_05",
+            "path": [
+              [
+                -60,
+                0,
+                -310
+              ],
+              [
+                -140,
+                22,
+                -310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -100,
+                  "z": -310,
+                  "yaw": 180,
+                  "length": 80,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 22
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt4_s1",
+            "from": "lt4_p2",
+            "to": "lt4_p3",
+            "type": "ramp",
+            "layer": "bridge_05",
+            "path": [
+              [
+                -140,
+                22,
+                -310
+              ],
+              [
+                -400,
+                22,
+                -310
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -270,
+                  "z": -310,
+                  "yaw": 180,
+                  "length": 260,
+                  "width": 10,
+                  "y": 22,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt4_s2",
+            "from": "lt4_p3",
+            "to": "lt4_p4",
+            "type": "ramp",
+            "layer": "bridge_05",
+            "path": [
+              [
+                -400,
+                22,
+                -310
+              ],
+              [
+                -400,
+                22,
+                400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": -400,
+                  "z": 45,
+                  "yaw": 90,
+                  "length": 710,
+                  "width": 10,
+                  "y": 22,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt4_s3",
+            "from": "lt4_p4",
+            "to": "lt4_p5",
+            "type": "ramp",
+            "layer": "bridge_05",
+            "path": [
+              [
+                -400,
+                22,
+                400
+              ],
+              [
+                400,
+                22,
+                400
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 0,
+                  "z": 400,
+                  "yaw": 0,
+                  "length": 800,
+                  "width": 10,
+                  "y": 22,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt4_s4",
+            "from": "lt4_p5",
+            "to": "lt4_p6",
+            "type": "ramp",
+            "layer": "bridge_05",
+            "path": [
+              [
+                400,
+                22,
+                400
+              ],
+              [
+                400,
+                22,
+                60
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 400,
+                  "z": 230,
+                  "yaw": -90,
+                  "length": 340,
+                  "width": 10,
+                  "y": 22,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt4_dn1",
+            "from": "lt4_p6",
+            "to": "lt4_p7",
+            "type": "ramp",
+            "layer": "bridge_05",
+            "path": [
+              [
+                400,
+                22,
+                60
+              ],
+              [
+                310,
+                0,
+                60
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 355,
+                  "z": 60,
+                  "yaw": 180,
+                  "length": 90,
+                  "width": 10,
+                  "y": 22,
+                  "rise": -22
+                }
+              }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "lt4_out",
+            "from": "lt4_p7",
+            "to": "wb_p310",
+            "type": "ramp",
+            "layer": "ground",
+            "path": [
+              [
+                310,
+                0,
+                60
+              ],
+              [
+                310,
+                0,
+                12
+              ]
+            ],
+            "elements": [
+              {
+                "plate": {
+                  "rails": true,
+                  "x": 310,
+                  "z": 36,
+                  "yaw": -90,
+                  "length": 48,
+                  "width": 10,
+                  "y": 0,
+                  "rise": 0
+                }
+              }
+            ],
+            "lanes": []
+          }
+        ],
+        "junctions": []
+      },
+      "railways": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      },
+      "paths": {
+        "nodes": [],
+        "segments": [],
+        "junctions": []
+      }
+    },
+    "structures": {
+      "bridges": [],
+      "tunnels": []
+    },
+    "instances": [],
+    "chunks": []
+  },
+  "generator": {
+    "generatorVersion": "0.1.0",
+    "seed": 19,
+    "deterministic": true,
+    "stages": [],
+    "layers": [],
+    "budgets": {},
+    "districts": [
+      {
+        "id": "d0",
+        "type": "forest",
+        "profileId": "forest",
+        "geometry": {
+          "rect": {
+            "minX": -1280,
+            "maxX": 1280,
+            "minZ": -1280,
+            "maxZ": 1280
+          }
+        }
+      }
+    ],
+    "profiles": {
+      "forest": {
+        "buildings": {
+          "kinds": [],
+          "maxFloors": 0,
+          "materials": []
+        },
+        "parcels": {
+          "min": 80,
+          "max": 160,
+          "coverage": 0
+        }
+      }
+    },
+    "catalogs": {},
+    "refs": {},
+    "policies": {},
+    "infrastructure": {
+      "enabled": false
+    },
+    "landscape": {
+      "generate": false
+    },
+    "transport": {
+      "generate": false
+    },
+    "districtsGen": {
+      "generate": false
+    },
+    "buildings": {
+      "generate": false
+    }
+  }
+}
