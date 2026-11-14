@@ -75,6 +75,7 @@ function selectEntity(ref) {
 
 async function boot() {
   readUrl();
+  exposeDebug();
   registry = await loadRegistry();
   ui.setLevels(registry.numbers, state.level);
   ui.modeSelect.value = state.mode;
@@ -88,7 +89,6 @@ async function boot() {
   bindEvents();
   await reloadLevel();
   loop();
-  exposeDebug();
 }
 
 async function reloadLevel(cacheBust = 0) {
@@ -162,7 +162,7 @@ function buildAndMount() {
   ui.updateViewButtons(state.view);
   writeUrl();
   markDirty();
-  window.__viz.ready = true;
+  if (window.__viz) window.__viz.ready = true;
   console.log('visualizer ready', state.level, model.stats);
 }
 
