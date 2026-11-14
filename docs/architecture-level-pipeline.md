@@ -89,6 +89,14 @@ v4 (`kind: 'cityforge'`, `schemaVersion: 4`, манифест `generator`) пр�
 пилота. Текущее устройство и ограничения: [architecture-citygen.md](architecture-citygen.md),
 решения — [ADR-001](architecture/adr/ADR-001-v4-citygen-districts.md).
 
+## Бинарные данные chunked/open глав (`.l14b`)
+
+- Кодек: `src/level-bin.js` (чанки `chunk-*-*.l14b`, скелет `skeleton.l14b`). Текущая версия формата **v2** (несовместима с v1; каталоги регенерируются `tools/build-level.mjs`).
+- v2 добавляет бинарные блобы typed arrays (теги `F32`/`F64A`/`U32A`/`I8A`/`U8A`: длина в элементах + сырые LE-байты) для компактного хранения больших числовых буферов без поэлементной сериализации. Декодер обязан прочитать файл до конца: хвост после значения — ошибка (`level-bin: после значения осталось N Б`), иначе потеря поля проходит молча.
+- Опционально чанк содержит `groundBaked` — запечённую ground-геометрию relief-пути (река/дорожные коридоры), чтобы не гонять `_riverGroundGeoData` в рантайме. Компактная раскладка (`src/ground-bake.js`): `{version, pos: Float32Array, nrmq: Int8Array, idxq: Uint8Array, ic: number}` — позиции без потерь, нормали квантованы Int8 (≤0.5/127 на компоненту, ≈0.37° на швах), индексы упакованы delta-varint (1–2 Б на индекс). `_geoFromGroundData` разворачивает её в `pos/nrm/idx`; сырой вид `{pos,nrm[,idx]}` тоже принимается. Нет поля — работает обычная генерация (fallback).
+- Bake — разовый инструмент `tools/bake-ground.mjs` (headless-браузер + Playwright, `NODE_PATH=$(npm root -g)`): пишет sidecar `chunk-*-*.ground.l14b`, `tools/build-level.mjs` вклеивает его в чанк. Sidecar коммитится, поэтому `build-level --check` герметичен без браузера; CI bake не запускает. Инструмент сам печатает эквивалентность (позиции побитово, угол нормалей, один-в-один треугольники), а кодирование/чтение и закоммиченные артефакты проверяет `node tools/ground-bake.test.mjs`. `tools/check-levels.mjs` не считает sidecar runtime-чанком в бюджете.
+- Размер/выигрыш (гл.17, 4 клетки): чанки 595 КБ → 7.31 МБ (наибольший 2.69 МБ ≤ 3 МБ), sidecar 6.7 МБ; `build:picture-ground-geo` 655.9–722.1 мс (max 335–373) → 26.5 мс total (max 10.8) за 3 клетки в помпе; изолированный fetch всех 4 чанков 100 мс, декод 1.4–4.8 мс на чанк. Остаточный хотспот помпы — `build:geometry` (80 мс), не ground.
+
 ## Визуализатор уровней (read-only dev tool)
 
 - Страница: `tools/level-visualizer.html` (ES-модули `tools/visualizer/*.js`, Three.js 0.160 importmap, без сборщика).

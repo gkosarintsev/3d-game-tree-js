@@ -19,7 +19,7 @@
 const MAGIC_CHUNK = 0x4c313443; // 'L14C'
 const MAGIC_INDEX = 0x4c313449; // 'L14I'
 const MAGIC_SKEL = 0x4c313453;  // 'L14S'
-const VERSION = 1;
+const VERSION = 2;
 
 // Теги значений. Однобайтовые, чтобы поток оставался плотным; редкие формы не
 // экономят тег, частые — экономят и имя формы.
@@ -47,6 +47,10 @@ const T = {
   ZERO: 20,
   ONE: 21,
   STR_EMPTY: 22,
+  F64A: 23,    // v2: Float64Array — длина u32 + сырые байты
+  U32A: 24,    // v2: Uint32Array
+  I8A: 25,     // v2: Int8Array (квантованные нормали запечённой геометрии)
+  U8A: 26,     // v2: Uint8Array (varint-поток индексов)
 };
 
 const te = new TextEncoder();
@@ -135,6 +139,8 @@ class R {
 
 function collectKeys(v, set) {
   if (v == null || typeof v !== 'object') return;
+  if (v instanceof Float32Array || v instanceof Float64Array || v instanceof Uint32Array
+    || v instanceof Int8Array || v instanceof Uint8Array) return;
   if (Array.isArray(v)) { for (const x of v) collectKeys(x, set); return; }
   // Спец-формы ключей объекта не интернируют отдельно — у них фиксированный набор.
   if (isXZ(v) || isXYZ(v) || isRect4(v) || isStep5(v) || isWall(v)) return;
@@ -166,6 +172,35 @@ function writeValue(w, v, keyIndex) {
     if (v.length === 0) { w.u8(T.EMPTY_ARR); return; }
     w.u8(T.ARR); w.u32(v.length);
     for (const x of v) writeValue(w, x, keyIndex);
+    return;
+  }
+  // Typed arrays (v2): компактное хранение буферов геометрии/скелета.
+  // Проверяем до generic object-ветки: typed arrays — объекты, но их нельзя
+  // сериализовать как { "0": ..., "1": ... } по ключам-индексам.
+  if (v instanceof Float32Array) {
+    w.u8(T.F32); w.u32(v.length);
+    w.bytes(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    return;
+  }
+  if (v instanceof Float64Array) {
+    w.u8(T.F64A);
+    w.u32(v.length);
+    w.bytes(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    return;
+  }
+  if (v instanceof Uint32Array) {
+    w.u8(T.U32A); w.u32(v.length);
+    w.bytes(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    return;
+  }
+  if (v instanceof Int8Array) {
+    w.u8(T.I8A); w.u32(v.length);
+    w.bytes(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    return;
+  }
+  if (v instanceof Uint8Array) {
+    w.u8(T.U8A); w.u32(v.length);
+    w.bytes(v);
     return;
   }
   if (tp === 'object') {
@@ -243,6 +278,40 @@ function readValue(r, keys) {
       return { axis, facade, maxX, maxZ, minX, minZ };
     }
     case T.KREF: return keys[r.u32()];
+    case T.F32: {
+      const n = r.u32();
+      const b = r.bytes(n * 4);
+      // Копия в выровненный буфер: subarray Reader’а может быть невыровнен.
+      const out = new Float32Array(n);
+      new Uint8Array(out.buffer).set(b);
+      return out;
+    }
+    case T.F64A: {
+      const n = r.u32();
+      const b = r.bytes(n * 8);
+      const out = new Float64Array(n);
+      new Uint8Array(out.buffer).set(b);
+      return out;
+    }
+    case T.U32A: {
+      const n = r.u32();
+      const b = r.bytes(n * 4);
+      const out = new Uint32Array(n);
+      new Uint8Array(out.buffer).set(b);
+      return out;
+    }
+    case T.I8A: {
+      const n = r.u32();
+      const b = r.bytes(n);
+      const out = new Int8Array(n);
+      new Uint8Array(out.buffer).set(b);
+      return out;
+    }
+    case T.U8A: {
+      const n = r.u32();
+      // Копия: subarray живёт на буфере файла, а данные переживают его.
+      return new Uint8Array(r.bytes(n));
+    }
     default: throw new Error(`level-bin: неизвестный тег 0x${tag.toString(16)} на смещении ${r.pos - 1}`);
   }
 }
@@ -281,7 +350,14 @@ function decodeBlob(magic, buf) {
   if (ver !== VERSION) throw new Error(`level-bin: версия ${ver}, поддерживается ${VERSION} — перегенерируйте каталог`);
   r.u16(); // резерв
   const keys = readKeyTable(r);
-  return readValue(r, keys);
+  const value = readValue(r, keys);
+  // Хвост означает, что запись и чтение разошлись по длине значения (например,
+  // тег без обработчика съел только заголовок). Молча вернуть «почти всё» нельзя:
+  // следующий такой случай снова потерял бы данные незаметно.
+  if (r.pos !== r.buf.length) {
+    throw new Error(`level-bin: после значения осталось ${r.buf.length - r.pos} Б — формат не сходится`);
+  }
+  return value;
 }
 
 export function encodeChunk(obj) { return encodeBlob(MAGIC_CHUNK, obj); }

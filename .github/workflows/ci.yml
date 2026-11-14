@@ -49,6 +49,9 @@ jobs:
       - name: Сюита модели визуализатора уровней
         run: node --test tools/visualizer/model.test.mjs
 
+      - name: Сюита кодека и запечённой земли (TASK-004)
+        run: node tools/ground-bake.test.mjs
+
   browser:
     runs-on: ubuntu-latest
     container:

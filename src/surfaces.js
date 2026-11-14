@@ -898,6 +898,39 @@ export class SurfaceField extends SolidField {
    * геометрия стенки: кольцевая полоса у дуги, призма — у пластины.
    */
   _railsBlock(x, z, radius, feetY, height) {
+    // Быстрый путь по пространственным индексам планов: при тысячах
+    // навигационных проб линейный проход по всем перилам дорог (гл.18) доминирует.
+    // Перила дуг лежат в _sweepCells (sweeps), клиновые — в _railCells (railWedges).
+    if (this._railCells || this._sweepCells) {
+      const g = this._planGrid || J.planGrid;
+      const ring = Math.max(1, Math.ceil((radius + J.railThickness + 1.0) / g)) + 1;
+      const ci = Math.floor(x / g), ck = Math.floor(z / g);
+      if (this._sweepCells) {
+        for (let j = ck - ring; j <= ck + ring; j++) {
+          for (let i = ci - ring; i <= ci + ring; i++) {
+            const list = this._sweepCells.get(this._key(i, j));
+            if (!list) continue;
+            for (let k = 0; k < list.length; k++) {
+              const s = this.sweeps[list[k]];
+              if (s && s.rails && sweepRailsBlock(s, x, z, radius, feetY, height)) return true;
+            }
+          }
+        }
+      }
+      if (this._railCells) {
+        for (let j = ck - ring; j <= ck + ring; j++) {
+          for (let i = ci - ring; i <= ci + ring; i++) {
+            const list = this._railCells.get(this._key(i, j));
+            if (!list) continue;
+            for (let k = 0; k < list.length; k++) {
+              const w = this.railWedges[list[k]];
+              if (w && railWedgeBlocks(w, x, z, radius, feetY, height)) return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
     for (const rail of this.rails) {
       if (rail.kind === 'arc') {
         if (sweepRailsBlock(rail.s, x, z, radius, feetY, height)) return true;

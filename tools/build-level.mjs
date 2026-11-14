@@ -28,7 +28,7 @@ import { normalizeLevel } from './normalize-level.mjs';
 import { expandCity } from './city.js';
 import { splitLevel, stringifyStable } from './chunk-level.mjs';
 import { skeletonOf } from './skeleton.mjs';
-import { encodeChunk, encodeSkeleton, SKELETON_FILE } from '../src/level-bin.js';
+import { decodeChunk, encodeChunk, encodeSkeleton, SKELETON_FILE } from '../src/level-bin.js';
 import { compileCityforge } from './cityforge-compile.mjs';
 import { runCitygen } from './citygen/index.mjs';
 
@@ -151,7 +151,23 @@ export function generateCatalog(raw, sourceName, opts = {}) {
   // догружается через top-level await. Так «все файлы данных» каталога — бинарные,
   // а точка входа модуля сохраняется.
   const skeletonBytes = encodeSkeleton({ nodes: sk.nodes, edges: sk.edges });
-  const chunkFiles = split.chunks.map(c => ({ path: c.file, bytes: encodeChunk(c.map), map: c.map }));
+  // TASK-004 (частично): запечённые ground-данные могут лежать sidecar’ом
+  // `chunk-X-Y.ground.l14b` рядом с каталогом главы (детерминированный артефакт,
+  // полученный bake-скриптом). Парсер их не вычисляет в Node (зависит от runtime),
+  // поэтому при наличии sidecar’а вклеиваем их в чанк, чтобы вывод/коммит и рантайм
+  // совпадали. Без sidecar’а чанк собирается как раньше (fallback).
+  const srcCatalogDir = resolve(dirname(sourceName), stem);
+  const chunkFiles = split.chunks.map(c => {
+    const map = { ...c.map };
+    const sidecar = join(srcCatalogDir, c.file.replace(/\.l14b$/i, '.ground.l14b'));
+    if (existsSync(sidecar)) {
+      try {
+        const baked = decodeChunk(readFileSync(sidecar));
+        if (baked?.groundBaked) map.groundBaked = baked.groundBaked;
+      } catch { /* sidecar повреждён/несовместим — игнор, fallback на runtime-генерацию */ }
+    }
+    return { path: c.file, bytes: encodeChunk(map), map };
+  });
   const skeletonData = { nodes: sk.nodes, edges: sk.edges };
   // В map-литерале index.js скелета нет (он придёт из .l14b), но в объекте,
   // который видят инструменты/тесты в памяти, он есть целиком.

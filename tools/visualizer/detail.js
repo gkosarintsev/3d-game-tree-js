@@ -106,6 +106,7 @@ export async function createDetailedView({ source, compiledIndex, decodedCells, 
   await new Promise(r => setTimeout(r, 0));
 
   let map = null;
+  const _prof = (typeof globalThis !== 'undefined' && globalThis.__mapBuildProfile);
   try {
     // JsonMap constructor builds nav/solids; can be heavy
     map = new JsonMap(spec);
@@ -115,11 +116,17 @@ export async function createDetailedView({ source, compiledIndex, decodedCells, 
   }
   await new Promise(r => setTimeout(r, 0));
   try { onProgress?.('build-visuals'); } catch {}
+  const _tBuild = _prof ? performance.now() : 0;
   try {
     map.build(group);
   } catch (e) {
     e.message = `JsonMap build: ${e.message}`;
     throw e;
+  }
+  if (_prof) {
+    const p = map.lastBuildProfile || (map.lastBuildProfile = {});
+    if (p.pictureMs == null) p.pictureMs = performance.now() - _tBuild;
+    globalThis.__lastMapBuildProfile = p;
   }
 
   return {

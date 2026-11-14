@@ -7,6 +7,7 @@ import {
   rayWedge, raySweep, pushOutWedge, pushOutSweep, pushOutSweepRails,
 } from './surfaces.js';
 import { r3, subtractRect, rotatePoint, arcBankAt } from './geo2d.js';
+import { unpackGroundData } from './ground-bake.js';
 import { buildProps } from './props.js';
 import { HouseTextureLibrary, makeFacadeMaterial } from './house-materials.js';
 import { buildPanelkaDecor } from './panelka-decor.js';
@@ -112,7 +113,13 @@ export class JsonMap extends SurfaceField {
 
     this.geo = this._geoGroups();
 
+    const _prof = (typeof globalThis !== 'undefined' && globalThis.__mapBuildProfile);
+    const _tData0 = _prof ? performance.now() : 0;
     this.collectData();
+    if (_prof) {
+      const p = this.lastBuildProfile || (this.lastBuildProfile = {});
+      p.collectDataMs = performance.now() - _tData0;
+    }
 
     const s = spec.spawn ?? { x: 0, z: 0 };
     this.spawn = { x: s.x, y: this.groundHeightAt(s.x, s.z, this.groundY), z: s.z };
@@ -132,7 +139,16 @@ export class JsonMap extends SurfaceField {
     // по чанкам и остаётся append-only, так что узел выгруженной клетки никуда
     // не девается — маршрут через него повёл бы врага в несобранный район.
     this.navFit = null;
+    const _tNav0 = _prof ? performance.now() : 0;
     this.nav = this._buildNav();
+    if (_prof) {
+      const p = this.lastBuildProfile || (this.lastBuildProfile = {});
+      p.navMs = performance.now() - _tNav0;
+      p.totalDataMs = performance.now() - _tData0;
+      // индексы строятся в collectData/SurfaceField; отдельного замера нет, фиксируем 0 для совместимости.
+      if (p.indexesMs == null) p.indexesMs = 0;
+      if (typeof globalThis !== 'undefined') globalThis.__lastMapBuildProfile = p;
+    }
   }
 
   // ---------------------------------------------------------------- картинка
@@ -755,15 +771,28 @@ export class JsonMap extends SurfaceField {
     this._deckRoadEnds = new Map();
     this._navTunnelEnds = new Map();
     this._navDescentEnds = new Map();
-    this._navLattice(nav);
-    this._navRooms(nav, rstep);
-    this._navRoofs(nav);
-    this._navStairs(nav, rstep);
-    this._navDecks(nav);
-    this._navTunnels(nav);
-    this._navWater(nav);
-    this._navDoors(nav, rstep);
-    return this._pruneToSpawn(nav);
+    const prof = (typeof globalThis !== 'undefined' && globalThis.__mapBuildProfile);
+    const phases = prof ? {} : null;
+    const step = (name, fn) => {
+      if (!prof) { fn(); return; }
+      const t0 = performance.now();
+      fn();
+      phases[name] = (phases[name] || 0) + (performance.now() - t0);
+    };
+    step('lattice', () => this._navLattice(nav));
+    step('rooms', () => this._navRooms(nav, rstep));
+    step('roofs', () => this._navRoofs(nav));
+    step('stairs', () => this._navStairs(nav, rstep));
+    step('decks', () => this._navDecks(nav));
+    step('tunnels', () => this._navTunnels(nav));
+    step('water', () => this._navWater(nav));
+    step('doors', () => this._navDoors(nav, rstep));
+    step('prune', () => { nav._pruned = this._pruneToSpawn(nav); });
+    if (prof) {
+      const p = this.lastBuildProfile || (this.lastBuildProfile = {});
+      p.navPhases = phases;
+    }
+    return nav._pruned || this._pruneToSpawn(nav);
   }
 
   /**
@@ -804,24 +833,38 @@ export class JsonMap extends SurfaceField {
     const noBlockers = !this.blockers?.length;
     const noRails = !this.rails?.length;
     const simpleBlock = noBlockers && noRails;
-    for (let j = j0; j <= j1; j++) {
-      const row = new Array(i1 - i0 + 1);
-      const z = -this.half + j * step;
-      for (let i = i0; i <= i1; i++) {
-        const x = -this.half + i * step;
-        if (hasBuildings && this._inBuilding(x, z)) continue;
-        // на склоне отсчёт опоры ведётся от местности, а не от `groundY`: плита
-        // тротуара на холме +14 м лежит в пределе шага от поля и обязана быть
-        // принята, иначе узел встал бы на голый склон под ногами
-        const terrainY = hasRelief ? this.relief.heightAt(x, z) : 0;
-        const fromY = hasRelief ? terrainY : groundY;
-        const y = (simpleGround && noSurfaces) ? (hasRelief ? terrainY : groundY) : this.groundHeightAt(x, z, fromY, terrainY);
-        if (simpleGround && noSurfaces && simpleBlock) {
+    const fullySimple = !hasBuildings && !hasRelief && simpleGround && noSurfaces && simpleBlock;
+    if (fullySimple) {
+      for (let j = j0; j <= j1; j++) {
+        const row = new Array(i1 - i0 + 1);
+        const z = -half + j * step;
+        for (let i = i0; i <= i1; i++) {
+          const x = -half + i * step;
           if (x - radius < -half || x + radius > half || z - radius < -half || z + radius > half) continue;
-        } else if (this.isBlocked(x, z, radius, y, eyeH)) continue;
-        row[i - i0] = nav.add(x, y, z, `w:${i}:${j}`);
+          row[i - i0] = nav.add(x, groundY, z, `w:${i}:${j}`);
+        }
+        lat.push(row);
       }
-      lat.push(row);
+    } else {
+      for (let j = j0; j <= j1; j++) {
+        const row = new Array(i1 - i0 + 1);
+        const z = -half + j * step;
+        for (let i = i0; i <= i1; i++) {
+          const x = -half + i * step;
+          if (hasBuildings && this._inBuilding(x, z)) continue;
+          // на склоне отсчёт опоры ведётся от местности, а не от `groundY`: плита
+          // тротуара на холме +14 м лежит в пределе шага от поля и обязана быть
+          // принята, иначе узел встал бы на голый склон под ногами
+          const terrainY = hasRelief ? this.relief.heightAt(x, z) : 0;
+          const fromY = hasRelief ? terrainY : groundY;
+          const y = (simpleGround && noSurfaces) ? (hasRelief ? terrainY : groundY) : this.groundHeightAt(x, z, fromY, terrainY);
+          if (simpleGround && noSurfaces && simpleBlock) {
+            if (x - radius < -half || x + radius > half || z - radius < -half || z + radius > half) continue;
+          } else if (this.isBlocked(x, z, radius, y, eyeH)) continue;
+          row[i - i0] = nav.add(x, y, z, `w:${i}:${j}`);
+        }
+        lat.push(row);
+      }
     }
     for (let jj = 0; jj < lat.length; jj++) {
       for (let ii = 0; ii < lat[jj].length; ii++) {
@@ -1542,6 +1585,8 @@ export class JsonMap extends SurfaceField {
    * разными отсчётами поля и граница читалась световой полосой.
    */
   _groundGeo(rect = null) {
+    const data = this._groundGeoData(rect);
+    if (data) return this._geoFromGroundData(data);
     let rects = [rect ?? { minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
     // strip-дыры кривых русел вырезаются сдвигом вершин по _inChannel, а не
     // rect-разложением: их габарит — over-approximation, и subtractRect съел бы
@@ -1579,6 +1624,52 @@ export class JsonMap extends SurfaceField {
     const geo = rects.length === 1 ? makeR(rects[0]) : mergeGeometries(rects.map(makeR), false);
     geo?.computeBoundingSphere();
     return geo;
+  }
+
+  /**
+   * Чистые данные ground-геометрии (pos/nrm, non-indexed) для bake/runtime fast-path.
+   * Возвращает null, если для данного случая bake-данные не поддержаны (fallback).
+   * Сейчас поддержан только relief-путь с river/road refinement (основной хотспот l17).
+   */
+  _groundGeoData(rect = null) {
+    if (!this.relief) return null;
+    const riverAt = this.relief.riverAt;
+    const roadAt = this.relief.roadAt;
+    if (!riverAt && !roadAt) return null;
+    let rects = [rect ?? { minX: -this.half, maxX: this.half, minZ: -this.half, maxZ: this.half }];
+    const clip = rect;
+    for (const h of this.holes) {
+      if (h.strip && this.relief) continue;
+      if (clip && (h.maxX <= clip.minX || h.minX >= clip.maxX || h.maxZ <= clip.minZ || h.minZ >= clip.maxZ)) continue;
+      rects = rects.flatMap(r => subtractRect(r, h));
+    }
+    for (const h of (this.tunnelHoles ?? [])) {
+      if (clip && (h.maxX <= clip.minX || h.minX >= clip.maxX || h.maxZ <= clip.minZ || h.minZ >= clip.maxZ)) continue;
+      rects = rects.flatMap(r => subtractRect(r, h));
+    }
+    if (!rects.length) return { pos: new Float32Array(0), nrm: new Float32Array(0) };
+    const cell = this.reliefMeshCell ?? J.relief.meshCell;
+    const parts = rects.map(r => this._riverGroundGeoData(r, cell, riverAt, roadAt));
+    if (parts.length === 1) return parts[0];
+    let total = 0;
+    for (const p of parts) total += p.pos.length;
+    const pos = new Float32Array(total), nrm = new Float32Array(total);
+    let off = 0;
+    for (const p of parts) { pos.set(p.pos, off); nrm.set(p.nrm, off); off += p.pos.length; }
+    return { pos, nrm };
+  }
+
+  _geoFromGroundData(data) {
+    // Запечённый вид компактнее (`src/ground-bake.js`): разбор здесь, чтобы
+    // потребители (карта и помпа) получали обычные буферы. Сырой вид генератора
+    // проходит без изменений.
+    const d = unpackGroundData(data);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(d.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(d.nrm, 3));
+    if (d.idx) g.setIndex(new THREE.BufferAttribute(d.idx, 1));
+    g.computeBoundingSphere();
+    return g;
   }
 
   /** Обычная сетка грунта главы с рельефом (русла без кривых — rect-дыры). */
@@ -1628,6 +1719,10 @@ export class JsonMap extends SurfaceField {
    * чанки принимают по общему ребру одно и то же решение.
    */
   _riverGroundGeo(rect, cell, riverAt, roadAt = null) {
+    return this._geoFromGroundData(this._riverGroundGeoData(rect, cell, riverAt, roadAt));
+  }
+
+  _riverGroundGeoData(rect, cell, riverAt, roadAt = null) {
     const gY = this.groundY;
     const surfaceY = gY - 0.2;
     const fine = this.reliefRiverMeshCell ?? J.relief.riverMeshCell ?? 1;
@@ -1684,13 +1779,20 @@ export class JsonMap extends SurfaceField {
       }
     }
 
-    const kx = Math.max(1, Math.ceil(dx / fine));
-    const kz = Math.max(1, Math.ceil(dz / fine));
-    const pos = [], nrm = [];
+    const kxFine = Math.max(1, Math.ceil(dx / fine));
+    const kzFine = Math.max(1, Math.ceil(dz / fine));
+    let vertCount = 0;
+    for (let cj = 0; cj < nz; cj++) for (let ci = 0; ci < nx; ci++) {
+      vertCount += flagAt(ci, cj) ? kxFine * kzFine * 6 : 6;
+    }
+    const pos = new Float32Array(vertCount * 3);
+    const nrm = new Float32Array(vertCount * 3);
+    let vi = 0;
     const push = (x, z, h, ax, ay, az) => {
       // локальный кадр меша: (x, −z, h − groundY), нормаль (nx, −nz, ny)
-      pos.push(x, -z, h - gY);
-      nrm.push(ax, -az, ay);
+      pos[vi] = x; pos[vi + 1] = -z; pos[vi + 2] = h - gY;
+      nrm[vi] = ax; nrm[vi + 1] = -az; nrm[vi + 2] = ay;
+      vi += 3;
     };
     const triCoarse = (i0, j0, i1, j1, i2, j2) => {
       const a = j0 * gw + i0, b = j1 * gw + i1, c = j2 * gw + i2;
@@ -1713,15 +1815,15 @@ export class JsonMap extends SurfaceField {
         const left = !flagAt(ci - 1, cj), right = !flagAt(ci + 1, cj);
         const bottom = !flagAt(ci, cj - 1), top = !flagAt(ci, cj + 1);
         // подклетки: высота, нормаль и «в воде» в каждом узле
-        const lw = kx + 1;
-        const hv = new Float32Array(lw * (kz + 1));
-        const nvx = new Float32Array(lw * (kz + 1));
-        const nvy = new Float32Array(lw * (kz + 1));
-        const nvz = new Float32Array(lw * (kz + 1));
-        const wet = new Uint8Array(lw * (kz + 1));
-        for (let b = 0; b <= kz; b++) {
-          for (let a = 0; a <= kx; a++) {
-            const tx = a / kx, tz = b / kz;
+        const lw = kxFine + 1;
+        const hv = new Float32Array(lw * (kzFine + 1));
+        const nvx = new Float32Array(lw * (kzFine + 1));
+        const nvy = new Float32Array(lw * (kzFine + 1));
+        const nvz = new Float32Array(lw * (kzFine + 1));
+        const wet = new Uint8Array(lw * (kzFine + 1));
+        for (let b = 0; b <= kzFine; b++) {
+          for (let a = 0; a <= kxFine; a++) {
+            const tx = a / kxFine, tz = b / kzFine;
             const x = x0 + (ci + tx) * dx, z = z0 + (cj + tz) * dz;
             const l = b * lw + a;
             const dr = riverAt && riverAt(x, z);
@@ -1733,7 +1835,7 @@ export class JsonMap extends SurfaceField {
               nxv = NX[a00] + (NX[a01] - NX[a00]) * tz;
               nyv = NY[a00] + (NY[a01] - NY[a00]) * tz;
               nzv = NZ[a00] + (NZ[a01] - NZ[a00]) * tz;
-            } else if (right && a === kx) {
+            } else if (right && a === kxFine) {
               h = H[a10] + (H[a11] - H[a10]) * tz;
               nxv = NX[a10] + (NX[a11] - NX[a10]) * tz;
               nyv = NY[a10] + (NY[a11] - NY[a10]) * tz;
@@ -1743,7 +1845,7 @@ export class JsonMap extends SurfaceField {
               nxv = NX[a00] + (NX[a10] - NX[a00]) * tx;
               nyv = NY[a00] + (NY[a10] - NY[a00]) * tx;
               nzv = NZ[a00] + (NZ[a10] - NZ[a00]) * tx;
-            } else if (top && b === kz) {
+            } else if (top && b === kzFine) {
               h = H[a01] + (H[a11] - H[a01]) * tx;
               nxv = NX[a01] + (NX[a11] - NX[a01]) * tx;
               nyv = NY[a01] + (NY[a11] - NY[a01]) * tx;
@@ -1758,13 +1860,13 @@ export class JsonMap extends SurfaceField {
         }
         // подклетка целиком в воде — дыра: зеркало воды покажет призму дна
         const put = (l, x, z) => push(x, z, hv[l], nvx[l], nvy[l], nvz[l]);
-        for (let b = 0; b < kz; b++) {
-          for (let a = 0; a < kx; a++) {
+        for (let b = 0; b < kzFine; b++) {
+          for (let a = 0; a < kxFine; a++) {
             const l00 = b * lw + a, l10 = l00 + 1;
             const l01 = (b + 1) * lw + a, l11 = l01 + 1;
             if (wet[l00] && wet[l10] && wet[l01] && wet[l11]) continue;
-            const xa = x0 + (ci + a / kx) * dx, xb = x0 + (ci + (a + 1) / kx) * dx;
-            const za = z0 + (cj + b / kz) * dz, zb = z0 + (cj + (b + 1) / kz) * dz;
+            const xa = x0 + (ci + a / kxFine) * dx, xb = x0 + (ci + (a + 1) / kxFine) * dx;
+            const za = z0 + (cj + b / kzFine) * dz, zb = z0 + (cj + (b + 1) / kzFine) * dz;
             put(l00, xa, za); put(l01, xa, zb); put(l11, xb, zb);
             put(l00, xa, za); put(l11, xb, zb); put(l10, xb, za);
           }
@@ -1772,10 +1874,10 @@ export class JsonMap extends SurfaceField {
       }
     }
 
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
-    return g;
+    return {
+      pos: vi === pos.length ? pos : pos.subarray(0, vi),
+      nrm: vi === nrm.length ? nrm : nrm.subarray(0, vi),
+    };
   }
 
   /**

@@ -306,9 +306,12 @@ function budgetRows() {
     const chapter = registry.LEVEL_NUMBERS[i];
     const stem = `src/levels/level-${String(chapter).padStart(2, '0')}`;
     // открытая глава не имеет одного «модуля»: её вывод — каталог, и для бюджета
-    // интересен наибольший чанк, потому что его и читает движок по ходу пути
+    // интересен наибольший чанк, потому что его и читает движок по ходу пути.
+    // Sidecar `*.ground.l14b` — bake-артефакт (не fetch/runtime чанк).
     const chunks = existsSync(resolve(ROOT, `${stem}.js`)) ? []
-      : (existsSync(resolve(ROOT, stem)) ? readdirSync(resolve(ROOT, stem)).filter(f => f.startsWith('chunk-')) : []);
+      : (existsSync(resolve(ROOT, stem))
+        ? readdirSync(resolve(ROOT, stem)).filter(f => /^chunk-\d+-\d+\.l14b$/i.test(f))
+        : []);
     const bytes = chunks.length
       ? Math.max(...chunks.map(f => statSync(resolve(ROOT, stem, f)).size))
       : (existsSync(resolve(ROOT, `${stem}.js`)) ? statSync(resolve(ROOT, `${stem}.js`)).size : 0);

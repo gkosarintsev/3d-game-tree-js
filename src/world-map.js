@@ -543,14 +543,27 @@ export class WorldMap extends JsonMap {
     } });
     // staged picture state
     const pic = { objs: [], lights: [], windows: 0, signage: 0, clutter: 0, clutterItems: null };
-    // ground: один меш/срез (экономия суммарного времени тайла; блокирующий пик всё ещё <1s по замерам)
-    slices.push({ label: 'picture-ground', run: () => {
+    // ground: геометрия и создание меша разделены, чтобы снизить worst-case среза
+    // помпы (без изменения состава/порядка визуала в пределах picture-фазы).
+    slices.push({ label: 'picture-ground-geo', run: () => {
       this._drawOwnersOnly(() => {
         const r = cell.rect;
+        // Запечённая ground-геометрия чанка (TASK-004): если есть, пропускаем
+        // дорогую генерацию (_groundGeo/_riverGroundGeoData). Формат: {pos,nrm[,idx]}.
+        const baked = entry.data?.groundBaked ?? entry.groundBaked ?? null;
+        if (baked && typeof this._geoFromGroundData === 'function') {
+          pic._groundGeo = this._geoFromGroundData(baked);
+          return;
+        }
+        pic._groundGeo = (r || this.holes.length || (this.tunnelHoles?.length) || this.relief)
+          ? this._groundGeo(r)
+          : new THREE.PlaneGeometry(this.width, this.depth);
+      }, entry.owned);
+    } });
+    slices.push({ label: 'picture-ground-mesh', run: () => {
+      this._drawOwnersOnly(() => {
         const ground = new THREE.Mesh(
-          (r || this.holes.length || (this.tunnelHoles?.length) || this.relief)
-            ? this._groundGeo(r)
-            : new THREE.PlaneGeometry(this.width, this.depth),
+          pic._groundGeo || new THREE.PlaneGeometry(this.width, this.depth),
           new THREE.MeshStandardMaterial({ color: this.groundColor, roughness: 1, metalness: 0 }),
         );
         ground.rotation.x = -Math.PI / 2;
@@ -558,6 +571,7 @@ export class WorldMap extends JsonMap {
         ground.receiveShadow = true;
         this.scene.add(ground);
         pic.objs.push(ground);
+        pic._groundGeo = null;
       }, entry.owned);
     } });
     slices.push({ label: 'picture-meshes', run: () => {
@@ -599,9 +613,11 @@ export class WorldMap extends JsonMap {
         }
       }, entry.owned);
     } });
-    slices.push({ label: 'picture-details', run: () => {
+    slices.push({ label: 'picture-details-props', run: () => {
       this._drawOwnersOnly(() => {
-        // вода, пропы/мусор, окна, вывески, свет — вместе (каждый этап обычно дешёвый)
+        // вода, мусор/пропы — отдельно от окон/вывесок, чтобы крупный стартовый
+        // срез `picture-details` не упирался в бюджет кадра (разбиение без смены
+        // набора работ и порядка внутри этапов).
         this._buildWater(this.scene, entry.waterRects, pic.objs);
         const clutter = this._clutterItems();
         pic.clutterItems = clutter;
@@ -610,12 +626,27 @@ export class WorldMap extends JsonMap {
           mesh.userData.sharedMaterial = true;
           pic.objs.push(mesh);
         }
-        const ownedBuildings = (entry.data?.buildings ?? []).filter(b => entry.owned.has(b));
-        // Детальные модели (docs/houses): полная модель вместо стен/окон/декора.
-        const detailed = ownedBuildings.filter(b => b.detailedVisual);
-        if (detailed.length) this._buildDetailedBuildings(this.scene, detailed, pic.objs);
-        // Декор панелек — только для недетальных панелек.
-        for (const m of buildPanelkaDecor(this.scene, ownedBuildings.filter(b => b.detailedVisual !== 'soviet_panel'))) pic.objs.push(m);
+      }, entry.owned);
+    } });
+    const ownedBuildingsAll = (entry.data?.buildings ?? []).filter(b => entry.owned.has(b));
+    const detailed = ownedBuildingsAll.filter(b => b.detailedVisual);
+    for (const b of detailed) {
+      slices.push({ label: 'picture-details-detailed', run: () => {
+        this._drawOwnersOnly(() => {
+          this._buildDetailedBuildings(this.scene, [b], pic.objs);
+        }, entry.owned);
+      } });
+    }
+    const panelka = ownedBuildingsAll.filter(b => b.detailedVisual !== 'soviet_panel');
+    for (const b of panelka) {
+      slices.push({ label: 'picture-details-decor', run: () => {
+        this._drawOwnersOnly(() => {
+          for (const m of buildPanelkaDecor(this.scene, [b])) pic.objs.push(m);
+        }, entry.owned);
+      } });
+    }
+    slices.push({ label: 'picture-details-finish', run: () => {
+      this._drawOwnersOnly(() => {
         pic.windows = this._buildWindows(this.scene, pic.objs);
         pic.signage = this._buildSignage(this.scene, pic.objs);
         pic.lights = this._buildLights(this.scene, pic.objs);
