@@ -236,6 +236,7 @@ function handleAction(ev) {
 function bindEvents() {
   ui.canvas.addEventListener('click', (e) => {
     if (!renderer || !viewManager) return;
+    if (viewManager.consumeDragFlag && viewManager.consumeDragFlag()) return;
     const ref = renderer.pick(e.clientX, e.clientY, viewManager);
     selectEntity(ref);
   });

@@ -43,6 +43,8 @@ export class ViewManager {
     this.controls.addEventListener('change', () => this.emit());
 
     this.panning = false;
+    this.didDrag = false;
+    this.panButton = -1;
     this.panStart = { x: 0, y: 0 };
     this.panTargetStart = new THREE.Vector3();
     this.resize();
@@ -266,20 +268,26 @@ export class ViewManager {
   }
 
   handleMouseDown(e) {
-    if (e.button === 1 || e.button === 2 || (e.button === 0 && e.shiftKey)) {
-      if (this.view !== 'free') {
-        this.panning = true;
-        this.panStart = { x: e.clientX, y: e.clientY };
-        this.panTargetStart.copy(this.target);
-        e.preventDefault();
-      }
+    if (this.view === 'free') return;
+    if (e.button === 0 || e.button === 1 || e.button === 2) {
+      this.panning = true;
+      this.panButton = e.button;
+      this.didDrag = false;
+      this.panStart = { x: e.clientX, y: e.clientY };
+      this.panTargetStart.copy(this.target);
+      // prevent text selection / default drag, but allow click to still be handled if no movement
+      if (e.button !== 0) e.preventDefault();
     }
   }
   handleMouseMove(e) {
     if (!this.panning || this.view === 'free') return;
-    const rect = this.canvas.getBoundingClientRect();
     const dx = e.clientX - this.panStart.x;
     const dy = e.clientY - this.panStart.y;
+    if (!this.didDrag && Math.hypot(dx, dy) > 3) {
+      this.didDrag = true;
+      try { this.canvas.setPointerCapture?.(this.panButton); } catch {}
+    }
+    if (!this.didDrag) return;
     const mpp = this.metersPerPixel();
     // top: screen x -> world x, screen y -> world -z? up=(0,0,-1) means screen up is -z
     if (this.view === 'top') {
@@ -295,7 +303,19 @@ export class ViewManager {
     this.updateOrthoFrustum();
     this.emit();
   }
-  handleMouseUp() { this.panning = false; }
+  handleMouseUp(e) {
+    if (!this.panning) return;
+    this.panning = false;
+    this.panButton = -1;
+    // keep didDrag true briefly so click handler can ignore selection after drag
+    setTimeout(() => { this.didDrag = false; }, 0);
+  }
+
+  consumeDragFlag() {
+    const d = this.didDrag;
+    this.didDrag = false;
+    return d;
+  }
 
   screenToWorld(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
