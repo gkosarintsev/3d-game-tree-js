@@ -5,9 +5,9 @@
   "metadata": {
     "levelName": "level-18",
     "name": "Глава 18. Мост и съезд",
-    "hint": "Длинный мост со съездом посередине.",
+    "hint": "Длинный мост: расширение, полоса разгона и съезд вправо в конце.",
     "units": "meters",
-    "notes": "Пустой уровень: длинный мост, расширенный в середине полосой разгона (уширение полотна), дугообразный съезд начинается с полосы разгона; между полосой разгона и мостом ограждения нет (единое уширенное полотно без перил в зоне примыкания)."
+    "notes": "Пустой уровень (без домов): длинный мост ~20 м, плавное расширение до ~30 м на ~40 м, ~100 м полоса разгона при ширине ~30 м (единое полотно без внутреннего шва), в конце съезд с плавным поворотом вправо; линия примыкания съезда к полосе разгона перпендикулярна направлению моста. Все размеры примерные."
   },
   "ground": {
     "y": 0,
@@ -20,12 +20,12 @@
   "gameplay": {
     "goal": "exit",
     "spawn": {
-      "x": 70,
-      "z": 10
+      "x": -300,
+      "z": 0
     },
     "exit": {
-      "x": 220,
-      "z": 0
+      "x": 90,
+      "z": 75
     },
     "exitRadius": 4,
     "enemies": {
@@ -116,319 +116,123 @@
     "networks": {
       "roads": {
         "nodes": [
-          {
-            "id": "bw",
-            "position": [
-              -220,
-              8,
-              0
-            ],
-            "layer": "bridge_01"
-          },
-          {
-            "id": "j1",
-            "position": [
-              -70,
-              8,
-              0
-            ],
-            "layer": "bridge_01"
-          },
-          {
-            "id": "j2",
-            "position": [
-              -25,
-              8,
-              0
-            ],
-            "layer": "bridge_01"
-          },
-          {
-            "id": "j3",
-            "position": [
-              25,
-              8,
-              0
-            ],
-            "layer": "bridge_01"
-          },
-          {
-            "id": "j4",
-            "position": [
-              70,
-              8,
-              0
-            ],
-            "layer": "bridge_01"
-          },
-          {
-            "id": "be",
-            "position": [
-              220,
-              8,
-              0
-            ],
-            "layer": "bridge_01"
-          },
-          {
-            "id": "g1",
-            "position": [
-              55,
-              0,
-              65
-            ],
-            "layer": "ground"
-          },
-          {
-            "id": "g2",
-            "position": [
-              70,
-              0,
-              10
-            ],
-            "layer": "ground"
-          }
+          { "id": "n_start", "position": [-320, 8, 0], "layer": "bridge_01" },
+          { "id": "n_t1", "position": [-80, 8, 0], "layer": "bridge_01" },
+          { "id": "n_t2", "position": [-70, 8, 0], "layer": "bridge_01" },
+          { "id": "n_t3", "position": [-60, 8, 0], "layer": "bridge_01" },
+          { "id": "n_t4", "position": [-50, 8, 0], "layer": "bridge_01" },
+          { "id": "n_t5", "position": [-40, 8, 0], "layer": "bridge_01" },
+          { "id": "n_decel_end", "position": [60, 8, 0], "layer": "bridge_01" },
+          { "id": "n_end", "position": [320, 8, 0], "layer": "bridge_01" },
+          { "id": "n_exit_arc_end", "position": [90, 8, 45], "layer": "bridge_01" },
+          { "id": "n_exit_end", "position": [90, 8, 75], "layer": "bridge_01" }
         ],
         "segments": [
           {
-            "id": "bridge_w",
-            "from": "bw",
-            "to": "j1",
+            "id": "bridge_main_w",
+            "from": "n_start",
+            "to": "n_t1",
             "type": "highway",
             "layer": "bridge_01",
-            "path": [
-              [
-                -220,
-                8,
-                0
-              ],
-              [
-                -70,
-                8,
-                0
-              ]
-            ],
+            "path": [ [-320, 8, 0], [-80, 8, 0] ],
             "elements": [
-              {
-                "plate": {
-                  "rails": true,
-                  "x": -145,
-                  "z": 0,
-                  "yaw": 0,
-                  "length": 150,
-                  "width": 10,
-                  "y": 8,
-                  "rise": 0
-                }
-              }
+              { "plate": { "rails": true, "x": -200, "z": 0, "yaw": 0, "length": 240, "width": 20, "y": 8, "rise": 0 } }
             ],
             "lanes": []
           },
           {
-            "id": "bridge_taper_in",
-            "from": "j1",
-            "to": "j2",
+            "id": "bridge_taper_1",
+            "from": "n_t1",
+            "to": "n_t2",
             "type": "highway",
             "layer": "bridge_01",
-            "path": [
-              [
-                -70,
-                8,
-                0
-              ],
-              [
-                -25,
-                8,
-                0
-              ]
-            ],
+            "path": [ [-80, 8, 0], [-70, 8, 0] ],
             "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": -47.5,
-                  "z": 1.5,
-                  "yaw": 0,
-                  "length": 45,
-                  "width": 13,
-                  "y": 8,
-                  "rise": 0
-                }
-              }
+              { "plate": { "rails": true, "x": -75, "z": 1.25, "yaw": 0, "length": 10, "width": 22.5, "y": 8, "rise": 0 } }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "bridge_taper_2",
+            "from": "n_t2",
+            "to": "n_t3",
+            "type": "highway",
+            "layer": "bridge_01",
+            "path": [ [-70, 8, 0], [-60, 8, 0] ],
+            "elements": [
+              { "plate": { "rails": true, "x": -65, "z": 2.5, "yaw": 0, "length": 10, "width": 25, "y": 8, "rise": 0 } }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "bridge_taper_3",
+            "from": "n_t3",
+            "to": "n_t4",
+            "type": "highway",
+            "layer": "bridge_01",
+            "path": [ [-60, 8, 0], [-50, 8, 0] ],
+            "elements": [
+              { "plate": { "rails": true, "x": -55, "z": 3.75, "yaw": 0, "length": 10, "width": 27.5, "y": 8, "rise": 0 } }
+            ],
+            "lanes": []
+          },
+          {
+            "id": "bridge_taper_4",
+            "from": "n_t4",
+            "to": "n_t5",
+            "type": "highway",
+            "layer": "bridge_01",
+            "path": [ [-50, 8, 0], [-40, 8, 0] ],
+            "elements": [
+              { "plate": { "rails": true, "x": -45, "z": 5, "yaw": 0, "length": 10, "width": 30, "y": 8, "rise": 0 } }
             ],
             "lanes": []
           },
           {
             "id": "bridge_decel",
-            "from": "j2",
-            "to": "j3",
+            "from": "n_t5",
+            "to": "n_decel_end",
             "type": "highway",
             "layer": "bridge_01",
-            "path": [
-              [
-                -25,
-                8,
-                0
-              ],
-              [
-                25,
-                8,
-                0
-              ]
-            ],
+            "path": [ [-40, 8, 0], [60, 8, 0] ],
             "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 0,
-                  "z": 3,
-                  "yaw": 0,
-                  "length": 50,
-                  "width": 16,
-                  "y": 8,
-                  "rise": 0
-                }
-              }
+              { "plate": { "rails": true, "x": 10, "z": 5, "yaw": 0, "length": 100, "width": 30, "y": 8, "rise": 0 } }
             ],
             "lanes": []
           },
           {
-            "id": "bridge_taper_out",
-            "from": "j3",
-            "to": "j4",
+            "id": "bridge_main_e",
+            "from": "n_decel_end",
+            "to": "n_end",
             "type": "highway",
             "layer": "bridge_01",
-            "path": [
-              [
-                25,
-                8,
-                0
-              ],
-              [
-                70,
-                8,
-                0
-              ]
-            ],
+            "path": [ [60, 8, 0], [320, 8, 0] ],
             "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 47.5,
-                  "z": 1.5,
-                  "yaw": 0,
-                  "length": 45,
-                  "width": 13,
-                  "y": 8,
-                  "rise": 0
-                }
-              }
+              { "plate": { "rails": true, "x": 190, "z": 0, "yaw": 0, "length": 260, "width": 20, "y": 8, "rise": 0 } }
             ],
             "lanes": []
           },
           {
-            "id": "bridge_e",
-            "from": "j4",
-            "to": "be",
-            "type": "highway",
-            "layer": "bridge_01",
-            "path": [
-              [
-                70,
-                8,
-                0
-              ],
-              [
-                220,
-                8,
-                0
-              ]
-            ],
-            "elements": [
-              {
-                "plate": {
-                  "rails": true,
-                  "x": 145,
-                  "z": 0,
-                  "yaw": 0,
-                  "length": 150,
-                  "width": 10,
-                  "y": 8,
-                  "rise": 0
-                }
-              }
-            ],
-            "lanes": []
-          },
-          {
-            "id": "bridge_exit",
-            "from": "j3",
-            "to": "g1",
+            "id": "bridge_exit_arc",
+            "from": "n_decel_end",
+            "to": "n_exit_arc_end",
             "type": "ramp",
-            "layer": "embankment",
-            "path": [
-              [
-                0,
-                8,
-                10
-              ],
-              [
-                55,
-                0,
-                65
-              ]
-            ],
+            "layer": "bridge_01",
+            "path": [ [60, 8, 15], [90, 8, 45] ],
             "elements": [
-              {
-                "arc": {
-                  "cx": 0,
-                  "cz": 65,
-                  "radius": 55,
-                  "from": -90,
-                  "to": 0,
-                  "width": 6,
-                  "y": [
-                    8,
-                    0
-                  ],
-                  "bank": 0,
-                  "rails": true
-                }
-              }
+              { "arc": { "cx": 60, "cz": 45, "radius": 30, "from": -90, "to": 0, "width": 7, "y": [8, 8], "bank": 0, "rails": true } }
             ],
             "lanes": []
           },
           {
-            "id": "ground_link",
-            "from": "g1",
-            "to": "g2",
-            "type": "arterial",
-            "layer": "ground",
-            "path": [
-              [
-                55,
-                0,
-                65
-              ],
-              [
-                70,
-                0,
-                10
-              ]
-            ],
+            "id": "bridge_exit_run",
+            "from": "n_exit_arc_end",
+            "to": "n_exit_end",
+            "type": "ramp",
+            "layer": "bridge_01",
+            "path": [ [90, 8, 45], [90, 8, 75] ],
             "elements": [
-              {
-                "plate": {
-                  "rails": false,
-                  "x": 62.5,
-                  "z": 37.5,
-                  "yaw": 105.255,
-                  "length": 57.009,
-                  "width": 8,
-                  "y": 0,
-                  "rise": 0
-                }
-              }
+              { "plate": { "rails": true, "x": 90, "z": 60, "yaw": 90, "length": 30, "width": 7, "y": 8, "rise": 0 } }
             ],
             "lanes": []
           }
@@ -460,8 +264,35 @@
     "stages": [],
     "layers": [],
     "budgets": {},
-    "districts": [],
-    "profiles": {},
+    "districts": [
+      {
+        "id": "d0",
+        "type": "forest",
+        "profileId": "forest",
+        "geometry": {
+          "rect": {
+            "minX": -640,
+            "maxX": 640,
+            "minZ": -640,
+            "maxZ": 640
+          }
+        }
+      }
+    ],
+    "profiles": {
+      "forest": {
+        "buildings": {
+          "kinds": [],
+          "maxFloors": 0,
+          "materials": []
+        },
+        "parcels": {
+          "min": 80,
+          "max": 160,
+          "coverage": 0
+        }
+      }
+    },
     "catalogs": {},
     "refs": {},
     "policies": {},
