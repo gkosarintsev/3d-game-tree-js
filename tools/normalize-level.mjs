@@ -1360,10 +1360,14 @@ function normalizeRoadElements(road) {
       pushDeck(pl);
       continue;
     }
-    // Трапециевидная пластина: режем вдоль оси на мелкие прямые сегменты, чтобы
-    // ширина/центр менялись плавно (без ступеней). Очень мелкий шаг, чтобы
-    // уступ кромки был незаметен (плавное расширение).
-    const N = Math.max(4, Math.ceil(pl.length / 0.25), Math.ceil(Math.abs(W1 - W0) / 0.05), Math.ceil(Math.abs(C1 - C0) / 0.05));
+    // Трапециевидная пластина: режем вдоль оси на прямые сегменты с линейной
+    // интерполяцией ширины/центра/верха. Шаг ограничивает и длину сегмента, и
+    // изменение ширины/поперечного смещения, чтобы кромка оставалась гладкой без
+    // избыточной сегментации (каждый сегмент — отдельный дек/перила/навигация в рантайме).
+    const stepL = Math.max(0.05, J.taperStep ?? 1);
+    const stepW = Math.max(0.01, J.taperWidthStep ?? 0.25);
+    const stepC = Math.max(0.01, J.taperCrossStep ?? 0.25);
+    const N = Math.max(4, Math.ceil(pl.length / stepL), Math.ceil(Math.abs(W1 - W0) / stepW), Math.ceil(Math.abs(C1 - C0) / stepC));
     const rad = (pl.yaw ?? 0) * DEG;
     const ax = Math.cos(rad), az = Math.sin(rad); // ось вперёд (u)
     const cx = -Math.sin(rad), cz = Math.cos(rad); // поперёк (+v, local cross)
