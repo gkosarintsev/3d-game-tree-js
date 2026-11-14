@@ -1098,6 +1098,16 @@ export class WorldMap extends JsonMap {
     pump.costWorst.set(slice.label, prev === undefined ? ms : Math.max(prev, ms));
     if (!task.costTotal) task.costTotal = Object.create(null);
     task.costTotal[slice.label] = (task.costTotal[slice.label] || 0) + ms;
+    if (typeof globalThis !== 'undefined' && globalThis.__mapBuildProfile) {
+      const p = this.lastBuildProfile || (this.lastBuildProfile = {});
+      const ss = p.sliceStats || (p.sliceStats = Object.create(null));
+      const key = `${task.kind}:${slice.label}`;
+      const s = ss[key] || (ss[key] = { count: 0, totalMs: 0, maxMs: 0 });
+      s.count += 1;
+      s.totalMs += ms;
+      if (ms > s.maxMs) s.maxMs = ms;
+      globalThis.__lastMapBuildProfile = p;
+    }
     if (!task.slices.length) this._finishTask();
   }
 
