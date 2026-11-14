@@ -88,3 +88,10 @@ v4 (`kind: 'cityforge'`, `schemaVersion: 4`, манифест `generator`) пр�
 в open-каталог общим пайплайном, с коммитируемым `generation-report.json` для
 пилота. Текущее устройство и ограничения: [architecture-citygen.md](architecture-citygen.md),
 решения — [ADR-001](architecture/adr/ADR-001-v4-citygen-districts.md).
+
+## Визуализатор уровней (read-only dev tool)
+
+- Страница: `tools/level-visualizer.html` (ES-модули `tools/visualizer/*.js`, Three.js 0.160 importmap, без сборщика).
+- Читает исходный бриф `src/levels/level-NN.json` и собранный каталог `src/levels/level-NN/` (`index.js`, `chunk-*.l14b`, `skeleton.l14b`, `generation-report.json`); пайплайн/движок/форматы не меняет.
+- Режимы `source` / `compiled` / `compare`, виды top/front/side/free, происхождение authored/generated/derived/unknown, районы и диагностика из отчёта.
+- Чистая модель тестируется `node --test tools/visualizer/model.test.mjs`; подробности и ограничения — `tools/visualizer/README.md`.

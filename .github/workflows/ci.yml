@@ -46,6 +46,9 @@ jobs:
       - name: Сюита citygen v4 (IR/стадии, детерминизм/repair/report)
         run: node --test tools/citygen.test.mjs
 
+      - name: Сюита модели визуализатора уровней
+        run: node --test tools/visualizer/model.test.mjs
+
   browser:
     runs-on: ubuntu-latest
     container:
