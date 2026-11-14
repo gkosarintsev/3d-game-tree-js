@@ -45,12 +45,12 @@ export const LEVEL_18 = {
     },
     "exit": {
       "x": 90,
-      "z": 75
+      "z": 90
     },
     "exitRadius": 4,
     "goal": "exit"
   },
-  "hint": "Длинный мост: расширение, полоса разгона и съезд вправо в конце.",
+  "hint": "Длинный мост: подъём с земли, плавное расширение и полоса разгона, съезд вправо с спуском.",
   "map": {
     "bounds": {
       "maxX": 640,
@@ -64,9 +64,9 @@ export const LEVEL_18 = {
         "file": "chunk-0-0.l14b",
         "id": "0_0",
         "objects": {
-          "buildings": 3,
-          "props": 27,
-          "roads": 7
+          "buildings": 2,
+          "props": 36,
+          "roads": 6
         },
         "rect": {
           "maxX": 0,
@@ -79,9 +79,9 @@ export const LEVEL_18 = {
         "file": "chunk-0-1.l14b",
         "id": "0_1",
         "objects": {
-          "buildings": 1,
-          "props": 27,
-          "roads": 7
+          "buildings": 6,
+          "props": 36,
+          "roads": 6
         },
         "rect": {
           "maxX": 0,
@@ -94,9 +94,9 @@ export const LEVEL_18 = {
         "file": "chunk-1-0.l14b",
         "id": "1_0",
         "objects": {
-          "buildings": 6,
-          "props": 27,
-          "roads": 2
+          "buildings": 3,
+          "props": 37,
+          "roads": 4
         },
         "rect": {
           "maxX": 640,
@@ -109,9 +109,9 @@ export const LEVEL_18 = {
         "file": "chunk-1-1.l14b",
         "id": "1_1",
         "objects": {
-          "buildings": 3,
-          "props": 39,
-          "roads": 5
+          "buildings": 6,
+          "props": 43,
+          "roads": 7
         },
         "rect": {
           "maxX": 640,
@@ -146,7 +146,7 @@ export const LEVEL_18 = {
       "pads": []
     },
     "spawn": {
-      "x": -300,
+      "x": -510,
       "z": 0
     },
     "stream": {

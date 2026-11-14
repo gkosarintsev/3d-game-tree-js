@@ -1234,10 +1234,17 @@ export function roadCapsOf(road) {
     const pl = el?.plate;
     if (!pl) return;
     const rad = (pl.yaw ?? 0) * DEG, t = { x: Math.cos(rad), z: Math.sin(rad) };
+    const cross = { x: -Math.sin(rad), z: Math.cos(rad) };
+    const C0 = pl.crossStart ?? 0;
+    const C1 = pl.crossEnd ?? C0;
     for (const [side, s] of [['min', -1], ['max', 1]]) {
-      out.push({ x: r3(pl.x + t.x * s * pl.length / 2), z: r3(pl.z + t.z * s * pl.length / 2),
+      const cOff = side === 'min' ? C0 : C1;
+      out.push({
+        x: r3(pl.x + t.x * s * pl.length / 2 + cross.x * cOff),
+        z: r3(pl.z + t.z * s * pl.length / 2 + cross.z * cOff),
         top: side === 'min' ? pl.y : pl.y + (pl.rise ?? 0),
-        dx: t.x * s, dz: t.z * s, len: pl.length, i, side });
+        dx: t.x * s, dz: t.z * s, len: pl.length, i, side,
+      });
     }
   });
   return out;
@@ -1295,15 +1302,15 @@ export function bridgeNoses(roads, groundY, field) {
  * держит одна аналитическая призма, а не лестница коробок. Мировой габарит и
  * `obb` — только для сеток-индексов и миникарты; решение о высоте и твёрдости
  * принимает узкая фаза по осям полотна.
+ *
+ * Трапециевидная пластина (`widthEnd` / `crossStart` / `crossEnd`) разворачивается
+ * в ряд мелких прямых пластин с линейной интерполяцией ширины, поперечного
+ * смещения центра и отметки верха — так расширение/сужение получается плавным
+ * (без ступеней) и использует проверенную аналитику прямых пластин.
  */
 function normalizeRoadElements(road) {
   const decks = [];
-  for (const { el } of resolveRoadElements(road.elements)) {
-    if (el.arc) {
-      decks.push(normalizeArc(el.arc));
-      continue;
-    }
-    const pl = el.plate;
+  const pushDeck = (pl) => {
     const halfL = pl.length / 2, halfW = pl.width / 2;
     // кадр поворачивает вокруг центра пластины; при yaw 0 его нет вовсе, и
     // пластина идёт прежним быстрым путём AABB. План в её осях — тот же
@@ -1336,8 +1343,53 @@ function normalizeRoadElements(road) {
       ramp: Math.abs(topHi - topLo) > J.rampEps,
       rails: !!pl.rails,
     });
+  };
+
+  for (const { el } of resolveRoadElements(road.elements)) {
+    if (el.arc) {
+      decks.push(normalizeArc(el.arc));
+      continue;
+    }
+    const pl = el.plate;
+    const W0 = pl.width;
+    const W1 = pl.widthEnd ?? pl.width;
+    const C0 = pl.crossStart ?? 0;
+    const C1 = pl.crossEnd ?? C0;
+    const tapered = Math.abs(W1 - W0) > 1e-6 || Math.abs(C1 - C0) > 1e-6;
+    if (!tapered) {
+      pushDeck(pl);
+      continue;
+    }
+    // Трапециевидная пластина: режем вдоль оси на мелкие прямые сегменты, чтобы
+    // ширина/центр менялись плавно (без ступеней). Очень мелкий шаг, чтобы
+    // уступ кромки был незаметен (плавное расширение).
+    const N = Math.max(4, Math.ceil(pl.length / 0.25), Math.ceil(Math.abs(W1 - W0) / 0.05), Math.ceil(Math.abs(C1 - C0) / 0.05));
+    const rad = (pl.yaw ?? 0) * DEG;
+    const ax = Math.cos(rad), az = Math.sin(rad); // ось вперёд (u)
+    const cx = -Math.sin(rad), cz = Math.cos(rad); // поперёк (+v, local cross)
+    const L = pl.length;
+    const rise = pl.rise ?? 0;
+    for (let i = 0; i < N; i++) {
+      const t0 = i / N, t1 = (i + 1) / N;       // 0..1 от начала к концу
+      const tm = (t0 + t1) / 2;
+      const uMid = (tm - 0.5) * L;               // смещение вдоль оси от центра
+      const w = W0 + (W1 - W0) * tm;
+      const cross = C0 + (C1 - C0) * tm;
+      const y0 = r3(pl.y + rise * t0);
+      const y1 = r3(pl.y + rise * t1);
+      pushDeck({
+        x: r3(pl.x + ax * uMid + cx * cross),
+        z: r3(pl.z + az * uMid + cz * cross),
+        yaw: pl.yaw ?? 0,
+        length: r3(L / N),
+        width: r3(w),
+        y: y0,
+        rise: r3(y1 - y0),
+        rails: !!pl.rails,
+      });
+    }
   }
-  const width = road.width ?? Math.max(...decks.map(d => d.width));
+  const width = road.width ?? Math.max(...decks.map(d => d.width || 0), 0);
   return {
     id: road.id,
     type: road.type,

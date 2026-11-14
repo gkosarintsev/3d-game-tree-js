@@ -63,7 +63,7 @@
       "profileId": "forest",
       "cells": 0,
       "parcels": 121,
-      "reservedParcels": 7
+      "reservedParcels": 10
     }
   ],
   "diagnostics": [
@@ -107,8 +107,8 @@
       "code": "road_graph",
       "stage": "2_transport",
       "message": "road graph summary",
-      "nodes": 10,
-      "segments": 9,
+      "nodes": 11,
+      "segments": 10,
       "components": 1
     },
     {
@@ -122,8 +122,8 @@
       "code": "transport_passthrough",
       "stage": "2_transport",
       "message": "stage 2 using provided road network (procedural generation pending)",
-      "nodes": 10,
-      "segments": 9
+      "nodes": 11,
+      "segments": 10
     },
     {
       "severity": "info",
@@ -154,7 +154,7 @@
       "code": "buildings_generated",
       "stage": "4_buildings_structures",
       "message": "generated buildings from parcels",
-      "count": 12,
+      "count": 15,
       "budget": 420,
       "skippedConflict": 0
     },
@@ -202,34 +202,34 @@
         "grid": 2,
         "total": 4
       },
-      "roadNodes": 10,
-      "roadSegments": 9,
+      "roadNodes": 11,
+      "roadSegments": 10,
       "roadComponents": 1,
-      "roadGraphNodes": 10,
+      "roadGraphNodes": 11,
       "districts": 1,
       "districtTypes": [
         "forest"
       ],
       "parcels": 121,
-      "reservedParcels": 7,
+      "reservedParcels": 10,
       "parcelAccess": {
-        "near": 8,
-        "mid": 13,
-        "far": 100
+        "near": 10,
+        "mid": 21,
+        "far": 90
       },
       "roadAccessByType": {},
-      "buildings": 12,
+      "buildings": 15,
       "buildingsByDistrictType": {
-        "forest": 12
+        "forest": 15
       },
       "lights": 0,
       "props": 0,
       "chunkLoad": {
         "nonEmptyChunks": 4,
-        "maxBuildings": 5,
+        "maxBuildings": 6,
         "maxProps": 0,
         "maxLights": 0,
-        "avgBuildings": 3,
+        "avgBuildings": 3.75,
         "avgProps": 0
       }
     },
