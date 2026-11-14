@@ -25,6 +25,11 @@ export class ViewManager {
     this.controls = new OrbitControls(this.persp, canvas);
     this.controls.enableDamping = false;
     this.controls.screenSpacePanning = true;
+    this.controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN,
+    };
     this.controls.enabled = false;
 
     this.target = new THREE.Vector3(0, model?.meta?.plate?.groundY || 0, 0);
